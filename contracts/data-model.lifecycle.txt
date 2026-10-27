@@ -20,3 +20,7 @@ company_profiles :: record
 job_radars :: record
 # claim_events.note is user-authored prose that survives user erasure
 # (user_id nulls): the erasure path scrubs it on that transition.
+organization_aliases :: record
+organization_match_exclusions :: record
+organization_match_pairs :: operational
+organization_merge_suggestions :: record

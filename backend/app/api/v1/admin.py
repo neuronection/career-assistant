@@ -369,10 +369,11 @@ async def add_organization_alias(
     from app.services.catalog.organization_service import OrganizationService
 
     try:
-        org = await OrganizationService(db).add_alias(org_id, str(payload.get("alias") or ""))
+        service = OrganizationService(db)
+        org = await service.add_alias(org_id, str(payload.get("alias") or ""))
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return {"id": str(org.id), "aliases": org.aliases or []}
+    return {"id": str(org.id), "aliases": await service.org_aliases(org_id)}
 
 
 @router.post("/organizations/{org_id}/merge", response_model=dict)
@@ -385,23 +386,27 @@ async def merge_organization(
     from app.services.catalog.organization_service import OrganizationService
 
     try:
+        service = OrganizationService(db)
         target_id = uuid.UUID(str(payload.get("target_id")))
-        org = await OrganizationService(db).merge(org_id, target_id)
+        org = await service.merge(org_id, target_id)
     except (ValueError, DomainError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return {
         "id": str(org.id),
         "status": org.status,
-        "aliases": org.aliases or [],
+        "aliases": await service.org_aliases(org.id),
     }
 
 
 @router.post("/organizations/backfill", response_model=dict)
 async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
-    """Run the matcher over postings ingested before it existed."""
+    """Run the current matcher over unjudged postings + experience items."""
     from app.services.catalog.organization_service import OrganizationService
 
-    return await OrganizationService(db).backfill_postings()
+    service = OrganizationService(db)
+    postings = await service.backfill_postings()
+    experience = await service.backfill_experience_items()
+    return {"postings": postings, "experience": experience}
 
 
 @router.put("/companies/{key}", response_model=CompanyDetailOut)

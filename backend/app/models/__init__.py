@@ -50,6 +50,10 @@ from app.models.experience_model import (
     ExperienceItem,
     ExperienceSkill,
     Organization,
+    OrganizationAlias,
+    OrganizationMatchExclusion,
+    OrganizationMatchPair,
+    OrganizationMergeSuggestion,
     SkillEvidence,
 )
 from app.models.extension_model import ExtensionInstall, ExtensionSource
@@ -173,6 +177,10 @@ __all__ = [
     "NotificationRule",
     "NotificationSubscription",
     "Organization",
+    "OrganizationAlias",
+    "OrganizationMatchExclusion",
+    "OrganizationMatchPair",
+    "OrganizationMergeSuggestion",
     "PostingInteraction",
     "PostingSkill",
     "Profile",

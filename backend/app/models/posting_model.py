@@ -198,6 +198,7 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True, index=True
     )
+    org_match: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     location: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     # hot fields as columns (postings is the high-volume table).

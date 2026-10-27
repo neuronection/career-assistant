@@ -1,9 +1,11 @@
 """slice 3 — organizations: matcher, lifecycle, merge, admin."""
 
+import pytest
 from sqlalchemy import select
 
-from app.models.experience_model import Organization
+from app.models.experience_model import Organization, OrganizationMatchPair
 from app.models.posting_model import JobPosting
+from app.services.catalog.company_names import name_key
 from app.services.catalog.organization_service import (
     MATCH_THRESHOLD,
     OrganizationService,
@@ -26,15 +28,15 @@ def test_trigram_similarity_is_dialect_free():
 
 
 async def test_legal_suffixes_normalize_to_one_org(db, auth_headers, seeded_catalog):
-    from app.services.catalog.organization_service import _canonical
+    from app.services.catalog.company_names import canonical
 
-    assert _canonical("Acme Cloud GmbH") == _canonical("acme cloud ltd")
+    assert canonical("Acme Cloud GmbH") == canonical("acme cloud ltd")
     service = OrganizationService(db)
     org, _created = await service.find_or_propose("Acme Cloud")
     variant, created_variant = await service.find_or_propose("Acme Cloud GmbH")
     assert org.id == variant.id
     assert not created_variant
-    assert "Acme Cloud GmbH" in (org.aliases or [])
+    assert "Acme Cloud GmbH" in await service.org_aliases(org.id)
 
 
 async def test_find_or_propose_exact_alias_and_fuzzy(db, auth_headers, seeded_catalog):
@@ -47,10 +49,75 @@ async def test_find_or_propose_exact_alias_and_fuzzy(db, auth_headers, seeded_ca
 
     fuzzy, created_fuzzy = await service.find_or_propose("Acme Cloud GmbH")
     assert fuzzy.id == org.id and not created_fuzzy
-    assert "Acme Cloud GmbH" in (fuzzy.aliases or []), "variant labels fold into aliases for audit"
+    assert "Acme Cloud GmbH" in await service.org_aliases(fuzzy.id), (
+        "variant labels fold into alias rows for audit"
+    )
 
     distinct, _ = await service.find_or_propose("Beta Industries")
     assert distinct.id != org.id
+
+
+async def test_quality_gate_rejects_junk_labels(db, seeded_catalog):
+    service = OrganizationService(db)
+    for junk in ("Confidential", "12345", "A", "a leading company"):
+        org, created = await service.find_or_propose(junk)
+        assert org is None and not created, f"{junk} must not create an organization"
+    rows = (await db.execute(select(Organization))).scalars().all()
+    assert not rows, "the gate ran before any creation"
+
+
+async def test_pg_initialism_variants_stay_one_org_via_keys(db, seeded_catalog):
+    service = OrganizationService(db)
+    org, created = await service.find_or_propose("Procter & Gamble")
+    assert created
+    org2, created2 = await service.find_or_propose("Procter & Gamble GmbH")
+    assert org2.id == org.id and not created2, "suffix variant folds via name_key"
+    assert org.initials_key == "pg"
+
+
+async def test_initials_guard_sends_bare_initialisms_to_gray_band(db, seeded_catalog):
+    service = OrganizationService(db)
+    org, _ = await service.find_or_propose("Procter & Gamble")
+    await db.commit()
+    org2, created = await service.find_or_propose("PG")
+    assert org2 is None and not created, "initials never decide alone"
+    pairs = (await db.execute(select(OrganizationMatchPair))).scalars().all()
+    assert len(pairs) == 1 and pairs[0].org_id == org.id, "the gray band recorded the pair"
+    assert pairs[0].status == "pending"
+
+
+async def test_pair_exclusion_redirects_a_near_miss_to_create(db, seeded_catalog):
+    from app.models.experience_model import OrganizationMatchExclusion
+
+    service = OrganizationService(db)
+    org, _ = await service.find_or_propose("Global Solutions")
+    near_miss, created = await service.find_or_propose("Global Solutions Group")
+    if near_miss is not None and not created:
+        pytest.fail("near-miss auto-linked; the corpus needs a gray-band pair")
+    label_key = name_key("Global Solutions Group")
+    db.add(
+        OrganizationMatchExclusion(
+            label="Global Solutions Group",
+            label_key=label_key,
+            org_id=org.id,
+            source="dismiss",
+            reason="never links",
+        )
+    )
+    await db.commit()
+    service._index = None
+    org2, created2 = await service.find_or_propose("Global Solutions Group")
+    assert created2 and org2.id != org.id, "the pair exclusion pushes the label to create"
+
+    db.add(
+        OrganizationMatchExclusion(
+            label="Not A Company", label_key=name_key("Not A Company"), source="manual"
+        )
+    )
+    await db.commit()
+    service._index = None
+    org3, _ = await service.find_or_propose("Not A Company")
+    assert org3 is None, "a global label exclusion rejects before every step"
 
 
 async def test_upsert_posting_attaches_org(db, seeded_catalog, source):
@@ -87,16 +154,19 @@ async def test_backfill_endpoint(
     posting = await _make_posting(db, source)
     assert posting.org_id is not None, "ingest attaches automatically now"
     posting.org_id = None
+    posting.org_match = None
     await db.commit()
     response = await client.post(
         "/api/v1/admin/organizations/backfill", headers=client_admin_headers
     )
     assert response.status_code == 200, response.text
     body = response.json()
-    assert body["matched"] >= 1
+    assert body["postings"]["matched"] >= 1
+    assert "experience" in body
 
     await db.refresh(posting)
     assert posting.org_id is not None
+    assert (posting.org_match or {}).get("state") == "linked"
 
 
 async def test_admin_lifecycle_promote_alias_merge(
@@ -104,7 +174,7 @@ async def test_admin_lifecycle_promote_alias_merge(
 ):
     service = OrganizationService(db)
     org, _ = await service.find_or_propose("Gamma Labs")
-    dup, _ = await service.find_or_propose("Gamma Laboratories Ltd")
+    dup, _ = await service.find_or_propose("Delta Freight")
     await db.commit()
     posting = await _make_posting(db, source)
     posting.org_id = dup.id
@@ -152,7 +222,7 @@ async def test_admin_lifecycle_promote_alias_merge(
     assert dup.status == "deprecated"
     assert dup.provenance["merged_into"] == str(org.id)
     assert posting.org_id == org.id, "references re-point to the survivor"
-    assert "Gamma Laboratories Ltd" in (org.aliases or [])
+    assert "Delta Freight" in await service.org_aliases(org.id)
     assert org.status == "active"
 
     self_merge = await client.post(

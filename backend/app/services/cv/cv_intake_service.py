@@ -677,24 +677,12 @@ class CvIntakeService:
         return profile
 
     async def _resolve_org(self, name: str) -> Organization | None:
-        if not name.strip():
-            return None
-        rows = await self.db.execute(
-            select(Organization)
-            .where(func.lower(Organization.name) == name.strip().lower())
-            .limit(1)
+        """One matcher for every caller (plan 135 decision 12)."""
+        from app.services.catalog.organization_service import OrganizationService
+
+        org, _created = await OrganizationService(self.db).find_or_propose(
+            (name or "").strip(), provenance={"source": "cv_parse"}
         )
-        org = rows.scalars().first()
-        if org is not None:
-            return org
-        org = Organization(
-            key=_slug(name),
-            name=name.strip()[:200],
-            status="proposed",
-            provenance={"source": "cv_parse"},
-        )
-        self.db.add(org)
-        await self.db.flush()
         return org
 
     async def _create_experience(

@@ -1,62 +1,62 @@
 """Organizations service: matcher, lifecycle, merge.
 
 Postings and experience items create/propose organizations on ingest;
-this module owns the matcher that keeps the entity deduplicated — exact
-slug, then case-insensitive name/alias, then dialect-safe pure-Python
-trigram similarity (the target-mode precedent, never pg_trgm so
-desktop SQLite behaves identically). Lifecycle mirrors skills (21):
-proposed → active via admin promotion, duplicates merged (references
-re-pointed, aliases folded, loser deprecated — never deleted).
+this module owns the matcher that keeps the entity deduplicated — one
+pipeline for every caller (plan 135 decision 12): quality gate →
+exclusions → exact keys (slug/alias/initials/domain) → blocked fuzzy →
+gray band. The gray band records a pending pair row (the AI arbiter's
+queue, plan 135 slice B); nothing auto-links without strong evidence.
+Lifecycle mirrors skills (21): proposed → active via admin promotion,
+duplicates merged (references re-pointed, aliases folded as rows, loser
+deprecated — never deleted).
 """
 
 import re
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.errors import NotFoundError, ValidationError
 from app.models.company_model import CompanyProfile
-from app.models.experience_model import Organization
+from app.models.enums import (
+    OrgAliasSource,
+    OrgAliasState,
+    OrgMatchState,
+    OrgPairStatus,
+    OrgStatus,
+    OrgSuggestionStatus,
+)
+from app.models.experience_model import (
+    ExperienceItem,
+    Organization,
+    OrganizationAlias,
+    OrganizationMatchExclusion,
+    OrganizationMatchPair,
+    OrganizationMergeSuggestion,
+)
 from app.models.posting_model import JobPosting
+from app.models.settings_model import AppSetting
+from app.services.catalog.company_names import (
+    alias_key,
+    initials_key,
+    name_key,
+    quality_ok,
+    url_company_signal,
+)
 
 TRIGRAM = re.compile(r"[a-z0-9]+")
-# Corporate/legal suffixes dropped before comparison — "Acme Cloud GmbH"
-# and "Acme Cloud" are the same employer everywhere.
-LEGAL_SUFFIXES = {
-    "gmbh",
-    "mbh",
-    "ag",
-    "kg",
-    "ohg",
-    "ltd",
-    "limited",
-    "llc",
-    "inc",
-    "incorporated",
-    "corp",
-    "corporation",
-    "co",
-    "company",
-    "sa",
-    "sas",
-    "srl",
-    "spa",
-    "bv",
-    "nv",
-    "plc",
-    "oy",
-    "ab",
-    "as",
-    "pty",
-}
-# Jaccard overlap on padded token trigrams; above this, names merge.
-MATCH_THRESHOLD = 0.82
 
-
-def _canonical(name: str) -> str:
-    tokens = [token for token in TRIGRAM.findall(name.lower()) if token not in LEGAL_SUFFIXES]
-    return " ".join(tokens)
+# Fuzzy layer thresholds; DB-overridable via the AppSetting row
+# "organization_match_thresholds" ({match, gray_low, llm_auto}) — the
+# rules surface edits it, these are the fallback constants.
+MATCH_THRESHOLD = 0.9
+GRAY_BAND_LOW = 0.45
+LLM_AUTO = 0.95
+INITIALS_FLOOR = 0.82
+THRESHOLDS_SETTING_KEY = "organization_match_thresholds"
 
 
 def _trigrams(text: str) -> set[str]:
@@ -68,10 +68,67 @@ def _trigrams(text: str) -> set[str]:
 
 
 def trigram_similarity(a: str, b: str) -> float:
+    """Jaccard overlap on padded token trigrams (dialect-safe by design)."""
     ga, gb = _trigrams(a), _trigrams(b)
     if not ga or not gb:
         return 0.0
     return len(ga & gb) / len(ga | gb)
+
+
+@dataclass
+class MatchDecision:
+    """The matcher's outcome for one raw label (the org_match basis)."""
+
+    kind: str
+    org: Organization | None = None
+    candidate: Organization | None = None
+    layer: str = ""
+    score: float = 0.0
+    matched_on: str = ""
+    reason: str = ""
+
+    def provenance(self) -> dict:
+        return {
+            "layer": self.layer,
+            "score": round(self.score, 4),
+            "matched_on": self.matched_on,
+        }
+
+
+class _CandidateIndex:
+    """One sync-batch's worth of matchable orgs, loaded once.
+
+    Exact lookups run over these dicts; the fuzzy layer scans only the
+    trigram/initials-blocked subset — never all-vs-all. Orgs created
+    through the service register here so the same batch links instead of
+    re-creating.
+    """
+
+    def __init__(self) -> None:
+        self.orgs: list[Organization] = []
+        self.by_key: dict[str, list[Organization]] = {}
+        self.by_name_key: dict[str, list[Organization]] = {}
+        self.by_initials: dict[str, list[Organization]] = {}
+        self.by_domain: dict[str, Organization] = {}
+        self.alias_keys_by_org: dict[UUID, list[str]] = {}
+        self.excluded_labels: set[str] = set()
+        self.excluded_pairs: set[tuple[str, UUID]] = set()
+
+    def register(self, org: Organization, alias_keys: list[str]) -> None:
+        self.orgs.append(org)
+        self.by_key.setdefault(org.key, []).append(org)
+        self.alias_keys_by_org[org.id] = list(alias_keys)
+        for key in {org.name_key, *alias_keys}:
+            if key:
+                self.by_name_key.setdefault(key, []).append(org)
+        if org.initials_key:
+            self.by_initials.setdefault(org.initials_key, []).append(org)
+        if org.domain:
+            self.by_domain.setdefault(org.domain.lower(), org)
+
+    def add_alias_key(self, org: Organization, key: str) -> None:
+        self.alias_keys_by_org.setdefault(org.id, []).append(key)
+        self.by_name_key.setdefault(key, []).append(org)
 
 
 class OrganizationService:
@@ -79,99 +136,408 @@ class OrganizationService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self._index: _CandidateIndex | None = None
+        self._thresholds: dict[str, float] | None = None
 
-    async def _candidates(self) -> list[Organization]:
-        rows = await self.db.execute(
-            select(Organization).where(Organization.status != "deprecated")
+    async def _candidate_index(self) -> _CandidateIndex:
+        if self._index is not None:
+            return self._index
+        index = _CandidateIndex()
+        orgs = list(
+            (
+                await self.db.execute(
+                    select(Organization).where(Organization.status != OrgStatus.DEPRECATED.value)
+                )
+            )
+            .scalars()
+            .all()
         )
-        return list(rows.scalars().all())
+        alias_rows: list[OrganizationAlias] = []
+        if orgs:
+            alias_rows = list(
+                (
+                    await self.db.execute(
+                        select(OrganizationAlias).where(
+                            OrganizationAlias.org_id.in_([org.id for org in orgs]),
+                            OrganizationAlias.state == OrgAliasState.ACTIVE.value,
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+        aliases_by_org: dict[UUID, list[str]] = {}
+        for row in alias_rows:
+            aliases_by_org.setdefault(row.org_id, []).append(row.alias_key)
+        for org in orgs:
+            index.register(org, aliases_by_org.get(org.id, []))
+        exclusions = (await self.db.execute(select(OrganizationMatchExclusion))).scalars().all()
+        for exclusion in exclusions:
+            if exclusion.org_id is None:
+                index.excluded_labels.add(exclusion.label_key)
+            else:
+                index.excluded_pairs.add((exclusion.label_key, exclusion.org_id))
+        self._index = index
+        return index
 
-    def _best_match(
-        self, name: str, candidates: list[Organization]
-    ) -> tuple[Organization, float] | None:
-        """Exact slug → canonical name/alias equality → best trigram ≥
-        threshold, all compared on the legal-suffix-stripped form."""
+    async def _threshold_values(self) -> dict[str, float]:
+        if self._thresholds is not None:
+            return self._thresholds
+        row = (
+            await self.db.execute(
+                select(AppSetting).where(AppSetting.key == THRESHOLDS_SETTING_KEY)
+            )
+        ).scalar_one_or_none()
+        data = dict(row.value or {}) if row is not None else {}
+        self._thresholds = {
+            "match": float(data.get("match", MATCH_THRESHOLD)),
+            "gray_low": float(data.get("gray_low", GRAY_BAND_LOW)),
+            "llm_auto": float(data.get("llm_auto", LLM_AUTO)),
+        }
+        return self._thresholds
+
+    async def _tie_break(self, orgs: list[Organization]) -> Organization:
+        """Deterministic winner when several orgs claim one key:
+        active > proposed, then most live postings, then oldest."""
+        if len(orgs) == 1:
+            return orgs[0]
+        actives = [org for org in orgs if org.status == OrgStatus.ACTIVE.value]
+        pool = actives or orgs
+        if len(pool) == 1:
+            return pool[0]
+        counts = dict(
+            (
+                await self.db.execute(
+                    select(JobPosting.org_id, func.count())
+                    .where(JobPosting.org_id.in_([org.id for org in pool]))
+                    .group_by(JobPosting.org_id)
+                )
+            ).all()
+        )
+        return max(
+            pool,
+            key=lambda org: (int(counts.get(org.id, 0)), -org.created_at.timestamp()),
+        )
+
+    async def _resolve_link(self, label: str, url: str | None = None) -> MatchDecision:
+        """The layered matcher: quality → exclusions → exact → fuzzy → gray."""
+        label = (label or "").strip()
+        index = await self._candidate_index()
+        thresholds = await self._threshold_values()
+
+        def allowed(org: Organization) -> bool:
+            return (name_key(label), org.id) not in index.excluded_pairs
+
+        reason = quality_ok(label)
+        if reason is not None:
+            return MatchDecision(kind="reject", layer="quality", reason=reason)
+        label_key = name_key(label)
+        if label_key in index.excluded_labels:
+            return MatchDecision(kind="reject", layer="exclusion", reason="excluded_label")
+
+        signal = url_company_signal(url)
+        if signal is not None:
+            domain_org = index.by_domain.get(signal["domain"])
+            if domain_org is not None and allowed(domain_org):
+                return MatchDecision(
+                    kind="link",
+                    org=domain_org,
+                    layer="domain",
+                    score=1.0,
+                    matched_on=f"domain:{signal['domain']}",
+                )
+
         from app.services.profile.experience_service import slugify_org
 
-        key = slugify_org(name)
-        canonical = _canonical(name)
-        best: tuple[Organization, float] | None = None
-        for candidate in candidates:
-            names = [candidate.name, *(candidate.aliases or [])]
-            if candidate.key == key:
-                return candidate, 1.0
-            if any(_canonical(alias) == canonical for alias in names):
-                return candidate, 1.0
-            score = max(trigram_similarity(canonical, _canonical(alias)) for alias in names)
-            if score >= MATCH_THRESHOLD and (best is None or score > best[1]):
-                best = (candidate, score)
-        return best
+        slug = slugify_org(label)
+        key_hits = [org for org in index.by_key.get(slug, []) if allowed(org)]
+        if key_hits:
+            return MatchDecision(
+                kind="link", org=key_hits[0], layer="key", score=1.0, matched_on="key"
+            )
+
+        alias_hits = [org for org in index.by_name_key.get(label_key, []) if allowed(org)]
+        if alias_hits:
+            winner = await self._tie_break(alias_hits)
+            return MatchDecision(
+                kind="link", org=winner, layer="alias", score=1.0, matched_on="alias"
+            )
+
+        label_initials = initials_key(label)
+        if label_initials:
+            initials_hits = [
+                org for org in index.by_initials.get(label_initials, []) if allowed(org)
+            ]
+            if initials_hits:
+                candidate = await self._tie_break(initials_hits)
+                corroborated = (
+                    signal is not None
+                    and candidate.domain is not None
+                    and candidate.domain.lower() == signal["domain"]
+                )
+                if corroborated:
+                    return MatchDecision(
+                        kind="link",
+                        org=candidate,
+                        layer="initials",
+                        score=thresholds["match"],
+                        matched_on="initials+domain",
+                    )
+                return MatchDecision(
+                    kind="gray",
+                    candidate=candidate,
+                    layer="initials",
+                    score=INITIALS_FLOOR,
+                    matched_on="initials",
+                    reason="initials_need_corroboration",
+                )
+
+        label_grams = _trigrams(label_key)
+        blocked: list[tuple[Organization, float]] = []
+        for org in index.orgs:
+            if not allowed(org):
+                continue
+            keys = [org.name_key, *index.alias_keys_by_org.get(org.id, [])]
+            best = 0.0
+            for key in keys:
+                if not key:
+                    continue
+                shares_block = bool(_trigrams(key) & label_grams) or (
+                    bool(label_initials) and org.initials_key == label_initials
+                )
+                if not shares_block:
+                    continue
+                best = max(best, trigram_similarity(label_key, key))
+            if best > 0:
+                blocked.append((org, best))
+        if blocked:
+            blocked.sort(key=lambda pair: (-pair[1], pair[0].created_at.timestamp()))
+            best_org, best_score = blocked[0]
+            if best_score >= thresholds["match"]:
+                return MatchDecision(
+                    kind="link",
+                    org=best_org,
+                    layer="fuzzy",
+                    score=best_score,
+                    matched_on="fuzzy",
+                )
+            if best_score >= thresholds["gray_low"]:
+                return MatchDecision(
+                    kind="gray",
+                    candidate=best_org,
+                    layer="fuzzy",
+                    score=best_score,
+                    matched_on="fuzzy",
+                    reason="gray_band",
+                )
+
+        return MatchDecision(kind="create", layer="create", score=0.0, matched_on="no_match")
 
     async def resolve(self, name: str) -> Organization | None:
         """The org a raw label belongs to (None when nothing matches)."""
-        name = (name or "").strip()
-        if not name:
-            return None
-        match = self._best_match(name, await self._candidates())
-        return match[0] if match else None
+        decision = await self._resolve_link(name)
+        return decision.org
 
     async def find_or_propose(
-        self, name: str, *, provenance: dict | None = None
-    ) -> tuple[Organization, bool]:
-        """Matcher-first find-or-propose (never duplicates on ingest)."""
-        name = (name or "").strip()
-        if not name:
-            raise ValidationError("Organization name is required")
-        match = self._best_match(name, await self._candidates())
-        if match is not None:
-            org = match[0]
-            if (
-                name.strip().lower() not in {alias.strip().lower() for alias in (org.aliases or [])}
-                and name.strip().lower() != (org.name or "").strip().lower()
-            ):
-                org.aliases = [*(org.aliases or []), name.strip()[:200]]
-            return org, False
+        self,
+        name: str,
+        *,
+        url: str | None = None,
+        provenance: dict | None = None,
+    ) -> tuple[Organization | None, bool]:
+        """Matcher-first find-or-propose (never duplicates on ingest).
+
+        Returns (None, False) for gray-band and rejected labels — the gray
+        band records a pending pair row, junk creates nothing.
+        """
+        decision = await self._resolve_link(name, url)
+        if decision.kind == "link" and decision.org is not None:
+            await self._learn_alias(decision.org, (name or "").strip())
+            return decision.org, False
+        if decision.kind == "create":
+            return await self._create_org((name or "").strip(), provenance, url), True
+        if decision.kind == "gray":
+            await self._record_pending_pair((name or "").strip(), decision, url)
+        return None, False
+
+    async def _learn_alias(self, org: Organization, label: str) -> None:
+        """Persist a matched variant as an alias row (idempotent; excluded stays)."""
+        label = (label or "").strip()[:200]
+        if not label or label.lower() == (org.name or "").strip().lower():
+            return
+        key = alias_key(label)
+        if not key:
+            return
+        existing = (
+            await self.db.execute(
+                select(OrganizationAlias).where(
+                    OrganizationAlias.org_id == org.id,
+                    OrganizationAlias.alias_key == key,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            return
+        self.db.add(
+            OrganizationAlias(
+                org_id=org.id,
+                alias=label,
+                alias_key=key,
+                source=OrgAliasSource.LEARNED.value,
+            )
+        )
+        await self.db.flush()
+        if self._index is not None:
+            self._index.add_alias_key(org, key)
+
+    async def _key_exists(self, key: str) -> bool:
+        row = (
+            await self.db.execute(select(Organization.id).where(Organization.key == key).limit(1))
+        ).scalar_one_or_none()
+        return row is not None
+
+    async def _create_org(
+        self, label: str, provenance: dict | None, url: str | None
+    ) -> Organization:
         from app.services.profile.experience_service import slugify_org
 
+        label = (label or "").strip()[:200]
+        base = slugify_org(label)
+        key = base
+        suffix = 2
+        while await self._key_exists(key):
+            key = f"{base}-{suffix}"
+            suffix += 1
+        signal = url_company_signal(url)
         org = Organization(
-            key=slugify_org(name),
-            name=name[:200],
-            status="proposed",
+            key=key,
+            name=label,
+            status=OrgStatus.PROPOSED.value,
             provenance=provenance or {},
+            name_key=name_key(label),
+            initials_key=initials_key(label),
+            domain=signal["domain"] if signal is not None else None,
         )
         self.db.add(org)
         await self.db.flush()
-        return org, True
+        if self._index is not None:
+            self._index.register(org, [])
+        return org
+
+    async def _record_pending_pair(
+        self, label: str, decision: MatchDecision, url: str | None
+    ) -> None:
+        """Enqueue one gray-band label/candidate pair for the arbiter."""
+        if decision.candidate is None:
+            return
+        label = (label or "").strip()[:200]
+        label_key = name_key(label)
+        existing = (
+            await self.db.execute(
+                select(OrganizationMatchPair).where(
+                    OrganizationMatchPair.label_key == label_key,
+                    OrganizationMatchPair.org_id == decision.candidate.id,
+                )
+            )
+        ).scalar_one_or_none()
+        signal = url_company_signal(url) or {}
+        evidence = {"domain": signal.get("domain"), "slug": signal.get("slug")}
+        if existing is not None:
+            if existing.status == OrgPairStatus.PENDING.value:
+                existing.evidence = {**(existing.evidence or {}), **evidence}
+            return
+        self.db.add(
+            OrganizationMatchPair(
+                label=label,
+                label_key=label_key,
+                org_id=decision.candidate.id,
+                evidence=evidence,
+                status=OrgPairStatus.PENDING.value,
+            )
+        )
+        await self.db.flush()
 
     async def attach_to_posting(self, posting: JobPosting) -> None:
-        """Match the raw label → org_id (ingest hook; raw kept for audit)."""
-        if not (posting.org or "").strip():
+        """Match the raw label → org_id (ingest hook; raw + provenance kept)."""
+        label = (posting.org or "").strip()
+        if not label:
             return
-        org, _created = await self.find_or_propose(
-            posting.org, provenance={"source": "posting", "posting_id": str(posting.id)}
-        )
-        posting.org_id = org.id
-
-    async def backfill_postings(self) -> dict:
-        """Attach orgs to postings ingested before the matcher existed."""
-        rows = await self.db.execute(
-            select(JobPosting).where(
-                JobPosting.org_id.is_(None),
-                func.length(func.trim(JobPosting.org)) > 0,
-            )
-        )
-        postings = list(rows.scalars().all())
-        matched = proposed = 0
-        for posting in postings:
-            org, created = await self.find_or_propose(
-                posting.org,
-                provenance={"source": "backfill", "posting_id": str(posting.id)},
+        decision = await self._resolve_link(label, posting.url)
+        match = decision.provenance()
+        if decision.kind == "link" and decision.org is not None:
+            org = decision.org
+            posting.org_id = org.id
+            signal = url_company_signal(posting.url)
+            if posting.url and not org.domain and signal is not None:
+                org.domain = signal["domain"]
+            match["state"] = OrgMatchState.LINKED.value
+        elif decision.kind == "create":
+            org = await self._create_org(
+                label, {"source": "posting", "posting_id": str(posting.id)}, posting.url
             )
             posting.org_id = org.id
-            matched += 1
-            proposed += int(created)
+            match["state"] = OrgMatchState.LINKED.value
+        elif decision.kind == "gray":
+            await self._record_pending_pair(label, decision, posting.url)
+            posting.org_id = None
+            match["state"] = OrgMatchState.PENDING.value
+        else:
+            posting.org_id = None
+            match["state"] = OrgMatchState.REJECTED.value
+            match["reason"] = decision.reason
+        posting.org_match = match
+        flag_modified(posting, "org_match")
+
+    async def backfill_postings(self) -> dict:
+        """Run the current matcher over postings it has not judged yet
+        (`org_match` empty — the pre-matcher backlog and each new layer's
+        first pass). Idempotent: judged postings are never re-judged.
+        The emptiness check is Python-side: JSON columns store None as
+        JSON null (none_as_null=False), so SQL IS NULL sees only half."""
+        rows = await self.db.execute(
+            select(JobPosting).where(func.length(func.trim(JobPosting.org)) > 0)
+        )
+        postings = [posting for posting in rows.scalars().all() if not posting.org_match]
+        linked = pending = rejected = 0
+        for posting in postings:
+            await self.attach_to_posting(posting)
+            state = (posting.org_match or {}).get("state")
+            if state == OrgMatchState.LINKED.value:
+                linked += 1
+            elif state == OrgMatchState.PENDING.value:
+                pending += 1
+            else:
+                rejected += 1
         await self.db.commit()
-        return {"matched": matched, "proposed": proposed}
+        return {
+            "matched": linked,
+            "pending": pending,
+            "rejected": rejected,
+            "scanned": len(postings),
+        }
+
+    async def backfill_experience_items(self) -> dict:
+        """Re-resolve experience items through the same pipeline (one-shot)."""
+        rows = await self.db.execute(
+            select(ExperienceItem).where(
+                ExperienceItem.org_id.is_(None),
+                func.length(func.trim(ExperienceItem.org_name)) > 0,
+            )
+        )
+        items = list(rows.scalars().all())
+        linked = created = unmatched = 0
+        for item in items:
+            org, was_created = await self.find_or_propose(
+                item.org_name, provenance={"source": "experience_backfill"}
+            )
+            if org is not None:
+                item.org_id = org.id
+                created += int(was_created)
+                linked += 1
+            else:
+                unmatched += 1
+        await self.db.commit()
+        return {"linked": linked, "created": created, "unmatched": unmatched}
 
     async def list_orgs(
         self,
@@ -195,18 +561,41 @@ class OrganizationService:
                 )
             ).all()
         )
+        alias_strings = await self._active_alias_strings([org.id for org in rows])
         return [
             {
                 "id": str(org.id),
                 "key": org.key,
                 "name": org.name,
                 "domain": org.domain,
-                "aliases": org.aliases or [],
+                "aliases": alias_strings.get(org.id, []),
                 "status": org.status,
                 "posting_count": int(counts.get(org.id, 0)),
             }
             for org in rows
         ]
+
+    async def _active_alias_strings(self, org_ids: list[UUID]) -> dict[UUID, list[str]]:
+        if not org_ids:
+            return {}
+        rows = (
+            (
+                await self.db.execute(
+                    select(OrganizationAlias)
+                    .where(
+                        OrganizationAlias.org_id.in_(org_ids),
+                        OrganizationAlias.state == OrgAliasState.ACTIVE.value,
+                    )
+                    .order_by(OrganizationAlias.created_at)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        out: dict[UUID, list[str]] = {}
+        for row in rows:
+            out.setdefault(row.org_id, []).append(row.alias)
+        return out
 
     async def get_org(self, org_id: UUID) -> Organization:
         org = (
@@ -234,14 +623,30 @@ class OrganizationService:
         alias = (alias or "").strip()[:200]
         if not alias:
             raise ValidationError("Alias is required")
-        aliases = [*(org.aliases or [])]
-        if alias.lower() not in {a.strip().lower() for a in aliases}:
-            aliases.append(alias)
-            org.aliases = aliases
-            self.db.add(org)
+        key = alias_key(alias)
+        existing = (
+            await self.db.execute(
+                select(OrganizationAlias).where(
+                    OrganizationAlias.org_id == org.id,
+                    OrganizationAlias.alias_key == key,
+                )
+            )
+        ).scalar_one_or_none()
+        if existing is None:
+            self.db.add(
+                OrganizationAlias(
+                    org_id=org.id,
+                    alias=alias,
+                    alias_key=key,
+                    source=OrgAliasSource.MANUAL.value,
+                )
+            )
             await self.db.commit()
-            await self.db.refresh(org)
+        await self.db.refresh(org)
         return org
+
+    async def org_aliases(self, org_id: UUID) -> list[str]:
+        return (await self._active_alias_strings([org_id])).get(org_id, [])
 
     async def merge(self, org_id: UUID, target_id: UUID) -> Organization:
         """Re-point references to the target and deprecate the duplicate.
@@ -272,19 +677,14 @@ class OrganizationService:
                     "Both organizations carry company profiles — reconcile them before merging"
                 )
         rows = await self.db.execute(select(JobPosting).where(JobPosting.org_id == source.id))
-        moved = 0
         postings = list(rows.scalars().all())
         for posting in postings:
             posting.org_id = target.id
-        moved += len(postings)
         if source_profile is not None:
             source_profile.organization_id = target.id
             source_profile.needs_review = True
-        aliases = [*(target.aliases or [])]
-        for alias in [source.name, *(source.aliases or [])]:
-            if alias and alias.lower() not in {a.lower() for a in aliases}:
-                aliases.append(alias)
-        target.aliases = aliases
+        await self._fold_alias_rows(source, target)
+        await self._repoint_match_rows(source, target)
         source.status = "deprecated"
         provenance = dict(source.provenance or {})
         provenance["merged_into"] = str(target.id)
@@ -294,3 +694,77 @@ class OrganizationService:
         await self.db.commit()
         await self.db.refresh(target)
         return target
+
+    async def _fold_alias_rows(self, source: Organization, target: Organization) -> None:
+        """The source's names become target alias rows (merge provenance)."""
+        incoming = [source.name, *(await self.org_aliases(source.id))]
+        existing_keys = await self._alias_key_set(target.id)
+        new_keys: list[str] = []
+        for alias in incoming:
+            alias = (alias or "").strip()[:200]
+            if not alias:
+                continue
+            key = alias_key(alias)
+            if not key or key in existing_keys:
+                continue
+            existing_keys.add(key)
+            new_keys.append(key)
+            self.db.add(
+                OrganizationAlias(
+                    org_id=target.id,
+                    alias=alias,
+                    alias_key=key,
+                    source=OrgAliasSource.MERGE.value,
+                )
+            )
+        if self._index is not None:
+            for key in new_keys:
+                self._index.add_alias_key(target, key)
+
+    async def _alias_key_set(self, org_id: UUID) -> set[str]:
+        rows = await self.db.execute(
+            select(OrganizationAlias.alias_key).where(OrganizationAlias.org_id == org_id)
+        )
+        return set(rows.scalars().all())
+
+    async def _repoint_match_rows(self, source: Organization, target: Organization) -> None:
+        """Gray-band pairs follow the merge; open suggestions involving the
+        source are dismissed (the merge answers them)."""
+        pairs = list(
+            (
+                await self.db.execute(
+                    select(OrganizationMatchPair).where(OrganizationMatchPair.org_id == source.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for pair in pairs:
+            clash = (
+                await self.db.execute(
+                    select(OrganizationMatchPair).where(
+                        OrganizationMatchPair.label_key == pair.label_key,
+                        OrganizationMatchPair.org_id == target.id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if clash is None:
+                pair.org_id = target.id
+            else:
+                await self.db.delete(pair)
+        suggestions = list(
+            (
+                await self.db.execute(
+                    select(OrganizationMergeSuggestion).where(
+                        OrganizationMergeSuggestion.status == OrgSuggestionStatus.OPEN.value,
+                        (OrganizationMergeSuggestion.org_a == source.id)
+                        | (OrganizationMergeSuggestion.org_b == source.id),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for suggestion in suggestions:
+            suggestion.status = OrgSuggestionStatus.DISMISSED.value
+            suggestion.decided_by = "merge"

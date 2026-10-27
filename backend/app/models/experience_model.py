@@ -6,8 +6,9 @@ months live in `app.services.profile.experience_derivation`, never hand-entered)
 `experience_achievements` carries metric-bearing outcomes.
 `skill_evidence` is the per-user evidence ledger every source
 (assessments, experience, CV parse) writes — exactly one source per row.
-`organizations` is the minimal shared entity (key/name/domain/aliases +
-skills-parity lifecycle); adds matcher/merge machinery.
+`organizations` is the minimal shared entity (key/name/domain +
+skills-parity lifecycle); the matcher machinery (alias rows, exclusions,
+the gray-band pair queue and merge suggestions) lives beside it.
 """
 
 import uuid
@@ -18,6 +19,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -25,6 +27,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -39,7 +42,12 @@ from app.models.enums import (
     ExperienceItemSource,
     ExperienceItemStatus,
     ExperienceKind,
+    OrgAliasSource,
+    OrgAliasState,
+    OrgExclusionSource,
+    OrgPairStatus,
     OrgStatus,
+    OrgSuggestionStatus,
     RoleInItem,
 )
 from app.models.taxonomy_model import Skill
@@ -59,11 +67,134 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     domain: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    aliases: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=OrgStatus.PROPOSED.value
     )
     provenance: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    name_key: Mapped[str] = mapped_column(String(200), nullable=False, default="", index=True)
+    initials_key: Mapped[str] = mapped_column(String(200), nullable=False, default="", index=True)
+
+
+class OrganizationAlias(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One known name variant of an organization (the matcher's memory).
+
+    `alias_key` is the normalized comparison form; a claimed key may live on
+    two orgs (collisions like "PG") — exact lookups tie-break in the service.
+    """
+
+    __tablename__ = "organization_aliases"
+    __table_args__ = (
+        UniqueConstraint("org_id", "alias_key"),
+        CheckConstraint(
+            "source IN ('manual', 'learned', 'llm', 'url', 'merge', 'legacy')",
+            name="source_allowed",
+        ),
+        CheckConstraint("state IN ('active', 'excluded')", name="state_allowed"),
+        Index("ix_organization_aliases_alias_key", "alias_key"),
+    )
+
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alias: Mapped[str] = mapped_column(String(200), nullable=False)
+    alias_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgAliasSource.LEARNED.value
+    )
+    state: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgAliasState.ACTIVE.value
+    )
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False, default="system")
+
+
+class OrganizationMatchExclusion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A matcher veto: `org_id` NULL marks a label as not-a-company, set marks
+    a never-link pair. Consulted before every fuzzy/LLM step."""
+
+    __tablename__ = "organization_match_exclusions"
+    __table_args__ = (
+        UniqueConstraint("label_key", "org_id"),
+        Index(
+            "ux_organization_match_exclusions_global",
+            "label_key",
+            unique=True,
+            postgresql_where=text("org_id IS NULL"),
+            sqlite_where=text("org_id IS NULL"),
+        ),
+        CheckConstraint("source IN ('manual', 'llm', 'dismiss', 'seed')", name="source_allowed"),
+    )
+
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    reason: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    source: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgExclusionSource.MANUAL.value
+    )
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False, default="system")
+
+
+class OrganizationMatchPair(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Gray-band queue: one ambiguous label vs one candidate, awaiting triage.
+
+    The stored verdict is the audit of the (paid-for) arbiter result; rows
+    resolve into a link, a creation or a merge suggestion and are never
+    re-asked.
+    """
+
+    __tablename__ = "organization_match_pairs"
+    __table_args__ = (
+        UniqueConstraint("label_key", "org_id"),
+        CheckConstraint("status IN ('pending', 'resolved', 'dropped')", name="status_allowed"),
+        CheckConstraint(
+            "verdict IS NULL OR verdict IN ('same', 'different', 'uncertain')",
+            name="verdict_allowed",
+        ),
+        Index("ix_organization_match_pairs_status", "status"),
+    )
+
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgPairStatus.PENDING.value
+    )
+    verdict: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    canonical_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    decided_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+
+class OrganizationMergeSuggestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A human decision on one near-miss pair: accept merges, dismiss excludes."""
+
+    __tablename__ = "organization_merge_suggestions"
+    __table_args__ = (
+        UniqueConstraint("org_a", "org_b", "label_key"),
+        CheckConstraint("status IN ('open', 'accepted', 'dismissed')", name="status_allowed"),
+        CheckConstraint("org_a <> org_b", name="distinct_orgs"),
+    )
+
+    org_a: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    org_b: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgSuggestionStatus.OPEN.value
+    )
+    decided_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
 
 
 class ExperienceItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):

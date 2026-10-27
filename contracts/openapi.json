@@ -13845,17 +13845,6 @@
             ],
             "title": "Catalog Job Id"
           },
-          "contract_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contract Type"
-          },
           "coverage": {
             "anyOf": [
               {
@@ -13866,34 +13855,6 @@
               }
             ],
             "title": "Coverage"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "description": {
-            "default": "",
-            "title": "Description",
-            "type": "string"
-          },
-          "education_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Education Level"
           },
           "employment_type": {
             "anyOf": [
@@ -13953,28 +13914,6 @@
               }
             ],
             "title": "Fit"
-          },
-          "hours_per_week_max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Max"
-          },
-          "hours_per_week_min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Min"
           },
           "id": {
             "format": "uuid",
@@ -14043,11 +13982,6 @@
           },
           "org": {
             "title": "Org",
-            "type": "string"
-          },
-          "org_key": {
-            "default": "",
-            "title": "Org Key",
             "type": "string"
           },
           "posted_at": {
@@ -14223,43 +14157,9 @@
             "title": "Title",
             "type": "string"
           },
-          "travel_class": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Travel Class"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
           "url": {
             "title": "Url",
             "type": "string"
-          },
-          "work_hours": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Hours"
           }
         },
         "required": [
@@ -14274,65 +14174,6 @@
           "mapping_reason"
         ],
         "title": "PostingDetailOut",
-        "type": "object"
-      },
-      "PostingExtractBenefitOut": {
-        "description": "Typed benefit: `kind` powers display grouping, `raw` keeps the\noriginal wording. Stored plain strings (legacy extract rows) coerce\nto `kind=\"other\"` at read \u2014 the extractor's `ExtractBenefit.coerce`\nprecedent.",
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "kind": {
-            "title": "Kind",
-            "type": "string"
-          },
-          "raw": {
-            "title": "Raw",
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind",
-          "raw"
-        ],
-        "title": "PostingExtractBenefitOut",
-        "type": "object"
-      },
-      "PostingExtractContractOut": {
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "contract_type": {
-            "title": "Contract Type",
-            "type": "string"
-          },
-          "evidence_quote": {
-            "default": "",
-            "title": "Evidence Quote",
-            "type": "string"
-          }
-        },
-        "required": [
-          "contract_type"
-        ],
-        "title": "PostingExtractContractOut",
         "type": "object"
       },
       "PostingExtractEducationOut": {
@@ -14363,57 +14204,6 @@
         "title": "PostingExtractEducationOut",
         "type": "object"
       },
-      "PostingExtractHoursOut": {
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "evidence_quote": {
-            "default": "",
-            "title": "Evidence Quote",
-            "type": "string"
-          },
-          "hours_per_week_max": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Max"
-          },
-          "hours_per_week_min": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Min"
-          },
-          "pattern": {
-            "title": "Pattern",
-            "type": "string"
-          }
-        },
-        "required": [
-          "pattern"
-        ],
-        "title": "PostingExtractHoursOut",
-        "type": "object"
-      },
       "PostingExtractLocationOut": {
         "properties": {
           "city": {
@@ -14442,66 +14232,16 @@
         "title": "PostingExtractLocationOut",
         "type": "object"
       },
-      "PostingExtractOnsiteOut": {
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "evidence_quote": {
-            "default": "",
-            "title": "Evidence Quote",
-            "type": "string"
-          },
-          "office_days_per_week": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Office Days Per Week"
-          },
-          "policy": {
-            "title": "Policy",
-            "type": "string"
-          }
-        },
-        "required": [
-          "policy"
-        ],
-        "title": "PostingExtractOnsiteOut",
-        "type": "object"
-      },
       "PostingExtractOut": {
         "additionalProperties": true,
-        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).\n\nRead coercion is part of the contract: ``apply_extract`` suppresses\nlow-confidence fields to ``null`` (``_suppressed_fields`` names\nthem) and legacy rows stored plain-string benefits, so lists\nnormalize to ``[]`` and benefit strings to ``kind=\"other\"`` instead\nof failing whole postings on read.",
+        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).",
         "properties": {
           "benefits": {
             "items": {
-              "$ref": "#/components/schemas/PostingExtractBenefitOut"
+              "type": "string"
             },
             "title": "Benefits",
             "type": "array"
-          },
-          "contract_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PostingExtractContractOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "education": {
             "anyOf": [
@@ -14548,16 +14288,6 @@
               }
             ]
           },
-          "onsite_policy": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PostingExtractOnsiteOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "prerequisites": {
             "items": {
               "$ref": "#/components/schemas/PostingExtractPrerequisiteOut"
@@ -14593,13 +14323,6 @@
               }
             ]
           },
-          "schedule_cues": {
-            "items": {
-              "$ref": "#/components/schemas/PostingExtractScheduleCueOut"
-            },
-            "title": "Schedule Cues",
-            "type": "array"
-          },
           "seniority": {
             "anyOf": [
               {
@@ -14628,33 +14351,6 @@
               }
             ],
             "title": "Title Norm"
-          },
-          "travel_required": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PostingExtractTravelOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "values_cues": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Values Cues",
-            "type": "array"
-          },
-          "work_hours": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PostingExtractHoursOut"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "title": "PostingExtractOut",
@@ -14791,35 +14487,6 @@
         "title": "PostingExtractSalaryOut",
         "type": "object"
       },
-      "PostingExtractScheduleCueOut": {
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "cue": {
-            "title": "Cue",
-            "type": "string"
-          },
-          "evidence_quote": {
-            "default": "",
-            "title": "Evidence Quote",
-            "type": "string"
-          }
-        },
-        "required": [
-          "cue"
-        ],
-        "title": "PostingExtractScheduleCueOut",
-        "type": "object"
-      },
       "PostingExtractSkillOut": {
         "properties": {
           "confidence": {
@@ -14879,46 +14546,6 @@
           "confidence"
         ],
         "title": "PostingExtractSkillOut",
-        "type": "object"
-      },
-      "PostingExtractTravelOut": {
-        "properties": {
-          "confidence": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Confidence"
-          },
-          "days_per_month": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Days Per Month"
-          },
-          "evidence_quote": {
-            "default": "",
-            "title": "Evidence Quote",
-            "type": "string"
-          },
-          "level": {
-            "title": "Level",
-            "type": "string"
-          }
-        },
-        "required": [
-          "level"
-        ],
-        "title": "PostingExtractTravelOut",
         "type": "object"
       },
       "PostingLocationOut": {
@@ -15058,17 +14685,6 @@
             ],
             "title": "Catalog Job Id"
           },
-          "contract_type": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Contract Type"
-          },
           "coverage": {
             "anyOf": [
               {
@@ -15079,29 +14695,6 @@
               }
             ],
             "title": "Coverage"
-          },
-          "created_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Created At"
-          },
-          "education_level": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Education Level"
           },
           "employment_type": {
             "anyOf": [
@@ -15151,28 +14744,6 @@
               }
             ],
             "title": "Fit"
-          },
-          "hours_per_week_max": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Max"
-          },
-          "hours_per_week_min": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hours Per Week Min"
           },
           "id": {
             "format": "uuid",
@@ -15231,11 +14802,6 @@
           },
           "org": {
             "title": "Org",
-            "type": "string"
-          },
-          "org_key": {
-            "default": "",
-            "title": "Org Key",
             "type": "string"
           },
           "posted_at": {
@@ -15382,43 +14948,9 @@
             "title": "Title",
             "type": "string"
           },
-          "travel_class": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Travel Class"
-          },
-          "updated_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Updated At"
-          },
           "url": {
             "title": "Url",
             "type": "string"
-          },
-          "work_hours": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Work Hours"
           }
         },
         "required": [
@@ -22720,7 +22252,7 @@
     },
     "/api/v1/admin/organizations/backfill": {
       "post": {
-        "description": "Run the matcher over postings ingested before it existed.",
+        "description": "Run the current matcher over unjudged postings + experience items.",
         "operationId": "backfill_organizations_api_v1_admin_organizations_backfill_post",
         "responses": {
           "200": {
@@ -23251,6 +22783,52 @@
           }
         },
         "summary": "Posting Feature Map",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/reextract": {
+      "post": {
+        "description": "Re-run deep extraction for the given postings (admin, bulk \u2014 the\n/postings multi-select). Same rules as the per-source bulk: only\npostings WITH a description queue; already-queued ones are skipped;\nunknown ids are reported as missing.",
+        "operationId": "reextract_postings_by_ids_api_v1_admin_postings_reextract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reextract Postings By Ids Api V1 Admin Postings Reextract Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reextract Postings By Ids",
         "tags": [
           "admin"
         ]

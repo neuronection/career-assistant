@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0064"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0065"], (
         "revision chain stays linear on one head"
     )
 
@@ -2505,3 +2505,190 @@ def test_0064_running_status_roundtrip():
         assert _run_status_accepted("running", source_id), "re-upgrade restores it"
     finally:
         _seed_cleanup("status-probe%")
+
+
+def _org135_seed() -> None:
+    """Two organizations at the 0064 shape (aliases JSONB, no match keys)."""
+
+    async def _run():
+        import json
+        import uuid as _uuid
+        from datetime import datetime
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(text("DELETE FROM organizations WHERE key LIKE 'fold135-%'"))
+                aliases_sql = (
+                    "CAST(:aliases AS jsonb)" if engine.dialect.name == "postgresql" else ":aliases"
+                )
+                for key, name, aliases in [
+                    ("fold135-pg", "P&G", ["Procter & Gamble", "P&G GmbH"]),
+                    ("fold135-plain", "Acme Cloud GmbH", []),
+                ]:
+                    await session.execute(
+                        text(
+                            "INSERT INTO organizations "
+                            "(id, key, name, aliases, status, provenance, created_at, updated_at) "
+                            f"VALUES (:id, :key, :name, {aliases_sql},"
+                            " 'active', '{}', :now, :now)"
+                        ),
+                        {
+                            "id": str(_uuid.uuid4()),
+                            "key": key,
+                            "name": name,
+                            "aliases": json.dumps(aliases),
+                            "now": datetime.now(UTC),
+                        },
+                    )
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def _org135_cleanup() -> None:
+    """Fold rows are real commits — children first, then the orgs."""
+
+    async def _run():
+        from contextlib import suppress
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                child_deletes = [
+                    "DELETE FROM organization_aliases WHERE org_id IN "
+                    "(SELECT id FROM organizations WHERE key LIKE 'fold135-%')",
+                    "DELETE FROM organization_match_exclusions WHERE org_id IN "
+                    "(SELECT id FROM organizations WHERE key LIKE 'fold135-%')",
+                    "DELETE FROM organization_match_pairs WHERE org_id IN "
+                    "(SELECT id FROM organizations WHERE key LIKE 'fold135-%')",
+                    "DELETE FROM organization_merge_suggestions WHERE org_a IN "
+                    "(SELECT id FROM organizations WHERE key LIKE 'fold135-%') "
+                    "OR org_b IN (SELECT id FROM organizations WHERE key LIKE 'fold135-%')",
+                ]
+                for stmt in child_deletes:
+                    try:
+                        await session.execute(text(stmt))
+                    except Exception:
+                        await session.rollback()
+                with suppress(Exception):
+                    await session.execute(
+                        text("DELETE FROM organizations WHERE key LIKE 'fold135-%'")
+                    )
+                    await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def _org135_read() -> dict[str, dict]:
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def _run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                orgs = (
+                    await conn.execute(
+                        text(
+                            "SELECT key, name_key, initials_key FROM organizations "
+                            "WHERE key LIKE 'fold135-%'"
+                        )
+                    )
+                ).fetchall()
+                aliases = (
+                    await conn.execute(
+                        text(
+                            "SELECT o.key, a.alias, a.alias_key, a.source, a.state "
+                            "FROM organization_aliases a "
+                            "JOIN organizations o ON o.id = a.org_id "
+                            "WHERE o.key LIKE 'fold135-%' ORDER BY a.created_at"
+                        )
+                    )
+                ).fetchall()
+        finally:
+            await engine.dispose()
+        out: dict[str, dict] = {}
+        for key, name_key, initials_key in orgs:
+            out[key] = {"name_key": name_key, "initials_key": initials_key, "aliases": []}
+        for key, alias, alias_key, source, state in aliases:
+            out[key]["aliases"].append(
+                {"alias": alias, "alias_key": alias_key, "source": source, "state": state}
+            )
+        return out
+
+    return asyncio.run(_run())
+
+
+def test_0065_company_entity_resolution_fold():
+    config = _configured()
+
+    try:
+        command.upgrade(config, "head")
+        command.downgrade(config, "0064")
+        assert not _column_present("job_postings", "org_match"), "downgrade drops org_match"
+        _org135_seed()
+
+        command.upgrade(config, "head")
+        assert not _column_present("organizations", "aliases"), "aliases JSONB folded away"
+        assert _column_present("job_postings", "org_match"), "org_match provenance at head"
+        rows = _org135_read()
+        pg = rows["fold135-pg"]
+        assert pg["name_key"] == "p g", "P&G canonicalizes to its tokens"
+        assert pg["initials_key"] == "pg", "P&G initials"
+        aliases = {a["alias"]: a for a in pg["aliases"]}
+        assert set(aliases) == {"Procter & Gamble", "P&G GmbH"}, "both aliases folded"
+        assert all(a["source"] == "legacy" for a in aliases.values())
+        assert aliases["Procter & Gamble"]["alias_key"] == "procter gamble"
+        plain = rows["fold135-plain"]
+        assert plain["aliases"] == []
+        assert plain["name_key"] == "acme cloud", "legal suffix stripped from the key"
+    finally:
+        _org135_cleanup()
+
+
+def test_0065_denylist_seeds_as_rows():
+    config = _configured()
+
+    async def _count():
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT count(*) FROM organization_match_exclusions "
+                            "WHERE source = 'seed' AND label_key = 'confidential'"
+                        )
+                    )
+                ).scalar_one()
+        finally:
+            await engine.dispose()
+        return int(row)
+
+    command.upgrade(config, "head")
+    assert asyncio.run(_count()) == 1, "the quality denylist seeds as editable rows"

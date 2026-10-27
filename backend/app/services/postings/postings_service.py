@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
@@ -33,6 +34,9 @@ from app.models.posting_model import (
     PostingInteraction,
     PostingSkill,
 )
+
+if TYPE_CHECKING:
+    from app.services.catalog.organization_service import OrganizationService
 from app.models.taxonomy_model import Skill
 from app.services.postings.salary import annualized
 
@@ -353,9 +357,12 @@ async def _sync_source_inner(
     synced = 0
     errors = [error.model_dump(mode="json") for error in result.partial_errors]
     fresh: list[tuple[JobPosting, bool]] = []
+    from app.services.catalog.organization_service import OrganizationService
+
+    org_service = OrganizationService(db)
     for raw in result.items:
         try:
-            posting = await upsert_posting(db, source, raw)
+            posting = await upsert_posting(db, source, raw, org_service=org_service)
             if posting is not None:
                 synced += 1
                 demand = False
@@ -393,9 +400,18 @@ async def _sync_source_inner(
     return report
 
 
-async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting | None:
+async def upsert_posting(
+    db: AsyncSession,
+    source: JobSource,
+    raw,
+    org_service: "OrganizationService | None" = None,
+) -> JobPosting | None:
     """Dedup by (source_id, external_id) + content_hash — unchanged content
-    is a no-op; changed content re-maps unless a human mapped it."""
+    is a no-op; changed content re-maps unless a human mapped it.
+
+    `org_service` threads one matcher (one candidate load) through a sync
+    batch — the per-posting N+1 the plan 135 ingest step removes.
+    """
     rows = await db.execute(
         select(JobPosting).where(
             JobPosting.source_id == source.id, JobPosting.external_id == raw.external_id
@@ -419,9 +435,11 @@ async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting
     posting.title = raw.title[:300]
     posting.org = raw.org[:200]
     if (posting.org or "").strip():
-        from app.services.catalog.organization_service import OrganizationService
+        if org_service is None:
+            from app.services.catalog.organization_service import OrganizationService
 
-        await OrganizationService(db).attach_to_posting(posting)
+            org_service = OrganizationService(db)
+        await org_service.attach_to_posting(posting)
     posting.location = raw.location.model_dump(mode="json")
     posting.url = raw.url[:1000]
     posting.seniority = raw.seniority

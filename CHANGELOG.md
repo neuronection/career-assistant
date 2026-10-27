@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (company entity resolution, 2026-10-27)
+- **Companies now resolve to one canonical employer** — postings ingest
+  through a layered matcher (quality gate for junk labels like
+  "Confidential", exact slug/alias/initials/domain keys, then dialect-safe
+  fuzzy). Learned name variants (P&G ↔ Procter & Gamble) persist as
+  editable alias rows; per-pair "never link" exclusions prevent
+  similar-but-different employers from merging. Near-misses land in a
+  review queue instead of silently creating duplicate companies, and the
+  company pages show every live posting of one employer. AI arbitration
+  of the ambiguous cases ships in the next slice.
+
 ### Fixed (postings feed, 2026-10-27)
 - **The postings feed no longer 500s on unrecognized education levels** —
   a posting whose AI extraction produced a free-form level ("degree")

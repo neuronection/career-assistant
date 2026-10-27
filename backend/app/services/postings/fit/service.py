@@ -34,6 +34,7 @@ async def insert_insight_if_absent(db: AsyncSession, user_id: UUID, job_id: UUID
     from sqlalchemy.dialects import postgresql, sqlite
 
     dialect = db.get_bind().dialect
+    stmt: object
     if dialect.name == "sqlite":
         stmt = (
             sqlite.insert(MatchInsight)
@@ -167,10 +168,14 @@ class FitService:
 
     async def job_context(self, job) -> dict:
         """Structured job snapshot (links must be loaded — JOB_LOAD_OPTIONS)."""
-        attrs = job.attributes or {}
+        attrs: dict = dict(job.attributes or {})
         band = attrs.get("experience_typical_years")
-        location = attrs.get("location") if isinstance(attrs.get("location"), dict) else {}
-        salary = attrs.get("salary") if isinstance(attrs.get("salary"), dict) else {}
+        location = attrs.get("location")
+        location = location if isinstance(location, dict) else {}
+        salary = attrs.get("salary")
+        salary = salary if isinstance(salary, dict) else {}
+        education = attrs.get("education")
+        education = education if isinstance(education, dict) else {}
         entry = salary.get("entry") or None
         entry_max = float(entry[1]) if entry and len(entry) == 2 else None
         from app.services.catalog.metric_service import MetricService
@@ -186,7 +191,7 @@ class FitService:
                 }
                 for link in job.skill_links
             ],
-            "education_level": (attrs.get("education") or {}).get("level"),
+            "education_level": education.get("level"),
             "experience_band": tuple(band) if band else None,
             "job_city": location.get("city"),
             "job_country": location.get("country"),
@@ -256,7 +261,9 @@ class FitService:
             await insert_insight_if_absent(self.db, user_id, job.id)
             insight = await self._get_insight(user_id, job.id)
             if insight is None:
-                raise IntegrityError("insight vanished between insert and read", None, None)
+                raise IntegrityError(
+                    "insight vanished between insert and read", None, ValueError("insight")
+                )
         insight.fit_score = result.score
         insight.fit_breakdown = {
             "dimensions": result.breakdown,

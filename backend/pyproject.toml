@@ -176,7 +176,7 @@ follow_imports = "silent"
 # errors requires lowering the peg in the same commit
 # (`uv run python ../scripts/check-mypy-ratchet.py --update`); adding any
 # error fails CI. Clean packages move to `[tool.mypy] files` instead.
-packages = { "app/services" = 158 }
+packages = { "app/services" = 157 }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

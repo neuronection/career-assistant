@@ -272,23 +272,13 @@ class ExperienceService:
         await self.db.flush()
 
     async def _resolve_org(self, name: str) -> Organization | None:
-        """Find-or-propose by slug."""
-        name = (name or "").strip()
-        if not name:
-            return None
-        key = slugify_org(name)
-        rows = await self.db.execute(select(Organization).where(Organization.key == key))
-        org = rows.scalars().first()
-        if org is not None:
-            return org
-        org = Organization(
-            key=key,
-            name=name[:200],
-            status="proposed",
-            provenance={"source": "experience"},
+        """One matcher for every caller (plan 135 decision 12): junk labels
+        resolve to None, gray-band near-misses land in the pending queue."""
+        from app.services.catalog.organization_service import OrganizationService
+
+        org, _created = await OrganizationService(self.db).find_or_propose(
+            (name or "").strip(), provenance={"source": "experience"}
         )
-        self.db.add(org)
-        await self.db.flush()
         return org
 
     # ------------------------------------------------------- stage input

@@ -55,6 +55,65 @@ class OrgStatus(StrEnum):
     DEPRECATED = "deprecated"
 
 
+class OrgAliasSource(StrEnum):
+    """Where an organization alias came from (organization_aliases.source)."""
+
+    MANUAL = "manual"
+    LEARNED = "learned"
+    LLM = "llm"
+    URL = "url"
+    MERGE = "merge"
+    LEGACY = "legacy"
+
+
+class OrgAliasState(StrEnum):
+    """Alias usability: excluded rows are kept as negative-history, never matched."""
+
+    ACTIVE = "active"
+    EXCLUDED = "excluded"
+
+
+class OrgExclusionSource(StrEnum):
+    """Who wrote a match exclusion (organization_match_exclusions.source)."""
+
+    MANUAL = "manual"
+    LLM = "llm"
+    DISMISS = "dismiss"
+    SEED = "seed"
+
+
+class OrgMatchState(StrEnum):
+    """How a posting's raw org label resolved (job_postings.org_match.state)."""
+
+    LINKED = "linked"
+    PENDING = "pending"
+    REJECTED = "rejected"
+
+
+class OrgPairStatus(StrEnum):
+    """Gray-band queue row lifecycle (organization_match_pairs.status)."""
+
+    PENDING = "pending"
+    RESOLVED = "resolved"
+    DROPPED = "dropped"
+
+
+class OrgPairVerdict(StrEnum):
+    """Triage verdict on one label/candidate pair (organization_match_pairs.verdict)."""
+
+    SAME = "same"
+    DIFFERENT = "different"
+    UNCERTAIN = "uncertain"
+
+
+class OrgSuggestionStatus(StrEnum):
+    """Merge-suggestion review state (organization_merge_suggestions.status)."""
+
+    OPEN = "open"
+    ACCEPTED = "accepted"
+    DISMISSED = "dismissed"
+
+
 class CompanyType(StrEnum):
     """Company legal/operational type (company_profiles.company_type)."""
 
