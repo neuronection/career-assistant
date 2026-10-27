@@ -43,15 +43,6 @@ type SourceDraft = {
   query_batch_size: number;
 };
 
-function unpackToolOptions(raw: unknown): IntegrationConfigValues {
-  try {
-    const parsed = JSON.parse(String(raw ?? "{}"));
-    return parsed && typeof parsed === "object" ? (parsed as IntegrationConfigValues) : {};
-  } catch {
-    return {};
-  }
-}
-
 export function ConnectorsSection() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<WebSettings | null>(null);
@@ -140,6 +131,14 @@ export function ConnectorsSection() {
 function JobSourceConnectors() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  useEffect(() => {
+    const onChange = () => {
+      void refresh();
+    };
+    window.addEventListener("ca:job-sources-changed", onChange);
+    return () => window.removeEventListener("ca:job-sources-changed", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
   const [draft, setDraft] = useState<SourceDraft | null>(null);
@@ -293,7 +292,7 @@ function JobSourceConnectors() {
                 id: source.id,
                 extensionId: source.connector_key,
                 name: source.key,
-                enabled: source.enabled,
+                enabled: source.enabled && !source.paused_at,
                 status: sourceStatus(source),
                 lastSuccessAt: source.last_run_at,
                 conditions: needsSecret ? (["needs-secret"] as const) : [],
@@ -308,18 +307,6 @@ function JobSourceConnectors() {
       )
       .filter((group) => group.instances.length > 0);
   }, [sources, catalogByKey, t]);
-
-  const setPaused = async (source: PostingSource, paused: boolean) => {
-    setBusy(true);
-    try {
-      await sourcesApi.updateSource(source.id, { paused });
-      await refresh();
-    } catch (err) {
-      setNotice(apiDetail(err));
-    } finally {
-      setBusy(false);
-    }
-  };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
@@ -358,9 +345,6 @@ function JobSourceConnectors() {
           emptyLabel: t("toolsSettings.connectors.sources.empty"),
           enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
           configureLabel: t("toolsSettings.connectors.sources.edit"),
-          parkLabel: t("toolsSettings.connectors.sources.pause"),
-          restoreLabel: t("toolsSettings.connectors.sources.resume"),
-          parkedLabel: t("toolsSettings.connectors.sources.paused"),
           lastSuccessLabel: t("toolsSettings.connectors.sources.lastSuccess"),
           statusLabels: {
             ok: t("toolsSettings.connectors.sources.statusOk"),
@@ -372,21 +356,16 @@ function JobSourceConnectors() {
             "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
           },
         }}
-        onPark={(instance) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (source) void setPaused(source, true);
-        }}
-        onRestore={(instance) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (source) void setPaused(source, false);
-        }}
-        onToggleEnabled={(instance, enabled) => {
+        onToggleEnabled={(instance, next) => {
           const source = sources.find((row) => row.id === instance.id);
           if (source) {
             void (async () => {
               setBusy(true);
               try {
-                await sourcesApi.updateSource(source.id, { enabled });
+                await sourcesApi.updateSource(
+                  source.id,
+                  next ? { enabled: true, paused: false } : { paused: true },
+                );
                 await refresh();
               } catch (err) {
                 setNotice(apiDetail(err));
@@ -394,23 +373,6 @@ function JobSourceConnectors() {
                 setBusy(false);
               }
             })();
-          }
-        }}
-        onConfigure={(instance) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (source) {
-            setDraft({
-              id: source.id,
-              key: source.key,
-              connector_key: source.connector_key,
-              config: source.managed
-                ? unpackToolOptions(source.config.options)
-                : Object.fromEntries(
-                    Object.entries(source.config).map(([key, value]) => [key, String(value)]),
-                  ),
-              query_mode: source.query_mode || "static",
-              query_batch_size: source.query_batch_size || 1,
-            });
           }
         }}
         renderInstanceActions={(instance) => {

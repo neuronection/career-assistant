@@ -242,11 +242,11 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
   it("parks an install without deleting anything", async () => {
     const { userEvent } = await import("@testing-library/user-event");
     mocked.fetchExtensionSources.mockResolvedValue([
-      { ...SOURCE, candidates: [], installs: [INSTALL] },
+      { ...SOURCE, candidates: [], installs: [{ ...INSTALL, enabled: true }] },
     ]);
     mocked.parkExtensionInstall.mockResolvedValue({ ...INSTALL, parked: true });
     renderSection();
-    await userEvent.click(await screen.findByRole("button", { name: "Pause" }));
+    await userEvent.click(await screen.findByRole("switch"));
     await waitFor(() => expect(mocked.parkExtensionInstall).toHaveBeenCalledWith("inst-1"));
   });
 

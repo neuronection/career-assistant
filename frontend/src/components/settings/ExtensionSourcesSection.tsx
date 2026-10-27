@@ -73,7 +73,7 @@ function mapGroups(installs: ExtensionInstallView[]): IntegrationExtensionGroupV
       id: install.id,
       extensionId: install.extensionId,
       name: install.extensionId,
-      enabled: install.enabled && install.state !== "removed",
+      enabled: install.enabled && !install.parked && install.state !== "removed",
       originClass: install.originClass,
       tier: install.tier,
       lifecycle: install.state,
@@ -167,6 +167,7 @@ export function ExtensionSourcesSection() {
     try {
       await action();
       await refresh();
+      window.dispatchEvent(new CustomEvent("ca:job-sources-changed"));
     } catch (err) {
       setNotice(apiDetail(err));
     } finally {
@@ -341,8 +342,12 @@ export function ExtensionSourcesSection() {
             setConsentTarget({ sourceId, candidate: raw });
           }
         }}
-        onToggleEnabled={(_sourceId, instance, enabled) =>
-          void run(() => extApi.setExtensionEnabled(instance.id, enabled))
+        onToggleEnabled={(_sourceId, instance, next) =>
+          void run(() =>
+            next
+              ? extApi.setExtensionEnabled(instance.id, true)
+              : extApi.parkExtensionInstall(instance.id),
+          )
         }
         onApplyUpdate={(_sourceId, instance) =>
           void run(async () => {
@@ -350,7 +355,6 @@ export function ExtensionSourcesSection() {
             await extApi.applyExtensionUpdate(instance.id, preview.echo);
           })
         }
-        onPark={(_sourceId, instance) => void run(() => extApi.parkExtensionInstall(instance.id))}
         onTombstone={(_sourceId, instance) =>
           void run(() => extApi.tombstoneExtensionInstall(instance.id))
         }

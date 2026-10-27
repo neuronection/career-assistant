@@ -163,13 +163,7 @@ describe("ConnectorsSection job sources", () => {
     expect(
       await screen.findByText("toolsSettings.connectors.sources.kind.posting"),
     ).toBeTruthy();
-    expect(screen.getByText("toolsSettings.connectors.sources.kind.market")).toBeTruthy();
-    expect(await screen.findByTestId("integration-instance-src-3")).toBeTruthy();
-
-    const pauseButtons = await screen.findAllByRole("button", {
-      name: "toolsSettings.connectors.sources.pause",
-    });
-    await userEvent.click(pauseButtons[pauseButtons.length - 1]);
+    await userEvent.click(screen.getByRole("switch", { name: /market-demand/ }));
     await waitFor(() => {
       expect(sourcesApi.updateSource).toHaveBeenCalledWith("src-3", { paused: true });
     });
