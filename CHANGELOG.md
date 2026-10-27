@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (skills filter axis, 2026-10-27)
+- **Skill filters in the postings filter actually filter now** — the
+  skills axis referenced a nonexistent column and raised a 500 whenever
+  a skill chip was active. It now resolves the selected skill keys
+  through the skills catalog onto the posting-skill links; include,
+  exclude and min-level all work end-to-end. Presets saved with skill
+  chips (previously dead) start applying — intended.
+
 ### Fixed (skill picker empty catalog, 2026-10-27)
 - **The skill picker showed "No skills found" despite a populated
   taxonomy** — the picker filtered on `status === "active"` but

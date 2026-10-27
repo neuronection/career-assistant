@@ -62,32 +62,27 @@ def build_where(spec: PostingFilterSpec) -> list[ColumnElement]:
 
 def _skills(spec: PostingFilterSpec) -> list[ColumnElement]:
     from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
 
     clauses: list[ColumnElement] = []
-    posting_ids_include: Any = None
-    posting_ids_exclude: Any = None
     if spec.skills.include:
+        skill_ids = select(Skill.id).where(Skill.key.in_(spec.skills.include))
         sq = (
             select(
                 PostingSkill.posting_id, func.max(PostingSkill.required_level).label("max_level")
             )
-            .where(PostingSkill.skill_key.in_(spec.skills.include))
+            .where(PostingSkill.skill_id.in_(skill_ids))
             .group_by(PostingSkill.posting_id)
         )
         if spec.skills.min_level is not None:
             sq = sq.having(func.max(PostingSkill.required_level) >= spec.skills.min_level)
-        posting_ids_include = select(sq.subquery().c.posting_id)
+        clauses.append(JobPosting.id.in_(select(sq.subquery().c.posting_id)))
     if spec.skills.exclude:
-        sq = (
-            select(PostingSkill.posting_id)
-            .where(PostingSkill.skill_key.in_(spec.skills.exclude))
-            .distinct()
+        skill_ids = select(Skill.id).where(Skill.key.in_(spec.skills.exclude))
+        exclude_sq = (
+            select(PostingSkill.posting_id).where(PostingSkill.skill_id.in_(skill_ids)).distinct()
         )
-        posting_ids_exclude = select(sq.subquery().c.posting_id)
-    if posting_ids_include is not None:
-        clauses.append(JobPosting.id.in_(posting_ids_include))
-    if posting_ids_exclude is not None:
-        clauses.append(~JobPosting.id.in_(posting_ids_exclude))
+        clauses.append(~JobPosting.id.in_(select(exclude_sq.subquery().c.posting_id)))
     return clauses
 
 
@@ -225,14 +220,6 @@ def _source(spec: PostingFilterSpec) -> list[ColumnElement]:
         return []
     from app.models.posting_model import JobSource
 
-    keys = list(set(spec.source.include + spec.source.exclude))
-    source_sq = select(JobSource.id).where(JobSource.key.in_(keys))
-    id_map = dict(
-        (source.key, source.id)
-        for source in []  # resolved at call time by the caller
-    )
-    # The builder works on source KEYS; the caller resolves them to ids
-    # via a subquery so we never need a round-trip here.
     clauses: list[ColumnElement] = []
     if spec.source.include:
         inc_sq = select(JobSource.id).where(JobSource.key.in_(spec.source.include))

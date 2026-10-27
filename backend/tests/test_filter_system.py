@@ -3,7 +3,8 @@ preset CRUD — every axis tested in the include/exclude/empty matrix."""
 
 from __future__ import annotations
 
-from app.models.posting_model import JobPosting, JobSource
+from app.models.posting_model import JobPosting, JobSource, PostingSkill
+from app.models.taxonomy_model import Skill
 from app.services.postings.filter_query import build_where
 from app.services.postings.filter_spec import PostingFilterSpec
 
@@ -125,6 +126,12 @@ def test_build_where_multiple_axes_compose():
     assert len(clauses) >= 4
 
 
+def test_build_where_skills_resolves_keys_to_ids():
+    spec = PostingFilterSpec(skills={"include": ["python"], "exclude": ["java"], "min_level": 4})
+    clauses = build_where(spec)
+    assert len(clauses) == 2
+
+
 # ------------------------------------------------------------ preset CRUD
 
 
@@ -195,3 +202,75 @@ async def test_filter_endpoint_returns_matching_postings(
     items = response.json()
     assert len(items) == 1
     assert items[0]["external_id"] == "1"
+
+
+# ------------------------------------------------------- skills axis (by key)
+
+
+async def _skills_fixture(db):
+    python = Skill(key="python", label="Python", category="test")
+    java = Skill(key="java", label="Java", category="test")
+    db.add_all([python, java])
+    await db.flush()
+    src = _source({"keywords": "test"})
+    db.add(src)
+    await db.flush()
+    p1 = _posting(src, "sk-1", title="Pythonist")
+    p2 = _posting(src, "sk-2", title="Polyglot")
+    p3 = _posting(src, "sk-3", title="Java Dev")
+    p4 = _posting(src, "sk-4", title="No Skills")
+    db.add_all([p1, p2, p3, p4])
+    await db.flush()
+    db.add_all(
+        [
+            PostingSkill(posting_id=p1.id, skill_id=python.id, required_level=7),
+            PostingSkill(posting_id=p2.id, skill_id=python.id, required_level=3),
+            PostingSkill(posting_id=p2.id, skill_id=java.id, required_level=8),
+            PostingSkill(posting_id=p3.id, skill_id=java.id, required_level=5),
+        ]
+    )
+    await db.commit()
+
+
+async def _filtered_ids(client, auth_headers, skills):
+    response = await client.post(
+        "/api/v1/postings/filter",
+        json={"filters": {"skills": skills, "sort": "fresh"}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    return {item["external_id"] for item in response.json()}
+
+
+async def test_filter_endpoint_skills_include_matches_by_key(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"include": ["python"]})
+    assert matched == {"sk-1", "sk-2"}
+
+
+async def test_filter_endpoint_skills_min_level_over_included_rows(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(
+        client, auth_headers, {"include": ["python", "java"], "min_level": 6}
+    )
+    assert matched == {"sk-1", "sk-2"}
+
+
+async def test_filter_endpoint_skills_exclude_drops_tagged_postings(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"exclude": ["java"]})
+    assert matched == {"sk-1", "sk-4"}
+
+
+async def test_filter_endpoint_skills_include_and_exclude_compose(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(
+        client, auth_headers, {"include": ["python"], "exclude": ["java"]}
+    )
+    assert matched == {"sk-1"}
+
+
+async def test_filter_endpoint_skills_unknown_key_matches_nothing(db, client, auth_headers):
+    await _skills_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"include": ["cobol-nonsense"]})
+    assert matched == set()
