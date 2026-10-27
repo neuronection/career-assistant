@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (seniority range + skill picker, 2026-10-27)
+- **Seniority is now an ordered range** — pick a "from" level (and up)
+  and/or a "to" level (and down), plus per-level exclude chips. The
+  query builder maps the ordered scale (intern → junior → mid → senior
+  → lead → principal) to an inclusive range.
+- **The skill filter gets a two-path picker** (the health-assistant
+  CatalogItemPicker pattern): a debounced type-ahead dropdown for quick
+  picks, plus a Browse button that opens the full skill catalog modal
+  with search, category filter, per-row Add/Added toggles, and
+  load-more pagination. Selected skills render as removable chips.
+
+
 ### Added (postings filter system — frontend, 2026-10-27)
 - **The filter rail on the feed** — a collapsible rail with one section
   per axis (Skills, Salary, Location, Companies, Seniority, Employment,

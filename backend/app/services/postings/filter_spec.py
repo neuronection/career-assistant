@@ -24,6 +24,15 @@ class IncludeExclude(BaseModel):
     exclude: list[str] = Field(default_factory=list, max_length=50)
 
 
+class SeniorityFilter(BaseModel):
+    """Ordered range: `min` = "and up", `max` = "and down", either side
+    open. `exclude` removes specific levels even inside the range."""
+
+    min: str | None = Field(default=None, max_length=20)
+    max: str | None = Field(default=None, max_length=20)
+    exclude: list[str] = Field(default_factory=list, max_length=10)
+
+
 class SkillFilter(BaseModel):
     include: list[str] = Field(default_factory=list, max_length=50)
     exclude: list[str] = Field(default_factory=list, max_length=50)
@@ -74,7 +83,7 @@ class PostingFilterSpec(BaseModel):
     salary: SalaryFilter = Field(default_factory=SalaryFilter)
     location: LocationFilter = Field(default_factory=LocationFilter)
     companies: CompanyFilter = Field(default_factory=CompanyFilter)
-    seniority: IncludeExclude = Field(default_factory=IncludeExclude)
+    seniority: SeniorityFilter = Field(default_factory=SeniorityFilter)
     employment: IncludeExclude = Field(default_factory=IncludeExclude)
     work_mode: IncludeExclude = Field(default_factory=IncludeExclude)
     languages: IncludeExclude = Field(default_factory=IncludeExclude)
@@ -104,7 +113,7 @@ class PostingFilterSpec(BaseModel):
                 or self.companies.exclude
                 or self.companies.industries_include
                 or self.companies.industries_exclude,
-                self.seniority.include or self.seniority.exclude,
+                self.seniority.min or self.seniority.max or self.seniority.exclude,
                 self.employment.include or self.employment.exclude,
                 self.work_mode.include or self.work_mode.exclude,
                 self.languages.include or self.languages.exclude,

@@ -61,7 +61,9 @@ export function countActiveFilters(spec: FilterSpec): number {
   if (spec.location.remote_only !== null) count++;
   if (spec.companies.industries_include.length) count++;
   if (spec.companies.industries_exclude.length) count++;
-  for (const axis of ["seniority", "employment", "work_mode", "education"] as const) {
+  if (spec.seniority.min || spec.seniority.max) count++;
+  count += spec.seniority.exclude.length;
+  for (const axis of ["employment", "work_mode", "education"] as const) {
     count += spec[axis].include.length + spec[axis].exclude.length;
   }
   if (spec.posted_within.days !== null) count++;
@@ -95,7 +97,16 @@ export function buildSummaryChips(spec: FilterSpec): ActiveChip[] {
   for (const org of spec.companies.include) add("companies", org, org, "include");
   for (const org of spec.companies.exclude) add("companies", `− ${org}`, org, "exclude");
 
-  for (const axis of ["seniority", "employment", "work_mode", "education"] as const) {
+  if (spec.seniority.min || spec.seniority.max) {
+    const label = spec.seniority.min && spec.seniority.max
+      ? `${spec.seniority.min}–${spec.seniority.max}`
+      : spec.seniority.min
+        ? `≥ ${spec.seniority.min}`
+        : `≤ ${spec.seniority.max}`;
+    add("seniority", label, label, "bound");
+  }
+  for (const v of spec.seniority.exclude) add("seniority", `− ${v}`, v, "exclude");
+  for (const axis of ["employment", "work_mode", "education"] as const) {
     for (const v of spec[axis].include) add(axis, v, v, "include");
     for (const v of spec[axis].exclude) add(axis, `− ${v}`, v, "exclude");
   }
@@ -138,10 +149,17 @@ export function removeChip(spec: FilterSpec, chip: ActiveChip): FilterSpec {
       next.companies.exclude = next.companies.exclude.filter((v) => v !== chip.value);
       break;
     case "seniority":
+      if (chip.kind === "bound") {
+        next.seniority.min = null;
+        next.seniority.max = null;
+      } else {
+        next.seniority.exclude = next.seniority.exclude.filter((v) => v !== chip.value);
+      }
+      break;
     case "employment":
     case "work_mode":
     case "education": {
-      const axis = next[chip.axis as "seniority"];
+      const axis = next[chip.axis as "employment"];
       axis.include = axis.include.filter((v) => v !== chip.value);
       axis.exclude = axis.exclude.filter((v) => v !== chip.value);
       break;

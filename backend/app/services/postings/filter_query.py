@@ -148,8 +148,24 @@ def _companies(spec: PostingFilterSpec) -> list[ColumnElement]:
     return clauses
 
 
+_SENIORITY_ORDER = ["intern", "junior", "mid", "senior", "lead", "principal"]
+
+
 def _seniority(spec: PostingFilterSpec) -> list[ColumnElement]:
-    return _include_exclude(JobPosting.seniority, spec.seniority)
+    clauses: list[ColumnElement] = []
+    if spec.seniority.min or spec.seniority.max:
+        # Map to an ordered range: min = "and up", max = "and down".
+        min_rank = _SENIORITY_ORDER.index(spec.seniority.min) if spec.seniority.min else 0
+        max_rank = (
+            _SENIORITY_ORDER.index(spec.seniority.max)
+            if spec.seniority.max
+            else len(_SENIORITY_ORDER) - 1
+        )
+        allowed = _SENIORITY_ORDER[min_rank : max_rank + 1]
+        clauses.append(JobPosting.seniority.in_(allowed))
+    for value in spec.seniority.exclude:
+        clauses.append(JobPosting.seniority != value)
+    return clauses
 
 
 def _employment(spec: PostingFilterSpec) -> list[ColumnElement]:

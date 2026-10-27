@@ -25,15 +25,17 @@ describe("filterState", () => {
     expect(countActiveFilters(spec)).toBe(4);
   });
 
-  it("builds include and exclude chips", () => {
+  it("builds bound and exclude chips for seniority range", () => {
     const spec = {
       ...emptyFilterSpec(),
-      seniority: { include: ["senior"], exclude: ["intern"] },
+      seniority: { min: "senior", max: null, exclude: ["intern"] },
     };
     const chips = buildSummaryChips(spec);
     expect(chips).toHaveLength(2);
-    expect(chips[0].kind).toBe("include");
+    expect(chips[0].kind).toBe("bound");
+    expect(chips[0].label).toBe("≥ senior");
     expect(chips[1].kind).toBe("exclude");
+    expect(chips[1].label).toBe("− intern");
   });
 
   it("removes a chip by value", () => {

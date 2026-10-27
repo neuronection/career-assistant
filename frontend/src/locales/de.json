@@ -4190,6 +4190,19 @@
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "min": "min",
     "max": "max",
-    "currencyPlaceholder": "EUR"
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "Ab Stufe",
+    "seniorityMax": "Bis Stufe",
+    "anyLevel": "Beliebig",
+    "browseCatalog": "Gesamten Katalog durchsuchen",
+    "searchSkills": "Skills suchen…",
+    "category": "Kategorie",
+    "allCategories": "Alle Kategorien",
+    "noSkillsFound": "Keine Skills gefunden",
+    "add": "Hinzufügen",
+    "added": "Hinzugefügt",
+    "loadMore": "Mehr laden",
+    "selectedCount": "{{count}} ausgewählt",
+    "done": "Fertig"
   }
 }

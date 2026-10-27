@@ -4190,6 +4190,19 @@
     "clickToIncludeOnly": "Κλικ για συμπερίληψη",
     "min": "ελάχ.",
     "max": "μέγ.",
-    "currencyPlaceholder": "EUR"
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "Από επίπεδο",
+    "seniorityMax": "Έως επίπεδο",
+    "anyLevel": "Οποιοδήποτε",
+    "browseCatalog": "Περιήγηση σε όλο τον κατάλογο",
+    "searchSkills": "Αναζήτηση δεξιοτήτων…",
+    "category": "Κατηγορία",
+    "allCategories": "Όλες οι κατηγορίες",
+    "noSkillsFound": "Δεν βρέθηκαν δεξιότητες",
+    "add": "Προσθήκη",
+    "added": "Προστέθηκε",
+    "loadMore": "Φόρτωση περισσότερων",
+    "selectedCount": "{{count}} επιλεγμένες",
+    "done": "Τέλος"
   }
 }

@@ -49,7 +49,7 @@ export interface FilterSpec {
     industries_include: string[];
     industries_exclude: string[];
   };
-  seniority: { include: string[]; exclude: string[] };
+  seniority: { min: string | null; max: string | null; exclude: string[] };
   employment: { include: string[]; exclude: string[] };
   work_mode: { include: string[]; exclude: string[] };
   languages: { include: string[]; exclude: string[] };
@@ -69,7 +69,7 @@ export function emptyFilterSpec(): FilterSpec {
     salary: { min: null, max: null, currency: null },
     location: { include: [], exclude: [], remote_only: null },
     companies: { include: [], exclude: [], industries_include: [], industries_exclude: [] },
-    seniority: { include: [], exclude: [] },
+    seniority: { min: null, max: null, exclude: [] },
     employment: { include: [], exclude: [] },
     work_mode: { include: [], exclude: [] },
     languages: { include: [], exclude: [] },

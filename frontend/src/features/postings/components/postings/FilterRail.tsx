@@ -14,6 +14,7 @@ import {
   AXIS_DEFINITIONS,
   countActiveFilters,
 } from "@/features/postings/components/postings/filterState";
+import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 
 interface FilterRailProps {
   spec: FilterSpec;
@@ -63,12 +64,7 @@ export function FilterRail({ spec, onChange, onClear }: FilterRailProps) {
       />
       <LocationSection spec={spec} onChange={onChange} />
       <CompaniesSection spec={spec} onChange={onChange} />
-      <EnumSection
-        spec={spec}
-        onChange={onChange}
-        axis="seniority"
-        definition={AXIS_DEFINITIONS.seniority}
-      />
+      <SenioritySection spec={spec} onChange={onChange} />
       <EnumSection
         spec={spec}
         onChange={onChange}
@@ -237,7 +233,7 @@ function EnumSection({
 }: {
   spec: FilterSpec;
   onChange: (next: FilterSpec) => void;
-  axis: "seniority" | "employment" | "work_mode" | "education";
+  axis: "employment" | "work_mode" | "education";
   definition: AxisDef;
 }) {
   const { t } = useTranslation();
@@ -310,11 +306,9 @@ function SkillsSection({ spec, onChange }: { spec: FilterSpec; onChange: (n: Fil
     spec.skills.include.length + spec.skills.exclude.length > 0 || spec.skills.min_level !== null;
   return (
     <Section title={t("filters.skills")} active={active}>
-      <ChipInput
-        include={spec.skills.include}
-        exclude={spec.skills.exclude}
-        onIncludeChange={(v) => onChange({ ...spec, skills: { ...spec.skills, include: v } })}
-        onExcludeChange={(v) => onChange({ ...spec, skills: { ...spec.skills, exclude: v } })}
+      <SkillPicker
+        value={spec.skills.include}
+        onChange={(v) => onChange({ ...spec, skills: { ...spec.skills, include: v } })}
         placeholder={t("filters.skillsPlaceholder")}
       />
       <div className="flex items-center gap-2">
@@ -335,6 +329,71 @@ function SkillsSection({ spec, onChange }: { spec: FilterSpec; onChange: (n: Fil
             })
           }
         />
+      </div>
+    </Section>
+  );
+}
+
+function SenioritySection({ spec, onChange }: { spec: FilterSpec; onChange: (n: FilterSpec) => void }) {
+  const { t } = useTranslation();
+  const active = spec.seniority.min !== null || spec.seniority.max !== null || spec.seniority.exclude.length > 0;
+  const levels = AXIS_DEFINITIONS.seniority.values;
+  return (
+    <Section title={t("filters.seniority")} active={active}>
+      <div className="flex items-center gap-2">
+        <select
+          className="flex-1 text-sm border border-slate-200 rounded px-2 py-1"
+          value={spec.seniority.min ?? ""}
+          onChange={(e) =>
+            onChange({ ...spec, seniority: { ...spec.seniority, min: e.target.value || null } })
+          }
+          aria-label={t("filters.seniorityMin")}
+        >
+          <option value="">{t("filters.anyLevel")}</option>
+          {levels.map((v) => (
+            <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
+        <span className="text-slate-400 text-sm">–</span>
+        <select
+          className="flex-1 text-sm border border-slate-200 rounded px-2 py-1"
+          value={spec.seniority.max ?? ""}
+          onChange={(e) =>
+            onChange({ ...spec, seniority: { ...spec.seniority, max: e.target.value || null } })
+          }
+          aria-label={t("filters.seniorityMax")}
+        >
+          <option value="">{t("filters.anyLevel")}</option>
+          {levels.map((v) => (
+            <option key={v} value={v}>{v}</option>
+          ))}
+        </select>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {levels.map((level) => {
+          const isExcluded = spec.seniority.exclude.includes(level);
+          return (
+            <button
+              key={level}
+              type="button"
+              onClick={() => {
+                const next = { ...spec.seniority };
+                next.exclude = isExcluded
+                  ? next.exclude.filter((v) => v !== level)
+                  : [...next.exclude, level];
+                onChange({ ...spec, seniority: next });
+              }}
+              className={`text-xs px-2 py-0.5 rounded-full border ${
+                isExcluded
+                  ? "border-rose-200 bg-rose-50 text-rose-600 line-through"
+                  : "border-slate-200 text-slate-500 hover:bg-slate-50"
+              }`}
+              title={isExcluded ? t("filters.clickToIncludeOnly") : t("filters.clickToExclude")}
+            >
+              {level}
+            </button>
+          );
+        })}
       </div>
     </Section>
   );

@@ -4191,6 +4191,19 @@
     "clickToIncludeOnly": "Click to include",
     "min": "min",
     "max": "max",
-    "currencyPlaceholder": "EUR"
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "From level",
+    "seniorityMax": "To level",
+    "anyLevel": "Any",
+    "browseCatalog": "Browse full catalog",
+    "searchSkills": "Search skills…",
+    "category": "Category",
+    "allCategories": "All categories",
+    "noSkillsFound": "No skills found",
+    "add": "Add",
+    "added": "Added",
+    "loadMore": "Load more",
+    "selectedCount": "{{count}} selected",
+    "done": "Done"
   }
 }
