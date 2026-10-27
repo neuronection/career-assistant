@@ -67,9 +67,60 @@ class ExtractLocation(BaseModel):
     country: str | None = Field(default=None, max_length=120)
 
 
+_EDUCATION_LEVEL_MAP: dict[str, str] = {
+    "no_formal": "no_formal",
+    "middle_school": "middle_school",
+    "high_school": "high_school",
+    "vocational": "vocational",
+    "bachelor": "bachelor",
+    "master": "master",
+    "doctorate": "doctorate",
+    "degree": "bachelor",
+    "bachelors": "bachelor",
+    "bachelor's": "bachelor",
+    "bsc": "bachelor",
+    "bs": "bachelor",
+    "masters": "master",
+    "master's": "master",
+    "msc": "master",
+    "ms": "master",
+    "phd": "doctorate",
+    "doctoral": "doctorate",
+    "high school": "high_school",
+    "high school diploma": "high_school",
+    "secondary school": "high_school",
+    "apprenticeship": "vocational",
+    "no formal": "no_formal",
+}
+
+
 class ExtractEducation(BaseModel):
-    level: str | None = Field(default=None, max_length=40)
+    """`level` coerces onto the EducationLevel taxonomy — job ads write
+    "degree", "MSc", "high school diploma"; anything unmappable drops to
+    None (the fit service scores unknown levels neutral) instead of
+    leaking a free-form string into consumers."""
+
+    level: (
+        Literal[
+            "no_formal",
+            "middle_school",
+            "high_school",
+            "vocational",
+            "bachelor",
+            "master",
+            "doctorate",
+        ]
+        | None
+    ) = None
     field: str | None = Field(default=None, max_length=120)
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _coerce_level(cls, value):
+        if value is None:
+            return None
+        key = str(value).strip().lower()
+        return _EDUCATION_LEVEL_MAP.get(key)
 
 
 class ExtractContract(BaseModel):
@@ -194,12 +245,32 @@ class PostingExtract(BaseModel):
     # its threshold and flags the posting for review instead of guessing.
     field_confidence: dict[str, float] = Field(default_factory=dict)
 
+    @field_validator(
+        "languages",
+        "prerequisites",
+        "responsibilities",
+        "skills",
+        "schedule_cues",
+        "values_cues",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_lists(cls, value):
+        return [] if value is None else value
+
     @field_validator("benefits", mode="before")
     @classmethod
     def _coerce_legacy_benefits(cls, value):
+        if value is None:
+            return []
         if isinstance(value, list):
             return [ExtractBenefit.coerce(item) for item in value]
         return value
+
+    @field_validator("field_confidence", mode="before")
+    @classmethod
+    def _coerce_confidence(cls, value):
+        return {} if value is None else value
 
 
 def _quote_around(text: str, needle: str) -> str:
