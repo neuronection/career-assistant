@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (skill picker rides the shared library, 2026-10-27)
+- **The two-path skill picker is promoted into `@neuronection/assistant-ui`**
+  as the generic `MultiSelectPicker` (with health-assistant's
+  CatalogItemPicker as the second adopter of the pattern). The app's
+  `SkillPicker` is now a thin mapping wrapper (ontology fetch stays
+  app-side). Same behavior; the inline type-ahead gains full combobox
+  keyboard navigation (Arrow/Home/End/Enter/Escape) and accessible
+  listbox semantics.
+
 ### Changed (clean role descriptions, 2026-10-27)
 - **"About this role" shows a clean, role-only description** — the
   deep-extraction pass now also writes `description_clean`: the role
