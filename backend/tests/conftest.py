@@ -263,19 +263,34 @@ async def _truncate_all(conn) -> None:
     The fast path is one transaction; migration tests legitimately leave
     the schema mid-chain (tables absent), so a failure falls back to
     best-effort per-table deletes.
+
+    Self-referencing FKs need their links cleared first: ``skills.parent_id``
+    is RESTRICT and RESTRICT is checked immediately, so one DELETE cannot
+    remove a parent row while its child row still exists (a test that seeds
+    a skill hierarchy would otherwise leak its rows into the next test).
     """
     from sqlalchemy import text
     from sqlalchemy.exc import SQLAlchemyError
 
+    clearers = {
+        "skills": "UPDATE skills SET parent_id = NULL",
+    }
+
+    async def delete_table(table: str) -> None:
+        clearer = clearers.get(table)
+        if clearer is not None:
+            await conn.execute(text(clearer))
+        await conn.execute(text(f"DELETE FROM {table}"))
+
     try:
         for table in TABLES:
-            await conn.execute(text(f"DELETE FROM {table}"))
+            await delete_table(table)
         await conn.commit()
     except SQLAlchemyError:
         await conn.rollback()
         for table in TABLES:
             try:
-                await conn.execute(text(f"DELETE FROM {table}"))
+                await delete_table(table)
                 await conn.commit()
             except SQLAlchemyError:
                 await conn.rollback()
