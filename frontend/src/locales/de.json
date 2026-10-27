@@ -4134,6 +4134,9 @@
     "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
     "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
     "presetLabel": "Starten mit",
-    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)",
+    "reextractBtn": "KI-Extraktion erneut ausführen",
+    "reextractHint": "Die strukturierten Felder (Skills, Gehalt, Anforderungen) werden mit KI aus den gespeicherten Beschreibungen neu aufgebaut.",
+    "reextractQueued": "KI-Neuextraktion für {{count}} Stellen eingereiht"
   }
 }

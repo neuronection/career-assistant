@@ -225,6 +225,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/extensions/sources/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Extension Source
+         * @description Zip bundle import (plan 132): a FEEDER for the sources pipeline —
+         *     the zip is staged as a local source tree (host-owned staging dir, one
+         *     synthetic commit), then the normal add + sync run unchanged (consent
+         *     and digest-pinned install are still the admin's acts). Dev/test only.
+         */
+        post: operations["upload_extension_source_api_v1_admin_extensions_sources_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/extensions/sources/{source_id}": {
         parameters: {
             query?: never;
@@ -243,7 +266,12 @@ export interface paths {
         delete: operations["remove_extension_source_api_v1_admin_extensions_sources__source_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Extension Source
+         * @description Replace a source's descriptor (the edit flow) — validated exactly
+         *     like an add; the next sync re-resolves and reports drift normally.
+         */
+        patch: operations["update_extension_source_api_v1_admin_extensions_sources__source_id__patch"];
         trace?: never;
     };
     "/api/v1/admin/extensions/sources/{source_id}/install": {
@@ -927,7 +955,14 @@ export interface paths {
          */
         put: operations["update_posting_source_api_v1_admin_postings_sources__source_id__put"];
         post?: never;
-        delete?: never;
+        /**
+         * Delete Posting Source
+         * @description Remove a job source and its ingested data (plan 133): the schema's
+         *     cascade is deliberate — postings, applications and autopilot rows go
+         *     with their source — so this is a DESTRUCTIVE act the UI confirms
+         *     explicitly with counts before calling.
+         */
+        delete: operations["delete_posting_source_api_v1_admin_postings_sources__source_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -949,6 +984,27 @@ export interface paths {
          *     needs-secret reports the missing slot instead of fetching.
          */
         post: operations["probe_posting_source_api_v1_admin_postings_sources__source_id__probe_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/sources/{source_id}/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Source Runs
+         * @description The run ledger (plan 134): newest first — when it ran, trigger,
+         *     duration, status, items synced and the bounded error.
+         */
+        get: operations["list_source_runs_api_v1_admin_postings_sources__source_id__runs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -8568,6 +8624,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_upload_extension_source_api_v1_admin_extensions_sources_upload_post */
+        Body_upload_extension_source_api_v1_admin_extensions_sources_upload_post: {
+            /** File */
+            file: string;
+        };
         /** Body_upload_gallery_photo_api_v1_me_photo_gallery_post */
         Body_upload_gallery_photo_api_v1_me_photo_gallery_post: {
             /** File */
@@ -13097,8 +13158,19 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
+            /** Contract Type */
+            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Education Level */
+            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13110,6 +13182,10 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13137,6 +13213,11 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
+            /**
+             * Org Key
+             * @default
+             */
+            org_key: string;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -13200,8 +13281,41 @@ export interface components {
             status: string;
             /** Title */
             title: string;
+            /** Travel Class */
+            travel_class?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Hours */
+            work_hours?: string | null;
+        };
+        /**
+         * PostingExtractBenefitOut
+         * @description Typed benefit: `kind` powers display grouping, `raw` keeps the
+         *     original wording. Stored plain strings (legacy extract rows) coerce
+         *     to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
+         *     precedent.
+         */
+        PostingExtractBenefitOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Kind */
+            kind: string;
+            /** Raw */
+            raw: string;
+        };
+        /** PostingExtractContractOut */
+        PostingExtractContractOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Contract Type */
+            contract_type: string;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
         };
         /** PostingExtractEducationOut */
         PostingExtractEducationOut: {
@@ -13210,6 +13324,22 @@ export interface components {
             /** Level */
             level?: string | null;
         };
+        /** PostingExtractHoursOut */
+        PostingExtractHoursOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
+            /** Pattern */
+            pattern: string;
+        };
         /** PostingExtractLocationOut */
         PostingExtractLocationOut: {
             /** City */
@@ -13217,14 +13347,35 @@ export interface components {
             /** Country */
             country?: string | null;
         };
+        /** PostingExtractOnsiteOut */
+        PostingExtractOnsiteOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Office Days Per Week */
+            office_days_per_week?: number | null;
+            /** Policy */
+            policy: string;
+        };
         /**
          * PostingExtractOut
          * @description The posting's structured extraction payload (pipeline-written
          *     JSONB, envelope-typed since plan 123.4).
+         *
+         *     Read coercion is part of the contract: ``apply_extract`` suppresses
+         *     low-confidence fields to ``null`` (``_suppressed_fields`` names
+         *     them) and legacy rows stored plain-string benefits, so lists
+         *     normalize to ``[]`` and benefit strings to ``kind="other"`` instead
+         *     of failing whole postings on read.
          */
         PostingExtractOut: {
             /** Benefits */
-            benefits?: string[];
+            benefits?: components["schemas"]["PostingExtractBenefitOut"][];
+            contract_type?: components["schemas"]["PostingExtractContractOut"] | null;
             education?: components["schemas"]["PostingExtractEducationOut"] | null;
             /** Employment Type */
             employment_type?: string | null;
@@ -13235,6 +13386,7 @@ export interface components {
             /** Languages */
             languages?: string[];
             location?: components["schemas"]["PostingExtractLocationOut"] | null;
+            onsite_policy?: components["schemas"]["PostingExtractOnsiteOut"] | null;
             /** Prerequisites */
             prerequisites?: components["schemas"]["PostingExtractPrerequisiteOut"][];
             /** Remote Policy */
@@ -13242,12 +13394,18 @@ export interface components {
             /** Responsibilities */
             responsibilities?: components["schemas"]["PostingExtractResponsibilityOut"][];
             salary?: components["schemas"]["PostingExtractSalaryOut"] | null;
+            /** Schedule Cues */
+            schedule_cues?: components["schemas"]["PostingExtractScheduleCueOut"][];
             /** Seniority */
             seniority?: string | null;
             /** Skills */
             skills?: components["schemas"]["PostingExtractSkillOut"][];
             /** Title Norm */
             title_norm?: string | null;
+            travel_required?: components["schemas"]["PostingExtractTravelOut"] | null;
+            /** Values Cues */
+            values_cues?: string[];
+            work_hours?: components["schemas"]["PostingExtractHoursOut"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -13290,6 +13448,18 @@ export interface components {
             /** Period */
             period?: string | null;
         };
+        /** PostingExtractScheduleCueOut */
+        PostingExtractScheduleCueOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Cue */
+            cue: string;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+        };
         /** PostingExtractSkillOut */
         PostingExtractSkillOut: {
             /** Confidence */
@@ -13306,6 +13476,20 @@ export interface components {
             skill_key?: string | null;
             /** Unresolved */
             unresolved?: boolean | null;
+        };
+        /** PostingExtractTravelOut */
+        PostingExtractTravelOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Days Per Month */
+            days_per_month?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Level */
+            level: string;
         };
         /** PostingLocationOut */
         PostingLocationOut: {
@@ -13354,8 +13538,14 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
+            /** Contract Type */
+            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Education Level */
+            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13366,6 +13556,10 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13392,6 +13586,11 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
+            /**
+             * Org Key
+             * @default
+             */
+            org_key: string;
             /** Posted At */
             posted_at?: string | null;
             /**
@@ -13441,8 +13640,14 @@ export interface components {
             status: string;
             /** Title */
             title: string;
+            /** Travel Class */
+            travel_class?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Hours */
+            work_hours?: string | null;
         };
         /**
          * PostingSearchOut
@@ -16064,6 +16269,41 @@ export interface operations {
             };
         };
     };
+    upload_extension_source_api_v1_admin_extensions_sources_upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_extension_source_api_v1_admin_extensions_sources_upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     remove_extension_source_api_v1_admin_extensions_sources__source_id__delete: {
         parameters: {
             query?: never;
@@ -16074,6 +16314,45 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_extension_source_api_v1_admin_extensions_sources__source_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -17210,6 +17489,39 @@ export interface operations {
             };
         };
     };
+    delete_posting_source_api_v1_admin_postings_sources__source_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     probe_posting_source_api_v1_admin_postings_sources__source_id__probe_post: {
         parameters: {
             query?: never;
@@ -17230,6 +17542,41 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_source_runs_api_v1_admin_postings_sources__source_id__runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
             /** @description Validation Error */

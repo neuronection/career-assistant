@@ -4135,6 +4135,9 @@
     "budgetCustom": "Custom · {{seconds}}s",
     "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
     "presetLabel": "Start with",
-    "advancedLabel": "Advanced (traffic safety)"
+    "advancedLabel": "Advanced (traffic safety)",
+    "reextractBtn": "Re-run AI extraction",
+    "reextractHint": "Re-build the structured fields (skills, salary, requirements) from the stored descriptions with AI.",
+    "reextractQueued": "Queued AI re-extraction for {{count}} postings"
   }
 }

@@ -17,6 +17,7 @@ import {
   fetchAdminSources,
   fetchSourceRuns,
   probeSource,
+  reextractSourcePostings,
   syncSource,
   updateSource,
   type PostingSource,
@@ -202,6 +203,19 @@ export function SourceDetailPage() {
 
   const runNow = triggerRun;
   const retry = triggerRun;
+  const reextract = () =>
+    void (async () => {
+      setBusy(true);
+      setNotice("");
+      try {
+        const result = await reextractSourcePostings(sourceId);
+        setNotice(t("sourceDetail.reextractQueued", { count: result.queued }));
+      } catch (err) {
+        setNotice(err instanceof Error ? err.message : String(err));
+      } finally {
+        setBusy(false);
+      }
+    })();
   const test = () => {
     setBusy(true);
     setProbeNote("");
@@ -368,6 +382,15 @@ export function SourceDetailPage() {
               {probeNote}
             </p>
           ) : null}
+
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--as-border)] pt-3">
+            <div className="text-sm text-[var(--as-muted-fg)]">
+              {t("sourceDetail.reextractHint")}
+            </div>
+            <Button size="sm" variant="outline" disabled={busy} onClick={reextract}>
+              {t("sourceDetail.reextractBtn")}
+            </Button>
+          </div>
         </div>
       ) : null}
 

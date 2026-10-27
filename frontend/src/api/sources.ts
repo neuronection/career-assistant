@@ -84,6 +84,13 @@ export type SourceProbe = {
   latency_ms?: number;
 };
 
+export async function reextractSourcePostings(
+  sourceId: string,
+): Promise<{ queued: number; skipped: number; postings: number }> {
+  const response = await api.post(`/admin/postings/sources/${sourceId}/reextract`);
+  return response.data as { queued: number; skipped: number; postings: number };
+}
+
 export async function fetchSourceRuns(
   id: string,
   limit = 50,
@@ -97,13 +104,19 @@ export async function fetchSourceRuns(
 export type SourceRun = {
   id: string;
   trigger: "manual" | "scheduled";
-  status: "ok" | "degraded" | "failed" | "skipped";
+  status: "ok" | "degraded" | "failed" | "skipped" | "running";
   started_at: string | null;
   finished_at: string | null;
   duration_ms: number;
   items_synced: number;
   error: string;
-  report?: { errors?: { code?: string; detail?: unknown }[] } | null;
+  report?: {
+    stage?: string;
+    enriched?: number;
+    detail_rows?: number;
+    synced?: number;
+    errors?: { code?: string; detail?: unknown }[];
+  } | null;
 };
 
 export async function fetchAdminSources(): Promise<PostingSource[]> {

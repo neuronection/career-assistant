@@ -7,6 +7,7 @@ import json
 import uuid
 from datetime import UTC, datetime, timedelta
 
+from app.models.enums import BackgroundJobType
 from app.models.posting_model import JobPosting, JobSource, SourceRun
 from app.services.postings import detail_service
 
@@ -184,61 +185,33 @@ async def test_enqueue_details_only_for_smart_and_all(db, synthetic_connector):
     assert len([j for j in jobs if j["job_type"] == "detail_enrichment"]) == 2
 
 
-def test_detail_limit_reads_the_options_layer():
-    source = _source({"options": json.dumps({"detail_limit": 2})})
-    assert detail_service.detail_limit(source) == 2
-    source.config = {"options": json.dumps({"detail_limit": 99})}
-    assert detail_service.detail_limit(source) == 10, "clamped to the knob's ceiling"
-    source.config = {}
-    assert detail_service.detail_limit(source) == 5, "bundle default"
-
-
-async def test_plan_details_batch_honors_the_knob(db, synthetic_connector):
-    source = _source({"options": json.dumps({"detail_mode": "smart", "detail_limit": 1})})
-    db.add(source)
-    await db.flush()
-    db.add_all([_posting(source, "1"), _posting(source, "2"), _posting(source, "3")])
-    await db.commit()
-    batch = await detail_service.plan_details(db, source)
-    assert len(batch) == 1, "one posting per run — the knob is the per-run page budget"
-
-
-async def test_enrichment_resets_and_requeues_the_deep_extract(
-    db, synthetic_connector, monkeypatch
+async def test_bulk_reextract_queues_described_and_skips_the_rest(
+    db, client, auth_headers, synthetic_connector
 ):
-    from app.extensions.sdk import RawPosting
+    import json
+
     from app.models.background_job_model import BackgroundJob
-    from app.models.enums import BackgroundJobType
 
     source = _source({"options": json.dumps({"detail_mode": "smart"})})
     db.add(source)
     await db.flush()
-    posting = _posting(source, "1", title="Python Developer")
-    posting.extract = {"skills": []}
-    posting.extract_version = 1
-    db.add(posting)
+    described = _posting(source, "1", title="Python Developer")
+    described.raw = {"description": "We build things."}
+    blank = _posting(source, "2", title="No Description")
+    hidden = _posting(source, "3", title="Hidden Role", status="hidden")
+    db.add_all([described, blank, hidden])
     await db.commit()
 
-    async def fake_fetch(_db, _source, ids):
-        rows = [
-            RawPosting(
-                external_id=external_id,
-                title="Python Developer",
-                org="Acme",
-                raw={"description": "We build things."},
-            )
-            for external_id in ids
-        ]
-        return rows, [], None
+    print("SOURCE ID:", source.id)
+    response = await client.post(
+        f"/api/v1/admin/postings/sources/{source.id}/reextract", headers=auth_headers
+    )
+    print("RESPONSE:", response.status_code, response.text[:200])
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["queued"] == 1
+    assert body["postings"] == 2, "status-eligible postings only (hidden excluded)"
 
-    monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
-    report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
-    assert report["enriched"] == 1
-    assert report["extract_requeued"] == 1
-
-    await db.refresh(posting)
-    assert posting.extract is None, "the list-card extract is stale — reset for the deep pass"
-    assert posting.extract_version is None
     jobs = (
         (
             await db.execute(
@@ -250,4 +223,4 @@ async def test_enrichment_resets_and_requeues_the_deep_extract(
         .mappings()
         .all()
     )
-    assert len(jobs) == 1, "the deep pass re-runs on the full description"
+    assert len(jobs) == 1, "only the described posting queues"

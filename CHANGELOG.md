@@ -4,15 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
-### Changed (configuration form UX, 2026-10-27)
-- **The source Configuration form speaks human** — Experience levels,
-  Job types and Workplace type are now **toggle chips** (no more typing
-  `mid_senior` or comma-separated enums), Date posted / Sort / Pages per
-  sync are single-choice chips, and a **"Start with"** presets row fills
-  common setups in one click (Remote only, Internships, Junior-friendly,
-  Senior roles, Easy Apply past week). The traffic-safety pauses move
-  into a collapsed **Advanced** section. Sources without the new schema
-  hints render exactly as before.
+### Added (bulk AI re-extraction, 2026-10-27)
+- **"Re-run AI extraction" on the source management page (Overview)** —
+  re-queues the deep extraction for every posting of the source that has
+  a description (already-queued ones are skipped). Postings without a
+  description are reported as skipped — extraction on list-card data
+  wastes the call.
 
 
 ### Fixed (smart enrichment + pacing UX, 2026-10-27)

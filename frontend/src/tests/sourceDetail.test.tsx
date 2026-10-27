@@ -172,8 +172,7 @@ describe("SourceDetailPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
     await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
-    const calls = mocks.updateSource.mock.calls;
-    const call = calls[calls.length - 1]?.[1];
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
     expect(call.query_batch_size).toBe(2);
     expect(JSON.parse(call.config.options).budget_seconds).toBe(90);
     expect(JSON.parse(call.config.options).detail_mode ?? "off").toBe("off");
