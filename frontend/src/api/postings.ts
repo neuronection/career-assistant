@@ -17,6 +17,25 @@ export interface PostingSearchParams {
   match_profile?: boolean;
 }
 
+export async function reextractPostings(
+  postingIds: string[],
+): Promise<{ queued: number; skipped: number; missing: string[]; requested: number }> {
+  const { data } = await api.post<
+    { queued: number; skipped: number; missing: string[]; requested: number }
+  >(
+    "/admin/postings/reextract",
+    { posting_ids: postingIds },
+  );
+  return data;
+}
+
+export async function reextractPosting(
+  postingId: string,
+): Promise<{ extracted: boolean; needs_review?: boolean }> {
+  const { data } = await api.post(`/admin/postings/${postingId}/extract`);
+  return data;
+}
+
 export async function searchPostings(
   params: PostingSearchParams
 ): Promise<PostingsResponse> {

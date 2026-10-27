@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Bookmark, Plus, X } from "lucide-react";
+import { useAuthStore } from "@/stores/authStore";
+import { reextractPostings } from "@/api/postings";
 import {
   fetchPostings,
   searchPostings,
@@ -9,7 +11,6 @@ import {
 } from "@/api/postings";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
-import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
 import type { PostingsResponse } from "@/types/wire";
 
@@ -24,10 +25,7 @@ export function PostingsFeed() {
   const [view, setView] = useState<"all" | "saved">("all");
   const [sort, setSort] = useState<"fit" | "fresh">("fit");
   const [error, setError] = useState("");
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [detailId, setDetailId] = useState<string | null>(
-    searchParams.get("posting")
-  );
+  const navigate = useNavigate();
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [skillKey, setSkillKey] = useState("");
   const [skillLevel, setSkillLevel] = useState<number | null>(null);
@@ -35,6 +33,27 @@ export function PostingsFeed() {
   const [matchMode, setMatchMode] = useState<"all" | "any">("all");
   const [priority, setPriority] = useState("");
   const [matchProfile, setMatchProfile] = useState(false);
+  const isAdmin = useAuthStore((s) => s.user?.is_admin ?? false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [actionNote, setActionNote] = useState("");
+
+  const runReextract = async () => {
+    if (selected.length === 0) return;
+    setActionBusy(true);
+    setActionNote("");
+    try {
+      const result = await reextractPostings(selected);
+      setActionNote(t("postings.reextractDone", { count: result.queued }));
+      setSelected([]);
+      load(view, sort);
+    } catch (err) {
+      setActionNote(err instanceof Error ? err.message : String(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
 
   useEffect(() => {
     void fetchSkillOntology()
@@ -122,6 +141,22 @@ export function PostingsFeed() {
             <option value="fit">{t("postings.sortBestFit")}</option>
             <option value="fresh">{t("postings.sortFreshest")}</option>
           </select>
+          {isAdmin ? (
+            <button
+              onClick={() => {
+                setSelecting((prev) => !prev);
+                setSelected([]);
+              }}
+              className={`text-sm px-3 py-1.5 rounded-lg border ${
+                selecting
+                  ? "bg-primary-600 text-white border-primary-600"
+                  : "border-slate-200"
+              }`}
+              data-testid="postings-select-toggle"
+            >
+              {t("postings.select")}
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -217,6 +252,45 @@ export function PostingsFeed() {
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
+      {selecting ? (
+        <div
+          className="bg-white border border-slate-200 rounded-xl p-3 flex flex-wrap items-center gap-2"
+          data-testid="selection-bar"
+        >
+          <span className="text-sm text-slate-600" data-testid="selection-count">
+            {t("postings.selectedCount", { count: selected.length })}
+          </span>
+          <details className="relative">
+            <summary className="text-sm px-3 py-1.5 rounded-lg border border-slate-200 cursor-pointer select-none">
+              {t("postings.actions")}
+            </summary>
+            <div className="absolute z-10 mt-1 w-60 rounded-lg border border-slate-200 bg-white shadow-lg">
+              <button
+                type="button"
+                disabled={actionBusy || selected.length === 0}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-40"
+                onClick={() => void runReextract()}
+                data-testid="action-reextract"
+              >
+                {t("postings.reextract")}
+              </button>
+            </div>
+          </details>
+          <button
+            type="button"
+            className="text-sm text-slate-500 hover:text-slate-700"
+            onClick={() => setSelected([])}
+          >
+            {t("postings.clearSelection")}
+          </button>
+          {actionNote ? (
+            <span className="text-sm text-emerald-600" role="status">
+              {actionNote}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
       {feed && feed.items.length === 0 && (
         <EmptyState
           title={view === "saved" ? t("postings.nothingSavedYet") : t("postings.noLivePostings")}
@@ -230,26 +304,32 @@ export function PostingsFeed() {
 
       <div className="space-y-3">
         {(feed?.items ?? []).map((posting) => (
-          <PostingCard
-            key={posting.id}
-            posting={posting}
-            onOpenDetail={() => setDetailId(posting.id)}
-            onChanged={() => load(view, sort)}
-          />
+          <div key={posting.id} className="flex items-start gap-2">
+            {selecting ? (
+              <input
+                type="checkbox"
+                className="mt-4 h-4 w-4"
+                aria-label={posting.title}
+                checked={selected.includes(posting.id)}
+                onChange={() =>
+                  setSelected((prev) =>
+                    prev.includes(posting.id)
+                      ? prev.filter((id) => id !== posting.id)
+                      : [...prev, posting.id],
+                  )
+                }
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <PostingCard
+                posting={posting}
+                onOpen={(item) => navigate(`/postings/${item.ref}`)}
+                onChanged={() => load(view, sort)}
+              />
+            </div>
+          </div>
         ))}
       </div>
-      {detailId && (
-        <PostingDetail
-          postingId={detailId}
-          onClose={() => {
-            setDetailId(null);
-            if (searchParams.get("posting")) {
-              searchParams.delete("posting");
-              setSearchParams(searchParams, { replace: true });
-            }
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -185,47 +185,6 @@ async def test_enqueue_details_only_for_smart_and_all(db, synthetic_connector):
     assert len([j for j in jobs if j["job_type"] == "detail_enrichment"]) == 2
 
 
-async def test_bulk_reextract_queues_described_and_skips_the_rest(
-    db, client, auth_headers, synthetic_connector
-):
-    import json
-
-    from app.models.background_job_model import BackgroundJob
-
-    source = _source({"options": json.dumps({"detail_mode": "smart"})})
-    db.add(source)
-    await db.flush()
-    described = _posting(source, "1", title="Python Developer")
-    described.raw = {"description": "We build things."}
-    blank = _posting(source, "2", title="No Description")
-    hidden = _posting(source, "3", title="Hidden Role", status="hidden")
-    db.add_all([described, blank, hidden])
-    await db.commit()
-
-    print("SOURCE ID:", source.id)
-    response = await client.post(
-        f"/api/v1/admin/postings/sources/{source.id}/reextract", headers=auth_headers
-    )
-    print("RESPONSE:", response.status_code, response.text[:200])
-    assert response.status_code == 200, response.text
-    body = response.json()
-    assert body["queued"] == 1
-    assert body["postings"] == 2, "status-eligible postings only (hidden excluded)"
-
-    jobs = (
-        (
-            await db.execute(
-                BackgroundJob.__table__.select().where(
-                    BackgroundJob.job_type == BackgroundJobType.POSTING_EXTRACT.value
-                )
-            )
-        )
-        .mappings()
-        .all()
-    )
-    assert len(jobs) == 1, "only the described posting queues"
-
-
 async def test_bulk_reextract_by_ids(db, client, auth_headers, synthetic_connector):
     import uuid as _uuid
 

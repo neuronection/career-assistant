@@ -538,12 +538,12 @@
     "levelAtLeast": "επίπεδο ≥",
     "matchProfile": "ταίριασμα με το προφίλ μου",
     "removeFilter": "Αφαίρεση {{name}}",
-    "postings.select": "Επιλογή",
-    "postings.selectedCount": "{{count}} επιλεγμένες",
-    "postings.actions": "Ενέργειες",
-    "postings.reextract": "Επανεκτέλεση εξαγωγής με AI",
-    "postings.reextractDone": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες",
-    "postings.clearSelection": "Καθαρισμός επιλογής"
+    "select": "Επιλογή",
+    "selectedCount": "{{count}} επιλεγμένες",
+    "actions": "Ενέργειες",
+    "reextract": "Επανεκτέλεση εξαγωγής με AI",
+    "reextractDone": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες",
+    "clearSelection": "Καθαρισμός επιλογής"
   },
   "universities": {
     "subtitle": "Ανεβάστε το PDF με τις εισαγωγικές πληροφορίες/καταλόγο της χώρας σας. Η τεχνητή νοημοσύνη εξάγει τμήματα και τις ετήσιες βάσεις εισόδου, οι οποίες στη συνέχεια συνδέονται με τις θέσεις εργασίας σε κάθε σελίδα εργασίας.",
@@ -2941,7 +2941,6 @@
   "postingDetail": {
     "levelAria": "επίπεδο {{level}}",
     "unknown": "άγνωστο",
-    "unmapped": "{{label}} (άγνωστο)",
     "priority": {
       "must_have": "απαραίτητο",
       "nice_to_have": "επιθυμητό",
@@ -3029,7 +3028,12 @@
       "meals": "Γεύματα",
       "transport": "Μετακίνηση",
       "other": "Άλλο"
-    }
+    },
+    "skillsCompact": "Συνοπτικά",
+    "skillsDetailed": "Αναλυτικά",
+    "skillsCount": "{{count}} δεξιότητες",
+    "unmappedTooltip": "Δεν υπάρχει ακόμη στην ταξινομία δεξιοτήτων",
+    "mentions": "απαιτείται {{count}}×"
   },
   "sessionList": {
     "renameChat": "Μετονομασία συνομιλίας",
@@ -4142,9 +4146,6 @@
     "budgetCustom": "Προσαρμοσμένο · {{seconds}} s",
     "budgetKept": "Το όριο επήλθε — κρατήθηκαν {{count}} αγγελίες· οι υπόλοιπες συνέχισουν στον επόμενο συγχρονισμό",
     "presetLabel": "Ξεκίνα με",
-    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)",
-    "reextractBtn": "Επανεκτέλεση εξαγωγής με AI",
-    "reextractHint": "Επαναδημιουργία των δομημένων πεδίων (δεξιότητες, μισθός, απαιτήσεις) από τις αποθηκευμένες περιγραφές με AI.",
-    "reextractQueued": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες"
+    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)"
   }
 }

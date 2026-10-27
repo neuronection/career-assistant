@@ -23256,6 +23256,52 @@
         ]
       }
     },
+    "/api/v1/admin/postings/reextract": {
+      "post": {
+        "description": "Re-run deep extraction for the given postings (admin, bulk \u2014 the\n/postings multi-select). Same rules as the per-source bulk: only\npostings WITH a description queue; already-queued ones are skipped;\nunknown ids are reported as missing.",
+        "operationId": "reextract_postings_by_ids_api_v1_admin_postings_reextract_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Reextract Postings By Ids Api V1 Admin Postings Reextract Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reextract Postings By Ids",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/sources": {
       "get": {
         "description": "Posting sources with their sync health (secret-safe views).",
@@ -23470,52 +23516,6 @@
           }
         },
         "summary": "Probe Posting Source",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
-    "/api/v1/admin/postings/sources/{source_id}/reextract": {
-      "post": {
-        "description": "Re-run the deep extraction for every posting of one source (admin,\nbulk) \u2014 AI cost is an explicit admin act. Only postings WITH a\ndescription queue (extraction on list-card data wastes the call);\nalready-queued ones are skipped. Jobs process through the worker\nsequentially, so the AI spend stays bounded and observable.",
-        "operationId": "reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Source Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reextract Source Postings Api V1 Admin Postings Sources  Source Id  Reextract Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Reextract Source Postings",
         "tags": [
           "admin"
         ]

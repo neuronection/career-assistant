@@ -538,12 +538,12 @@
     "levelAtLeast": "level ≥",
     "matchProfile": "match my profile",
     "removeFilter": "Remove {{name}}",
-    "postings.select": "Select",
-    "postings.selectedCount": "{{count}} selected",
-    "postings.actions": "Actions",
-    "postings.reextract": "Re-run AI extraction",
-    "postings.reextractDone": "Queued AI re-extraction for {{count}} postings",
-    "postings.clearSelection": "Clear selection"
+    "select": "Select",
+    "selectedCount": "{{count}} selected",
+    "actions": "Actions",
+    "reextract": "Re-run AI extraction",
+    "reextractDone": "Queued AI re-extraction for {{count}} postings",
+    "clearSelection": "Clear selection"
   },
   "universities": {
     "subtitle": "Upload your country’s admissions/prospectus PDF. The AI extracts departments and yearly entry baselines, which then connect to jobs on each job page.",
@@ -2942,7 +2942,6 @@
   "postingDetail": {
     "levelAria": "level {{level}}",
     "unknown": "unknown",
-    "unmapped": "{{label}} (unmapped)",
     "priority": {
       "must_have": "must have",
       "nice_to_have": "nice to have",
@@ -3030,7 +3029,12 @@
       "meals": "Meals",
       "transport": "Transport",
       "other": "Other"
-    }
+    },
+    "skillsCompact": "Compact",
+    "skillsDetailed": "Detailed",
+    "skillsCount": "{{count}} skills",
+    "unmappedTooltip": "Not in your skill taxonomy yet",
+    "mentions": "required {{count}}×"
   },
   "sessionList": {
     "renameChat": "Rename chat",
@@ -4143,9 +4147,6 @@
     "budgetCustom": "Custom · {{seconds}}s",
     "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
     "presetLabel": "Start with",
-    "advancedLabel": "Advanced (traffic safety)",
-    "reextractBtn": "Re-run AI extraction",
-    "reextractHint": "Re-build the structured fields (skills, salary, requirements) from the stored descriptions with AI.",
-    "reextractQueued": "Queued AI re-extraction for {{count}} postings"
+    "advancedLabel": "Advanced (traffic safety)"
   }
 }

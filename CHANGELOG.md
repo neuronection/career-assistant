@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (skills display + generic re-extraction, 2026-10-27)
+- **The Skills section on the posting page is rebuilt** — skills are
+  deduplicated (one chip per skill; the strongest demanded level and the
+  strictest priority win, with a "×N" mention count), grouped by
+  importance (**Must have → Nice to have → Bonus**, each with its count),
+  and sorted by level within groups. Unmapped skills lose their
+  "(unmapped)" noise — they render with a dashed border and a tooltip
+  instead. A **Compact / Detailed** toggle switches between the grouped
+  chips and the full per-skill view with evidence quotes.
+- **Re-extraction is generic, not source-scoped** — the source-page
+  button is gone; re-running AI extraction lives where the postings are:
+  per post (the detail page button) and multi-select in the feed
+  (Actions → Re-run AI extraction).
+
+
 ### Fixed (postings feed, 2026-10-27)
 - **The postings feed no longer 500s on unrecognized education levels** —
   a posting whose AI extraction produced a free-form level ("degree")
