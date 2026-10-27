@@ -35,6 +35,7 @@ export {
   isExtensionTier,
 } from "@neuronection/assistant-ui/integration-atoms";
 export {
+  integrationConfigPresets,
   parseIntegrationConfigSchema,
   INTEGRATION_VIEW_MODELS_VERSION,
   type IntegrationCapabilityView,

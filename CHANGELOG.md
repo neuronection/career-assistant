@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (configuration form UX, 2026-10-27)
+- **The source Configuration form speaks human** — Experience levels,
+  Job types and Workplace type are now **toggle chips** (no more typing
+  `mid_senior` or comma-separated enums), Date posted / Sort / Pages per
+  sync are single-choice chips, and a **"Start with"** presets row fills
+  common setups in one click (Remote only, Internships, Junior-friendly,
+  Senior roles, Easy Apply past week). The traffic-safety pauses move
+  into a collapsed **Advanced** section. Sources without the new schema
+  hints render exactly as before.
+
+
 ### Fixed (smart enrichment + pacing UX, 2026-10-27)
 - **Smart fetch-detail mode now actually fires for managed sources** —
   the mode was read from the wrong config layer (the managed source

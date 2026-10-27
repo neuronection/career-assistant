@@ -167,12 +167,13 @@ describe("SourceDetailPage", () => {
     expect(screen.getByTestId("pacing-card")).toBeTruthy();
 
     await user.click(screen.getByRole("tab", { name: "Thorough · 90s" }));
-    await user.click(screen.getByRole("tab", { name: "2", exact: true }));
+    await user.click(screen.getByRole("tab", { name: "2" }));
     expect(screen.getByTestId("pacing-estimate").textContent).toContain("Fits");
 
     await user.click(screen.getByRole("button", { name: "Save configuration" }));
     await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
-    const call = mocks.updateSource.mock.calls.at(-1)?.[1];
+    const calls = mocks.updateSource.mock.calls;
+    const call = calls[calls.length - 1]?.[1];
     expect(call.query_batch_size).toBe(2);
     expect(JSON.parse(call.config.options).budget_seconds).toBe(90);
     expect(JSON.parse(call.config.options).detail_mode ?? "off").toBe("off");

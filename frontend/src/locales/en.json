@@ -4133,6 +4133,8 @@
     "runFailed": "Failed",
     "runSkipped": "Skipped",
     "budgetCustom": "Custom · {{seconds}}s",
-    "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync"
+    "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
+    "presetLabel": "Start with",
+    "advancedLabel": "Advanced (traffic safety)"
   }
 }

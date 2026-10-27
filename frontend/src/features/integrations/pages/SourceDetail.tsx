@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button, SegmentedTabs } from "@/components/ui";
 import {
   IntegrationConfigForm,
+  integrationConfigPresets,
   parseIntegrationConfigSchema,
 } from "@/components/ui/integrations";
 import type {
@@ -521,6 +522,9 @@ export function SourceDetailPage() {
           ) : null}
           {source.tool_config_schema ? (
             <IntegrationConfigForm
+              presets={integrationConfigPresets(
+                source.tool_config_schema as IntegrationConfigSchema,
+              )}
               fields={parseIntegrationConfigSchema(
                 source.tool_config_schema as IntegrationConfigSchema,
               ).filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")}
@@ -556,6 +560,8 @@ export function SourceDetailPage() {
               error={notice || null}
               secretSlots={{}}
               labels={{
+                presetLabel: t("sourceDetail.presetLabel"),
+                advancedLabel: t("sourceDetail.advancedLabel"),
                 submitLabel: t("sourceDetail.saveConfig"),
                 cancelLabel: t("toolsSettings.connectors.sources.cancel"),
                 secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),

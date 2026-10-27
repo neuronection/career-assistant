@@ -4132,6 +4132,8 @@
     "runFailed": "Fehlgeschlagen",
     "runSkipped": "Übersprungen",
     "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
-    "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync"
+    "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
+    "presetLabel": "Starten mit",
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
   }
 }
