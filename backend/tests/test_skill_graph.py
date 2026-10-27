@@ -159,6 +159,44 @@ def test_synonym_closure_is_transitive_and_free():
     }
 
 
+def test_synonym_of_a_tree_child_of_the_seed_is_included():
+    """Synonym identity applies to tree-discovered nodes too (plan 138 F-1).
+
+    seed web-dev → curated child frontend → synonym front-end: the synonym
+    is included at every hop budget, hops=0 included — identity is free.
+    """
+    index, edges = _graph(
+        _node("web-dev"),
+        _node("frontend", parent="web-dev"),
+        _node("front-end"),
+        edges=(_edge("frontend", "front-end", "synonym"),),
+    )
+    for hops in (0, 1, 2):
+        reached = expand({_uid("web-dev")}, index, edges, mode="down", hops=hops)
+        assert reached == {_uid("web-dev"), _uid("frontend"), _uid("front-end")}
+
+
+def test_is_a_child_of_a_tree_discovered_node_is_included_at_the_same_hop_count():
+    """Learned moves chain off tree-discovered nodes like off the seeds (F-2, (i)).
+
+    react is_a frontend, and frontend hangs under web-dev in the curated
+    tree: react is reached at hops=1 — the tree discovery is free, the
+    learned edge costs its usual one hop, never hop+1 and never nothing.
+    """
+    index, edges = _graph(
+        _node("web-dev"),
+        _node("frontend", parent="web-dev"),
+        _node("react"),
+        edges=(_edge("react", "frontend", "is_a"),),
+    )
+    assert expand({_uid("web-dev")}, index, edges, mode="down", hops=1) == {
+        _uid("web-dev"),
+        _uid("frontend"),
+        _uid("react"),
+    }
+    assert _uid("react") not in expand({_uid("web-dev")}, index, edges, mode="down", hops=0)
+
+
 # ------------------------------------------------------------ related (opt-in)
 
 

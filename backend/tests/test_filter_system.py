@@ -321,7 +321,9 @@ async def _graph_fixture(db):
 
     programming ← jvm-languages ← java, python is_a programming,
     typescript related_to javascript, k8s synonym kubernetes,
-    sql under the curated `databases` parent. One posting per leaf.
+    sql under the curated `databases` parent, and a curated web-dev tree
+    whose child frontend has the synonym front-end and the is_a child react
+    (the tree/synonym/is_a composition rows). One posting per leaf.
     """
     from app.services.catalog.skill_relations import SkillRelationService
 
@@ -337,12 +339,18 @@ async def _graph_fixture(db):
             "kubernetes",
             "k8s",
             "databases",
+            "web-dev",
         )
     }
     db.add_all(skills.values())
     await db.flush()
     skills["sql"] = Skill(key="sql", label="SQL", category="test", parent_id=skills["databases"].id)
-    db.add(skills["sql"])
+    skills["frontend"] = Skill(
+        key="frontend", label="Frontend", category="test", parent_id=skills["web-dev"].id
+    )
+    skills["front-end"] = Skill(key="front-end", label="Front End", category="test")
+    skills["react"] = Skill(key="react", label="React", category="test")
+    db.add_all([skills["sql"], skills["frontend"], skills["front-end"], skills["react"]])
     src = _source({"keywords": "graph"})
     db.add(src)
     await db.flush()
@@ -358,6 +366,9 @@ async def _graph_fixture(db):
             ("g-ts", "TS Dev", None),
             ("g-k8s", "K8s Engineer", None),
             ("g-sql", "SQL Analyst", None),
+            ("g-frontend", "Frontend Dev", None),
+            ("g-fesyn", "Front End Dev", None),
+            ("g-react", "React Dev", None),
             ("g-none", "Unrelated Role", None),
         )
     }
@@ -373,6 +384,9 @@ async def _graph_fixture(db):
         "g-ts": ("typescript", 4),
         "g-k8s": ("k8s", 6),
         "g-sql": ("sql", 5),
+        "g-frontend": ("frontend", 4),
+        "g-fesyn": ("front-end", 3),
+        "g-react": ("react", 5),
     }
     db.add_all(
         [
@@ -392,6 +406,8 @@ async def _graph_fixture(db):
     await service.add("java", "jvm-languages", "is_a")
     await service.add("typescript", "javascript", "related_to")
     await service.add("k8s", "kubernetes", "synonym", source="import")
+    await service.add("frontend", "front-end", "synonym", source="import")
+    await service.add("react", "frontend", "is_a")
     return postings
 
 
@@ -433,6 +449,15 @@ async def test_filter_skills_expand_synonym_and_tree_subtree(db, client, auth_he
     subtree = await _filtered_ids(client, auth_headers, {"include": ["databases"]})
     assert synonym == {"g-k8s"}
     assert subtree == {"g-sql"}
+
+
+async def test_filter_skills_tree_child_synonym_and_is_a_compose(db, client, auth_headers):
+    """The tree/synonym/is_a composition rows: filtering "web-dev" reaches
+    the curated child (tree), the child's synonym (identity, free) and the
+    child's is_a child (learned, one hop) within the default budget."""
+    await _graph_fixture(db)
+    matched = await _filtered_ids(client, auth_headers, {"include": ["web-dev"]})
+    assert matched == {"g-frontend", "g-fesyn", "g-react"}
 
 
 async def test_filter_skills_exclude_expands_down_never_related(db, client, auth_headers):

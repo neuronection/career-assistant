@@ -1,18 +1,26 @@
 """Pure expansion walk over the skill graph (plan 138, decision 3).
 
-One small edge load plus an in-memory BFS — never a recursive CTE: the
+One small edge load plus an in-memory walk — never a recursive CTE: the
 desktop profile runs SQLite and health-assistant's Postgres-only
 ``ARRAY``/``ANY`` traversal is deliberately not ported (plan §3.3/§3.9).
 No closure table, no materialized paths, no cache: a few hundred skills and
 a few thousand edges are the whole graph.
 
-Semantics (precision contract):
+Semantics (precision contract) — one 0/1-cost walk (deque: free edges relax
+at the front, hop edges at the back):
 
+- Free, at every step and over everything already reached: synonym identity
+  (transitive, both directions) and the curated ``parent_id`` subtree
+  (full — curated ⇒ trusted; downward only; ``hops`` never bounds tree
+  depth). A synonym of a tree-discovered node is included, a node's
+  subtrees and synonyms apply whether it was a seed, learned or
+  tree-discovered, and learned moves chain off tree-discovered nodes
+  exactly like off the seeds.
 - ``off`` — the seeds only (exact match).
-- ``down`` — the curated ``parent_id`` subtree (full, curated ⇒ trusted),
-  synonym identity (always, both directions) and hop-capped ``is_a``
-  children (``X is_a seed`` ⇒ include X). Never upward: filtering "java"
-  must not match every posting requiring "programming".
+- ``down`` — the free closure above plus hop-capped ``is_a`` children
+  (``X is_a seed`` ⇒ include X at one hop). Learned edges are the only
+  hop cost. Never upward: filtering "java" must not match every posting
+  requiring "programming".
 - ``related`` — ``down`` plus ``part_of``/``related_to`` walked in both
   directions, also hop-capped. Opt-in only.
 - Unknown ids pass through unexpanded; a corrupt cycle still terminates
@@ -22,7 +30,7 @@ Semantics (precision contract):
 from __future__ import annotations
 
 import uuid
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
@@ -76,20 +84,6 @@ def _clamp_hops(hops: int) -> int:
     return max(0, min(int(hops), MAX_HOPS))
 
 
-def _closure(
-    seeds: Iterable[uuid.UUID], adjacency: Mapping[uuid.UUID, list[uuid.UUID]]
-) -> set[uuid.UUID]:
-    """Visited-set transitive closure over an undirected adjacency map."""
-    reached = set(seeds)
-    stack = list(reached)
-    while stack:
-        for neighbour in adjacency.get(stack.pop(), ()):
-            if neighbour not in reached:
-                reached.add(neighbour)
-                stack.append(neighbour)
-    return reached
-
-
 def expand(
     seeds: Iterable[uuid.UUID],
     nodes: Mapping[uuid.UUID, SkillNode],
@@ -135,26 +129,24 @@ def expand(
     for node in nodes.values():
         children[node.parent_id].append(node.id)
 
-    # Synonym identity is free (never consumes a hop).
-    reached = _closure(selected, synonyms)
-    frontier = set(reached)
-    for _ in range(_clamp_hops(hops)):
-        discovered = set()
-        for skill_id in frontier:
+    # One 0/1-cost walk: synonym identity and the curated subtree are free
+    # (relax at the front, at every step, over everything reached so far);
+    # the learned edges are the only hop cost (relax at the back) and chain
+    # off tree-discovered and synonym nodes exactly like off the seeds. The
+    # depth map is the visited set, so even corrupt cycles terminate.
+    budget = _clamp_hops(hops)
+    depth: dict[uuid.UUID, int] = dict.fromkeys(selected, 0)
+    queue = deque(depth)
+    while queue:
+        skill_id = queue.popleft()
+        cost = depth[skill_id]
+        for neighbour in (*synonyms.get(skill_id, ()), *children.get(skill_id, ())):
+            if neighbour not in depth:
+                depth[neighbour] = cost
+                queue.appendleft(neighbour)
+        if cost < budget:
             for neighbour in moves.get(skill_id, ()):
-                if neighbour not in reached:
-                    discovered.add(neighbour)
-        discovered = _closure(discovered, synonyms) - reached
-        if not discovered:
-            break
-        reached |= discovered
-        frontier = discovered
-
-    # The curated tree is trusted in full and only ever walked downward.
-    stack = list(reached)
-    while stack:
-        for child in children.get(stack.pop(), ()):
-            if child not in reached:
-                reached.add(child)
-                stack.append(child)
-    return reached
+                if neighbour not in depth:
+                    depth[neighbour] = cost + 1
+                    queue.append(neighbour)
+    return set(depth)
