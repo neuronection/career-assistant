@@ -259,6 +259,52 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     mapping_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
 
+class PostingChange(UUIDPrimaryKeyMixin, Base):
+    """Append-only posting mutation journal (plan 142): one row per real
+    change, with its actor, operation parameters, duration and capped
+    field diff.
+
+    Written ONLY through `PostingChangeJournal.record` in the SAME
+    transaction as the mutation — the digest gate keeps no-op writes out.
+    `actor_ref`/`operation` carry ids and knobs only; prompt/response
+    content lives in `ai_generations`/`job_postings.raw`, never here."""
+
+    __tablename__ = "posting_changes"
+    __table_args__ = (
+        CheckConstraint(
+            "actor_kind IN ("
+            "'sync_run', 'extract_llm', 'detail_fetch', 'company_match', "
+            "'retag', 'manual', 'expiry')",
+            name="actor_kind_allowed",
+        ),
+        CheckConstraint("outcome IN ('ok', 'partial', 'error')", name="outcome_allowed"),
+        Index("ix_posting_changes_posting_occurred", "posting_id", "occurred_at"),
+    )
+
+    posting_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("job_postings.id", ondelete="CASCADE"), nullable=False
+    )
+    occurred_at: Mapped[datetime] = mapped_column(
+        TZDateTime(), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    actor_kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    # ids and knobs only: run_id (source_runs.id), job_id
+    # (background_jobs.id = ai_generations.run_id), ai_generation_id,
+    # user_id, mode/model/prompt_version, trigger.
+    actor_ref: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    # the operation's own parameters (thresholds, layers, sources) —
+    # links, never content.
+    operation: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # field → {from, to} (strings capped at 200 chars) plus the skills
+    # set-diff shape `{"skills": {"added": [...], "removed": [...],
+    # "changed": {...}}}` for relation re-tags.
+    diff: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    outcome: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="ok", server_default="ok"
+    )
+
+
 class PostingSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Posting ↔ skill requirement: FK join, never text (the matching edge).
 

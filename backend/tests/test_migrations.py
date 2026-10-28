@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0071"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0072"], (
         "revision chain stays linear on one head"
     )
 
@@ -3175,3 +3175,48 @@ def test_0067_skill_relation_edge_guards():
         ), "status_allowed CHECK"
     finally:
         _relation_probe_cleanup()
+
+
+def test_0072_posting_changes_roundtrip():
+    """The journal table exists at head, drops on downgrade (CHECKs and
+    index with it) and comes back on re-upgrade — on an empty DB too, so
+    the fresh-DB boot upgrade path stays green on both dialects."""
+
+    async def _columns() -> list[str]:
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                cols = await conn.run_sync(
+                    lambda sync_conn: [
+                        c["name"] for c in inspect(sync_conn).get_columns("posting_changes")
+                    ]
+                )
+        finally:
+            await engine.dispose()
+        return cols
+
+    config = _configured()
+    command.upgrade(config, "head")
+    columns = asyncio.run(_columns())
+    assert columns == [
+        "id",
+        "posting_id",
+        "occurred_at",
+        "actor_kind",
+        "actor_ref",
+        "operation",
+        "duration_ms",
+        "diff",
+        "outcome",
+    ], "plan 142 D1 column set, order pinned by the model"
+
+    command.downgrade(config, "0071")
+    assert not _table_present("posting_changes"), "downgrade drops the journal"
+
+    command.upgrade(config, "head")
+    assert asyncio.run(_columns()) == columns, "re-upgrade restores the same shape"

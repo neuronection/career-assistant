@@ -26,3 +26,5 @@ job_postings.org_match :: typed-out {layer,score,matched_on,state} link provenan
 skill_relations.evidence :: keep-open per-edge provenance (rationale, signals, prompt_version)
 posting_filter_presets.filters :: typed-out versioned postings filter spec (v-pinned pydantic shape, additive-only evolution — plan 136)
 posting_filter_presets.tags :: keep-open user-applied preset tags (free-form strings — plan 136)
+posting_changes.operation :: keep-open operation parameters (links, never content)
+posting_changes.diff :: keep-open field→{from,to} compact diffs (strings capped at 200 chars; skills set-diff)

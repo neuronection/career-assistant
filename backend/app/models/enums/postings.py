@@ -73,6 +73,29 @@ class MappingMethod(StrEnum):
     MANUAL = "manual"
 
 
+class PostingChangeKind(StrEnum):
+    """Who mutated a posting — the `posting_changes` actor vocabulary
+    (plan 142), mirrored in the `actor_kind_allowed` CHECK. `reextract`
+    is deliberately absent: a re-extract journals as `extract_llm` with
+    `actor_ref.trigger` carrying the wave (manual/bulk)."""
+
+    SYNC_RUN = "sync_run"
+    EXTRACT_LLM = "extract_llm"
+    DETAIL_FETCH = "detail_fetch"
+    COMPANY_MATCH = "company_match"
+    RETAG = "retag"
+    MANUAL = "manual"
+    EXPIRY = "expiry"
+
+
+class PostingChangeOutcome(StrEnum):
+    """Did the journaled operation fully land (plan 142)."""
+
+    OK = "ok"
+    PARTIAL = "partial"
+    ERROR = "error"
+
+
 class SearchScope(StrEnum):
     CATALOG = "catalog"
     RANKINGS = "rankings"

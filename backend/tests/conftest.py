@@ -96,6 +96,7 @@ TABLES = [
     "growth_plans",
     "posting_filter_presets",
     "posting_interactions",
+    "posting_changes",
     "posting_skills",
     "posting_fits",
     "interview_sessions",

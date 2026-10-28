@@ -128,6 +128,8 @@ from app.models.enums.postings import HealthStatus as HealthStatus
 from app.models.enums.postings import MappingMethod as MappingMethod
 from app.models.enums.postings import PhysicalActivity as PhysicalActivity
 from app.models.enums.postings import PhysicalCondition as PhysicalCondition
+from app.models.enums.postings import PostingChangeKind as PostingChangeKind
+from app.models.enums.postings import PostingChangeOutcome as PostingChangeOutcome
 from app.models.enums.postings import PostingEvidence as PostingEvidence
 from app.models.enums.postings import PostingSkillPriority as PostingSkillPriority
 from app.models.enums.postings import PostingStatus as PostingStatus
@@ -237,6 +239,8 @@ __all__ = [
     "PathStatus",
     "PhysicalActivity",
     "PhysicalCondition",
+    "PostingChangeKind",
+    "PostingChangeOutcome",
     "PostingEvidence",
     "PostingSkillPriority",
     "PostingStatus",

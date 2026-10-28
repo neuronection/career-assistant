@@ -154,6 +154,20 @@ deletion).
 
 ### Migration notes
 
+- **0072** — plan 142: `posting_changes`, the append-only posting
+  mutation journal (actor `sync_run | extract_llm | detail_fetch |
+  company_match | retag | manual | expiry` — `actor_kind_allowed` CHECK
+  mirrors the `PostingChangeKind` enum; `reextract` deliberately absent,
+  a re-extract journals as `extract_llm` with `actor_ref.trigger`).
+  `actor_ref`/`operation` are ids and knobs only (the params-not-content
+  law — content lives in `ai_generations`/`job_postings.raw`); `diff`
+  holds capped field→{from,to} pairs plus the skills set-diff; outcome
+  `ok | partial | error`. One composite index (posting_id, occurred_at)
+  serves the FK and the newest-first history read. Written only through
+  the `PostingChangeJournal.record` seam in the mutation's own
+  transaction; downgrade drops the table (operational history). Covered
+  by `tests/test_migrations.py::test_0072_posting_changes_roundtrip` +
+  the enum↔CHECK parity wall.
 - **0071** — plan 135 slice C: `job_postings.org_match_state`, the indexed
   projection of the `org_match` JSONB's `state` (`linked | pending |
   rejected`; `org_match_state_allowed` CHECK mirrors the vocabulary) —
