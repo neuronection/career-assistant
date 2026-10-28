@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (posting change journal, 2026-10-29)
+- **Every change to a posting is now on record.** An append-only journal
+  (`posting_changes`) notes who changed what, with which parameters and
+  how long it took — connector syncs, the deep LLM extraction (including
+  re-extract waves), detail-page fetches, the company matcher, merges and
+  triage, skill re-tags, and expiry. Each entry stores a compact
+  field-level diff (capped, content stays out) plus actor links (source
+  run, background job, AI generation) so a change can be traced back to
+  the exact run that made it. The posting page's right rail gains a
+  **History** section: a day-grouped timeline with kind badges, duration
+  chips and expandable diffs, newest first (`GET /api/v1/postings/{ref}/history`).
+
 ### Changed (posting detail page — the card grammar, 2026-10-28)
 - **The posting page reads like its card now.** Key facts are icon-labeled
   spec slots with the seniority dot scale, work mode carries its glyph, and
