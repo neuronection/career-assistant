@@ -46,7 +46,12 @@ hard-deletes an edge (dismiss keeps the negative edge instead).
 > Tree placement is sticky: once an accepted `is a` edge has filled a
 > skill's empty place in the sub-skill tree, removing the edge does not
 > un-fill it — the tree mirrors the placement back as an imported edge.
-> Undoing a placement needs a parent edit on the skill itself.
+> Undoing a placement needs a parent edit on the skill itself: send
+> `parent_id: null` explicitly to clear the parent back to the root (an
+> edit that omits `parent_id` leaves the parent alone). While the edge
+> that justified the placement stays approved, the next catch-up pass
+> re-fills the cleared place — dismiss or remove that edge too to make
+> the undo stick.
 
 ### Thresholds
 

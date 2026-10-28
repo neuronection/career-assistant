@@ -111,7 +111,7 @@ async def update_skill(
     """Edit a skill (admin; key immutable, lifecycle via status)."""
     try:
         skill = await TaxonomyService(db).update_skill(
-            skill_id, data.model_dump(exclude_none=False)
+            skill_id, data.model_dump(exclude_unset=True)
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

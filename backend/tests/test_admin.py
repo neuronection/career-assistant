@@ -119,6 +119,83 @@ async def test_taxonomy_key_is_immutable_but_editable(client, _admin_and_user, d
     assert bad_status.status_code == 400
 
 
+async def test_update_skill_explicit_null_parent_clears_to_root(client, db, _admin_and_user):
+    """F4 pin 1: an explicit `parent_id: null` is a CLEAR — the documented
+    undo exists for the root case (repo law: no silent no-op)."""
+    admin, _ = _admin_and_user
+    parent = Skill(key="root-parent", label="Root Parent", category="test")
+    db.add(parent)
+    await db.flush()
+    child = Skill(key="root-child", label="Root Child", category="test", parent_id=parent.id)
+    db.add(child)
+    await db.flush()
+    child_id = child.id
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{child_id}",
+        json={"parent_id": None},
+        headers=admin,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["parent_id"] is None
+    db.expire_all()
+    refreshed = (await db.execute(select(Skill).where(Skill.id == child_id))).scalars().first()
+    assert refreshed.parent_id is None
+
+
+async def test_update_skill_absent_parent_field_is_a_noop(client, db, _admin_and_user):
+    """F4 pin 2: an update that omits `parent_id` never clears it —
+    only an explicit null is the clear."""
+    admin, _ = _admin_and_user
+    parent = Skill(key="kept-parent", label="Kept Parent", category="test")
+    db.add(parent)
+    await db.flush()
+    child = Skill(key="kept-child", label="Kept Child", category="test", parent_id=parent.id)
+    db.add(child)
+    await db.flush()
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{child.id}",
+        json={"label": "Renamed Child"},
+        headers=admin,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["label"] == "Renamed Child"
+    assert response.json()["parent_id"] == str(parent.id), "an absent parent_id never clears"
+
+
+async def test_update_skill_refuses_a_cycle_through_an_approved_is_a_edge(
+    client, db, _admin_and_user
+):
+    """F6 pin: `update_skill` walks approved `is_a` generalities like the
+    seam — a re-parent that closes a cycle through a reviewed edge is
+    refused."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    admin, _ = _admin_and_user
+    a = Skill(key="cycle-a", label="Cycle A", category="test")
+    b = Skill(key="cycle-b", label="Cycle B", category="test")
+    db.add_all([a, b])
+    await db.flush()
+    a_id, b_id = a.id, b.id
+    service = SkillRelationService(db)
+    await service.add("cycle-b", "cycle-a", "is_a", source="manual")
+    await db.commit()
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{a_id}",
+        json={"parent_id": str(b_id)},
+        headers=admin,
+    )
+
+    assert response.status_code == 400, response.text
+    db.expire_all()
+    refreshed = (await db.execute(select(Skill).where(Skill.id == a_id))).scalars().first()
+    assert refreshed.parent_id is None, "a refused re-parent writes nothing"
+
+
 async def test_taxonomy_delete_guard_and_success(client, db, _admin_and_user, seeded_catalog):
     admin, _ = _admin_and_user
     tags = (await client.get("/api/v1/taxonomy/interests", headers=admin)).json()

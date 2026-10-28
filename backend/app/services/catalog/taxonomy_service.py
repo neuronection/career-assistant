@@ -5,10 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.models.career_path_model import CareerPathStep
-from app.models.enums import InterestTagKind
+from app.models.enums import InterestTagKind, SkillRelationType
 from app.models.job_model import JobSkill, JobTag
 from app.models.taxonomy_model import InterestTag, Skill
 from app.models.user_model import Profile, UserInterest, UserSkill
+from app.services.catalog.skill_relations import assert_acyclic
 from app.services.catalog.skills_service import SkillService
 
 
@@ -92,10 +93,16 @@ class TaxonomyService:
     ) -> Skill:
         """Edit a skill (key immutable); lifecycle transitions via status.
 
-        ``only_if_parent_empty`` guards the tree catch-up's fill-only
-        contract at write time: the parent is re-checked inside this
-        transaction and a parent filled by a concurrent write is never
-        overwritten (the backfill skips to its next candidate).
+        A ``parent_id`` key present with ``None`` clears the parent back to
+        the root (the documented undo); a key ABSENT from ``data`` never
+        touches it. The re-parent shares the seam's generality walk
+        (:func:`assert_acyclic`) so a parent that would close a cycle
+        through an approved ``is_a`` edge is refused — clearing cannot
+        create a cycle and needs no guard. ``only_if_parent_empty``
+        additionally guards the tree catch-up's fill-only contract at
+        write time: the parent is re-checked inside this transaction and
+        a parent filled by a concurrent write is never overwritten (the
+        backfill skips to its next candidate).
         """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
@@ -104,26 +111,26 @@ class TaxonomyService:
             raise ValidationError("Skill keys are immutable")
         if "status" in data and data["status"] is not None:
             skill.status = SkillService.validate_status(data["status"])
-        if "parent_id" in data and data["parent_id"] is not None:
-            parent = await self.db.get(Skill, data["parent_id"])
-            if parent is None:
-                raise ValidationError("Parent skill not found")
-            if parent.id == skill.id:
-                raise ValidationError("A skill cannot be its own parent")
-            ancestor = parent
-            while ancestor.parent_id is not None:
-                if ancestor.parent_id == skill.id:
-                    raise ValidationError("Parent chain would create a cycle")
-                ancestor = await self.db.get(Skill, ancestor.parent_id)
-                if ancestor is None:
-                    break
-            if only_if_parent_empty:
-                current = (
-                    await self.db.execute(select(Skill.parent_id).where(Skill.id == skill.id))
-                ).scalar_one_or_none()
-                if current is not None:
-                    raise ValidationError("Parent is already set")
-            skill.parent_id = data["parent_id"]
+        if "parent_id" in data:
+            if data["parent_id"] is None:
+                skill.parent_id = None
+            else:
+                parent = await self.db.get(Skill, data["parent_id"])
+                if parent is None:
+                    raise ValidationError("Parent skill not found")
+                if parent.id == skill.id:
+                    raise ValidationError("A skill cannot be its own parent")
+                try:
+                    await assert_acyclic(self.db, skill.id, parent.id, SkillRelationType.IS_A)
+                except ValidationError as exc:
+                    raise ValidationError("Parent chain would create a cycle") from exc
+                if only_if_parent_empty:
+                    current = (
+                        await self.db.execute(select(Skill.parent_id).where(Skill.id == skill.id))
+                    ).scalar_one_or_none()
+                    if current is not None:
+                        raise ValidationError("Parent is already set")
+                skill.parent_id = data["parent_id"]
         if "aliases" in data and data["aliases"] is not None:
             skill.aliases = [str(a).strip() for a in data["aliases"] if str(a).strip()]
         if "level_anchors" in data and data["level_anchors"] is not None:

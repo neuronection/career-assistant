@@ -8,7 +8,8 @@ which leaves raw writes unguarded; here the guards live in one place:
 - endpoint-pair matrix (``SKILL_LINK_MATRIX``) + relation vocabulary,
 - no self-loops,
 - no cycles on the directed kinds (``is_a`` also follows the ``parent_id``
-  backbone, mirroring ``TaxonomyService.update_skill``),
+  backbone — one generality walk, :func:`assert_acyclic`, shared with
+  ``TaxonomyService.update_skill``'s re-parent),
 - canonical endpoint ordering for symmetric kinds (the enum owns the set),
 - one row per (pair, relation): an existing row is updated, never duplicated,
   evidence is write-once (a later suggestion refreshes the confidence, never
@@ -148,7 +149,7 @@ class SkillRelationService:
             return existing
 
         if kind.is_directed:
-            await self._assert_acyclic(source_skill.id, target_skill.id, kind)
+            await assert_acyclic(self.db, source_skill.id, target_skill.id, kind)
 
         resolution = self._status(status) if status is not None else None
         if resolution is None:
@@ -183,7 +184,7 @@ class SkillRelationService:
         kind = self._relation(edge.relation)
         if kind.is_directed:
             # The graph may have grown since the proposal: re-check the cycle.
-            await self._assert_acyclic(edge.from_skill_id, edge.to_skill_id, kind)
+            await assert_acyclic(self.db, edge.from_skill_id, edge.to_skill_id, kind)
         edge.status = SkillRelationStatus.APPROVED.value
         edge.decided_by = decided_by
         edge.decided_at = datetime.now(UTC)
@@ -288,36 +289,46 @@ class SkillRelationService:
             raise NotFoundError(f"Skill relation not found: {edge_id}")
         return edge
 
-    async def _assert_acyclic(
-        self, from_id: uuid.UUID, to_id: uuid.UUID, kind: SkillRelationType
-    ) -> None:
-        """Reject ``from -> to`` when ``from`` is already one of ``to``'s ancestors."""
-        seen: set[uuid.UUID] = set()
-        frontier = [to_id]
-        while frontier:
-            current = frontier.pop()
-            if current in seen:
-                continue
-            seen.add(current)
-            if current == from_id:
-                raise ValidationError(f"{kind.value} edge would create a cycle")
-            frontier.extend(await self._generalities(current, kind))
 
-    async def _generalities(self, skill_id: uuid.UUID, kind: SkillRelationType) -> list[uuid.UUID]:
-        """One step towards the general end of the axis, approved rows only."""
-        out: list[uuid.UUID] = []
-        if kind is SkillRelationType.IS_A:
-            parent_id = (
-                await self.db.execute(select(Skill.parent_id).where(Skill.id == skill_id))
-            ).scalar_one_or_none()
-            if parent_id is not None:
-                out.append(parent_id)
-        rows = await self.db.execute(
-            select(SkillRelation.to_skill_id).where(
-                SkillRelation.from_skill_id == skill_id,
-                SkillRelation.relation == kind.value,
-                SkillRelation.status == SkillRelationStatus.APPROVED.value,
-            )
+async def assert_acyclic(
+    db: AsyncSession, from_id: uuid.UUID, to_id: uuid.UUID, kind: SkillRelationType
+) -> None:
+    """Reject ``from -> to`` when ``from`` is already one of ``to``'s generalities.
+
+    The one generality walk, shared by the edge seam and
+    :meth:`TaxonomyService.update_skill`'s re-parent: ``parent_id`` and
+    approved ``kind`` edges both count, so the two cycle guards can never
+    disagree (plan 138 slice C F6).
+    """
+    seen: set[uuid.UUID] = set()
+    frontier = [to_id]
+    while frontier:
+        current = frontier.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        if current == from_id:
+            raise ValidationError(f"{kind.value} edge would create a cycle")
+        frontier.extend(await _generalities(db, current, kind))
+
+
+async def _generalities(
+    db: AsyncSession, skill_id: uuid.UUID, kind: SkillRelationType
+) -> list[uuid.UUID]:
+    """One step towards the general end of the axis, approved rows only."""
+    out: list[uuid.UUID] = []
+    if kind is SkillRelationType.IS_A:
+        parent_id = (
+            await db.execute(select(Skill.parent_id).where(Skill.id == skill_id))
+        ).scalar_one_or_none()
+        if parent_id is not None:
+            out.append(parent_id)
+    rows = await db.execute(
+        select(SkillRelation.to_skill_id).where(
+            SkillRelation.from_skill_id == skill_id,
+            SkillRelation.relation == kind.value,
+            SkillRelation.status == SkillRelationStatus.APPROVED.value,
         )
-        out.extend(rows.scalars().all())
-        return out
+    )
+    out.extend(rows.scalars().all())
+    return out
