@@ -43,6 +43,11 @@ async def _seed_skills(db, *keys: str) -> dict[str, Skill]:
 
 
 async def _rows(db) -> list[SkillRelation]:
+    # The API writes through its own session while the test session keeps
+    # its identity map warm (expire_on_commit=False), so a plain re-SELECT
+    # hands back stale cached instances. populate_existing=True refreshes
+    # every loaded row; the call sites' db.expire_all() is the same
+    # medicine for objects already materialized before the write.
     rows = await db.execute(select(SkillRelation).execution_options(populate_existing=True))
     return list(rows.scalars().all())
 

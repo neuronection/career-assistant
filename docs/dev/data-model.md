@@ -51,6 +51,25 @@ stays referentially intact.
 | `label_overrides` | `localization_model.py` | Review-first catalog i18n overlays (`entity_kind` + `entity_id` + `locale` + `field` unique; AI drafts land as `draft`, only approval reaches `approved`) |
 | `user_path_flags` | `career_path_model.py` | A user's `interested`/`dismissed`/`pinned` mark on a path (`step_id` NULL = the whole path) |
 
+`skill_relations` (plan 138) is the typed edge table over `skills`:
+`from_skill_id`/`to_skill_id` (FK `skills.id` CASCADE, each indexed),
+`relation` (`is_a | synonym | part_of | related_to`, CHECK
+`relation_allowed`), `status` (`proposed | approved | rejected`, CHECK
+`status_allowed`), `source` (`llm | manual | import | derived`, CHECK
+`source_allowed`), nullable `confidence` (CHECK `confidence_range` 0–1 —
+NULL = "not scored", never fabricated), `evidence` JSONB, and
+`decided_by`/`decided_at` for the review queue. **Lifecycle:** `proposed
+→ approved | rejected`, where `rejected` is the **negative edge** ("never
+this pair + relation") — it permanently blocks the suggestion from
+returning, it is not a tombstone. `UNIQUE(from_skill_id, to_skill_id,
+relation)` (`uq_skill_relation_edge`) dedups per (pair, relation);
+`no_self_loop` forbids self-edges; `symmetric_pair_ordered` stores the
+symmetric kinds (`synonym`, `related_to`) with the lower UUID in
+`from_skill_id` so one unordered pair can never carry two rows (directed
+kinds keep their direction). **`evidence` is write-once**: a later
+suggestion refreshes `confidence` but never overwrites the first
+provenance.
+
 ## Universities
 
 | Table(s) | Model | Holds |
@@ -138,8 +157,13 @@ deletion).
 - **0068** — plan 138 step 5: `schedules.task_allowed` widens with
   `skill_relation_learn` (mirrored CHECK — the `BackgroundJobType` member
   and the `Schedule.task` vocabulary grow together; `0067` reserved the
-  kind slot but not the task vocabulary). Downgrade deletes the
-  schedule rows carrying the task first. Covered by
+  kind slot but not the task vocabulary). The **mirrored-CHECK duality**:
+  `schedules` carries TWO CHECKs with job-type vocabularies —
+  `kind_allowed` (ScheduleKind) *and* `task_allowed`
+  (BackgroundJobType) — and widening one but not the other 500s schedule
+  inserts just the same; the `test_schema_contracts.py` `SCHEDULE_TASKS`
+  parity tuples + the migration round-trip pin both. Downgrade deletes
+  the schedule rows carrying the task first. Covered by
   `tests/test_migrations.py::test_0068_skill_relation_learn_task_roundtrip`
   + the enum↔CHECK parity wall (`test_schema_contracts.py`).
 - **0067** — plan 138: `skill_relations`, the typed edge table over
@@ -158,6 +182,8 @@ deletion).
   `tests/test_migrations.py::test_0067_skill_relations_roundtrip` /
   `::test_0067_skill_relation_edge_guards`, the enum↔CHECK wall and the
   conftest `TABLES` coverage gate.
+- **0062–0066** — notes pending (pre-existing gap from other plans;
+  deliberately not backfilled here).
 - **0061** — plan 134: `source_runs`, the ingestion run ledger (one row
   per `sync_source` attempt: trigger `manual|scheduled`, status
   `ok|degraded|failed|skipped`, started/finished, duration_ms,
