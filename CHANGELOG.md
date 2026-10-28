@@ -39,7 +39,7 @@ All notable changes to **Career Assistant** are documented here.
 - **The save-as-alias refusal now names the working path.** Asking to
   save an approved edge as an alias points at dismissing it first —
   deleting the edge would destroy the row handle the save needs.
-- **The skill editor can undo a tree placement.** An update that sends
+- **A skill edit can undo a tree placement.** An update that sends
   `parent_id: null` explicitly clears the parent back to the root (the
   documented undo), while an update that omits the field leaves the
   parent alone. Re-parenting also refuses cycles through approved

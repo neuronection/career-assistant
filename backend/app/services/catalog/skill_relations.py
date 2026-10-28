@@ -236,16 +236,19 @@ class SkillRelationService:
         import breaks the module cycle (``taxonomy_service`` imports this
         module's ``assert_acyclic``), the same pattern the tree catch-up
         uses. Edge writes stay here; this reads nothing but the skill.
-        A heal failure is logged and its partial write rolled back — the
-        caller's mutation already committed and must still succeed.
+        A heal failure is logged — never the caller's error: the mutation
+        already committed. (No rollback: it would expire the caller's
+        instances and turn the serialization of an already-committed row
+        into ``MissingGreenlet``.)
         """
         from app.services.catalog.taxonomy_service import TaxonomyService
 
         try:
             await TaxonomyService(self.db).heal_learned_placement(skill_id)
         except Exception:
-            logger.warning("placement heal failed after edge write", exc_info=True)
-            await self.db.rollback()
+            logger.warning(
+                "placement heal failed for skill %s after edge write", skill_id, exc_info=True
+            )
 
     # -------------------------------------------------------------- helpers
 

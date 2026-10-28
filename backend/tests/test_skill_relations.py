@@ -230,10 +230,12 @@ async def test_remove_deletes_the_row(db):
         await svc.remove(edge.id)
 
 
-async def test_edge_writes_survive_a_placement_heal_failure(db, monkeypatch):
+async def test_edge_writes_survive_a_placement_heal_failure(db, monkeypatch, caplog):
     """The heal runs after the mutation committed — its failure is logged
-    and its partial write rolled back, never the caller's error (plan 139
+    with the stranded skill's id, never the caller's error (plan 139
     review F8)."""
+    import logging
+
     from app.services.catalog import taxonomy_service
 
     async def _boom(*_args):
@@ -249,11 +251,14 @@ async def test_edge_writes_survive_a_placement_heal_failure(db, monkeypatch):
     removed = await svc.add(a.key, b.key, "is_a")
     rejected = await svc.add(c.key, b.key, "is_a")
 
-    await svc.remove(removed.id)
-    row = await svc.reject(rejected.id)
+    with caplog.at_level(logging.WARNING, logger="app.services.catalog.skill_relations"):
+        await svc.remove(removed.id)
+        row = await svc.reject(rejected.id)
 
     assert row.status == SkillRelationStatus.REJECTED.value
     assert await _edge_count(db) == 1
+    assert "placement heal failed" in caplog.text
+    assert str(a.id) in caplog.text and str(c.id) in caplog.text, "the log names its victims"
 
 
 async def test_load_graph_returns_approved_edges_only(db):
