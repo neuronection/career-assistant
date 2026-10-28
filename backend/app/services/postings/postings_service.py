@@ -139,7 +139,7 @@ async def sync_source(
     run_row = await _begin_run(db, source, trigger=trigger, started=started, stage="fetching")
     try:
         report = await _sync_source_inner(
-            db, source, transport=transport, run_id=run_row.id if run_row else None
+            db, source, transport=transport, run_id=run_row.id if run_row else None, trigger=trigger
         )
     except Exception as exc:
         report = {"synced": 0, "error": f"{type(exc).__name__}: {exc}"[:2000]}
@@ -281,7 +281,7 @@ async def _finish_run(db: AsyncSession, run_id, *, started: datetime, report: di
 
 
 async def _sync_source_inner(
-    db: AsyncSession, source: JobSource, *, transport=None, run_id=None
+    db: AsyncSession, source: JobSource, *, transport=None, run_id=None, trigger: str = "scheduled"
 ) -> dict:
     from app.extensions.polite_http import PoliteHttpError
     from app.extensions.runtime.http import build_transport
@@ -381,7 +381,9 @@ async def _sync_source_inner(
     org_service = OrganizationService(db)
     for raw in result.items:
         try:
-            posting = await upsert_posting(db, source, raw, org_service=org_service)
+            posting = await upsert_posting(
+                db, source, raw, org_service=org_service, run_id=run_id, trigger=trigger
+            )
             if posting is not None:
                 synced += 1
                 demand = False
@@ -426,13 +428,28 @@ async def upsert_posting(
     source: JobSource,
     raw,
     org_service: "OrganizationService | None" = None,
+    *,
+    run_id=None,
+    trigger: str = "scheduled",
 ) -> JobPosting | None:
     """Dedup by (source_id, external_id) + content_hash — unchanged content
     is a no-op; changed content re-maps unless a human mapped it.
 
     `org_service` threads one matcher (one candidate load) through a sync
-    batch — the per-posting N+1 the plan 135 ingest step removes.
+    batch — the per-posting N+1 the plan 135 ingest step removes. The
+    change journals as `sync_run` (same transaction; `map_posting` and
+    `attach_to_posting` journal their own slices).
     """
+    from time import perf_counter
+
+    from app.services.postings.change_journal import (
+        SYNC_FIELDS,
+        PostingChangeJournal,
+        raw_summary,
+        snapshot,
+    )
+
+    started = perf_counter()
     rows = await db.execute(
         select(JobPosting).where(
             JobPosting.source_id == source.id, JobPosting.external_id == raw.external_id
@@ -445,6 +462,9 @@ async def upsert_posting(
     ).hexdigest()
     if posting is not None and posting.content_hash == content_hash:
         return None
+    before = None
+    if posting is not None:
+        before = {**snapshot(posting, SYNC_FIELDS), "raw_summary": raw_summary(posting)}
     content_changed = posting is not None
     if posting is None:
         posting = JobPosting(
@@ -460,7 +480,7 @@ async def upsert_posting(
             from app.services.catalog.organization_service import OrganizationService
 
             org_service = OrganizationService(db)
-        await org_service.attach_to_posting(posting)
+        await org_service.attach_to_posting(posting, run_id=run_id)
     posting.location = raw.location.model_dump(mode="json")
     posting.url = raw.url[:1000]
     posting.seniority = raw.seniority
@@ -491,7 +511,7 @@ async def upsert_posting(
         posting.status = "new"
     posting.raw = {**(raw.raw or {}), "_skills_raw": list(raw.skills_raw)[:60]}
     if posting.mapping_method != MappingMethod.MANUAL.value:
-        await map_posting(db, posting, tokens=raw.skills_raw)
+        await map_posting(db, posting, tokens=raw.skills_raw, run_id=run_id)
     if content_changed:
         # Content changed ⇒ any previous deep extract is stale —
         # reset so the queued pass re-runs.
@@ -499,6 +519,19 @@ async def upsert_posting(
         posting.extract_version = None
         posting.needs_review = False
     await db.flush()
+    actor_ref: dict = {"trigger": trigger}
+    if run_id is not None:
+        actor_ref["run_id"] = str(run_id)
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "sync_run",
+        actor_ref=actor_ref,
+        operation={"source": source.key, "connector": source.connector_key},
+        duration_ms=int((perf_counter() - started) * 1000),
+        before=before,
+        after={**snapshot(posting, SYNC_FIELDS), "raw_summary": raw_summary(posting)},
+    )
     return posting
 
 
@@ -548,11 +581,21 @@ def _match_keywords(text: str, index: dict[str, UUID]) -> dict[str, UUID]:
 
 
 async def map_posting(
-    db: AsyncSession, posting: JobPosting, tokens: list[str] | None = None
+    db: AsyncSession, posting: JobPosting, tokens: list[str] | None = None, *, run_id=None
 ) -> None:
     """Extract taxonomy skills (alias index first, audited AI second) and
     map onto the catalog by skill-ID intersection; below threshold stays
-    unmapped for moderation."""
+    unmapped for moderation. Journals the re-tag (`retag`): the skills
+    set-diff (pre-state loaded before the delete) plus the mapping
+    fields, in this same transaction."""
+    from app.services.postings.change_journal import (
+        RETAG_FIELDS,
+        PostingChangeJournal,
+        skills_state,
+        snapshot,
+    )
+
+    before = {**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)}
     index = await _taxonomy_index(db)
     tokens = tokens if tokens is not None else _posting_skill_tokens(posting)
     description = str((posting.raw or {}).get("description") or "")
@@ -589,25 +632,33 @@ async def map_posting(
         posting.mapping_confidence = None
         posting.mapping_reason = "no taxonomy skills recognised"
         posting.status = "new" if posting.status == "mapped" else posting.status
-        return
-
-    best_job, best_score, runner_up = await _best_catalog_job(db, set(skills))
-    if best_job is not None and best_score >= AUTO_MAP_THRESHOLD:
-        posting.catalog_job_id = best_job.id
-        posting.mapping_method = MappingMethod.SKILL_OVERLAP.value
-        posting.mapping_confidence = round(best_score, 3)
-        posting.mapping_reason = (
-            f"{len(skills)} skills intersect; overlap {best_score:.2f} (runner-up {runner_up:.2f})"
-        )
-        posting.status = "mapped"
     else:
-        posting.catalog_job_id = None
-        posting.mapping_method = None
-        posting.mapping_confidence = round(best_score, 3) if best_job else None
-        posting.mapping_reason = (
-            f"best overlap {best_score:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
-        )
-        posting.status = "new" if posting.status == "mapped" else posting.status
+        best_job, best_score, runner_up = await _best_catalog_job(db, set(skills))
+        if best_job is not None and best_score >= AUTO_MAP_THRESHOLD:
+            posting.catalog_job_id = best_job.id
+            posting.mapping_method = MappingMethod.SKILL_OVERLAP.value
+            posting.mapping_confidence = round(best_score, 3)
+            posting.mapping_reason = f"{len(skills)} skills intersect; overlap {best_score:.2f} (runner-up {runner_up:.2f})"
+            posting.status = "mapped"
+        else:
+            posting.catalog_job_id = None
+            posting.mapping_method = None
+            posting.mapping_confidence = round(best_score, 3) if best_job else None
+            posting.mapping_reason = (
+                f"best overlap {best_score:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
+            )
+            posting.status = "new" if posting.status == "mapped" else posting.status
+
+    actor_ref = {"run_id": str(run_id)} if run_id is not None else None
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "retag",
+        actor_ref=actor_ref,
+        operation={"auto_map_threshold": AUTO_MAP_THRESHOLD},
+        before=before,
+        after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
+    )
 
 
 def _posting_skill_tokens(posting: JobPosting) -> list[str]:
@@ -1280,8 +1331,15 @@ async def load_posting_skill_refs(
 # ------------------------------------------------------------------ expiry
 
 
-async def expire_stale(db: AsyncSession) -> int:
-    """expires_at passed or 45 days old → `expired`."""
+async def expire_stale(db: AsyncSession, *, job_id=None) -> int:
+    """expires_at passed or 45 days old → `expired` (journaled as
+    `expiry` — the only writer that changes user-visible availability)."""
+    from app.services.postings.change_journal import (
+        EXPIRY_FIELDS,
+        PostingChangeJournal,
+        snapshot,
+    )
+
     now = _utcnow()
     cutoff = now - timedelta(days=POSTING_MAX_AGE_DAYS)
     rows = await db.execute(
@@ -1291,9 +1349,20 @@ async def expire_stale(db: AsyncSession) -> int:
             | (JobPosting.posted_at.is_not(None) & (JobPosting.posted_at < cutoff)),
         )
     )
+    actor_ref = {"job_id": str(job_id)} if job_id is not None else None
     expired = 0
     for posting in rows.scalars().all():
+        before = snapshot(posting, EXPIRY_FIELDS)
         posting.status = "expired"
+        PostingChangeJournal.record(
+            db,
+            posting.id,
+            "expiry",
+            actor_ref=actor_ref,
+            operation={"max_age_days": POSTING_MAX_AGE_DAYS},
+            before=before,
+            after=snapshot(posting, EXPIRY_FIELDS),
+        )
         expired += 1
     if expired:
         await db.commit()
@@ -1303,7 +1372,7 @@ async def expire_stale(db: AsyncSession) -> int:
 # ------------------------------------------------------------------- queue
 
 
-async def run_sync_job(db: AsyncSession, payload: dict) -> dict:
+async def run_sync_job(db: AsyncSession, payload: dict, *, job_id=None) -> dict:
     """POSTING_SYNC handler: one source or every enabled posting source.
 
     Paused sources (`paused_at`) and non-posting kinds (market demand
@@ -1337,5 +1406,5 @@ async def run_sync_job(db: AsyncSession, payload: dict) -> dict:
         totals["synced"] += result.get("synced", 0)
         if result.get("error"):
             totals["errors"].append(f"{source.key}: {result['error']}")
-    await expire_stale(db)
+    await expire_stale(db, job_id=job_id)
     return totals

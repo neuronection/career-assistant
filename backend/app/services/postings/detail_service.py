@@ -173,11 +173,26 @@ async def plan_details(
     return ranked[:limit]
 
 
-def merge_detail(posting: JobPosting, row) -> bool:
+def merge_detail(
+    posting: JobPosting,
+    row,
+    *,
+    actor_ref: dict | None = None,
+    operation: dict | None = None,
+) -> bool:
     """Fold one detail row into its posting. Only fields the detail page
     actually states are merged — list-derived fields are never wiped;
     typed fields fill gaps (the detail page wins when the list said
-    nothing). Returns True when anything changed."""
+    nothing). Returns True when anything changed; the change journals as
+    `detail_fetch` in the caller's transaction."""
+    from app.services.postings.change_journal import (
+        DETAIL_FIELDS,
+        PostingChangeJournal,
+        raw_summary,
+        snapshot,
+    )
+
+    before = {**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)}
     detail = dict(row.raw or {})
     changed = False
     if detail.get("description"):
@@ -198,6 +213,18 @@ def merge_detail(posting: JobPosting, row) -> bool:
         posting.salary_period = row.salary.period
         posting.salary_basis = row.salary.basis
         changed = True
+    if changed:
+        from sqlalchemy.orm import object_session
+
+        PostingChangeJournal.record(
+            object_session(posting),
+            posting.id,
+            "detail_fetch",
+            actor_ref=actor_ref,
+            operation=operation,
+            before=before,
+            after={**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)},
+        )
     return changed
 
 
@@ -246,9 +273,12 @@ async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
     )
 
 
-async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -> dict:
+async def run_detail_enrichment(
+    db: AsyncSession, payload: dict, user_id=None, *, job_id=None
+) -> dict:
     """DETAIL_ENRICHMENT handler: drain batches under a per-run cap.
     Never raises — a failing batch is a report line, not a crashed job."""
+    from app.services.postings.change_journal import PostingChangeJournal, snapshot
     from app.services.postings.postings_service import (
         _begin_run,
         _finish_run,
@@ -266,6 +296,11 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
         return {"skipped": "detail mode is not smart/all"}
     started = datetime.now(UTC)
     run_row = await _begin_run(db, source, trigger="scheduled", started=started, stage="enriching")
+    actor_ref: dict = {}
+    if run_row is not None:
+        actor_ref["run_id"] = str(run_row.id)
+    if job_id is not None:
+        actor_ref["job_id"] = str(job_id)
     enriched = 0
     fetched = 0
     re_extract: list[JobPosting] = []
@@ -286,7 +321,10 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
         for posting in batch:
             row = by_id.get(posting.external_id)
             posting.detail_attempts += 1
-            if row is not None and merge_detail(posting, row):
+            if row is not None and merge_detail(
+                posting, row, actor_ref=actor_ref or None, operation={"source": source.key}
+            ):
+                before = snapshot(posting, ("detail_fetched_at", "extract_version"))
                 posting.detail_fetched_at = datetime.now(UTC)
                 # The description materially changed — the earlier extract
                 # (made from list-card data) is stale. Reset it so the
@@ -295,6 +333,15 @@ async def run_detail_enrichment(db: AsyncSession, payload: dict, user_id=None) -
                 posting.extract_version = None
                 re_extract.append(posting)
                 enriched += 1
+                PostingChangeJournal.record(
+                    db,
+                    posting.id,
+                    "detail_fetch",
+                    actor_ref=actor_ref or None,
+                    operation={"source": source.key, "batch": batch_no},
+                    before=before,
+                    after=snapshot(posting, ("detail_fetched_at", "extract_version")),
+                )
         await db.commit()
         if run_row is not None:
             await _update_run_progress(

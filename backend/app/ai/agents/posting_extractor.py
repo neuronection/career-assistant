@@ -483,11 +483,17 @@ async def extract_posting(
     description: str,
     skills_raw: list[str],
     skill_taxonomy_keys: list[str],
-) -> PostingExtract:
+    *,
+    run=None,
+    with_audit_ref: bool = False,
+):
     """Validated deep extract for one posting (caller applies + audits).
 
     The per-feature brief is GENERATED from the feature map (39.3) —
-    schema and prompt cannot drift apart."""
+    schema and prompt cannot drift apart. ``run`` (a gateway ``RunRef``)
+    pins the audit row to the background job the call served; with
+    ``with_audit_ref`` the audit summary comes back alongside the result
+    (plan 142: the journal links the generation id)."""
     from app.services.feature_map import generated_feature_instructions
 
     return await ainvoke_structured(
@@ -525,4 +531,6 @@ async def extract_posting(
             )
         ),
         user_id=user_id,
+        run=run,
+        with_audit_ref=with_audit_ref,
     )

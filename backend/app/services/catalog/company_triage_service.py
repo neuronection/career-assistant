@@ -52,9 +52,10 @@ MAX_QUEUED_JOBS = 1
 class CompanyTriageService:
     """Gray-band arbiter runs + suggestion lifecycle."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, *, job_id=None):
         self.db = db
         self.orgs = OrganizationService(db)
+        self._job_id = job_id
 
     async def run(self) -> dict:
         """Drain bounded batches of pending pairs; re-enqueue if more remain."""
@@ -249,7 +250,14 @@ class CompanyTriageService:
         self._resolve_pair(pair, decided_by="suggestion")
 
     async def _relink_pending(self, label_key: str, org: Organization, *, layer: str) -> int:
-        """Postings parked at `pending` for this label join the resolved org."""
+        """Postings parked at `pending` for this label join the resolved
+        org (each move journals as `company_match`, same transaction)."""
+        from app.services.postings.change_journal import (
+            ORG_MATCH_FIELDS,
+            PostingChangeJournal,
+            snapshot,
+        )
+
         rows = (
             (await self.db.execute(select(JobPosting).where(JobPosting.org_id.is_(None))))
             .scalars()
@@ -262,6 +270,7 @@ class CompanyTriageService:
                 continue
             if name_key(posting.org) != label_key:
                 continue
+            before = snapshot(posting, ORG_MATCH_FIELDS)
             posting.org_id = org.id
             posting.org_match = {
                 **match,
@@ -271,6 +280,16 @@ class CompanyTriageService:
             }
             posting.org_match_state = OrgMatchState.LINKED.value
             flag_modified(posting, "org_match")
+            actor_ref = {"job_id": str(self._job_id)} if self._job_id is not None else None
+            PostingChangeJournal.record(
+                self.db,
+                posting.id,
+                "company_match",
+                actor_ref=actor_ref,
+                operation={"layer": layer, "via": "triage"},
+                before=before,
+                after=snapshot(posting, ORG_MATCH_FIELDS),
+            )
             moved += 1
         return moved
 
@@ -471,10 +490,10 @@ async def enqueue_company_triage(db: AsyncSession, *, max_queued: int = MAX_QUEU
     return True
 
 
-async def run_company_triage(db: AsyncSession) -> dict:
+async def run_company_triage(db: AsyncSession, *, job_id=None) -> dict:
     """Job handler body: one bounded drain pass of the gray-band queue."""
     try:
-        return await CompanyTriageService(db).run()
+        return await CompanyTriageService(db, job_id=job_id).run()
     except Exception:
         await db.rollback()
         raise

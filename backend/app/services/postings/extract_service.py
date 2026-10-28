@@ -138,12 +138,35 @@ def _sane_salary(low: float | None, high: float | None) -> tuple[float | None, f
     return low, high
 
 
-async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPosting:
+async def apply_extract(
+    db: AsyncSession,
+    posting: JobPosting,
+    extract,
+    *,
+    actor_ref: dict | None = None,
+    duration_ms: int | None = None,
+) -> JobPosting:
     """Store a validated PostingExtract: suppress low-confidence fields
     (needs_review), normalize typed columns, fill posting_skills levels.
-    """
+    Journals as `extract_llm` (same transaction; `description_clean` is a
+    field of the envelope, folded here — no separate writer)."""
     from app.ai.agents.posting_extractor import PostingExtract
+    from app.services.postings.change_journal import (
+        EXTRACT_FIELDS,
+        PostingChangeJournal,
+        extract_summary,
+        facts_summary,
+        snapshot,
+    )
 
+    def _snap() -> dict:
+        return {
+            **snapshot(posting, EXTRACT_FIELDS),
+            "extract_summary": extract_summary(posting),
+            "facts_summary": facts_summary(posting),
+        }
+
+    before = _snap()
     if not isinstance(extract, PostingExtract):
         extract = PostingExtract.model_validate(extract)
 
@@ -214,20 +237,40 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
         facts["lifestyle"] = lifestyle
     posting.posting_facts = facts
 
-    await _apply_extract_skills(db, posting, data["skills"])
+    await _apply_extract_skills(db, posting, data["skills"], actor_ref=actor_ref)
     await db.flush()
+    outcome = "partial" if posting.needs_review else "ok"
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "extract_llm",
+        actor_ref=actor_ref,
+        operation={
+            "extract_version": EXTRACT_VERSION,
+            "confidence_threshold": CONFIDENCE_THRESHOLD,
+        },
+        duration_ms=duration_ms,
+        before=before,
+        after=_snap(),
+        outcome=outcome,
+    )
     return posting
 
 
-async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: list[dict]) -> None:
+async def _apply_extract_skills(
+    db: AsyncSession, posting: JobPosting, skills: list[dict], *, actor_ref: dict | None = None
+) -> None:
     """Fill `posting_skills.required_level`/`priority` for resolved skills
     (update fast-pass rows in place — never delete them); unresolved raw
     labels become proposals (never dropped, never label-matched). Active
     rows resolve first and deprecated exact keys fall back for unmatched
-    keys — the matcher precedence `_taxonomy_index` shares.
+    keys — the matcher precedence `_taxonomy_index` shares. Journals the
+    skills set-diff as `extract_llm` (same transaction).
     """
+    from app.services.postings.change_journal import PostingChangeJournal, skills_state
     from app.services.postings.postings_service import _norm
 
+    before = await skills_state(db, posting.id)
     unresolved_labels: list[dict] = []
     key_map: dict[str, UUID] = {}
     for entry in skills:
@@ -278,6 +321,16 @@ async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: l
         row.priority = entry["priority"]
         row.confidence = float(entry.get("confidence", 1.0))
 
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "extract_llm",
+        actor_ref=actor_ref,
+        operation={"extract_version": EXTRACT_VERSION},
+        before={"skills": before},
+        after={"skills": await skills_state(db, posting.id)},
+    )
+
     if unresolved_labels:
         from app.models.enums import SkillOrigin
         from app.services.catalog.skills_service import SkillService
@@ -309,7 +362,7 @@ async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: l
 # -------------------------------------------------------------------- run
 
 
-async def run_extract_job(db: AsyncSession, payload: dict) -> dict:
+async def run_extract_job(db: AsyncSession, payload: dict, *, job_id=None) -> dict:
     """POSTING_EXTRACT handler body: one structured call + apply."""
     posting_id = payload.get("posting_id")
     if not posting_id:
@@ -320,26 +373,51 @@ async def run_extract_job(db: AsyncSession, payload: dict) -> dict:
         return {"skipped": "posting gone"}
     if posting.extract_version == EXTRACT_VERSION:
         return {"skipped": "already extracted"}
-    return await extract_posting_now(db, posting)
+    # A previously-extracted posting reaching the queue again IS the
+    # re-extract wave (manual bulk enqueue; the auto pass only queues
+    # never-extracted rows) — the trigger rides `actor_ref`
+    # (plan 142 amendment 4), not a separate actor kind.
+    trigger = "bulk" if posting.extract_version is not None else "auto"
+    return await extract_posting_now(db, posting, trigger=trigger, job_id=job_id)
 
 
-async def extract_posting_now(db: AsyncSession, posting: JobPosting) -> dict:
-    """The AI call + apply (also used by the admin re-extract action)."""
+async def extract_posting_now(
+    db: AsyncSession, posting: JobPosting, *, trigger: str = "manual", job_id=None
+) -> dict:
+    """The AI call + apply (also used by the admin re-extract action).
+
+    The call is audited with ``run_id`` = the background job id (the
+    amendment-5 identity: ``actor_ref.job_id`` = ``background_jobs.id`` =
+    ``ai_generations.run_id``) and the journal row carries the audit's
+    generation id + the call's duration."""
+    from time import perf_counter
+
     from app.ai.agents.posting_extractor import extract_posting
+    from app.ai.gateway import RunRef
     from app.services.postings.postings_service import _active_skill_keys
 
     description = str((posting.raw or {}).get("description") or "")
     skills_raw = [str(s) for s in (posting.raw or {}).get("_skills_raw", [])]
     taxonomy = await _active_skill_keys(db)
-    result = await extract_posting(
+    started = perf_counter()
+    run_ref = RunRef(id=job_id, stage="posting_extract") if job_id is not None else None
+    result, audit = await extract_posting(
         db,
         None,
         posting.title,
         description,
         skills_raw,
         taxonomy,
+        run=run_ref,
+        with_audit_ref=True,
     )
-    await apply_extract(db, posting, result)
+    actor_ref: dict = {"trigger": trigger}
+    if job_id is not None:
+        actor_ref["job_id"] = str(job_id)
+    if audit.get("id") is not None:
+        actor_ref["ai_generation_id"] = str(audit["id"])
+    duration_ms = int((perf_counter() - started) * 1000)
+    await apply_extract(db, posting, result, actor_ref=actor_ref, duration_ms=duration_ms)
     await db.commit()
     return {
         "extracted": True,

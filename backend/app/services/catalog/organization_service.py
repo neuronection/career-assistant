@@ -487,11 +487,20 @@ class OrganizationService:
         )
         await self.db.flush()
 
-    async def attach_to_posting(self, posting: JobPosting) -> None:
-        """Match the raw label → org_id (ingest hook; raw + provenance kept)."""
+    async def attach_to_posting(self, posting: JobPosting, *, run_id=None, mode=None) -> None:
+        """Match the raw label → org_id (ingest hook; raw + provenance
+        kept). Journals `company_match` — org link + state projection,
+        ids/knobs only — in the caller's transaction."""
+        from app.services.postings.change_journal import (
+            ORG_MATCH_FIELDS,
+            PostingChangeJournal,
+            snapshot,
+        )
+
         label = (posting.org or "").strip()
         if not label:
             return
+        before = snapshot(posting, ORG_MATCH_FIELDS)
         decision = await self._resolve_link(label, posting.url)
         match = decision.provenance()
         state: str | None
@@ -521,6 +530,20 @@ class OrganizationService:
         posting.org_match = match
         posting.org_match_state = state
         flag_modified(posting, "org_match")
+        actor_ref: dict = {}
+        if run_id is not None:
+            actor_ref["run_id"] = str(run_id)
+        if mode is not None:
+            actor_ref["mode"] = mode
+        PostingChangeJournal.record(
+            self.db,
+            posting.id,
+            "company_match",
+            actor_ref=actor_ref or None,
+            operation={"decision": decision.kind, "layer": decision.layer},
+            before=before,
+            after=snapshot(posting, ORG_MATCH_FIELDS),
+        )
 
     async def backfill_postings(self) -> dict:
         """Run the current matcher over postings it has not judged yet
@@ -534,7 +557,7 @@ class OrganizationService:
         postings = [posting for posting in rows.scalars().all() if not posting.org_match]
         linked = pending = rejected = 0
         for posting in postings:
-            await self.attach_to_posting(posting)
+            await self.attach_to_posting(posting, mode="backfill")
             state = (posting.org_match or {}).get("state")
             if state == OrgMatchState.LINKED.value:
                 linked += 1
@@ -910,8 +933,23 @@ class OrganizationService:
                 )
         rows = await self.db.execute(select(JobPosting).where(JobPosting.org_id == source.id))
         postings = list(rows.scalars().all())
+        from app.services.postings.change_journal import (
+            ORG_MATCH_FIELDS,
+            PostingChangeJournal,
+            snapshot,
+        )
+
         for posting in postings:
+            before = snapshot(posting, ORG_MATCH_FIELDS)
             posting.org_id = target.id
+            PostingChangeJournal.record(
+                self.db,
+                posting.id,
+                "company_match",
+                operation={"merged_org": str(source.id), "into_org": str(target.id)},
+                before=before,
+                after=snapshot(posting, ORG_MATCH_FIELDS),
+            )
         if source_profile is not None:
             source_profile.organization_id = target.id
             source_profile.needs_review = True

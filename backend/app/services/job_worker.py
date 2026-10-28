@@ -502,7 +502,7 @@ async def _run_posting_sync(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
     """Fetch every (or one) enabled source; expire stale postings after."""
     from app.services.postings.postings_service import run_sync_job
 
-    return await run_sync_job(db, job.payload or {})
+    return await run_sync_job(db, job.payload or {}, job_id=job.id)
 
 
 async def _run_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
@@ -596,14 +596,14 @@ async def _run_radar_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
 async def _run_detail_enrichment(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     from app.services.postings.detail_service import run_detail_enrichment
 
-    return await run_detail_enrichment(db, job.payload or {}, user_id=job.user_id)
+    return await run_detail_enrichment(db, job.payload or {}, user_id=job.user_id, job_id=job.id)
 
 
 async def _run_company_triage(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     """Plan 135: drain one bounded pass of the gray-band company queue."""
     from app.services.catalog.company_triage_service import run_company_triage
 
-    return await run_company_triage(db)
+    return await run_company_triage(db, job_id=job.id)
 
 
 async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
@@ -611,7 +611,7 @@ async def _run_posting_extract(db: AsyncSession, job: BackgroundJob, **_kw) -> d
     posting, normalized into posting_skills + typed columns."""
     from app.services.postings.extract_service import run_extract_job
 
-    return await run_extract_job(db, job.payload or {})
+    return await run_extract_job(db, job.payload or {}, job_id=job.id)
 
 
 async def _run_cv_extract_text(
