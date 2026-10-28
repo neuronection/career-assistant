@@ -19,6 +19,7 @@ which leaves raw writes unguarded; here the guards live in one place:
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 
@@ -29,6 +30,8 @@ from app.core.errors import NotFoundError, ValidationError
 from app.models.enums import SkillRelationSource, SkillRelationStatus, SkillRelationType
 from app.models.taxonomy_model import Skill, SkillRelation
 from app.services.catalog.skill_graph import SkillEdge, SkillGraph, SkillNode
+
+logger = logging.getLogger(__name__)
 
 # v1 has exactly one endpoint kind; the matrix exists so a future endpoint
 # kind (job family, category…) cannot bypass the seam.
@@ -233,10 +236,16 @@ class SkillRelationService:
         import breaks the module cycle (``taxonomy_service`` imports this
         module's ``assert_acyclic``), the same pattern the tree catch-up
         uses. Edge writes stay here; this reads nothing but the skill.
+        A heal failure is logged and its partial write rolled back — the
+        caller's mutation already committed and must still succeed.
         """
         from app.services.catalog.taxonomy_service import TaxonomyService
 
-        await TaxonomyService(self.db).heal_learned_placement(skill_id)
+        try:
+            await TaxonomyService(self.db).heal_learned_placement(skill_id)
+        except Exception:
+            logger.warning("placement heal failed after edge write", exc_info=True)
+            await self.db.rollback()
 
     # -------------------------------------------------------------- helpers
 

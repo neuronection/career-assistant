@@ -5,7 +5,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.models.career_path_model import CareerPathStep
-from app.models.enums import InterestTagKind, SkillRelationStatus, SkillRelationType
+from app.models.enums import (
+    InterestTagKind,
+    SkillParentSource,
+    SkillRelationStatus,
+    SkillRelationType,
+)
 from app.models.job_model import JobSkill, JobTag
 from app.models.taxonomy_model import InterestTag, Skill, SkillRelation
 from app.models.user_model import Profile, UserInterest, UserSkill
@@ -94,21 +99,23 @@ class TaxonomyService:
         data: dict,
         *,
         only_if_parent_empty: bool = False,
-        parent_source: str | None = "curated",
+        parent_source: SkillParentSource | None = SkillParentSource.CURATED,
     ) -> Skill:
         """Edit a skill (key immutable); lifecycle transitions via status.
 
         A ``parent_id`` key present with ``None`` clears the parent back to
         the root (the documented undo); a key ABSENT from ``data`` never
         touches it. Every explicit parent write stamps placement
-        provenance (``parent_source``, plan 139): ``"curated"`` for human
+        provenance (``parent_source``, plan 139): ``CURATED`` for human
         callers (the default — a deliberate clear lands empty + curated,
-        so the tree catch-up never re-fills it), ``"learned"`` for the tree
+        so the tree catch-up never re-fills it), ``LEARNED`` for the tree
         catch-up, and ``None`` to reset the slot to untouched (the seam's
         placement heal). The fill-only guard and the machine stamp are one
-        contract: ``only_if_parent_empty=True`` requires
-        ``parent_source="learned"`` — a guarded fill can never claim human
-        provenance, even by omission.
+        contract: ``only_if_parent_empty`` holds exactly when
+        ``parent_source`` is ``LEARNED`` — a mismatch in either direction
+        is a programmer error (:class:`RuntimeError`, unreachable from the
+        API — ``SkillUpdateIn`` never carries the field), never a client
+        validation failure.
 
         The re-parent shares the seam's generality walk
         (:func:`assert_acyclic`) so a parent that would close a cycle
@@ -128,8 +135,11 @@ class TaxonomyService:
         if "status" in data and data["status"] is not None:
             skill.status = SkillService.validate_status(data["status"])
         if "parent_id" in data:
-            if only_if_parent_empty and parent_source != "learned":
-                raise ValidationError("A guarded fill must stamp 'learned' provenance")
+            if only_if_parent_empty != (parent_source is SkillParentSource.LEARNED):
+                raise RuntimeError(
+                    "A guarded fill must stamp learned provenance, "
+                    "and learned provenance must guard the fill"
+                )
             if data["parent_id"] is None:
                 skill.parent_id = None
                 skill.parent_source = parent_source
@@ -193,7 +203,9 @@ class TaxonomyService:
         pre-provenance (``NULL``) placements are never touched.
         """
         skill = await self.db.get(Skill, skill_id)
-        if skill is None or skill.parent_id is None or skill.parent_source != "learned":
+        if skill is None or skill.parent_id is None:
+            return
+        if skill.parent_source != SkillParentSource.LEARNED:
             return
         support = await self.db.execute(
             select(SkillRelation.id).where(

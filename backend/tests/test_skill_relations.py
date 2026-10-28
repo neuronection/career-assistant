@@ -230,6 +230,32 @@ async def test_remove_deletes_the_row(db):
         await svc.remove(edge.id)
 
 
+async def test_edge_writes_survive_a_placement_heal_failure(db, monkeypatch):
+    """The heal runs after the mutation committed — its failure is logged
+    and its partial write rolled back, never the caller's error (plan 139
+    review F8)."""
+    from app.services.catalog import taxonomy_service
+
+    async def _boom(*_args):
+        raise RuntimeError("heal exploded")
+
+    monkeypatch.setattr(taxonomy_service.TaxonomyService, "heal_learned_placement", _boom)
+    svc = SkillRelationService(db)
+    a, b, c = (
+        await _skill(db, "sr-heal-a"),
+        await _skill(db, "sr-heal-b"),
+        await _skill(db, "sr-heal-c"),
+    )
+    removed = await svc.add(a.key, b.key, "is_a")
+    rejected = await svc.add(c.key, b.key, "is_a")
+
+    await svc.remove(removed.id)
+    row = await svc.reject(rejected.id)
+
+    assert row.status == SkillRelationStatus.REJECTED.value
+    assert await _edge_count(db) == 1
+
+
 async def test_load_graph_returns_approved_edges_only(db):
     svc = SkillRelationService(db)
     a, b, c = (

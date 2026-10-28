@@ -45,12 +45,11 @@ hard-deletes an edge (dismiss keeps the negative edge instead).
 
 > Tree placement carries provenance. An accepted `is a` edge fills the
 > skill's untouched place in the sub-skill tree, and the placement is
-> remembered as machine-placed; a parent you set in the skill editor —
-> including a deliberate clear (`parent_id: null`; an edit that omits
-> `parent_id` leaves the parent alone) — is remembered as yours, and the
-> catch-up never overwrites or re-fills it. Removing or dismissing the
-> edge that justified a machine placement un-fills it (unless another
-> accepted edge still supports the same parent), so the undo works from
+> remembered as machine-placed; a parent you set in a skill edit (send
+> `parent_id: null` to clear it — an edit that omits `parent_id` leaves
+> the parent alone) is remembered as yours, and the catch-up never
+> overwrites or re-fills it. Removing or dismissing the edge that
+> justified a machine placement un-fills it, so the undo works from
 > either side. Placements made before provenance was tracked keep their
 > previous sticky behavior.
 

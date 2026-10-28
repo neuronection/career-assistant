@@ -26,6 +26,7 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import (
     BackgroundJobType,
     ScheduleKind,
+    SkillParentSource,
     SkillRelationSource,
     SkillRelationStatus,
     SkillRelationType,
@@ -650,16 +651,36 @@ async def test_legacy_null_placement_is_untouched(db):
 
 async def test_a_guarded_fill_must_stamp_learned(db):
     """The fill-only guard and the machine stamp are one contract: a
-    guarded fill that forgets `parent_source='learned'` fails loudly
-    instead of silently stamping `curated` (plan 139 decision 3)."""
-    from app.core.errors import ValidationError
+    guarded fill that forgets the `learned` stamp fails loudly instead of
+    silently stamping `curated` (plan 139 decision 3). The coupling is a
+    programmer invariant — RuntimeError, never an API ValidationError
+    (review F7: no API caller can reach it)."""
     from app.services.catalog.taxonomy_service import TaxonomyService
 
     skills = await _seed(db, _skill("a"), _skill("b"))
 
-    with pytest.raises(ValidationError, match="learned"):
+    with pytest.raises(RuntimeError, match="learned"):
         await TaxonomyService(db).update_skill(
             skills["a"].id, {"parent_id": skills["b"].id}, only_if_parent_empty=True
+        )
+
+    assert skills["a"].parent_id is None
+    assert skills["a"].parent_source is None
+
+
+async def test_a_learned_stamp_requires_the_guard(db):
+    """The symmetric half of the coupling (review F7): machine provenance
+    without the fill-only guard is the same broken contract — no such
+    caller today, but the invariant must not be one-directional."""
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(db, _skill("a"), _skill("b"))
+
+    with pytest.raises(RuntimeError, match="learned"):
+        await TaxonomyService(db).update_skill(
+            skills["a"].id,
+            {"parent_id": skills["b"].id},
+            parent_source=SkillParentSource.LEARNED,
         )
 
     assert skills["a"].parent_id is None
@@ -698,6 +719,28 @@ async def test_remove_of_an_unrelated_edge_keeps_a_supported_placement(db):
 
     assert skills["java"].parent_id == skills["programming"].id
     assert skills["java"].parent_source == "learned"
+
+
+async def test_backfill_refills_from_the_next_best_edge_after_the_winner_is_removed(db):
+    """Decision 4 clears to *untouched* precisely so the evidence can
+    change: removing the WINNER edge empties the slot immediately, and the
+    next catch-up pass re-fills it from the surviving lower-ranked edge —
+    `learned` again (review F4 pin)."""
+    skills = await _seed(db, _skill("programming"), _skill("jvm-languages"), _skill("java"))
+    service = SkillRelationService(db)
+    winner = await service.add("java", "programming", "is_a", source="manual", confidence=0.9)
+    await service.add("java", "jvm-languages", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+    assert skills["java"].parent_id == skills["programming"].id
+
+    await service.remove(winner.id)
+
+    assert skills["java"].parent_id is None
+    assert skills["java"].parent_source is None, "the heal clears back to untouched"
+
+    assert await backfill_parent_edges(db) == 1
+    assert skills["java"].parent_id == skills["jvm-languages"].id
+    assert skills["java"].parent_source == SkillParentSource.LEARNED
 
 
 async def test_reject_filling_edge_clears_unsupported_learned_placement(db):
@@ -756,6 +799,33 @@ async def test_delete_resurrection_is_gone(db):
     assert await materialize_parent_edges(db) == 0
     rows = await _relation_rows(db)
     assert rows == [], "no import mirror resurrects the placement"
+
+
+async def test_materialize_never_re_mirrors_a_learned_placement(db):
+    """The race pin (review F1): in the torn window after remove() commits
+    — the filling edge gone, the heal not yet run — a `learned`
+    placement's pair has no is_a row, and materialization must NOT write
+    an import mirror for it: that mirror would land approved and become
+    the placement's own support, permanently defeating the heal. A
+    `curated` placement in the same shape still mirrors."""
+    skills = await _seed(
+        db, _skill("programming"), _skill("databases"), _skill("java"), _skill("sql")
+    )
+    skills["java"].parent_id = skills["programming"].id
+    skills["java"].parent_source = SkillParentSource.LEARNED
+    skills["sql"].parent_id = skills["databases"].id
+    skills["sql"].parent_source = SkillParentSource.CURATED
+    await db.flush()
+
+    assert await materialize_parent_edges(db) == 1
+
+    pairs = {(str(row.from_skill_id), str(row.to_skill_id)) for row in await _relation_rows(db)}
+    assert (str(skills["sql"].id), str(skills["databases"].id)) in pairs, (
+        "a curated placement still mirrors"
+    )
+    assert (str(skills["java"].id), str(skills["programming"].id)) not in pairs, (
+        "a machine placement is never re-mirrored as evidence for itself"
+    )
 
 
 async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):

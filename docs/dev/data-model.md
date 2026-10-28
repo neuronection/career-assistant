@@ -167,7 +167,11 @@ deletion).
   row supports the parent; `curated` and NULL never touched). No data
   migration — existing placements keep NULL (fills-only-empty makes NULL
   degrade gracefully; pre-139 placements keep the sticky mirror
-  semantics). Covered by
+  semantics); a pre-139 deliberate clear left both columns NULL —
+  indistinguishable from an untouched slot — so the first post-upgrade
+  catch-up pass re-fills it once (as `learned`); the remedy for any
+  unwanted fill (and for a stuck pre-139 placement) is an explicit clear,
+  which stamps `curated` and sticks. Covered by
   `tests/test_migrations.py::test_0069_skill_parent_source_roundtrip` /
   `::test_0069_parent_source_check_admits_the_vocabulary_and_null`, the
   enum↔CHECK parity wall, and the plan-139 provenance/heal tests.

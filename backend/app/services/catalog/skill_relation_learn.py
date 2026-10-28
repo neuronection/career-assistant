@@ -55,6 +55,7 @@ from app.models.enums import (
     BackgroundJobStatus,
     BackgroundJobType,
     SkillOrigin,
+    SkillParentSource,
     SkillRelationSource,
     SkillRelationStatus,
     SkillRelationType,
@@ -425,6 +426,13 @@ async def collect_candidates(
 async def materialize_parent_edges(db: AsyncSession) -> int:
     """Curated ``parent_id`` links → auto-approved ``is_a`` edges (import).
 
+    A ``learned`` placement is never re-mirrored: machine provenance is
+    not evidence for itself, and a mirror written in the torn window
+    after its filling edge died would land approved and become the
+    placement's own support, permanently defeating the heal (plan 139
+    review F1). Pre-provenance (``NULL``) placements still mirror —
+    sticky by design.
+
     Skipped whenever an ``is_a`` row already exists for the pair in any
     status (a rejection is final). Stale mirrors — approved ``import`` rows
     whose pair no longer matches the skill's current ``parent_id`` (it was
@@ -457,6 +465,8 @@ async def materialize_parent_edges(db: AsyncSession) -> int:
             await service.reject(row.id)
     count = 0
     for info in sorted(skills.values(), key=lambda s: s.key):
+        if info.parent_source == SkillParentSource.LEARNED:
+            continue
         parent = by_key.get(info.parent_key) if info.parent_key else None
         if parent is None:
             continue
@@ -556,7 +566,7 @@ async def backfill_parent_edges(db: AsyncSession) -> int:
                     skill_id,
                     {"parent_id": row.to_skill_id},
                     only_if_parent_empty=True,
-                    parent_source="learned",
+                    parent_source=SkillParentSource.LEARNED,
                 )
             except ValidationError:
                 continue
