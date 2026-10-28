@@ -9,12 +9,10 @@ companies exactly like it does to postings.
 
 from datetime import date, datetime
 from decimal import Decimal
-from uuid import UUID
 
 from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 from app.models.enums import CompanyType, FinancialClaimKind
-from app.schemas.posting import PostingLocationOut
 
 
 class FinancialClaim(BaseModel):
@@ -75,31 +73,6 @@ class CompanyDerivedStats(BaseModel):
     by_onsite_policy: dict[str, int] = Field(default_factory=dict)
     top_locations: list[LocationCount] = Field(default_factory=list)
     latest_posted_at: datetime | None = None
-
-
-class CompanyPostingOut(BaseModel):
-    """The company page's posting card row (no personalization plumbing)."""
-
-    id: UUID
-    ref: str
-    title: str
-    url: str
-    seniority: str | None = None
-    employment_type: str | None = None
-    onsite_policy: str | None = None
-    location: PostingLocationOut | None = None
-    salary_currency: str | None = None
-    salary_min: float | None = None
-    salary_max: float | None = None
-    salary_period: str | None = None
-    salary_basis: str | None = None
-    salary_normalized_min: float | None = None
-    salary_normalized_max: float | None = None
-    posted_at: datetime | None = None
-    status: str
-    catalog_job_id: UUID | None = None
-
-    model_config = {"from_attributes": True}
 
 
 class CompanyDetailOut(CompanyOut):

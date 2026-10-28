@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
-from app.schemas.company import CompanyDetailOut, CompanyOut, CompanyPostingOut
+from app.schemas.company import CompanyDetailOut, CompanyOut
 from app.services.catalog.company_service import CompanyService
 from app.services.deps import get_current_user
 
@@ -30,19 +30,5 @@ async def get_company(
     """One company: reviewed facts plus derived hiring stats."""
     try:
         return await CompanyService(db).get_company(key)
-    except DomainError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-
-
-@router.get("/{key}/postings", response_model=list[CompanyPostingOut])
-async def company_postings(
-    key: str,
-    limit: int = Query(default=50, ge=1, le=200),
-    user=Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[CompanyPostingOut]:
-    """The company's open postings, freshest first."""
-    try:
-        return await CompanyService(db).postings(key, limit=limit)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc

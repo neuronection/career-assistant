@@ -83,7 +83,6 @@ export type UniversityDetail = Schemas["UniversityDetailOut"];
 // ---------------------------------------------------------------- companies
 export type Company = Schemas["CompanyOut"];
 export type CompanyDetail = Schemas["CompanyDetailOut"];
-export type CompanyPosting = Schemas["CompanyPostingOut"];
 
 // ---------------------------------------------------------------- job radar
 export type RadarOut = Schemas["RadarOut"];

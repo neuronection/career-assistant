@@ -1,32 +1,39 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { fetchCompany, fetchCompanyPostings } from "@/api/companies";
+import { fetchCompany } from "@/api/companies";
+import { fetchPostings } from "@/api/postings";
 import { Badge, EmptyState } from "@/components/ui";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
-import { CompanyPostingCard } from "@/features/companies/components/CompanyPostingCard";
+import { PostingCard } from "@/features/postings/components/PostingCard";
 import { apiDetail } from "@/api/client";
 import { safeExternalUrl } from "@/lib/url";
-import type { CompanyDetail, CompanyPosting } from "@/types/wire";
+import type { CompanyDetail } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 
 export function CompanyDetail() {
   const { key = "" } = useParams();
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [company, setCompany] = useState<CompanyDetail | null>(null);
-  const [postings, setPostings] = useState<CompanyPosting[]>([]);
+  const [postings, setPostings] = useState<PostingOut[]>([]);
   const [error, setError] = useState("");
+
+  const load = useCallback(() => {
+    void fetchCompany(key)
+      .then(setCompany)
+      .catch((err) => setError(apiDetail(err)));
+    void fetchPostings({ company: key, sort: "fresh" })
+      .then((res) => setPostings(res.items))
+      .catch(() => setPostings([]));
+  }, [key]);
 
   useEffect(() => {
     setError("");
     setCompany(null);
-    void fetchCompany(key)
-      .then(setCompany)
-      .catch((err) => setError(apiDetail(err)));
-    void fetchCompanyPostings(key)
-      .then(setPostings)
-      .catch(() => setPostings([]));
-  }, [key]);
+    load();
+  }, [load]);
 
   if (error) {
     return (
@@ -176,7 +183,11 @@ export function CompanyDetail() {
           <ul className="space-y-2">
             {postings.map((posting) => (
               <li key={posting.id}>
-                <CompanyPostingCard posting={posting} />
+                <PostingCard
+                  posting={posting}
+                  onOpen={(item) => navigate(`/postings/${item.ref}`)}
+                  onChanged={load}
+                />
               </li>
             ))}
           </ul>

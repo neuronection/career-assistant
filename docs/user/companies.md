@@ -42,10 +42,11 @@ Open a company to see everything about it in one place:
   work-mode split (on-site / hybrid / remote) and the top locations.
   This section reflects what the company is doing right now, not what
   someone wrote about it last year.
-- **Open postings** — every open posting as a card in the same grammar as
-  the live feed (seniority, contract, work mode, salary when known). The
-  card opens the posting's in-app page (`/postings/:ref`); the link to
-  the source board stays in the card's action column.
+- **Open postings** — every open posting as the **same card the live feed
+  uses**: fit bubble, requirement-ordered skills, and the same actions
+  (apply, save, hide — applied/saved state stays in sync with
+  `/postings`). The card opens the posting's in-app page
+  (`/postings/:ref`); the source-board link is the card's Apply action.
 
 ## Where the data comes from
 

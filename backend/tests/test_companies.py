@@ -179,20 +179,6 @@ async def test_admin_write_requires_admin(db, client, seeded_catalog, source):
     assert res.status_code == 403
 
 
-async def test_company_postings_lists_open_only(db, client, auth_headers, seeded_catalog, source):
-    org = await _seed_company(db, source, name="OpenCo", count=2)
-    postings = await _org_postings(db, org.id)
-    expired, kept = postings[0], postings[1]
-    expired.status = "expired"
-    await db.commit()
-
-    res = await client.get(f"/api/v1/companies/{org.key}/postings", headers=auth_headers)
-    assert res.status_code == 200
-    rows = res.json()
-    assert [row["id"] for row in rows] == [str(kept.id)], "only the open posting remains"
-    assert rows[0]["title"] == kept.title
-
-
 async def test_admin_upsert_404_for_unknown_key(db, client, client_admin_headers, seeded_catalog):
     res = await client.put(
         "/api/v1/admin/companies/does-not-exist",

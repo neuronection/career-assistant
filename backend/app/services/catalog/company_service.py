@@ -21,7 +21,6 @@ from app.schemas.company import (
     CompanyDetailOut,
     CompanyLink,
     CompanyOut,
-    CompanyPostingOut,
     CompanyProfileIn,
     FinancialClaim,
     LocationCount,
@@ -63,26 +62,6 @@ class CompanyService:
         """One company: reviewed facts plus the derived hiring stats."""
         org, profile, open_count = await self._load(key)
         return await self._to_detail(org, profile, open_count)
-
-    async def postings(self, key: str, *, limit: int = 50) -> list[CompanyPostingOut]:
-        """The company's open postings, freshest first."""
-        org = await self._org_by_key(key)
-        rows = (
-            (
-                await self.db.execute(
-                    select(JobPosting)
-                    .where(
-                        JobPosting.org_id == org.id,
-                        JobPosting.status.in_(OPEN_STATUSES),
-                    )
-                    .order_by(desc(JobPosting.posted_at), desc(JobPosting.created_at))
-                    .limit(max(1, min(limit, 200)))
-                )
-            )
-            .scalars()
-            .all()
-        )
-        return [CompanyPostingOut.model_validate(p) for p in rows]
 
     async def upsert_profile(self, key: str, data: CompanyProfileIn) -> CompanyDetailOut:
         """Admin write: replace the reviewed facts wholesale (omit = clear)."""

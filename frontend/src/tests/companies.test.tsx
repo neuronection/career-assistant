@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import * as companiesApi from "@/api/companies";
+import * as postingsApi from "@/api/postings";
 import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 import { Companies } from "@/features/companies/pages/Companies";
-import type { Company, CompanyDetail as CompanyDetailType, CompanyPosting } from "@/types/wire";
+import type { Company, CompanyDetail as CompanyDetailType } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 
 vi.mock("@/api/companies", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/companies")>();
@@ -13,11 +15,23 @@ vi.mock("@/api/companies", async (importOriginal) => {
     ...actual,
     fetchCompanies: vi.fn(),
     fetchCompany: vi.fn(),
-    fetchCompanyPostings: vi.fn(),
+  };
+});
+
+vi.mock("@/api/postings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/postings")>();
+  return {
+    ...actual,
+    fetchPostings: vi.fn(),
+    markPostingsSeen: vi.fn().mockResolvedValue({ marked: 1 }),
+    markApplied: vi.fn().mockResolvedValue({}),
+    savePosting: vi.fn().mockResolvedValue({}),
+    hidePosting: vi.fn().mockResolvedValue({}),
   };
 });
 
 const mocked = vi.mocked(companiesApi);
+const mockedPostings = vi.mocked(postingsApi);
 
 const COMPANY: Company = {
   key: "acme-cloud",
@@ -54,13 +68,26 @@ const DETAIL: CompanyDetailType = {
 };
 
 const POSTING = {
+  id: "p1",
   ref: "P3KX9Q2A",
   title: "Backend Engineer",
   location: { city: "Athens", country: "GR", remote: true },
   url: "https://jobs.example/1",
   posted_at: "2026-08-20T00:00:00Z",
   status: "mapped",
-} as unknown as CompanyPosting;
+  saved: false,
+  seen: false,
+  needs_review: false,
+  skills: [],
+} as unknown as PostingOut;
+
+function mockCompanyPostings(items: PostingOut[]) {
+  mockedPostings.fetchPostings.mockResolvedValue({
+    items,
+    total: items.length,
+    unseen: 0,
+  } as unknown as Awaited<ReturnType<typeof postingsApi.fetchPostings>>);
+}
 
 describe("Companies browsing (plan 135)", () => {
   beforeEach(() => {
@@ -81,7 +108,7 @@ describe("Companies browsing (plan 135)", () => {
 
   it("lists the resolved aliases on the detail page", async () => {
     mocked.fetchCompany.mockResolvedValue(DETAIL);
-    mocked.fetchCompanyPostings.mockResolvedValue([POSTING]);
+    mockCompanyPostings([POSTING]);
     render(
       <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
         <Routes>
@@ -96,7 +123,7 @@ describe("Companies browsing (plan 135)", () => {
 
   it("hides the aliases row and the badge when absent", async () => {
     mocked.fetchCompany.mockResolvedValue({ ...DETAIL, aliases: [] });
-    mocked.fetchCompanyPostings.mockResolvedValue([]);
+    mockCompanyPostings([]);
     render(
       <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
         <Routes>
@@ -124,9 +151,9 @@ describe("Companies browsing (plan 135)", () => {
     expect(screen.getByTestId("company-card-acme-cloud")).toBeInTheDocument();
   });
 
-  it("company postings open the in-app posting page and keep the source link", async () => {
+  it("company postings render the /postings card: in-app open + source link", async () => {
     mocked.fetchCompany.mockResolvedValue(DETAIL);
-    mocked.fetchCompanyPostings.mockResolvedValue([POSTING]);
+    mockCompanyPostings([POSTING]);
     render(
       <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
         <Routes>
@@ -138,19 +165,22 @@ describe("Companies browsing (plan 135)", () => {
         </Routes>
       </MemoryRouter>
     );
-    expect(await screen.findByTestId("company-posting-P3KX9Q2A")).toBeInTheDocument();
-    const view = screen.getByTestId("company-posting-view");
-    expect(view).toHaveAttribute("href", "https://jobs.example/1");
-    expect(view).toHaveAttribute("target", "_blank");
-    expect(view).toHaveAttribute("rel", "noopener noreferrer");
-    fireEvent.click(screen.getByTestId("company-posting-title"));
+    expect(await screen.findByTestId("posting-card")).toBeInTheDocument();
+    expect(mockedPostings.fetchPostings).toHaveBeenCalledWith(
+      expect.objectContaining({ company: "acme-cloud", sort: "fresh" })
+    );
+    const apply = screen.getByTestId("posting-apply");
+    expect(apply).toHaveAttribute("href", "https://jobs.example/1");
+    expect(apply).toHaveAttribute("target", "_blank");
+    expect(apply).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(screen.getByTestId("posting-details"));
     expect(await screen.findByTestId("posting-page-stub")).toBeInTheDocument();
   });
 
   it("a closed company posting renders in the closed state", async () => {
     mocked.fetchCompany.mockResolvedValue(DETAIL);
-    mocked.fetchCompanyPostings.mockResolvedValue([
-      { ...POSTING, status: "hidden" } as CompanyPosting,
+    mockCompanyPostings([
+      { ...POSTING, status: "mapped", expires_at: "2020-01-01T00:00:00Z" } as PostingOut,
     ]);
     render(
       <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
@@ -159,8 +189,8 @@ describe("Companies browsing (plan 135)", () => {
         </Routes>
       </MemoryRouter>
     );
-    const card = await screen.findByTestId("company-posting-P3KX9Q2A");
+    const card = await screen.findByTestId("posting-card");
     expect(card).toHaveAttribute("data-state", "closed");
-    expect(screen.getByTestId("company-posting-closed")).toBeInTheDocument();
+    expect(screen.getByTestId("posting-closed")).toBeInTheDocument();
   });
 });

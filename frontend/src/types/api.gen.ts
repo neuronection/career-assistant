@@ -3326,26 +3326,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/companies/{key}/postings": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Company Postings
-         * @description The company's open postings, freshest first.
-         */
-        get: operations["company_postings_api_v1_companies__key__postings_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/cv": {
         parameters: {
             query?: never;
@@ -9606,50 +9586,6 @@ export interface components {
              * @default active
              */
             status: string;
-        };
-        /**
-         * CompanyPostingOut
-         * @description The company page's posting card row (no personalization plumbing).
-         */
-        CompanyPostingOut: {
-            /** Catalog Job Id */
-            catalog_job_id?: string | null;
-            /** Employment Type */
-            employment_type?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            location?: components["schemas"]["PostingLocationOut"] | null;
-            /** Onsite Policy */
-            onsite_policy?: string | null;
-            /** Posted At */
-            posted_at?: string | null;
-            /** Ref */
-            ref: string;
-            /** Salary Basis */
-            salary_basis?: string | null;
-            /** Salary Currency */
-            salary_currency?: string | null;
-            /** Salary Max */
-            salary_max?: number | null;
-            /** Salary Min */
-            salary_min?: number | null;
-            /** Salary Normalized Max */
-            salary_normalized_max?: number | null;
-            /** Salary Normalized Min */
-            salary_normalized_min?: number | null;
-            /** Salary Period */
-            salary_period?: string | null;
-            /** Seniority */
-            seniority?: string | null;
-            /** Status */
-            status: string;
-            /** Title */
-            title: string;
-            /** Url */
-            url: string;
         };
         /**
          * CompanyProfileIn
@@ -22472,39 +22408,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompanyDetailOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    company_postings_api_v1_companies__key__postings_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                key: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CompanyPostingOut"][];
                 };
             };
             /** @description Validation Error */

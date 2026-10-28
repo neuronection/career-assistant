@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (postings — search is the default, 2026-10-28)
+- **`/postings/search` is the Postings default.** Opening Postings from the
+  sidebar lands on the Explore (search) page now; `/postings` redirects
+  there. The live feed moved to `/postings/feed` (the Feed tab) — the
+  Dashboard "live" link follows it. No compat shim for the old default:
+  the redirect is the migration.
+
 ### Changed (companies pages — card-language adoption, 2026-10-28)
 - **The Companies pages speak the app's card language now.** `/companies`
   cards follow the uniform item-card grammar (org tile, labeled spec slots
@@ -15,9 +22,12 @@ All notable changes to **Career Assistant** are documented here.
   open the cards reflow to two columns instead of crushing three-wide.
   The company page gains an avatar header, token-styled
   fact/financial/hiring-signal panels, and sanitized external links; its
-  posting list is real cards now — each opens the posting's in-app page
-  (`/postings/:ref`) with the source-board link kept in the action
-  column, and postings that closed render in the closed state.
+  posting list is **the `/postings` card itself** — same fit bubble,
+  skills and apply/save/hide actions, fetched through the feed's
+  `company=<key>` filter (the slim per-company posting endpoint and its
+  card are gone, no-BC); each card opens the posting's in-app page
+  (`/postings/:ref`), and postings that closed render in the closed
+  state.
 
 ### Changed (item cards — uniform card system, 2026-10-28)
 - **Postings, catalog jobs, rankings and companies share one card grammar.**
