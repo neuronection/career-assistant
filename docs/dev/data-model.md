@@ -154,6 +154,37 @@ deletion).
 
 ### Migration notes
 
+- **0071** — plan 135 slice C: `job_postings.org_match_state`, the indexed
+  projection of the `org_match` JSONB's `state` (`linked | pending |
+  rejected`; `org_match_state_allowed` CHECK mirrors the vocabulary) —
+  JSONB is not filterable dialect-safely and the "no company" audit filter
+  must split gate-rejects from pairs still pending triage on Postgres and
+  SQLite alike. Backfill reads the JSONB per row; the matcher and the
+  triage service keep the two columns in sync. Downgrade drops the CHECK
+  before the column (SQLite batch) and keeps the state in the JSONB.
+  Covered by `tests/test_migrations.py::test_0071_org_match_state_backfill`
+  + the enum↔CHECK parity wall.
+- **0070** — plan 135: company entity resolution. Four tables —
+  `organization_aliases` (alias + `alias_key` + provenance source
+  `manual|learned|llm|url|merge|legacy` + `active|excluded` state;
+  UNIQUE(org_id, alias_key)), `organization_match_exclusions` (global
+  not-a-company labels + per-pair never-link; partial UNIQUE(label_key)
+  WHERE org_id IS NULL), `organization_match_pairs` (the gray-band queue +
+  verdict audit) and `organization_merge_suggestions` (org_a/org_b +
+  status `open|accepted|dismissed`), whose `evidence` JSONB columns both
+  carry `keep-open` inventory rows; plus `organizations.name_key` /
+  `initials_key` indexed exact-lookup keys (backfilled) and
+  `job_postings.org_match` JSONB link provenance. Fold:
+  `organizations.aliases` JSONB graduates to alias rows
+  (`source='legacy'`), the column dies (no-BC; downgrade rebuilds the
+  JSONB), and the quality denylist seeds as `source='seed'` exclusion
+  rows so it is admin-editable from day one. Landed as the renumber of
+  the plan-135 branch's `0065`/`0066_org` lane onto main's head
+  (`0069` → `0070` → `0071`; main's `0066_filter_presets` had taken the
+  original slot — see `dev/migration-notes.md`). Covered by
+  `tests/test_migrations.py::test_0070_company_entity_resolution_fold` /
+  `::test_0070_denylist_seeds_as_rows`, the enum↔CHECK wall and the
+  conftest `TABLES` coverage gate.
 - **0069** — plan 139: `skills.parent_source`, tree-placement provenance
   (`parent_source_allowed` CHECK: curated | learned, NULL allowed).
   `curated` — a human set or deliberately cleared the parent, stamped by
