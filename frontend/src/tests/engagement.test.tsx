@@ -141,7 +141,7 @@ describe("JobCard engagement state", () => {
   it("shows the education chip, saved marker and seen state", () => {
     render(<JobCard job={makeJob()} saved seen />);
     expect(screen.getByTestId("education-chip")).toHaveTextContent("Bachelor's");
-    expect(screen.getByText("seen")).toBeInTheDocument();
+    expect(screen.getByTestId("job-seen")).toHaveAttribute("title", "seen");
   });
 
   it("shows notes and the exploration chip", () => {

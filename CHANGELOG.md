@@ -17,11 +17,11 @@ All notable changes to **Career Assistant** are documented here.
   bullet plus the level, ordered must-have first; a two-row card ends its
   second row with a `+N` chip that expands the rest.
 - **Closed postings are visible and honest.** A posting past `expires_at`
-  renders desaturated with a "Closed" mark and a disabled Apply; the saved
-  view keeps postings that closed after you saved them instead of dropping
-  them. "Needs review" is now the info dot it always meant (extraction
-  confidence), and a seen posting gets one quiet check instead of a dimmed
-  card.
+  renders desaturated with a "Closed" mark and a disabled Apply; both saved
+  views (Live and Explore) keep postings that closed after you saved them
+  instead of dropping them. "Needs review" is now the info dot it always
+  meant (extraction confidence), and a seen posting gets one quiet check
+  instead of a dimmed card.
 - **Deep-extracted postings can show their skills on the card** — the
   posting payload carries the requirement-ordered skill list (bounded at
   40).

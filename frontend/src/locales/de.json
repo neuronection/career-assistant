@@ -3010,8 +3010,6 @@
       "fast-mapped": "schnell abgebildet",
       "raw": "roh"
     },
-    "fit": "passt {{score}}",
-    "coverage": "Abdeckung {{score}}",
     "posted": "veröffentlicht {{date}}",
     "applied": "beantragt ✓",
     "apply": "Anwenden",
@@ -3022,10 +3020,14 @@
       "gross": "brutto",
       "net": "netto"
     },
-    "perYear": "≈ {{range}} {{currency}}/Jahr"
+    "period": {
+      "year": "Jahr",
+      "month": "Monat",
+      "week": "Woche",
+      "day": "Tag"
+    }
   },
   "postingDetail": {
-    "levelAria": "Level {{level}}",
     "unknown": "unbekannt",
     "priority": {
       "must_have": "muss haben",
@@ -4298,5 +4300,39 @@
     "loadMore": "Mehr laden",
     "selectedCount": "{{count}} ausgewählt",
     "done": "Fertig"
+  },
+  "card": {
+    "mode": "Arbeitsmodell",
+    "level": "Level",
+    "contract": "Vertrag",
+    "hours": "Stunden",
+    "salary": "Gehalt",
+    "education": "Abschluss",
+    "closes": "Endet",
+    "modeValue": {
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "onsite": "Vor Ort"
+    },
+    "closesIn": "in {{count}} T",
+    "fit": "Fit",
+    "coverage": "Abdeckung {{score}}",
+    "skills": "Skills",
+    "seen": "Gesehen",
+    "closed": "Geschlossen",
+    "closedOn": "Geschlossen am {{date}}",
+    "more": "+{{count}}",
+    "showLess": "weniger",
+    "detailsPending": "Details noch nicht geladen",
+    "partial": "Einige Angaben konnten nicht sicher gelesen werden",
+    "provenanceValue": {
+      "extracted": "Vollständig",
+      "fast-mapped": "Zugeordnet",
+      "raw": "Nur Quelle"
+    },
+    "skillRequires": "erfordert Level {{level}} von 10",
+    "moreAria": "{{count}} weitere",
+    "noScore": "kein Wert",
+    "perYear": "≈ {{range}} {{currency}}/Jahr"
   }
 }

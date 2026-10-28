@@ -20,7 +20,6 @@ import { openInterviewChat } from "@/features/chat/components/chat/interviewChat
 import { MatchCard } from "@/features/postings/components/posting-detail/MatchCard";
 import {
   CompactSkillChip,
-  PRIORITY_STYLES,
   SkillChip,
 } from "@/features/postings/components/posting-detail/SkillChip";
 import { groupByPriority, normalizeSkills } from "@/features/postings/components/posting-detail/skills";
@@ -522,18 +521,14 @@ export function PostingDetailPage() {
               </div>
               {skillGroups.map((group) => (
                 <div key={group.priority} className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] ${
-                        PRIORITY_STYLES[group.priority] ?? "bg-slate-100 text-slate-500"
-                      }`}
-                    >
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
                       {t(`postingDetail.priority.${group.priority}`, {
                         defaultValue: group.priority.replace(/_/g, " "),
                       })}
                     </span>
-                    <span className="text-xs text-slate-400">
-                      {t("postingDetail.skillsCount", { count: group.skills.length })}
+                    <span className="text-[11px] text-[var(--as-border)]">
+                      · {t("postingDetail.skillsCount", { count: group.skills.length })}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-2">

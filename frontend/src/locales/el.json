@@ -3010,8 +3010,6 @@
       "fast-mapped": "γρήγορα αντιστοιχισμένο",
       "raw": "αρχικό"
     },
-    "fit": "κατάλληλο {{score}}",
-    "coverage": "περίληψη {{score}}",
     "posted": "ανέβηκε στις {{date}}",
     "applied": "έστειλα αίτηση ✓",
     "apply": "Αίτηση",
@@ -3022,10 +3020,14 @@
       "gross": "μικτά",
       "net": "καθαρά"
     },
-    "perYear": "≈ {{range}} {{currency}}/έτος"
+    "period": {
+      "year": "έτος",
+      "month": "μήνας",
+      "week": "εβδομάδα",
+      "day": "ημέρα"
+    }
   },
   "postingDetail": {
-    "levelAria": "επίπεδο {{level}}",
     "unknown": "άγνωστο",
     "priority": {
       "must_have": "απαραίτητο",
@@ -4298,5 +4300,39 @@
     "loadMore": "Φόρτωση περισσότερων",
     "selectedCount": "{{count}} επιλεγμένες",
     "done": "Τέλος"
+  },
+  "card": {
+    "mode": "Τρόπος εργασίας",
+    "level": "Επίπεδο",
+    "contract": "Σύμβαση",
+    "hours": "Ώρες",
+    "salary": "Μισθός",
+    "education": "Εκπαίδευση",
+    "closes": "Λήγει",
+    "modeValue": {
+      "remote": "Εξ αποστάσεως",
+      "hybrid": "Υβριδικό",
+      "onsite": "Στο γραφείο"
+    },
+    "closesIn": "σε {{count}} ημ.",
+    "fit": "fit",
+    "coverage": "κάλυψη {{score}}",
+    "skills": "δεξιότητες",
+    "seen": "Αναγνωσμένη",
+    "closed": "Έκλεισε",
+    "closedOn": "Έκλεισε στις {{date}}",
+    "more": "+{{count}}",
+    "showLess": "λιγότερα",
+    "detailsPending": "Οι λεπτομέρειες δεν έχουν ανακτηθεί",
+    "partial": "Ορισμένες λεπτομέρειες δεν διαβάστηκαν με βεβαιότητα",
+    "provenanceValue": {
+      "extracted": "Πλήρη στοιχεία",
+      "fast-mapped": "Αντιστοιχισμένη",
+      "raw": "Μόνο πηγή"
+    },
+    "skillRequires": "απαιτεί επίπεδο {{level}} από 10",
+    "moreAria": "{{count}} ακόμη",
+    "noScore": "χωρίς βαθμολογία",
+    "perYear": "≈ {{range}} {{currency}}/έτος"
   }
 }

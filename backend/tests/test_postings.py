@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
 
 from app.extensions.conformance import ConnectorConformanceTests
@@ -457,6 +458,79 @@ async def test_expiry_sweep(client, auth_headers, profile_ready, seeded_catalog,
 # ---------------------------------------------------------- interactions
 
 
+async def test_saved_view_keeps_closed_posting(
+    client, auth_headers, profile_ready, seeded_catalog, db, source
+):
+    await sync_source(db, source)
+    active = (await client.get("/api/v1/postings", headers=auth_headers)).json()
+    posting_id = active["items"][0]["id"]
+    await client.post(
+        "/api/v1/postings/save", json={"posting_id": posting_id}, headers=auth_headers
+    )
+
+    posting = (await db.execute(select(JobPosting))).scalars().first()
+    posting.expires_at = datetime.now(UTC) - timedelta(days=1)
+    await db.commit()
+    await expire_stale(db)
+
+    assert (await client.get("/api/v1/postings", headers=auth_headers)).json()["total"] == 0
+    saved = (await client.get("/api/v1/postings?saved=true", headers=auth_headers)).json()
+    assert saved["total"] == 1
+    assert saved["items"][0]["status"] == "expired"
+    assert saved["items"][0]["expires_at"] is not None
+
+    # Hidden rows stay out of the saved view even though closed rows are kept.
+    posting.status = "hidden"
+    await db.commit()
+    assert (await client.get("/api/v1/postings?saved=true", headers=auth_headers)).json()[
+        "total"
+    ] == 0
+
+
+async def test_posting_skills_projection_is_requirement_ordered(
+    client, auth_headers, profile_ready, seeded_catalog, db, source
+):
+    from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
+
+    await sync_source(db, source)
+    posting = (await db.execute(select(JobPosting))).scalars().first()
+    await db.execute(sa_delete(PostingSkill).where(PostingSkill.posting_id == posting.id))
+    specs = [
+        ("proj-bonus", "Projected Bonus", "bonus", 9),
+        ("proj-zeta", "Projected Zeta", "nice_to_have", 6),
+        ("proj-must", "Projected Must", "must_have", 4),
+        ("proj-alpha", "Projected Alpha", "nice_to_have", 6),
+        ("proj-nice", "Projected Nice", "nice_to_have", 6),
+    ]
+    for key, label, priority, level in specs:
+        skill = Skill(key=key, label=label, category="test")
+        db.add(skill)
+        await db.flush()
+        db.add(
+            PostingSkill(
+                posting_id=posting.id,
+                skill_id=skill.id,
+                priority=priority,
+                required_level=level,
+            )
+        )
+    await db.commit()
+
+    listing = (await client.get("/api/v1/postings", headers=auth_headers)).json()
+    skills = listing["items"][0]["skills"]
+    assert [skill["key"] for skill in skills] == [
+        "proj-must",
+        "proj-alpha",
+        "proj-nice",
+        "proj-zeta",
+        "proj-bonus",
+    ]
+    assert skills[0]["label"] == "Projected Must"
+    assert skills[0]["required_level"] == 4
+    assert skills[0]["priority"] == "must_have"
+
+
 async def test_interaction_state_round_trip(
     client, auth_headers, profile_ready, seeded_catalog, db, source
 ):
@@ -692,3 +766,32 @@ async def test_probe_reports_typed_runtime_outcome(
     assert probed.status_code == 200
     assert probed.json()["ok"] is True
     assert probed.json()["latency_ms"] >= 0
+
+
+async def test_posting_skill_projection_stays_bounded(
+    client, auth_headers, profile_ready, seeded_catalog, db, source, monkeypatch
+):
+    from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
+    from app.services.postings import postings_service
+
+    await sync_source(db, source)
+    posting = (await db.execute(select(JobPosting))).scalars().first()
+    await db.execute(sa_delete(PostingSkill).where(PostingSkill.posting_id == posting.id))
+    for index in range(3):
+        skill = Skill(key=f"bound-{index}", label=f"Bound {index}", category="test")
+        db.add(skill)
+        await db.flush()
+        db.add(
+            PostingSkill(
+                posting_id=posting.id,
+                skill_id=skill.id,
+                priority="must_have",
+                required_level=5,
+            )
+        )
+    await db.commit()
+
+    monkeypatch.setattr(postings_service, "SKILL_REF_LIMIT", 2)
+    listing = (await client.get("/api/v1/postings", headers=auth_headers)).json()
+    assert len(listing["items"][0]["skills"]) == 2

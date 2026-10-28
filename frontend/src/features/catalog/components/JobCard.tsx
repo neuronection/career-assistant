@@ -1,5 +1,10 @@
 import { Bookmark, Compass } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Badge } from "@/components/ui";
+import { CardSpec } from "@/components/cards/CardSpec";
+import { ChipRow } from "@/components/cards/ChipRow";
+import { ItemCardShell } from "@/components/cards/ItemCardShell";
+import { SeenMark } from "@/components/cards/CardState";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import type { Job } from "@/types/wire";
 
@@ -38,54 +43,77 @@ export function JobCard({
   const { t } = useTranslation();
   const education = job.attributes?.education?.level;
   return (
-    <button
-      type="button"
-      data-testid="job-card"
-      onClick={() => onSelect?.(job)}
-      className={`text-left w-full bg-white border rounded-xl p-4 hover:border-primary-500 hover:shadow-sm transition ${
-        seen ? "border-slate-100 opacity-75" : "border-slate-200"
-      }`}
+    <ItemCardShell
+      testId="job-card"
+      onOpen={onSelect ? () => onSelect(job) : undefined}
+      seen={seen}
+      className="w-full text-left"
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-medium text-slate-900">
-          {job.title}
-          {seen && (
-            <span className="ml-2 text-[10px] uppercase tracking-wide text-slate-400 font-normal">
-              {t("jobCard.seen")}
-            </span>
-          )}
-        </h3>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {saved && <Bookmark className="w-3.5 h-3.5 text-primary-600 fill-primary-600" />}
-          <DemandBadge outlook={job.attributes?.demand?.outlook} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            data-testid="job-title"
+            className="min-w-0 truncate text-left font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
+          >
+            {job.title}
+          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            {seen ? <SeenMark label={t("jobCard.seen")} testId="job-seen" /> : null}
+            {saved ? (
+              <Bookmark
+                aria-hidden
+                className="h-3.5 w-3.5 fill-current text-[var(--as-accent)]"
+              />
+            ) : null}
+            <DemandBadge outlook={job.attributes?.demand?.outlook} />
+          </div>
+        </div>
+        <p className="mt-1 line-clamp-2 text-sm text-[var(--as-muted-fg)]">
+          {job.short_description}
+        </p>
+        {notes ? (
+          <p
+            className="mt-1 line-clamp-1 text-xs italic text-[var(--as-muted-fg)]"
+            data-testid="job-card-notes"
+          >
+            {notes}
+          </p>
+        ) : null}
+        <CardSpec
+          className="mt-1.5"
+          items={
+            education
+              ? [
+                  {
+                    key: "education",
+                    label: t("card.education"),
+                    value: educationChipLabel(t, education),
+                    testId: "education-chip",
+                  },
+                ]
+              : []
+          }
+        />
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+          <ChipRow
+            testId="job-interests"
+            max={3}
+            moreLabel={(count) => t("card.more", { count })}
+            moreAriaLabel={(count) => t("card.moreAria", { count })}
+            showLessLabel={t("card.showLess")}
+            items={(job.interests ?? []).map((interest) => ({
+              key: interest.key,
+              label: interest.label,
+            }))}
+          />
+          {exploration ? (
+            <Badge variant="ai">
+              <Compass aria-hidden /> {t("jobCard.explore")}
+            </Badge>
+          ) : null}
         </div>
       </div>
-      <p className="mt-1 text-sm text-slate-500 line-clamp-2">{job.short_description}</p>
-      {notes && (
-        <p className="mt-1 text-xs text-slate-400 italic line-clamp-1" data-testid="job-card-notes">
-          {notes}
-        </p>
-      )}
-      <div className="mt-2 flex flex-wrap items-center gap-1">
-            {education && (
-              <span
-                className="text-xs bg-primary-50 text-primary-700 px-2 py-0.5 rounded"
-                data-testid="education-chip"
-              >
-                {educationChipLabel(t, education)}
-              </span>
-            )}
-        {(job.interests ?? []).slice(0, 4).map((interest) => (
-          <span key={interest.key} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
-            {interest.label}
-          </span>
-        ))}
-        {exploration && (
-          <span className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded flex items-center gap-1">
-            <Compass className="w-3 h-3" /> {t("jobCard.explore")}
-          </span>
-        )}
-      </div>
-    </button>
+    </ItemCardShell>
   );
 }

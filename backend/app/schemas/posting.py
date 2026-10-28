@@ -231,6 +231,16 @@ class PostingSimilarOut(BaseModel):
     score: float
 
 
+class PostingSkillRefOut(BaseModel):
+    """One required skill as cards render it (plan 140): the posting's
+    skill edge resolved to the taxonomy label, ordered by requirement."""
+
+    key: str
+    label: str
+    required_level: int | None = None
+    priority: str | None = None
+
+
 class PostingOut(BaseModel):
     id: UUID
     ref: str = ""
@@ -281,6 +291,8 @@ class PostingOut(BaseModel):
     # Display-only source badge fields (filter key is authoritative).
     source_key: str = ""
     catalog_job: JobOut | None = None
+    # Card skill strip (plan 140): requirement-ordered, bounded projection.
+    skills: list[PostingSkillRefOut] = Field(default_factory=list)
 
 
 class PostingDetailOut(PostingOut):

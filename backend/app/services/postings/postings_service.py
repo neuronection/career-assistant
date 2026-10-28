@@ -34,6 +34,7 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
+from app.schemas.posting import PostingSkillRefOut
 from app.services.postings.salary import annualized
 
 logger = logging.getLogger(__name__)
@@ -754,8 +755,13 @@ async def list_postings(
             Application,
             (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
-        .where(JobPosting.status.in_(["mapped", "new"]))
     )
+    # Saved keeps postings that closed after they were saved (plan 140);
+    # the open feed only lists live rows.
+    if saved:
+        query = query.where(JobPosting.status != "hidden")
+    else:
+        query = query.where(JobPosting.status.in_(["mapped", "new"]))
     if not include_hidden:
         query = query.where(
             or_(
@@ -920,8 +926,11 @@ async def search_postings(
             Application,
             (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
-        .where(JobPosting.status.in_(["mapped", "new"]))
     )
+    if saved:
+        query = query.where(JobPosting.status != "hidden")
+    else:
+        query = query.where(JobPosting.status.in_(["mapped", "new"]))
     query = query.where(and_(*conditions)) if mode == "all" else query.where(or_(*conditions))
     if not saved:
         query = query.where(
@@ -1150,6 +1159,62 @@ async def check_new_posting_alerts(db: AsyncSession, posting: JobPosting) -> lis
             max_per_day=int(params["max_per_day"]),
         )
     return recipients
+
+
+# ------------------------------------------------------- card skill strip
+
+SKILL_REF_LIMIT = 40
+SKILL_PRIORITY_RANK = {"must_have": 2, "nice_to_have": 1, "bonus": 0}
+
+
+async def load_posting_skill_refs(
+    db: AsyncSession, posting_ids: list[UUID]
+) -> dict[UUID, list[PostingSkillRefOut]]:
+    """Requirement-ordered skill refs for a page of postings, in ONE query.
+
+    The order is the card's (plan 140): must-have → nice-to-have → bonus,
+    then required level desc, then label — so the feed, the search rows and
+    the detail page never disagree. Values are plain dicts; the wire schema
+    coerces them.
+    """
+    from app.models.posting_model import PostingSkill
+
+    ids = list(dict.fromkeys(posting_id for posting_id in posting_ids if posting_id))
+    if not ids:
+        return {}
+    rows = await db.execute(
+        select(
+            PostingSkill.posting_id,
+            PostingSkill.required_level,
+            PostingSkill.priority,
+            Skill.key,
+            Skill.label,
+        )
+        .join(Skill, Skill.id == PostingSkill.skill_id)
+        .where(PostingSkill.posting_id.in_(ids))
+    )
+    grouped: dict[UUID, list[tuple]] = {}
+    for posting_id, level, priority, key, label in rows.all():
+        grouped.setdefault(posting_id, []).append((priority, level, key, label))
+    out: dict[UUID, list[PostingSkillRefOut]] = {}
+    for posting_id, entries in grouped.items():
+        entries.sort(
+            key=lambda entry: (
+                -SKILL_PRIORITY_RANK.get(entry[0] or "", 0),
+                -(entry[1] or 0),
+                (entry[3] or "").lower(),
+            )
+        )
+        out[posting_id] = [
+            PostingSkillRefOut(
+                key=key,
+                label=label,
+                required_level=level,
+                priority=priority,
+            )
+            for priority, level, key, label in entries[:SKILL_REF_LIMIT]
+        ]
+    return out
 
 
 # ------------------------------------------------------------------ expiry

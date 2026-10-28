@@ -14172,6 +14172,13 @@
             "title": "Similar",
             "type": "array"
           },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PostingSkillRefOut"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "source_connector": {
             "default": "",
             "title": "Source Connector",
@@ -15364,6 +15371,13 @@
             ],
             "title": "Seniority"
           },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PostingSkillRefOut"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "source_id": {
             "format": "uuid",
             "title": "Source Id",
@@ -15499,6 +15513,47 @@
           "score"
         ],
         "title": "PostingSimilarOut",
+        "type": "object"
+      },
+      "PostingSkillRefOut": {
+        "description": "One required skill as cards render it (plan 140): the posting's\nskill edge resolved to the taxonomy label, ordered by requirement.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "required_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Level"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "PostingSkillRefOut",
         "type": "object"
       },
       "PostingsOut": {

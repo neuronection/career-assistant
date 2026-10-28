@@ -24,7 +24,7 @@ import {
   fetchTargetDashboard,
 } from "@/api/onboarding";
 import { JobCard } from "@/features/catalog/components/JobCard";
-import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { ApplicationsFunnel } from "@/features/postings/components/applications/ApplicationsFunnel";
 import type { Candidate, FeedResponse, RankedJob, TargetDashboard } from "@/types/wire";
@@ -152,7 +152,7 @@ export function Dashboard() {
           <div className="grid md:grid-cols-2 gap-3">
             {top.map((r) => (
               <Link key={r.job.id} to={`/jobs/${r.job.code}`} className="flex items-center gap-4 bg-white border border-slate-200 rounded-xl p-4">
-                <ScoreRing score={r.score} />
+                <ScoreBubble score={r.score} />
                 <div className="flex-1">
                   <p className="font-medium text-slate-900">{r.job.title}</p>
                   <p className="text-sm text-slate-500">{r.job.family_key.replace(/-/g, " ")}</p>

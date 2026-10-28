@@ -33,6 +33,7 @@ from app.services.postings.explore_service import (
 )
 from app.services.postings.postings_service import (
     list_postings,
+    load_posting_skill_refs,
     mark_seen,
     parse_skill_entries,
     resolve_posting,
@@ -52,6 +53,7 @@ def _posting_out(
     source_key="",
     org_key="",
     coverage=None,
+    skills=None,
 ) -> PostingOut:
     from app.schemas.job import JobOut
 
@@ -117,6 +119,7 @@ def _posting_out(
         coverage=coverage,
         source_key=source_key,
         catalog_job=catalog_job,
+        skills=skills or [],
     )
 
 
@@ -151,6 +154,7 @@ async def postings(
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     orgs = await _org_keys(db)
+    skill_refs = await load_posting_skill_refs(db, [item["posting"].id for item in result["items"]])
     return PostingsOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -162,6 +166,7 @@ async def postings(
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
                 org_key=orgs.get(item["posting"].org_id, ""),
+                skills=skill_refs.get(item["posting"].id),
             )
             for item in result["items"]
         ],
@@ -204,6 +209,7 @@ async def postings_search(
     )
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     orgs = await _org_keys(db)
+    skill_refs = await load_posting_skill_refs(db, [item["posting"].id for item in result["items"]])
     return PostingSearchOut(
         total=result["total"],
         unseen=result["unseen"],
@@ -216,6 +222,7 @@ async def postings_search(
                 coverage=item.get("coverage"),
                 source_key=sources.get(item["posting"].source_id, ""),
                 org_key=orgs.get(item["posting"].org_id, ""),
+                skills=skill_refs.get(item["posting"].id),
             )
             for item in result["items"]
         ],
@@ -266,6 +273,7 @@ async def postings_explore(
     result = await explore(db, user.id, filters, sort=sort, cursor=cursor, limit=limit)
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     orgs = await _org_keys(db)
+    skill_refs = await load_posting_skill_refs(db, [item["posting"].id for item in result["items"]])
     return ExploreOut(
         items=[
             _posting_out(
@@ -275,6 +283,7 @@ async def postings_explore(
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
                 org_key=orgs.get(item["posting"].org_id, ""),
+                skills=skill_refs.get(item["posting"].id),
             )
             for item in result["items"]
         ],
@@ -298,6 +307,7 @@ async def preview_job_radar(
     result = await explore(db, user.id, filters, sort="fresh", limit=5)
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     orgs = await _org_keys(db)
+    skill_refs = await load_posting_skill_refs(db, [item["posting"].id for item in result["items"]])
     return ExploreOut(
         items=[
             _posting_out(
@@ -307,6 +317,7 @@ async def preview_job_radar(
                 fit=item.get("fit"),
                 source_key=sources.get(item["posting"].source_id, ""),
                 org_key=orgs.get(item["posting"].org_id, ""),
+                skills=skill_refs.get(item["posting"].id),
             )
             for item in result["items"]
         ],
@@ -401,7 +412,14 @@ async def posting_detail(
         org_key = (
             await db.execute(select(Organization.key).where(Organization.id == posting.org_id))
         ).scalars().first() or ""
-    out = _posting_out(posting, interaction, application, org_key=org_key)
+    skill_refs = await load_posting_skill_refs(db, [posting.id])
+    out = _posting_out(
+        posting,
+        interaction,
+        application,
+        org_key=org_key,
+        skills=skill_refs.get(posting.id),
+    )
     raw_description = (posting.raw or {}).get("description")
     return PostingDetailOut(
         **out.model_dump(),
@@ -530,6 +548,7 @@ async def postings_filter(
     rows = (await db.execute(query)).all()
     sources = {s.id: s.key for s in (await db.execute(select(JobSource))).scalars().all()}
     orgs = await _org_keys(db)
+    skill_refs = await load_posting_skill_refs(db, [posting.id for posting, _, _ in rows])
     return [
         _posting_out(
             posting,
@@ -537,6 +556,7 @@ async def postings_filter(
             application,
             source_key=sources.get(posting.source_id, ""),
             org_key=orgs.get(posting.org_id, ""),
+            skills=skill_refs.get(posting.id),
         )
         for posting, interaction, application in rows
     ]

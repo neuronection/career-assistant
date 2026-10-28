@@ -13498,6 +13498,8 @@ export interface components {
             seniority?: string | null;
             /** Similar */
             similar?: components["schemas"]["PostingSimilarOut"][];
+            /** Skills */
+            skills?: components["schemas"]["PostingSkillRefOut"][];
             /**
              * Source Connector
              * @default
@@ -13871,6 +13873,8 @@ export interface components {
             seen: boolean;
             /** Seniority */
             seniority?: string | null;
+            /** Skills */
+            skills?: components["schemas"]["PostingSkillRefOut"][];
             /**
              * Source Id
              * Format: uuid
@@ -13918,6 +13922,21 @@ export interface components {
             score: number;
             /** Title */
             title: string;
+        };
+        /**
+         * PostingSkillRefOut
+         * @description One required skill as cards render it (plan 140): the posting's
+         *     skill edge resolved to the taxonomy label, ordered by requirement.
+         */
+        PostingSkillRefOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Priority */
+            priority?: string | null;
+            /** Required Level */
+            required_level?: number | null;
         };
         /** PostingsOut */
         PostingsOut: {

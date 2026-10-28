@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { compareJobs } from "@/api/matching";
-import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { educationChipLabel } from "@/features/catalog/components/JobCard";
 import { EmptyState } from "@/components/ui";
@@ -108,7 +108,7 @@ export function Compare() {
             <div />
             {rows.map((r) => (
               <div key={r.job.id} className="flex items-center gap-3" data-testid={`compare-col-${r.job.id}`}>
-                <ScoreRing score={r.score} size={44} />
+                <ScoreBubble score={r.score} size={44} />
                 <div className="min-w-0">
                   <Link
                     to={`/jobs/${r.job.code}`}

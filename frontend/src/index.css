@@ -108,3 +108,28 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Item cards (plan 140): width-aware by the card's own container — the
+   chat dock narrows the column, not the viewport, so no lg: here. */
+.ca-item-card {
+  container-type: inline-size;
+}
+
+@container (max-width: 30rem) {
+  .ca-item-card .ca-item-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+
+/* Closed item cards (plan 140): re-map the semantic text/score tokens for the
+   whole subtree so a closed posting reads muted without touch content opacity
+   or a grayscale filter (contrast stays intact). */
+.ca-item-card[data-state="closed"] {
+  --as-fg: var(--as-muted-fg);
+  --as-success: var(--as-muted-fg);
+  --as-warning: var(--as-muted-fg);
+  --as-danger: var(--as-muted-fg);
+  --ca-heat-hot: var(--as-muted-fg);
+}

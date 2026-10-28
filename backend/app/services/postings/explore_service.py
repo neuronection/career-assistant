@@ -573,7 +573,13 @@ def _frontier_payload(posting: JobPosting) -> dict:
 # ------------------------------------------------------------------ paging
 
 
-def _base_select(user_id: UUID):
+def _status_condition(saved: bool):
+    # Saved keeps closed postings (plan 140) so the closed state is reachable
+    # from every saved list; the browse surface stays open-only.
+    return JobPosting.status != "hidden" if saved else JobPosting.status.in_(OPEN_STATUSES)
+
+
+def _base_select(user_id: UUID, *, saved: bool = False):
     return (
         select(JobPosting, PostingInteraction, Application)
         .options(
@@ -594,11 +600,13 @@ def _base_select(user_id: UUID):
             Application,
             (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
-        .where(JobPosting.status.in_(OPEN_STATUSES))
+        .where(_status_condition(saved))
     )
 
 
-async def _count_matches(db: AsyncSession, user_id: UUID, conditions: list) -> int:
+async def _count_matches(
+    db: AsyncSession, user_id: UUID, conditions: list, *, saved: bool = False
+) -> int:
     query = (
         select(func.count(JobPosting.id))
         .select_from(JobPosting)
@@ -611,7 +619,7 @@ async def _count_matches(db: AsyncSession, user_id: UUID, conditions: list) -> i
             Application,
             (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
         )
-        .where(JobPosting.status.in_(OPEN_STATUSES))
+        .where(_status_condition(saved))
     )
     if conditions:
         query = query.where(and_(*conditions))
@@ -698,8 +706,10 @@ async def _keyset_page(
     after_key: Any,
     after_id: UUID | None,
     limit: int,
+    *,
+    saved: bool = False,
 ) -> tuple[list[dict], str | None]:
-    query = _base_select(user_id)
+    query = _base_select(user_id, saved=saved)
     if conditions:
         query = query.where(and_(*conditions))
     if after_key is not None and after_id is not None:
@@ -725,7 +735,7 @@ async def _ranked_page(
     frontier: dict | None,
     limit: int,
 ) -> tuple[list[dict], str | None]:
-    query = _base_select(user_id)
+    query = _base_select(user_id, saved=bool(filters.get("saved")))
     if conditions:
         query = query.where(and_(*conditions))
     if frontier is not None:
@@ -872,7 +882,8 @@ async def explore(
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
     conditions = _collect_conditions(filters, skill_ids, source_ids, user_id)
-    total = await _count_matches(db, user_id, conditions)
+    saved = bool(filters.get("saved"))
+    total = await _count_matches(db, user_id, conditions, saved=saved)
 
     after_key: Any = None
     after_id: UUID | None = None
@@ -884,7 +895,7 @@ async def explore(
 
     if sort in ("fresh", "salary"):
         page, next_cursor = await _keyset_page(
-            db, user_id, conditions, sort, after_key, after_id, limit
+            db, user_id, conditions, sort, after_key, after_id, limit, saved=saved
         )
     else:
         page, next_cursor = await _ranked_page(

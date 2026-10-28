@@ -30,4 +30,4 @@ def test_rank_compare_rate(page) -> None:
     interested = page.get_by_role("button", name="♥ interested").first
     interested.click()
     page.wait_for_timeout(500)
-    assert "bg-primary-600" in interested.get_attribute("class")
+    assert interested.get_attribute("data-active") == "true"

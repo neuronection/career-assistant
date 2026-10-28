@@ -57,6 +57,7 @@ export { ScaleSlider, scaleColorForValue } from "@/components/ui/ScaleSlider";
 export { ChipInput } from "@/components/ui/ChipInput";
 export { ChipList } from "@/components/ui/ChipList";
 export { default as Button, buttonVariants } from "@/components/ui/Button";
+export { Badge, badgeVariants, type BadgeProps } from "@/components/ui/Badge";
 export { default as Card } from "@/components/ui/Card";
 export { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 export { EmptyState } from "@/components/ui/EmptyState";

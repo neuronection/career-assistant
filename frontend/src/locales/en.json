@@ -3011,8 +3011,6 @@
       "fast-mapped": "fast-mapped",
       "raw": "raw"
     },
-    "fit": "fit {{score}}",
-    "coverage": "coverage {{score}}",
     "posted": "posted {{date}}",
     "applied": "applied ✓",
     "apply": "Apply",
@@ -3023,10 +3021,14 @@
       "gross": "gross",
       "net": "net"
     },
-    "perYear": "≈ {{range}} {{currency}}/yr"
+    "period": {
+      "year": "yr",
+      "month": "mo",
+      "week": "wk",
+      "day": "day"
+    }
   },
   "postingDetail": {
-    "levelAria": "level {{level}}",
     "unknown": "unknown",
     "priority": {
       "must_have": "must have",
@@ -4299,5 +4301,39 @@
     "loadMore": "Load more",
     "selectedCount": "{{count}} selected",
     "done": "Done"
+  },
+  "card": {
+    "mode": "mode",
+    "level": "level",
+    "contract": "contract",
+    "hours": "hours",
+    "salary": "salary",
+    "education": "education",
+    "closes": "closes",
+    "modeValue": {
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "onsite": "On-site"
+    },
+    "closesIn": "in {{count}} d",
+    "fit": "fit",
+    "coverage": "cov {{score}}",
+    "skills": "skills",
+    "seen": "Seen",
+    "closed": "Closed",
+    "closedOn": "Closed {{date}}",
+    "more": "+{{count}}",
+    "showLess": "less",
+    "detailsPending": "Details not fetched yet",
+    "partial": "Some details could not be read confidently",
+    "provenanceValue": {
+      "extracted": "Full details",
+      "fast-mapped": "Mapped",
+      "raw": "Source only"
+    },
+    "skillRequires": "requires level {{level}} of 10",
+    "moreAria": "{{count}} more",
+    "noScore": "no score",
+    "perYear": "≈ {{range}} {{currency}}/yr"
   }
 }

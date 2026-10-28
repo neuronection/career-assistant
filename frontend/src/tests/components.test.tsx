@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, within } from "@testing-library/react";
-import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { JobCard } from "@/features/catalog/components/JobCard";
 import { AiButton } from "@/components/AiButton";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
@@ -42,9 +42,9 @@ function makeJob(overrides: Partial<Job> = {}): Job {
   };
 }
 
-describe("ScoreRing", () => {
+describe("ScoreBubble", () => {
   it("renders the numeric score", () => {
-    render(<ScoreRing score={8.4} />);
+    render(<ScoreBubble score={8.4} />);
     expect(screen.getByRole("img", { name: /8\.4 of 10/i })).toBeInTheDocument();
     expect(screen.getByText("8.4")).toBeInTheDocument();
   });

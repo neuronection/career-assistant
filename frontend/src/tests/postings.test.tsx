@@ -83,9 +83,9 @@ describe("Postings live tab", () => {
     );
     expect(await screen.findByTestId("postings")).toBeInTheDocument();
     expect(screen.getByTestId("posting-title")).toHaveTextContent("Backend Engineer");
-    expect(screen.getByText("synth")).toBeInTheDocument();
+    expect(screen.getByText(/synth/)).toBeInTheDocument();
     expect(screen.getByText(/1 new/)).toBeInTheDocument();
-    expect(screen.getByText(/fit 7\.5/)).toBeInTheDocument();
+    expect(screen.getByTestId("score-ring")).toHaveAttribute("data-score", "7.5");
   });
 
   it("marks seen and applied when applying through the original url", async () => {
@@ -163,7 +163,7 @@ describe("Skill-level search & provenance", () => {
       </MemoryRouter>
     );
     const chip = await screen.findByTestId("posting-provenance");
-    expect(chip).toHaveTextContent("raw"); // no mapping yet in this fixture
+    expect(chip).toHaveTextContent("Source only"); // no mapping yet in this fixture
     first.unmount();
 
     mockFetchPostings.mockResolvedValue({
@@ -179,7 +179,7 @@ describe("Skill-level search & provenance", () => {
       </MemoryRouter>
     );
     const extracted = await screen.findByTestId("posting-provenance");
-    expect(extracted).toHaveTextContent("extracted");
+    expect(extracted).toHaveTextContent("Full details");
   });
 
   it("filters via the rail: skill + min level compose a filter spec", async () => {
