@@ -97,7 +97,7 @@ export function Dashboard() {
   const jobCount = countJobs(families);
 
   return (
-    <div className="space-y-8" data-testid="dashboard">
+    <div className="ca-card-page space-y-8" data-testid="dashboard">
       <section>
         <h1 className="text-2xl font-bold text-slate-900">{t("dashboard.title")}</h1>
         <p className="text-slate-500 mt-1" data-testid="dashboard-tagline">
@@ -199,7 +199,7 @@ export function Dashboard() {
           </div>
         </div>
         {feed && feed.items.length > 0 ? (
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="ca-card-grid">
             {feed.items.map((item) => (
               <JobCard
                 key={item.job.id}

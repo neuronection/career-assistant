@@ -80,7 +80,7 @@ export function Generate() {
   };
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto" data-testid="generate">
+    <div className="ca-card-page space-y-6 max-w-5xl mx-auto" data-testid="generate">
       <p className="text-slate-500">{t("generate.subtitle")}</p>
 
       <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-4">
@@ -149,7 +149,7 @@ export function Generate() {
               </button>
             </div>
           </div>
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="ca-card-grid">
             {queue.map((d) => (
               <div key={d.id} className="space-y-1">
                 <JobCard job={d} />
@@ -177,7 +177,7 @@ export function Generate() {
             </button>
           </div>
           {note && <p className="text-xs text-slate-400">{note}</p>}
-          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+          <div className="ca-card-grid">
             {drafts.map((d) => (
               <div key={d.id} className="space-y-1">
                 <JobCard job={d} />

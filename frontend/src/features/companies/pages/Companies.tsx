@@ -47,7 +47,7 @@ export function Companies() {
   const searching = query.trim().length > 0;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6" data-testid="companies">
+    <div className="ca-card-page max-w-4xl mx-auto space-y-6" data-testid="companies">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -84,7 +84,7 @@ export function Companies() {
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
       {!loaded ? (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3" data-testid="company-skeleton">
+        <div className="ca-card-grid" data-testid="company-skeleton">
           {Array.from({ length: 6 }, (_, i) => (
             <div key={i} className="cv-shimmer h-36 rounded-[var(--as-radius-lg)]" />
           ))}
@@ -101,7 +101,7 @@ export function Companies() {
           }
         />
       ) : (
-        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+        <div className="ca-card-grid">
           {visible.map((company) => (
             <CompanyCard key={company.key} company={company} />
           ))}

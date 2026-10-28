@@ -123,6 +123,35 @@ body {
   }
 }
 
+/* Card grids (plan 140 follow-up): the column count keys off the PAGE
+   COLUMN's own width (container query), not the viewport — the chat dock
+   narrows the inner page without moving the viewport (plan-95 rule), and
+   viewport breakpoints kept cards three-wide and crushed under the dock.
+   The page's centered column carries ca-card-page; any .ca-card-grid
+   inside reflows 1 → 2 → 3 columns by that width. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-card-page {
+  container-type: inline-size;
+}
+
+.ca-card-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 32rem) {
+  .ca-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 54rem) {
+  .ca-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* Closed item cards (plan 140): re-map the semantic text/score tokens for the
    whole subtree so a closed posting reads muted without touch content opacity
    or a grayscale filter (contrast stays intact). */

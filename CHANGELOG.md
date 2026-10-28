@@ -10,7 +10,10 @@ All notable changes to **Career Assistant** are documented here.
   for type · size · founding year instead of pills, industry chips, the
   open-postings count), a **New** filter isolates posting-born companies,
   and searching shows a proper no-match state instead of the empty-catalog
-  one. The company page gains an avatar header, token-styled
+  one. Card grids key their column count off the page column's own width
+  (container query, the plan-95 chat-dock rule) — with the chat sidepanel
+  open the cards reflow to two columns instead of crushing three-wide.
+  The company page gains an avatar header, token-styled
   fact/financial/hiring-signal panels, and sanitized external links; its
   posting list is real cards now — each opens the posting's in-app page
   (`/postings/:ref`) with the source-board link kept in the action
