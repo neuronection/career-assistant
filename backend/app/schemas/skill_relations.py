@@ -39,22 +39,17 @@ class SkillRelationOut(BaseModel):
 
 
 class SkillRelationCreateIn(BaseModel):
-    """Manual edge add; endpoints accept a skill key or id."""
+    """Manual edge add; endpoints accept a skill key or id.
+
+    Manual adds land approved — unless the pair already carries a row,
+    whose lifecycle then stands (accept it from the queue).
+    """
 
     model_config = {"extra": "forbid"}
 
     from_skill: str = Field(min_length=1, max_length=120)
     to_skill: str = Field(min_length=1, max_length=120)
     relation: SkillRelationType
-    confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-
-
-class SkillRelationUpdateIn(BaseModel):
-    """Edit one row in place (endpoints immutable — remove + add instead)."""
-
-    model_config = {"extra": "forbid"}
-
-    relation: SkillRelationType | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
@@ -117,6 +112,12 @@ class SkillRelationRunLedgerOut(BaseModel):
             value = payload.get(name)
             if default is None:
                 values[name] = value if isinstance(value, str) else None
+            elif isinstance(default, bool):
+                values[name] = value if isinstance(value, bool) else default
+            elif isinstance(default, int):
+                values[name] = (
+                    value if isinstance(value, int) and not isinstance(value, bool) else default
+                )
             else:
                 values[name] = value if isinstance(value, type(default)) else default
         return cls(**values)

@@ -93,6 +93,12 @@ async def test_list_relations_grain_filters_and_pair_facts(db, client, _admin_an
     assert {row["relation"] for row in only_proposed} == {"is_a"}
     assert all(row["status"] == "proposed" for row in only_proposed)
 
+    bounded = (
+        await client.get("/api/v1/admin/skill-relations", params={"limit": 2}, headers=admin)
+    ).json()
+    assert len(bounded) == 2, "the listing is bounded — newest first"
+    assert bounded[0]["id"] != bounded[1]["id"]
+
     for_skill = (
         await client.get(
             "/api/v1/admin/skill-relations",
@@ -348,6 +354,18 @@ async def test_runs_ledger_renders_and_handles_null_watermark(db, client, _admin
         "capped",
         "watermark",
     }
+
+
+async def test_run_ledger_renders_junk_counters_as_defaults():
+    from app.schemas.skill_relations import SkillRelationRunLedgerOut
+
+    ledger = SkillRelationRunLedgerOut.from_result(
+        {"candidates": True, "capped": "yes", "watermark": 7, "batches": 2}
+    )
+    assert ledger.candidates == 0, "a bool never passes as a counter"
+    assert ledger.capped is False
+    assert ledger.watermark is None
+    assert ledger.batches == 2
 
 
 # --------------------------------------------- alias-add path (decision 6)

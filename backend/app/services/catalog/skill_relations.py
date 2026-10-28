@@ -79,12 +79,13 @@ class SkillRelationService:
         *,
         status: str | SkillRelationStatus | None = None,
         skill_id: uuid.UUID | None = None,
+        limit: int = 200,
     ) -> list[SkillRelation]:
         """Review-grain listing: every (pair, relation) row, any status.
 
         ``load_graph`` is expansion-only (approved rows); this is the
         admin queue's read API — pair ids, evidence and provenance ride
-        each row, newest first.
+        each row, newest first and bounded (the table grows without one).
         """
         query = select(SkillRelation)
         if status is not None:
@@ -93,7 +94,7 @@ class SkillRelationService:
             query = query.where(
                 (SkillRelation.from_skill_id == skill_id) | (SkillRelation.to_skill_id == skill_id)
             )
-        query = query.order_by(SkillRelation.created_at.desc())
+        query = query.order_by(SkillRelation.created_at.desc()).limit(max(1, limit))
         rows = await self.db.execute(query)
         return list(rows.scalars().all())
 

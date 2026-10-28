@@ -1163,17 +1163,19 @@ export interface paths {
         };
         /**
          * List Skill Relations
-         * @description The review queue / editor listing (one row per (pair, relation)).
+         * @description The review queue / editor listing (one row per (pair, relation),
+         *     newest first and bounded).
          */
         get: operations["list_skill_relations_api_v1_admin_skill_relations_get"];
         put?: never;
         /**
          * Add Skill Relation
-         * @description Manual edge add (admin-curated ⇒ approved on arrival).
+         * @description Manual edge add — approved on arrival when the pair is new.
          *
          *     An existing (pair, relation) row refreshes its confidence instead of
-         *     duplicating — the seam's dedup-update; relation kinds are re-pointed by
-         *     removing the row and re-adding it (manual edit).
+         *     duplicating and keeps its own lifecycle (the seam's dedup-update —
+         *     accept it from the queue); relation kinds are re-pointed by removing
+         *     the row and re-adding it (manual edit).
          */
         post: operations["add_skill_relation_api_v1_admin_skill_relations_post"];
         delete?: never;
@@ -15244,6 +15246,9 @@ export interface components {
         /**
          * SkillRelationCreateIn
          * @description Manual edge add; endpoints accept a skill key or id.
+         *
+         *     Manual adds land approved — unless the pair already carries a row,
+         *     whose lifecycle then stands (accept it from the queue).
          */
         SkillRelationCreateIn: {
             /** Confidence */
@@ -18292,6 +18297,7 @@ export interface operations {
             query?: {
                 status?: string | null;
                 skill_id?: string | null;
+                limit?: number;
             };
             header?: never;
             path?: never;

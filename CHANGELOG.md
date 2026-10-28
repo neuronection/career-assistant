@@ -16,7 +16,9 @@ All notable changes to **Career Assistant** are documented here.
   per-run cap, negative-confidence bar) and the run statistics are
   editable/visible there too. A saved alias resolves immediately — merged
   label rows stop shadowing the surviving skill in matching. The surface
-  lives in Settings → Taxonomy → Relations.
+  lives in Settings → Taxonomy → Relations. Review fixes: the relation
+  listing is bounded, and merged-away label rows no longer join the
+  sub-skill tree.
 
 ### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
 - **The skill tree catches up with reviewed relations** — approving an

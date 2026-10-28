@@ -498,6 +498,18 @@ async def test_backfill_leaves_the_parent_empty_when_every_candidate_cycles(db):
     assert skills["a"].parent_id is None
 
 
+async def test_backfill_skips_deprecated_label_rows(db):
+    skills = await _seed(
+        db, _skill("javascript"), _skill("js", status=SkillStatus.DEPRECATED.value)
+    )
+    service = SkillRelationService(db)
+    await service.add("js", "javascript", "is_a", source="manual")
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["js"].parent_id is None, "a merged-away label row is never placed in the tree"
+
+
 async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):
     from app.ai.providers import resolution
 

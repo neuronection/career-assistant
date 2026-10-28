@@ -184,6 +184,7 @@ export function SkillRelationsPanel() {
   }>({ from: [], to: [], relation: "is_a", confidence: null });
   const [thresholds, setThresholds] = useState<SkillRelationThresholds | null>(null);
   const [thresholdNote, setThresholdNote] = useState("");
+  const [globalNote, setGlobalNote] = useState("");
   const [runs, setRuns] = useState<SkillRelationRun[]>([]);
 
   const options = useMemo<PickerOption[]>(
@@ -236,6 +237,23 @@ export function SkillRelationsPanel() {
     [load],
   );
 
+  const aliasAction = useCallback(
+    async (row: SkillRelationRow) => {
+      setBusyId(row.id);
+      setError("");
+      try {
+        const saved = await saveSkillRelationAlias(row.id);
+        setGlobalNote(t("taxonomy.relations.aliasSaved", { target: saved.target.label }));
+        await load();
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load, t],
+  );
+
   const onAdd = async () => {
     const from = draft.from[0]?.value;
     const to = draft.to[0]?.value;
@@ -273,8 +291,8 @@ export function SkillRelationsPanel() {
 
   useEffect(() => {
     if (tab === "thresholds" && thresholds === null) void loadThresholds();
-    if (tab === "runs" && runs.length === 0) void loadRuns();
-  }, [tab, thresholds, runs.length, loadThresholds, loadRuns]);
+    if (tab === "runs") void loadRuns();
+  }, [tab, thresholds, loadThresholds, loadRuns]);
 
   const onThresholdsSave = async () => {
     if (!thresholds) return;
@@ -311,6 +329,7 @@ export function SkillRelationsPanel() {
         onValueChange={(next) => setTab(next as Tab)}
       />
       {error && <p className="text-sm text-rose-600">{error}</p>}
+      {globalNote && <p className="text-sm text-emerald-700">{globalNote}</p>}
 
       {loading ? (
         <div className="flex w-full flex-col items-center justify-center py-16">
@@ -352,17 +371,7 @@ export function SkillRelationsPanel() {
                         t("taxonomy.relations.dismissed"),
                       )
                     }
-                    onAlias={() =>
-                      void runAction(row, async () => {
-                        const saved = await saveSkillRelationAlias(row.id);
-                        setNotes((prev) => ({
-                          ...prev,
-                          [row.id]: t("taxonomy.relations.aliasSaved", {
-                            target: saved.target.label,
-                          }),
-                        }));
-                      }, "")
-                    }
+                    onAlias={() => void aliasAction(row)}
                     onRemove={() =>
                       void runAction(row, () => removeSkillRelation(row.id), "")
                     }
@@ -481,17 +490,7 @@ export function SkillRelationsPanel() {
                       t("taxonomy.relations.dismissed"),
                     )
                   }
-                  onAlias={() =>
-                    void runAction(row, async () => {
-                      const saved = await saveSkillRelationAlias(row.id);
-                      setNotes((prev) => ({
-                        ...prev,
-                        [row.id]: t("taxonomy.relations.aliasSaved", {
-                          target: saved.target.label,
-                        }),
-                      }));
-                    }, "")
-                  }
+                  onAlias={() => void aliasAction(row)}
                   onRemove={() => void runAction(row, () => removeSkillRelation(row.id), "")}
                 />
               ))}
@@ -572,7 +571,9 @@ export function SkillRelationsPanel() {
               data-testid={`run-row-${run.id}`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs text-[var(--as-muted-fg)]">{run.created_at}</p>
+                <p className="text-xs text-[var(--as-muted-fg)]">
+                  {new Date(run.created_at).toLocaleString()}
+                </p>
                 <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[11px] text-[var(--as-muted-fg)]">
                   {run.status}
                 </span>

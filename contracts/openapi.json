@@ -18953,7 +18953,7 @@
       },
       "SkillRelationCreateIn": {
         "additionalProperties": false,
-        "description": "Manual edge add; endpoints accept a skill key or id.",
+        "description": "Manual edge add; endpoints accept a skill key or id.\n\nManual adds land approved \u2014 unless the pair already carries a row,\nwhose lifecycle then stands (accept it from the queue).",
         "properties": {
           "confidence": {
             "anyOf": [
@@ -24291,7 +24291,7 @@
     },
     "/api/v1/admin/skill-relations": {
       "get": {
-        "description": "The review queue / editor listing (one row per (pair, relation)).",
+        "description": "The review queue / editor listing (one row per (pair, relation),\nnewest first and bounded).",
         "operationId": "list_skill_relations_api_v1_admin_skill_relations_get",
         "parameters": [
           {
@@ -24327,6 +24327,18 @@
               ],
               "title": "Skill Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -24361,7 +24373,7 @@
         ]
       },
       "post": {
-        "description": "Manual edge add (admin-curated \u21d2 approved on arrival).\n\nAn existing (pair, relation) row refreshes its confidence instead of\nduplicating \u2014 the seam's dedup-update; relation kinds are re-pointed by\nremoving the row and re-adding it (manual edit).",
+        "description": "Manual edge add \u2014 approved on arrival when the pair is new.\n\nAn existing (pair, relation) row refreshes its confidence instead of\nduplicating and keeps its own lifecycle (the seam's dedup-update \u2014\naccept it from the queue); relation kinds are re-pointed by removing\nthe row and re-adding it (manual edit).",
         "operationId": "add_skill_relation_api_v1_admin_skill_relations_post",
         "requestBody": {
           "content": {

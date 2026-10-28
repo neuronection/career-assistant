@@ -112,10 +112,14 @@ async def list_skill_relations(
         default=None, alias="status", pattern="^(proposed|approved|rejected)$"
     ),
     skill_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(default=200, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
 ) -> list[SkillRelationOut]:
-    """The review queue / editor listing (one row per (pair, relation))."""
-    rows = await SkillRelationService(db).list_relations(status=row_status, skill_id=skill_id)
+    """The review queue / editor listing (one row per (pair, relation),
+    newest first and bounded)."""
+    rows = await SkillRelationService(db).list_relations(
+        status=row_status, skill_id=skill_id, limit=limit
+    )
     return await _out(db, rows)
 
 
@@ -175,11 +179,12 @@ async def add_skill_relation(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SkillRelationOut:
-    """Manual edge add (admin-curated ⇒ approved on arrival).
+    """Manual edge add — approved on arrival when the pair is new.
 
     An existing (pair, relation) row refreshes its confidence instead of
-    duplicating — the seam's dedup-update; relation kinds are re-pointed by
-    removing the row and re-adding it (manual edit).
+    duplicating and keeps its own lifecycle (the seam's dedup-update —
+    accept it from the queue); relation kinds are re-pointed by removing
+    the row and re-adding it (manual edit).
     """
     service = SkillRelationService(db)
     try:
