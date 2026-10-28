@@ -509,6 +509,48 @@ async def test_backfill_skips_deprecated_label_rows(db):
 
     assert skills["js"].parent_id is None, "a merged-away label row is never placed in the tree"
 
+    extra = await _seed(db, _skill("x"), _skill("web"))
+    skills.update(extra)
+    await service.add("x", "js", "is_a", source="manual", confidence=0.9)
+    await service.add("x", "web", "is_a", source="manual")
+
+    assert await backfill_parent_edges(db) == 1
+
+    assert skills["x"].parent_id == skills["web"].id, (
+        "the mirror case: a deprecated TARGET is skipped and the next candidate wins"
+    )
+
+
+async def test_backfill_never_overwrites_a_concurrently_filled_parent(db, monkeypatch):
+    """F10: the fill re-checks emptiness at write time — a stale "parent
+    empty" snapshot never overwrites a parent filled after it was taken."""
+    from dataclasses import replace
+
+    from app.services.catalog import skill_relation_learn as learn
+
+    skills = await _seed(db, _skill("a"), _skill("b"), _skill("c"))
+    service = SkillRelationService(db)
+    await service.add("a", "c", "is_a", source="manual")
+
+    real_load = learn._load_skills
+
+    async def stale_load(session):
+        infos = await real_load(session)
+        return {
+            info.id: replace(info, parent_key=None) if info.id == skills["a"].id else info
+            for info in infos.values()
+        }
+
+    monkeypatch.setattr(learn, "_load_skills", stale_load)
+    skills["a"].parent_id = skills["b"].id
+    await db.flush()
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["a"].parent_id == skills["b"].id, (
+        "the concurrent fill wins — the backfill never re-parents"
+    )
+
 
 async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):
     from app.ai.providers import resolution

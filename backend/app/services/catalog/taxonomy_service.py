@@ -87,8 +87,16 @@ class TaxonomyService:
     async def update_interest(self, tag_id, data: dict) -> InterestTag:
         return await self._update(InterestTag, tag_id, data)
 
-    async def update_skill(self, skill_id: UUID, data: dict) -> Skill:
-        """Edit a skill (key immutable); lifecycle transitions via status."""
+    async def update_skill(
+        self, skill_id: UUID, data: dict, *, only_if_parent_empty: bool = False
+    ) -> Skill:
+        """Edit a skill (key immutable); lifecycle transitions via status.
+
+        ``only_if_parent_empty`` guards the tree catch-up's fill-only
+        contract at write time: the parent is re-checked inside this
+        transaction and a parent filled by a concurrent write is never
+        overwritten (the backfill skips to its next candidate).
+        """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
             raise ValidationError("Skill not found")
@@ -109,6 +117,12 @@ class TaxonomyService:
                 ancestor = await self.db.get(Skill, ancestor.parent_id)
                 if ancestor is None:
                     break
+            if only_if_parent_empty:
+                current = (
+                    await self.db.execute(select(Skill.parent_id).where(Skill.id == skill.id))
+                ).scalar_one_or_none()
+                if current is not None:
+                    raise ValidationError("Parent is already set")
             skill.parent_id = data["parent_id"]
         if "aliases" in data and data["aliases"] is not None:
             skill.aliases = [str(a).strip() for a in data["aliases"] if str(a).strip()]

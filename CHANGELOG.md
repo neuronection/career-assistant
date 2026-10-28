@@ -12,6 +12,10 @@ All notable changes to **Career Assistant** are documented here.
   skill resolution already answered. A merged-away label row still never
   shadows the surviving skill whose alias carries the label, and the deep
   extract pass re-tags the same way.
+- **The tree catch-up only fills truly empty, truly live places.** A
+  candidate parent that is itself deprecated is skipped (the next
+  candidate wins), and a parent filled by a concurrent edit is never
+  overwritten by a stale catch-up pass.
 
 ### Added (skill taxonomy graph — review queue, 2026-10-28)
 - **Skill-relation suggestions can be reviewed and curated** — an admin

@@ -543,8 +543,13 @@ async def backfill_parent_edges(db: AsyncSession) -> int:
         if info.status == SkillStatus.DEPRECATED.value:
             continue
         for row in sorted(candidates[skill_id], key=_backfill_rank):
+            target = skills.get(row.to_skill_id)
+            if target is None or target.status == SkillStatus.DEPRECATED.value:
+                continue
             try:
-                await taxonomy.update_skill(skill_id, {"parent_id": row.to_skill_id})
+                await taxonomy.update_skill(
+                    skill_id, {"parent_id": row.to_skill_id}, only_if_parent_empty=True
+                )
             except ValidationError:
                 continue
             count += 1
