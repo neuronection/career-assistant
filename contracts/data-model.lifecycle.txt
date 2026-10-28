@@ -25,3 +25,4 @@ organization_aliases :: record
 organization_match_exclusions :: record
 organization_match_pairs :: operational
 organization_merge_suggestions :: record
+posting_filter_presets :: record

@@ -24,3 +24,5 @@ organization_match_pairs.evidence :: keep-open gray-band matcher evidence (url/d
 organization_merge_suggestions.evidence :: keep-open suggestion evidence payload (score signals, arbiter verdict)
 job_postings.org_match :: typed-out {layer,score,matched_on,state} link provenance (audit + corrections)
 skill_relations.evidence :: keep-open per-edge provenance (rationale, signals, prompt_version)
+posting_filter_presets.filters :: typed-out versioned postings filter spec (v-pinned pydantic shape, additive-only evolution — plan 136)
+posting_filter_presets.tags :: keep-open user-applied preset tags (free-form strings — plan 136)
