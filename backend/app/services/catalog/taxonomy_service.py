@@ -5,10 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.models.career_path_model import CareerPathStep
-from app.models.enums import InterestTagKind
+from app.models.enums import (
+    InterestTagKind,
+    SkillParentSource,
+    SkillRelationStatus,
+    SkillRelationType,
+)
 from app.models.job_model import JobSkill, JobTag
-from app.models.taxonomy_model import InterestTag, Skill
+from app.models.taxonomy_model import InterestTag, Skill, SkillRelation
 from app.models.user_model import Profile, UserInterest, UserSkill
+from app.services.catalog.skill_relations import assert_acyclic
 from app.services.catalog.skills_service import SkillService
 
 
@@ -87,8 +93,40 @@ class TaxonomyService:
     async def update_interest(self, tag_id, data: dict) -> InterestTag:
         return await self._update(InterestTag, tag_id, data)
 
-    async def update_skill(self, skill_id: UUID, data: dict) -> Skill:
-        """Edit a skill (key immutable); lifecycle transitions via status."""
+    async def update_skill(
+        self,
+        skill_id: UUID,
+        data: dict,
+        *,
+        only_if_parent_empty: bool = False,
+        parent_source: SkillParentSource | None = SkillParentSource.CURATED,
+    ) -> Skill:
+        """Edit a skill (key immutable); lifecycle transitions via status.
+
+        A ``parent_id`` key present with ``None`` clears the parent back to
+        the root (the documented undo); a key ABSENT from ``data`` never
+        touches it. Every explicit parent write stamps placement
+        provenance (``parent_source``, plan 139): ``CURATED`` for human
+        callers (the default — a deliberate clear lands empty + curated,
+        so the tree catch-up never re-fills it), ``LEARNED`` for the tree
+        catch-up, and ``None`` to reset the slot to untouched (the seam's
+        placement heal). The fill-only guard and the machine stamp are one
+        contract: ``only_if_parent_empty`` holds exactly when
+        ``parent_source`` is ``LEARNED`` — a mismatch in either direction
+        is a programmer error (:class:`RuntimeError`, unreachable from the
+        API — ``SkillUpdateIn`` never carries the field), never a client
+        validation failure.
+
+        The re-parent shares the seam's generality walk
+        (:func:`assert_acyclic`) so a parent that would close a cycle
+        through an approved ``is_a`` edge is refused — clearing cannot
+        create a cycle and needs no guard. ``only_if_parent_empty``
+        additionally guards the tree catch-up's fill-only contract at
+        write time: BOTH the parent and its provenance are re-checked
+        inside this transaction, so a parent filled — or a slot a human
+        deliberately cleared — after the catch-up's snapshot is never
+        overwritten (the backfill skips to its next candidate).
+        """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
             raise ValidationError("Skill not found")
@@ -96,20 +134,37 @@ class TaxonomyService:
             raise ValidationError("Skill keys are immutable")
         if "status" in data and data["status"] is not None:
             skill.status = SkillService.validate_status(data["status"])
-        if "parent_id" in data and data["parent_id"] is not None:
-            parent = await self.db.get(Skill, data["parent_id"])
-            if parent is None:
-                raise ValidationError("Parent skill not found")
-            if parent.id == skill.id:
-                raise ValidationError("A skill cannot be its own parent")
-            ancestor = parent
-            while ancestor.parent_id is not None:
-                if ancestor.parent_id == skill.id:
-                    raise ValidationError("Parent chain would create a cycle")
-                ancestor = await self.db.get(Skill, ancestor.parent_id)
-                if ancestor is None:
-                    break
-            skill.parent_id = data["parent_id"]
+        if "parent_id" in data:
+            if only_if_parent_empty != (parent_source is SkillParentSource.LEARNED):
+                raise RuntimeError(
+                    "A guarded fill must stamp learned provenance, "
+                    "and learned provenance must guard the fill"
+                )
+            if data["parent_id"] is None:
+                skill.parent_id = None
+                skill.parent_source = parent_source
+            else:
+                parent = await self.db.get(Skill, data["parent_id"])
+                if parent is None:
+                    raise ValidationError("Parent skill not found")
+                if parent.id == skill.id:
+                    raise ValidationError("A skill cannot be its own parent")
+                try:
+                    await assert_acyclic(self.db, skill.id, parent.id, SkillRelationType.IS_A)
+                except ValidationError as exc:
+                    raise ValidationError("Parent chain would create a cycle") from exc
+                if only_if_parent_empty:
+                    current = (
+                        await self.db.execute(
+                            select(Skill.parent_id, Skill.parent_source).where(Skill.id == skill.id)
+                        )
+                    ).one()
+                    if current.parent_id is not None:
+                        raise ValidationError("Parent is already set")
+                    if current.parent_source is not None:
+                        raise ValidationError("Parent slot is already stamped")
+                skill.parent_id = data["parent_id"]
+                skill.parent_source = parent_source
         if "aliases" in data and data["aliases"] is not None:
             skill.aliases = [str(a).strip() for a in data["aliases"] if str(a).strip()]
         if "level_anchors" in data and data["level_anchors"] is not None:
@@ -133,6 +188,36 @@ class TaxonomyService:
         await self.db.commit()
         await self.db.refresh(skill)
         return skill
+
+    async def heal_learned_placement(self, skill_id: UUID) -> None:
+        """Re-derive a ``learned`` tree placement from surviving support.
+
+        The edge seam calls this after removing or rejecting an ``is_a``
+        row (the evidence changed; plan 139 decision 4). A ``learned``
+        placement whose parent still has an approved ``is_a`` row keeps
+        it — the tri-state stamp records no row identity, so "re-stamp
+        from the new winner" is a value no-op and nothing is written.
+        Without support the placement clears back to untouched (empty +
+        ``NULL``) through :meth:`update_skill`, so the next catch-up pass
+        may re-fill it from the next-best edge. ``curated`` and
+        pre-provenance (``NULL``) placements are never touched.
+        """
+        skill = await self.db.get(Skill, skill_id)
+        if skill is None or skill.parent_id is None:
+            return
+        if skill.parent_source != SkillParentSource.LEARNED:
+            return
+        support = await self.db.execute(
+            select(SkillRelation.id).where(
+                SkillRelation.from_skill_id == skill.id,
+                SkillRelation.to_skill_id == skill.parent_id,
+                SkillRelation.relation == SkillRelationType.IS_A.value,
+                SkillRelation.status == SkillRelationStatus.APPROVED.value,
+            )
+        )
+        if support.first() is not None:
+            return
+        await self.update_skill(skill.id, {"parent_id": None}, parent_source=None)
 
     async def _update(self, model, tag_id, data: dict):
         tag = await self.db.get(model, tag_id)

@@ -68,6 +68,7 @@ function postingRow(id: string): PostingOut {
     external_id: id,
     title: "QA Automation Engineer",
     org: "SynthCo",
+    org_key: "",
     location: { city: "Athens", country: "GR", remote: true },
     url: `https://jobs.example/${id}`,
     status: "mapped",

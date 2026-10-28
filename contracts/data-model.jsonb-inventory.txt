@@ -23,3 +23,4 @@ source_runs.report :: keep-open per-attempt sync report (typed errors, counts) f
 organization_match_pairs.evidence :: keep-open gray-band matcher evidence (url/domain/city signals, provenance)
 organization_merge_suggestions.evidence :: keep-open suggestion evidence payload (score signals, arbiter verdict)
 job_postings.org_match :: typed-out {layer,score,matched_on,state} link provenance (audit + corrections)
+skill_relations.evidence :: keep-open per-edge provenance (rationale, signals, prompt_version)

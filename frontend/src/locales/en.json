@@ -538,12 +538,17 @@
     "levelAtLeast": "level ≥",
     "matchProfile": "match my profile",
     "removeFilter": "Remove {{name}}",
-    "postings.select": "Select",
-    "postings.selectedCount": "{{count}} selected",
-    "postings.actions": "Actions",
-    "postings.reextract": "Re-run AI extraction",
-    "postings.reextractDone": "Queued AI re-extraction for {{count}} postings",
-    "postings.clearSelection": "Clear selection",
+    "select": "Select",
+    "selectedCount": "{{count}} selected",
+    "actions": "Actions",
+    "reextract": "Re-run AI extraction",
+    "reextractDone": "Queued AI re-extraction for {{count}} postings",
+    "clearSelection": "Clear selection",
+    "filtersTitle": "Filters",
+    "filtersShow": "Show",
+    "filtersHide": "Hide",
+    "filtersRemoveChip": "Remove this filter",
+    "filtersActive": "{{count}} active",
     "companyFilter": "Company filter",
     "allCompanies": "All companies",
     "noCompanyRejected": "No company (rejected)",
@@ -605,6 +610,7 @@
     "hide": "Hide",
     "loading": "Loading…",
     "noFilterMatches": "No entries match these filters.",
+    "remove": "Remove",
     "reset": "Reset",
     "save": "Save",
     "saving": "Saving…",
@@ -1100,7 +1106,8 @@
       "interests": "Interests",
       "skills": "Skills",
       "paths": "Paths",
-      "enrichment": "Enrichment"
+      "enrichment": "Enrichment",
+      "relations": "Relations"
     },
     "newTag": "New tag",
     "keyPlaceholder": "key (stable slug, e.g. renewable-energy)",
@@ -1135,7 +1142,86 @@
     "enrichmentReject": "Discard",
     "noEnrichment": "No enrichment proposals",
     "noEnrichmentBody": "AI-generated job enrichment proposals appear here for review.",
-    "tabsAria": "Taxonomy sections"
+    "tabsAria": "Taxonomy sections",
+    "relations": {
+      "intro": "Typed edges between skills. Review what the discovery job proposes, curate the rest — a dismissal never comes back.",
+      "tabsAria": "Skill relation sections",
+      "tab": {
+        "queue": "Review queue",
+        "editor": "All relations",
+        "thresholds": "Thresholds",
+        "runs": "Runs"
+      },
+      "relation": {
+        "is_a": "is a",
+        "synonym": "is a synonym of",
+        "part_of": "is part of",
+        "related_to": "is related to"
+      },
+      "source": {
+        "manual": "manual",
+        "llm": "AI proposed",
+        "import": "imported",
+        "derived": "derived"
+      },
+      "status": {
+        "proposed": "proposed",
+        "approved": "approved",
+        "rejected": "dismissed"
+      },
+      "evidence": "Evidence",
+      "aliasHint": "This looks like a raw label for the other skill — save it as an alias instead of an edge.",
+      "accept": "Accept",
+      "dismiss": "Dismiss",
+      "saveAlias": "Save as alias",
+      "remove": "Remove",
+      "accepted": "Accepted — the sub-skill tree is caught up.",
+      "dismissed": "Dismissed — this pair never comes back.",
+      "aliasSaved": "Saved as an alias of {{target}}.",
+      "queue": {
+        "empty": "Nothing to review",
+        "emptyBody": "Suggested relations from the discovery job appear here."
+      },
+      "editor": {
+        "empty": "No relations yet",
+        "emptyBody": "Add a typed relation between two skills above."
+      },
+      "addHeading": "Add a relation",
+      "fromLabel": "Skill",
+      "toLabel": "Related skill",
+      "relationLabel": "Relation",
+      "confidenceLabel": "Confidence (0–1, optional)",
+      "add": "Add relation",
+      "thresholds": {
+        "minSupport": "Minimum co-occurrence support",
+        "batchSize": "Pairs per AI call (max 40)",
+        "maxPairs": "Pairs per run",
+        "minNegative": "Confidence bar for negative verdicts",
+        "save": "Save thresholds",
+        "saved": "Saved."
+      },
+      "runs": {
+        "empty": "No discovery runs yet",
+        "emptyBody": "Runs of the daily skill-relation job appear here with their statistics.",
+        "heldWatermark": "held (not yet advanced)"
+      },
+      "ledger": {
+        "candidates": "candidates",
+        "batches": "batches",
+        "judged_batches": "judged",
+        "failed_batches": "failed",
+        "uncovered": "uncovered",
+        "derived": "derived",
+        "edges_proposed": "edges proposed",
+        "negatives": "negatives",
+        "dropped": "dropped",
+        "below_bar": "below bar",
+        "materialized": "tree mirrored",
+        "backfilled": "tree filled",
+        "capped": "capped",
+        "watermark": "watermark"
+      }
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -2931,8 +3017,6 @@
       "fast-mapped": "fast-mapped",
       "raw": "raw"
     },
-    "fit": "fit {{score}}",
-    "coverage": "coverage {{score}}",
     "posted": "posted {{date}}",
     "applied": "applied ✓",
     "apply": "Apply",
@@ -2943,12 +3027,15 @@
       "gross": "gross",
       "net": "net"
     },
-    "perYear": "≈ {{range}} {{currency}}/yr"
+    "period": {
+      "year": "yr",
+      "month": "mo",
+      "week": "wk",
+      "day": "day"
+    }
   },
   "postingDetail": {
-    "levelAria": "level {{level}}",
     "unknown": "unknown",
-    "unmapped": "{{label}} (unmapped)",
     "priority": {
       "must_have": "must have",
       "nice_to_have": "nice to have",
@@ -3036,7 +3123,14 @@
       "meals": "Meals",
       "transport": "Transport",
       "other": "Other"
-    }
+    },
+    "skillsCompact": "Compact",
+    "skillsDetailed": "Detailed",
+    "skillsCount": "{{count}} skills",
+    "unmappedTooltip": "Not in your skill taxonomy yet",
+    "mentions": "required {{count}}×",
+    "showOriginal": "Show original",
+    "hideOriginal": "Hide original"
   },
   "sessionList": {
     "renameChat": "Rename chat",
@@ -4156,10 +4250,104 @@
     "budgetCustom": "Custom · {{seconds}}s",
     "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
     "presetLabel": "Start with",
-    "advancedLabel": "Advanced (traffic safety)",
-    "reextractBtn": "Re-run AI extraction",
-    "reextractHint": "Re-build the structured fields (skills, salary, requirements) from the stored descriptions with AI.",
-    "reextractQueued": "Queued AI re-extraction for {{count}} postings"
+    "advancedLabel": "Advanced (traffic safety)"
+  },
+  "filters": {
+    "title": "Filters",
+    "activeCount": "{{count}} active",
+    "clearAll": "Clear all",
+    "skills": "Skills",
+    "skillsPlaceholder": "Add skill…",
+    "minLevel": "Min level",
+    "skillsExpand": "Match",
+    "skillsExpandAria": "Skill match mode",
+    "skillsExpandExact": "Exact",
+    "skillsExpandDown": "Sub-skills",
+    "skillsExpandRelated": "Related",
+    "skillsHops": "Hops",
+    "skillsHopsOne": "1 hop",
+    "skillsHopsTwo": "2 hops",
+    "skillsExpandHintDown": "Also matches synonyms and sub-skills.",
+    "skillsExpandHintRelated": "Also matches synonyms, sub-skills, part-of and related skills.",
+    "minLevelNeedsSkills": "Pick a skill first",
+    "salary": "Salary",
+    "location": "Location",
+    "locationPlaceholder": "City or country…",
+    "remoteOnly": "Remote only",
+    "companies": "Companies",
+    "companiesPlaceholder": "Company name…",
+    "seniority": "Seniority",
+    "employment": "Employment",
+    "workMode": "Work mode",
+    "education": "Education",
+    "postedWithin": "Posted within",
+    "matchScore": "Match score",
+    "saved": "Saved",
+    "savedOnly": "Saved only",
+    "unsavedOnly": "Unsaved only",
+    "description": "Description text",
+    "descriptionPlaceholder": "Search in description…",
+    "saveAs": "Save as preset",
+    "presetName": "Preset name…",
+    "tagPlaceholder": "Tag…",
+    "save": "Save",
+    "applyPreset": "Apply this preset",
+    "deletePreset": "Delete preset",
+    "include": "Include",
+    "exclude": "Exclude",
+    "clickToInclude": "Click to include — right-click to exclude",
+    "clickToExclude": "Click to exclude — right-click to remove",
+    "clickToIncludeOnly": "Click to include",
+    "min": "min",
+    "max": "max",
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "From level",
+    "seniorityMax": "To level",
+    "anyLevel": "Any",
+    "browseCatalog": "Browse full catalog",
+    "searchSkills": "Search skills…",
+    "category": "Category",
+    "allCategories": "All categories",
+    "noSkillsFound": "No skills found",
+    "add": "Add",
+    "added": "Added",
+    "loadMore": "Load more",
+    "selectedCount": "{{count}} selected",
+    "done": "Done"
+  },
+  "card": {
+    "mode": "mode",
+    "level": "level",
+    "contract": "contract",
+    "hours": "hours",
+    "salary": "salary",
+    "education": "education",
+    "closes": "closes",
+    "modeValue": {
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "onsite": "On-site"
+    },
+    "closesIn": "in {{count}} d",
+    "fit": "fit",
+    "coverage": "cov {{score}}",
+    "skills": "skills",
+    "seen": "Seen",
+    "closed": "Closed",
+    "closedOn": "Closed {{date}}",
+    "more": "+{{count}}",
+    "showLess": "less",
+    "detailsPending": "Details not fetched yet",
+    "partial": "Some details could not be read confidently",
+    "provenanceValue": {
+      "extracted": "Full details",
+      "fast-mapped": "Mapped",
+      "raw": "Source only"
+    },
+    "skillRequires": "requires level {{level}} of 10",
+    "moreAria": "{{count}} more",
+    "noScore": "no score",
+    "perYear": "≈ {{range}} {{currency}}/yr"
   },
   "companyRules": {
     "title": "Companies rules",

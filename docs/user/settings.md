@@ -81,6 +81,12 @@ taxonomy by stable `key` slugs, so changes here are what keep labels and
 translations from breaking data. Unknown skills introduced by users or the AI
 appear as `proposed` rows for review.
 
+The **Relations** tab curates the typed edges between skills ("java is a
+programming language"): a review queue for the discovery job's suggestions
+(accept, dismiss or save a raw label as an alias), a manual editor for
+existing relations, the discovery thresholds and each run's statistics.
+See [Skill taxonomy & relations](skills-taxonomy.md).
+
 The **Catalog translations** queue at the top drafts translations for jobs,
 skills and job families with the configured AI. Drafts never render: review
 each one against the base label, edit the wording if needed, then approve or

@@ -20,7 +20,23 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `cv_generate` / `cv_polish` / `cv_synth` | CV generation, polish loop, variants |
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
+| `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
 | `data_export` | Exports |
+
+The plan-138 learn job is the one handler that lives in the catalog —
+`app/services/catalog/skill_relation_learn.py`, reached through the
+`HANDLERS` entry in `job_worker.py`. What it does: **candidates → batched
+LLM verdicts (≤40 pairs/call) → `proposed` edges through the one write
+seam → parent backfill** (empty `parent_id` filled from approved `is_a`
+rows). Its run ledger on `background_jobs.result` reports `candidates,
+batches, judged_batches, failed_batches, uncovered, derived,
+edges_proposed, negatives, dropped, below_bar, materialized, backfilled,
+capped, watermark` — a capped/failed/unconfigured run keeps the previous
+watermark floor (`null` before any success). Thresholds live in one
+AppSetting, `skill_relation_learn.thresholds` (`min_support`,
+`batch_size`, `max_pairs_per_run`, `min_negative_confidence`), edited via
+`GET/PUT /admin/skill-relations/thresholds`. Its system schedule is
+boot-provisioned like every system kind (no seeded migration row).
 
 Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
 compose file for a later worker split — there is no Celery in v1.
@@ -30,7 +46,7 @@ compose file for a later worker split — there is no Celery in v1.
 `app/services/scheduler/` — the runner (`runner.py`) and the trigger registry
 (`triggers.py`). On boot the runner seeds system schedules (source sync,
 re-fit sweep, catalog enrich, follow-ups, market history, proposal sweep,
-checkpoint prune) with defaults and jitter.
+checkpoint prune, skill-relation learning) with defaults and jitter.
 
 ### Triggers
 
@@ -53,8 +69,10 @@ params)` — always timezone-aware and UTC-normalized.
 `ScheduleKind` covers both system and user schedules: `system_source_sync`,
 `system_digest`, `system_demand_import`, `system_refit_sweep`,
 `system_catalog_enrich`, `system_followups`, `system_market_history`,
-`system_proposal_sweep`, `system_checkpoint_prune`, `user_saved_search`,
-`user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
+`system_proposal_sweep`, `system_checkpoint_prune`,
+`system_extension_reconcile`, `system_skill_relation_learn` (daily at
+03:30 UTC — enqueues `skill_relation_learn`), `user_saved_search`,
+`user_radar_digest`, `user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
 `system_demand_import` enqueues `demand_import`, which walks enabled
 `job_sources` rows of kind `market` and writes salary/outlook observations
 into `market_snapshots` and `jobs.demand` (field-level provenance).

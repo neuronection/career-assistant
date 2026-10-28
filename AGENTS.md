@@ -122,10 +122,12 @@ regenerating a baseline, drop+recreate instead).
   data if it matters at all. (Plan 114 swept the last shims; plan 113's
   `0052` is the clean schema break.)
 - **Feature registry is law for user-facing surfaces**: every surface
-  gets a `frontend/src/config/features.json` entry (omit = `on`);
-  `beta`/`hidden` states also require the README **Feature status** row
-  and a `scripts/ui-capture/scenes.mjs` tour scene — the three-way
-  agreement is gated by `tests/test_docs_claims.py` (which also pins
+  gets a `frontend/src/config/features.json` entry (omit = `on`) and a
+  README **Feature status** row — gate truth: the row is required for
+  EVERY registry key, not only special states; a `beta` state
+  additionally requires a `scripts/ui-capture/scenes.mjs` tour scene
+  (`hidden` forbids one) — the agreement is gated by
+  `tests/test_docs_claims.py` (which also pins
   documented routes in `docs/user/*` to real routes). Documented routes
   must be backticked or markdown-linked to be checked; a redirect target
   is never documented as a page.

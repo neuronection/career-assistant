@@ -200,6 +200,74 @@ an experience/education card, a profile summary card) is either
   `target="_blank" rel="noopener noreferrer"`. Anchors live *outside*
   the card's `<button>` — never nest an `<a>` inside a button.
 
+### 2e. The item-card system (plan 140, 2026-10-28)
+
+Every list surface that renders an item card (`/postings`, `/catalog`,
+`/rankings`, `/companies`) uses the module in `components/cards/` — same
+grammar, different content. The shell (`ItemCardShell`) owns the surface,
+hover (accent border + `--as-surface-raised`), the single root `onClick`
+(the title is a `<button>` **without** its own handler — its click bubbles;
+action slots stop propagation), `density`/`data-state`, and the
+`ca-item-card` container (the action column stacks by **container** width,
+never a viewport breakpoint — the chat dock narrows the column).
+
+Information is **three tiers**, never one chip soup:
+
+1. **Spec slots** (`CardSpec`, `SPEC_ORDER`) — closed vocabularies in a
+   canonical order, rendered as faint uppercase label + value, **no pill**:
+   mode · level · contract · hours · salary · education · closes. A slot
+   renders only when the value exists.
+   - **Nominal values** (mode, contract, education) are plain text in one
+     neutral tone, optionally with a small glyph that carries the mapping —
+     never a per-value hue.
+   - **Ordinal values** (level) may use an intensity cue (1–5 dots) in one
+     accent.
+   - Hue is reserved for **state** (fit band, warning, closed) and for the
+     skill **heat ramp**: "amber" must never mean both "hybrid" and
+     "closing soon".
+2. **Tags** (`ChipRow`) — open vocabularies only (skills, interests,
+   industry tags). Skills render **all** of them, server-ordered
+   must-have → nice-to-have → bonus → level → label; the row clamps to
+   **two rows** and the **last chip of row two is `+N`** — the count of
+   the rest, which is also the expander. Measurement is width-based
+   (`fitChips` + `ResizeObserver`); hidden chips stay in the DOM (sr-only)
+   for search, print and screen readers. **No fade/mask** on the clipped
+   row: a faded second row reads as disabled.
+3. **State markers** (`CardState`) — binary facts as a compact icon (+
+   optional label), never a pill: **seen** = one muted double-check in the
+   kicker (unseen renders nothing — the normal state is silent, and cards
+   are never dimmed); **closed** = neutral lock + close date tooltip,
+   with the whole card desaturated via `data-state="closed"` (tokens, not
+   `filter: grayscale`, so contrast holds) and Apply disabled; saved /
+   applied ride the kicker; **partial details** = info dot (extraction
+   confidence, never "unread"); "closes in n d" is a spec slot while the
+   posting is still open.
+
+**Scores** are one component family: `ScoreBubble` (SVG ring, banded by
+`scoreTone`; numeric sizes — 40/44/52/72 in use) and `ScoreBreakdown`
+(dimension bars, banded or neutral; `defaultWeight` hides the neutral
+weight, `alwaysShowWeight` keeps every weight) — never a naked number.
+**Org identity** is `OrgAvatar` (deterministic initials tile, no external
+favicons — CSP) + a `/companies/:key` link; its tint pairs are inline
+data-driven swatches, the documented exception to the token-only rule.
+
+**Skill chips** (`SkillTag`) carry one number as heat and nothing else:
+the 1–10 requirement (or, where supplied, the per-skill match) as a 6 px
+bullet — **cold** 1–3 (`--as-muted-fg`), **warm** 4–6 (`--as-warning`),
+**hot** 7–10 (`--ca-heat-hot`) — plus the number. Priority is **not**
+rendered on the chip: it lives in the order and in the detail page's
+group headings. Unmapped skills get a dashed border (data quality, not
+ranking).
+
+Testids are contracts: `posting-card`/`posting-details`/`posting-title`/
+`posting-apply`/`posting-save`/`posting-hide`/`posting-provenance`/
+`posting-coverage`/`posting-seen`/`posting-closed`/`posting-partial`/
+`posting-details-pending`, `job-card`/`job-title`/`education-chip`,
+`scores-{code}`/`breakdown-toggle-{code}`/`compare-add-{code}`,
+`score-ring` (the bubble), `fit-breakdown`, `match-card`/`match-score`,
+`skill-tag`/`skill-heat`. Assert `data-tone`/`data-heat`/`data-score` —
+never colour classes.
+
 ## 2a. The profile section-card pattern (plans 50, 2026-09)
 
 Profile data entry (profile page `/profile`, onboarding wizard

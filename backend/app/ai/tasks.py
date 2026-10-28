@@ -61,6 +61,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.SKILL_RELATION_SUGGEST.value,
+        "Skill relation edge verdicts (batch)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MATCH_SCORE.value,
         "Per-user job match score with rationale + prerequisites",
         AICapability.TEXT.value,

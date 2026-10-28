@@ -84,13 +84,6 @@ export type SourceProbe = {
   latency_ms?: number;
 };
 
-export async function reextractSourcePostings(
-  sourceId: string,
-): Promise<{ queued: number; skipped: number; postings: number }> {
-  const response = await api.post(`/admin/postings/sources/${sourceId}/reextract`);
-  return response.data as { queued: number; skipped: number; postings: number };
-}
-
 export async function fetchSourceRuns(
   id: string,
   limit = 50,

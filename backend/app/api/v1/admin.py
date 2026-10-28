@@ -1444,48 +1444,6 @@ async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(ge
     }
 
 
-@router.post("/postings/sources/{source_id}/reextract")
-async def reextract_source_postings(
-    source_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Re-run the deep extraction for every posting of one source (admin,
-    bulk) — AI cost is an explicit admin act. Only postings WITH a
-    description queue (extraction on list-card data wastes the call);
-    already-queued ones are skipped. Jobs process through the worker
-    sequentially, so the AI spend stays bounded and observable."""
-    from app.models.posting_model import JobPosting, JobSource
-    from app.services.postings.extract_service import queue_posting_extract
-
-    source = (
-        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
-    )
-    if source is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
-    rows = (
-        (
-            await db.execute(
-                select(JobPosting).where(
-                    JobPosting.source_id == source_id,
-                    JobPosting.status.in_(["new", "mapped"]),
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    queued = skipped = 0
-    for posting in rows:
-        if not str((posting.raw or {}).get("description") or "").strip():
-            skipped += 1
-            continue
-        if await queue_posting_extract(db, posting):
-            queued += 1
-        else:
-            skipped += 1
-    await db.commit()
-    return {"queued": queued, "skipped": skipped, "postings": len(rows)}
-
-
 @router.post("/postings/{posting_id}/extract")
 async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Re-run the deep extraction for one posting now (admin)."""

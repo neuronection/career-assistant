@@ -42,11 +42,22 @@ export {
 } from "@/components/ui/web-search-providers";
 export { SearchableDropdown } from "@/components/ui/SearchableDropdown";
 export type { DropdownOption } from "@/components/ui/SearchableDropdown";
+export {
+  MultiSelectPicker,
+  PickerBrowseModal,
+  type MultiSelectPickerProps,
+  type PickerBrowseModalProps,
+  type PickerLabels,
+  type PickerMode,
+  type PickerOption,
+  type PickerSelection,
+} from "@/components/ui/multiSelectPicker";
 export { DatePicker } from "@/components/ui/DatePicker";
 export { ScaleSlider, scaleColorForValue } from "@/components/ui/ScaleSlider";
 export { ChipInput } from "@/components/ui/ChipInput";
 export { ChipList } from "@/components/ui/ChipList";
-export { default as Button } from "@/components/ui/Button";
+export { default as Button, buttonVariants } from "@/components/ui/Button";
+export { Badge, badgeVariants, type BadgeProps } from "@/components/ui/Badge";
 export { default as Card } from "@/components/ui/Card";
 export { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 export { EmptyState } from "@/components/ui/EmptyState";

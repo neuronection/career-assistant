@@ -12,9 +12,10 @@ import { fetchMarketSnapshot, fetchMarketTrend, type MarketTrendPoint } from "@/
 import { AiButton } from "@/components/AiButton";
 import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { ScoreLegend } from "@/features/catalog/components/ScoreLegend";
-import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { MarketTrendStrip } from "@/features/postings/components/MarketTrendStrip";
-import { FitBars } from "@/features/catalog/pages/Rankings";
+import { ScoreBreakdown } from "@/components/score/ScoreBreakdown";
+import { rankedDimensions } from "@/features/catalog/components/RankedJobCard";
 import { EmptyState, RangeBar, Table } from "@/components/ui";
 import { useCompareStore } from "@/stores/compareStore";
 import { useTranslation } from "react-i18next";
@@ -230,7 +231,7 @@ export function JobDetail() {
         <div className="bg-white border border-slate-200 rounded-xl p-4 shrink-0" data-testid="job-score-card">
           <div className="flex items-center gap-4">
             <div className="flex flex-col items-center gap-0.5">
-              <ScoreRing score={matchScore} size={72} />
+              <ScoreBubble score={matchScore} size={72} />
               <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-slate-400">
                 {t("rankings.match")}
                 <ScoreLegend />
@@ -279,7 +280,14 @@ export function JobDetail() {
               </span>
             )}
           </div>
-          <FitBars breakdown={insight.fit_breakdown} />
+          <ScoreBreakdown
+            dimensions={rankedDimensions(insight.fit_breakdown, t)}
+            defaultWeight={3}
+            showDetails
+            detailsLayout="inline"
+            testId="fit-breakdown"
+            detailsTestId="fit-breakdown-detail"
+          />
         </section>
       )}
 

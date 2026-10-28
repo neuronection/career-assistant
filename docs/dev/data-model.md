@@ -42,6 +42,7 @@ stays referentially intact.
 |---|---|---|
 | `interest_tags` | `taxonomy_model.py` | Interest vocabulary |
 | `skills` | `taxonomy_model.py` | Skills ontology: key, label, category, subskills, level anchors, aliases, lifecycle |
+| `skill_relations` | `taxonomy_model.py` | Typed skill↔skill edges (`is_a`, `synonym`, `part_of`, `related_to`) with review status (`proposed` → `approved` / `rejected` negative edge), provenance source, confidence, `evidence` JSONB; symmetric kinds stored canonically ordered (lower UUID in `from_skill_id`) |
 | `job_families` | `job_model.py` | The family tree |
 | `jobs` | `job_model.py` | Jobs with rich structured attributes |
 | `job_relations` | `job_model.py` | Typed edges (`similar_to`, `specialises_into`, `leads_to`, `alternative_to`, `prerequisite_of`) with weight/rationale/source |
@@ -49,6 +50,25 @@ stays referentially intact.
 | `career_paths`, `career_path_steps` | `career_path_model.py` | Curated and AI-drafted routes; steps carry `parent_step_id` + `edge_label` for branching |
 | `label_overrides` | `localization_model.py` | Review-first catalog i18n overlays (`entity_kind` + `entity_id` + `locale` + `field` unique; AI drafts land as `draft`, only approval reaches `approved`) |
 | `user_path_flags` | `career_path_model.py` | A user's `interested`/`dismissed`/`pinned` mark on a path (`step_id` NULL = the whole path) |
+
+`skill_relations` (plan 138) is the typed edge table over `skills`:
+`from_skill_id`/`to_skill_id` (FK `skills.id` CASCADE, each indexed),
+`relation` (`is_a | synonym | part_of | related_to`, CHECK
+`relation_allowed`), `status` (`proposed | approved | rejected`, CHECK
+`status_allowed`), `source` (`llm | manual | import | derived`, CHECK
+`source_allowed`), nullable `confidence` (CHECK `confidence_range` 0–1 —
+NULL = "not scored", never fabricated), `evidence` JSONB, and
+`decided_by`/`decided_at` for the review queue. **Lifecycle:** `proposed
+→ approved | rejected`, where `rejected` is the **negative edge** ("never
+this pair + relation") — it permanently blocks the suggestion from
+returning, it is not a tombstone. `UNIQUE(from_skill_id, to_skill_id,
+relation)` (`uq_skill_relation_edge`) dedups per (pair, relation);
+`no_self_loop` forbids self-edges; `symmetric_pair_ordered` stores the
+symmetric kinds (`synonym`, `related_to`) with the lower UUID in
+`from_skill_id` so one unordered pair can never carry two rows (directed
+kinds keep their direction). **`evidence` is write-once**: a later
+suggestion refreshes `confidence` but never overwrites the first
+provenance.
 
 ## Universities
 
@@ -134,6 +154,57 @@ deletion).
 
 ### Migration notes
 
+- **0069** — plan 139: `skills.parent_source`, tree-placement provenance
+  (`parent_source_allowed` CHECK: curated | learned, NULL allowed).
+  `curated` — a human set or deliberately cleared the parent, stamped by
+  `TaxonomyService.update_skill` (whose fill-only guard now REQUIRES the
+  `learned` stamp, so a machine fill can never claim human provenance);
+  `learned` — the tree catch-up's fill; NULL — untouched, the only slot
+  the catch-up fills (the write-time guard re-checks BOTH `parent_id` and
+  `parent_source` in the same transaction). The edge seam's `remove()` /
+  `reject()` heal stranded `learned` placements through
+  `TaxonomyService.heal_learned_placement` (clear when no approved `is_a`
+  row supports the parent; `curated` and NULL never touched). No data
+  migration — existing placements keep NULL (fills-only-empty makes NULL
+  degrade gracefully; pre-139 placements keep the sticky mirror
+  semantics); a pre-139 deliberate clear left both columns NULL —
+  indistinguishable from an untouched slot — so the first post-upgrade
+  catch-up pass re-fills it once (as `learned`); the remedy for any
+  unwanted fill (and for a stuck pre-139 placement) is an explicit clear,
+  which stamps `curated` and sticks. Covered by
+  `tests/test_migrations.py::test_0069_skill_parent_source_roundtrip` /
+  `::test_0069_parent_source_check_admits_the_vocabulary_and_null`, the
+  enum↔CHECK parity wall, and the plan-139 provenance/heal tests.
+- **0068** — plan 138 step 5: `schedules.task_allowed` widens with
+  `skill_relation_learn` (mirrored CHECK — the `BackgroundJobType` member
+  and the `Schedule.task` vocabulary grow together; `0067` reserved the
+  kind slot but not the task vocabulary). The **mirrored-CHECK duality**:
+  `schedules` carries TWO CHECKs with job-type vocabularies —
+  `kind_allowed` (ScheduleKind) *and* `task_allowed`
+  (BackgroundJobType) — and widening one but not the other 500s schedule
+  inserts just the same; the `test_schema_contracts.py` `SCHEDULE_TASKS`
+  parity tuples + the migration round-trip pin both. Downgrade deletes
+  the schedule rows carrying the task first. Covered by
+  `tests/test_migrations.py::test_0068_skill_relation_learn_task_roundtrip`
+  + the enum↔CHECK parity wall (`test_schema_contracts.py`).
+- **0067** — plan 138: `skill_relations`, the typed edge table over
+  `skills` (is_a | synonym | part_of | related_to; `status` proposed →
+  approved | rejected where rejected is the negative edge; `source`
+  llm | manual | import | derived; nullable `confidence` CHECK 0–1;
+  `evidence` JSONB — inventory row `skill_relations.evidence ::
+  keep-open`; `decided_by`/`decided_at` for the review queue).
+  Symmetric kinds are stored canonically ordered (from = lower UUID) and
+  the `symmetric_pair_ordered` CHECK enforces it; `no_self_loop` and the
+  `uq_skill_relation_edge` unique over (pair, relation) close the rest.
+  The same revision widens `schedules.kind_allowed` with
+  `system_skill_relation_learn` (the enum member ships with the widen to
+  keep the enum↔CHECK parity wall green; the seeded schedule row and its
+  job come with the learn job). Covered by
+  `tests/test_migrations.py::test_0067_skill_relations_roundtrip` /
+  `::test_0067_skill_relation_edge_guards`, the enum↔CHECK wall and the
+  conftest `TABLES` coverage gate.
+- **0062–0066** — notes pending (pre-existing gap from other plans;
+  deliberately not backfilled here).
 - **0061** — plan 134: `source_runs`, the ingestion run ledger (one row
   per `sync_source` attempt: trigger `manual|scheduled`, status
   `ok|degraded|failed|skipped`, started/finished, duration_ms,

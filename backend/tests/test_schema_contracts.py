@@ -63,6 +63,10 @@ from app.models.enums import (
     ScenarioStatus,
     ScheduleKind,
     SearchScope,
+    SkillParentSource,
+    SkillRelationSource,
+    SkillRelationStatus,
+    SkillRelationType,
     SourceKind,
     WatchScopeKind,
     WebhookTarget,
@@ -82,6 +86,7 @@ SCHEDULE_TASKS = {
     "checkpoint_prune",
     "extension_reconcile",
     "demand_import",
+    "skill_relation_learn",
 }
 
 CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
@@ -126,6 +131,10 @@ CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
     ("schedules", "kind_allowed", ScheduleKind),
     ("schedules", "task_allowed", SCHEDULE_TASKS),
     ("schedules", "misfire_allowed", MisfirePolicy),
+    ("skill_relations", "relation_allowed", SkillRelationType),
+    ("skill_relations", "status_allowed", SkillRelationStatus),
+    ("skill_relations", "source_allowed", SkillRelationSource),
+    ("skills", "parent_source_allowed", SkillParentSource),
     ("geo_regions", "kind_allowed", GeoRegionKind),
     ("econ_packs", "kind_allowed", EconPackKind),
     ("econ_packs", "status_allowed", EconPackStatus),
@@ -186,6 +195,20 @@ def test_every_mirrored_check_matches_its_enum():
                 f"{table}.{constraint}: enum has {sorted(expected)}, CHECK has {sorted(actual)}"
             )
     assert not failures, "enum ↔ CHECK drift:\n" + "\n".join(failures)
+
+
+def test_symmetric_pair_ordering_check_matches_the_enum_directed_set():
+    """`symmetric_pair_ordered` names the directed kinds in its first branch.
+
+    That set must equal ``SkillRelationType.directed()``: if a new symmetric
+    kind were added to the vocabulary without the CHECK, two canonical rows
+    could hold the same pair and a rejection would stop blocking both
+    directions.
+    """
+    expressions = _check_expressions("skill_relations")
+    ordered = expressions["symmetric_pair_ordered"]
+    directed_branch = ordered.split("OR")[0]
+    assert _values(directed_branch) == {kind.value for kind in SkillRelationType.directed()}
 
 
 def test_posting_fit_default_tracks_the_engine_version():

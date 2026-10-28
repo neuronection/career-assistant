@@ -191,7 +191,7 @@ function ReferenceChips({
           {meta.referenced_posting_refs!.map((ref) => (
             <Link
               key={ref}
-              to={`/postings?posting=${ref}`}
+              to={`/postings/${ref}`}
               className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full hover:bg-emerald-100"
               data-testid={`chat-posting-ref-${ref}`}
             >

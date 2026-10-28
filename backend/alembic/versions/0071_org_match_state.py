@@ -18,8 +18,8 @@ from alembic import op
 
 _JSON = JSONB().with_variant(sa.JSON(), "sqlite")
 
-revision = "0066"
-down_revision = "0065"
+revision = "0071"
+down_revision = "0070"
 branch_labels = None
 depends_on = None
 
@@ -58,4 +58,6 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_index("ix_postings_org_match_state", table_name="job_postings")
-    op.drop_column("job_postings", "org_match_state")
+    with op.batch_alter_table("job_postings") as batch:
+        batch.drop_constraint("org_match_state_allowed", type_="check")
+        batch.drop_column("org_match_state")

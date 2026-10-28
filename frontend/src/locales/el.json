@@ -538,12 +538,17 @@
     "levelAtLeast": "επίπεδο ≥",
     "matchProfile": "ταίριασμα με το προφίλ μου",
     "removeFilter": "Αφαίρεση {{name}}",
-    "postings.select": "Επιλογή",
-    "postings.selectedCount": "{{count}} επιλεγμένες",
-    "postings.actions": "Ενέργειες",
-    "postings.reextract": "Επανεκτέλεση εξαγωγής με AI",
-    "postings.reextractDone": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες",
-    "postings.clearSelection": "Καθαρισμός επιλογής",
+    "select": "Επιλογή",
+    "selectedCount": "{{count}} επιλεγμένες",
+    "actions": "Ενέργειες",
+    "reextract": "Επανεκτέλεση εξαγωγής με AI",
+    "reextractDone": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες",
+    "clearSelection": "Καθαρισμός επιλογής",
+    "filtersTitle": "Φίλτρα",
+    "filtersShow": "Εμφάνιση",
+    "filtersHide": "Απόκρυψη",
+    "filtersRemoveChip": "Αφαίρεση αυτού του φίλτρου",
+    "filtersActive": "{{count}} ενεργά",
     "companyFilter": "Φίλτρο εταιρείας",
     "allCompanies": "Όλες οι εταιρείες",
     "noCompanyRejected": "Χωρίς εταιρεία (απορριμμένα)",
@@ -605,6 +610,7 @@
     "hide": "Απόκρυψη",
     "loading": "Φόρτωση…",
     "noFilterMatches": "Δεν βρέθηκαν αποτελέσματα με αυτά τα φίλτρα.",
+    "remove": "Αφαίρεση",
     "reset": "Επαναφορά",
     "save": "Αποθήκευση",
     "saving": "Αποθηκεύεται…",
@@ -1100,7 +1106,8 @@
       "interests": "Ενδιαφέροντα",
       "skills": "Δεξιότητες",
       "paths": "Δρόμοι",
-      "enrichment": "Ενίσχυση"
+      "enrichment": "Ενίσχυση",
+      "relations": "Σχέσεις"
     },
     "newTag": "Νέα ετικέτα",
     "keyPlaceholder": "κλειδί (σταθερός κώδικας, π.χ. ανανεώσιμες πηγές ενέργειας)",
@@ -1135,7 +1142,86 @@
     "enrichmentReject": "Απόρριψη",
     "noEnrichment": "Χωρίς προτάσεις εμπλουτισμού",
     "noEnrichmentBody": "Οι προτάσεις εμπλουτισμού που δημιουργούνται από την τεχνητή νοημοσύνη εμφανίζονται εδώ για έλεγχο.",
-    "tabsAria": "Κατηγορίες"
+    "tabsAria": "Κατηγορίες",
+    "relations": {
+      "intro": "Τυποποιημένες συνδέσεις μεταξύ δεξιοτήτων. Έλεγξε τι προτείνει η εργασία ανακάλυψης και διαχειρίσου τα υπόλοιπα — μια απόρριψη δεν επιστρέφει ποτέ.",
+      "tabsAria": "Ενότητες σχέσεων δεξιοτήτων",
+      "tab": {
+        "queue": "Ουρά ελέγχου",
+        "editor": "Όλες οι σχέσεις",
+        "thresholds": "Κατώφλια",
+        "runs": "Εκτελέσεις"
+      },
+      "relation": {
+        "is_a": "είναι",
+        "synonym": "είναι συνώνυμο του",
+        "part_of": "είναι μέρος του",
+        "related_to": "σχετίζεται με"
+      },
+      "source": {
+        "manual": "χειροκίνητη",
+        "llm": "πρόταση ΤΝ",
+        "import": "εισαγωγή",
+        "derived": "παραγόμενη"
+      },
+      "status": {
+        "proposed": "προτεινόμενη",
+        "approved": "εγκεκριμένη",
+        "rejected": "απορριφθείσα"
+      },
+      "evidence": "Στοιχεία",
+      "aliasHint": "Αυτό μοιάζει με ακατέργαστη ετικέτα για την άλλη δεξιότητα — αποθήκευσέ την ως ψευδώνυμο και όχι ως ακμή.",
+      "accept": "Αποδοχή",
+      "dismiss": "Απόρριψη",
+      "saveAlias": "Αποθήκευση ως ψευδώνυμο",
+      "remove": "Αφαίρεση",
+      "accepted": "Έγινε αποδοχή — το δέντρο υπο-δεξιοτήτων ενημερώθηκε.",
+      "dismissed": "Έγινε απόρριψη — το ζεύγος δεν επιστρέφει ποτέ.",
+      "aliasSaved": "Αποθηκεύτηκε ως ψευδώνυμο του {{target}}.",
+      "queue": {
+        "empty": "Τίποτα προς έλεγχο",
+        "emptyBody": "Οι προτεινόμενες σχέσεις από την εργασία ανακάλυψης εμφανίζονται εδώ."
+      },
+      "editor": {
+        "empty": "Δεν υπάρχουν σχέσεις ακόμη",
+        "emptyBody": "Πρόσθεσε πάνω μια τυποποιημένη σχέση μεταξύ δύο δεξιοτήτων."
+      },
+      "addHeading": "Προσθήκη σχέσης",
+      "fromLabel": "Δεξιότητα",
+      "toLabel": "Σχετιζόμενη δεξιότητα",
+      "relationLabel": "Σχέση",
+      "confidenceLabel": "Εμπιστοσύνη (0–1, προαιρετικό)",
+      "add": "Προσθήκη σχέσης",
+      "thresholds": {
+        "minSupport": "Ελάχιστη συνεμφάνιση",
+        "batchSize": "Ζεύγη ανά κλήση ΤΝ (μέγ. 40)",
+        "maxPairs": "Ζεύγη ανά εκτέλεση",
+        "minNegative": "Όριο εμπιστοσύνης για αρνητικές αποφάσεις",
+        "save": "Αποθήκευση κατωφλίων",
+        "saved": "Αποθηκεύτηκε."
+      },
+      "runs": {
+        "empty": "Δεν υπάρχουν εκτελέσεις ανακάλυψης ακόμη",
+        "emptyBody": "Οι εκτελέσεις της ημερήσιας εργασίας σχέσεων εμφανίζονται εδώ με τα στατιστικά τους.",
+        "heldWatermark": "σε αναμονή (δεν προχώρησε ακόμη)"
+      },
+      "ledger": {
+        "candidates": "υποψήφιοι",
+        "batches": "παρτίδες",
+        "judged_batches": "αξιολογημένες",
+        "failed_batches": "αποτυχημένες",
+        "uncovered": "αναπάντητοι",
+        "derived": "παραγόμενοι",
+        "edges_proposed": "προτεινόμενες ακμές",
+        "negatives": "αρνητικές",
+        "dropped": "απορριφθέντα",
+        "below_bar": "κάτω από το όριο",
+        "materialized": "καθρέφτισμα δέντρου",
+        "backfilled": "συμπλήρωση δέντρου",
+        "capped": "περιορισμένη",
+        "watermark": "σημάδι ροής"
+      }
+    }
   },
   "aiSettings": {
     "loading": "Φόρτωση ρυθμίσεων AI…",
@@ -2930,8 +3016,6 @@
       "fast-mapped": "γρήγορα αντιστοιχισμένο",
       "raw": "αρχικό"
     },
-    "fit": "κατάλληλο {{score}}",
-    "coverage": "περίληψη {{score}}",
     "posted": "ανέβηκε στις {{date}}",
     "applied": "έστειλα αίτηση ✓",
     "apply": "Αίτηση",
@@ -2942,12 +3026,15 @@
       "gross": "μικτά",
       "net": "καθαρά"
     },
-    "perYear": "≈ {{range}} {{currency}}/έτος"
+    "period": {
+      "year": "έτος",
+      "month": "μήνας",
+      "week": "εβδομάδα",
+      "day": "ημέρα"
+    }
   },
   "postingDetail": {
-    "levelAria": "επίπεδο {{level}}",
     "unknown": "άγνωστο",
-    "unmapped": "{{label}} (άγνωστο)",
     "priority": {
       "must_have": "απαραίτητο",
       "nice_to_have": "επιθυμητό",
@@ -3035,7 +3122,14 @@
       "meals": "Γεύματα",
       "transport": "Μετακίνηση",
       "other": "Άλλο"
-    }
+    },
+    "skillsCompact": "Συνοπτικά",
+    "skillsDetailed": "Αναλυτικά",
+    "skillsCount": "{{count}} δεξιότητες",
+    "unmappedTooltip": "Δεν υπάρχει ακόμη στην ταξινομία δεξιοτήτων",
+    "mentions": "απαιτείται {{count}}×",
+    "showOriginal": "Εμφάνιση αρχικού",
+    "hideOriginal": "Απόκρυψη αρχικού"
   },
   "sessionList": {
     "renameChat": "Μετονομασία συνομιλίας",
@@ -4155,10 +4249,104 @@
     "budgetCustom": "Προσαρμοσμένο · {{seconds}} s",
     "budgetKept": "Το όριο επήλθε — κρατήθηκαν {{count}} αγγελίες· οι υπόλοιπες συνέχισουν στον επόμενο συγχρονισμό",
     "presetLabel": "Ξεκίνα με",
-    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)",
-    "reextractBtn": "Επανεκτέλεση εξαγωγής με AI",
-    "reextractHint": "Επαναδημιουργία των δομημένων πεδίων (δεξιότητες, μισθός, απαιτήσεις) από τις αποθηκευμένες περιγραφές με AI.",
-    "reextractQueued": "Σε αναμονή επανεξαγωγής AI για {{count}} αγγελίες"
+    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)"
+  },
+  "filters": {
+    "title": "Φίλτρα",
+    "activeCount": "{{count}} ενεργά",
+    "clearAll": "Καθαρισμός όλων",
+    "skills": "Δεξιότητες",
+    "skillsPlaceholder": "Προσθήκη δεξιότητας…",
+    "minLevel": "Ελάχ. επίπεδο",
+    "skillsExpand": "Αντιστοίχιση",
+    "skillsExpandAria": "Λειτουργία αντιστοίχισης δεξιοτήτων",
+    "skillsExpandExact": "Ακριβής",
+    "skillsExpandDown": "Υποδεξιότητες",
+    "skillsExpandRelated": "Σχετικές",
+    "skillsHops": "Άλματα",
+    "skillsHopsOne": "1 άλμα",
+    "skillsHopsTwo": "2 άλματα",
+    "skillsExpandHintDown": "Ταιριάζει επίσης συνώνυμα και υποδεξιότητες.",
+    "skillsExpandHintRelated": "Ταιριάζει επίσης συνώνυμα, υποδεξιότητες, μέρος-από και σχετικές δεξιότητες.",
+    "minLevelNeedsSkills": "Διάλεξε πρώτα μια δεξιότητα",
+    "salary": "Μισθός",
+    "location": "Τοποθεσία",
+    "locationPlaceholder": "Πόλη ή χώρα…",
+    "remoteOnly": "Μόνο απομακρυσμένα",
+    "companies": "Εταιρείες",
+    "companiesPlaceholder": "Όνομα εταιρείας…",
+    "seniority": "Επίπεδο καριέρας",
+    "employment": "Τύπος απασχόλησης",
+    "workMode": "Τρόπος εργασίας",
+    "education": "Εκπαίδευση",
+    "postedWithin": "Δημοσιεύτηκε",
+    "matchScore": "Βαθμός ταιριάσματος",
+    "saved": "Αποθηκευμένα",
+    "savedOnly": "Μόνο αποθηκευμένα",
+    "unsavedOnly": "Μόνο μη αποθηκευμένα",
+    "description": "Κείμενο περιγραφής",
+    "descriptionPlaceholder": "Αναζήτηση στην περιγραφή…",
+    "saveAs": "Αποθήκευση ως προκαθορισμό",
+    "presetName": "Όνομα προκαθορισμού…",
+    "tagPlaceholder": "Ετικέτα…",
+    "save": "Αποθήκευση",
+    "applyPreset": "Εφαρμογή αυτού του προκαθορισμού",
+    "deletePreset": "Διαγραφή προκαθορισμού",
+    "include": "Συμπερίληψη",
+    "exclude": "Αποκλεισμός",
+    "clickToInclude": "Κλικ για συμπερίληψη — δεξί κλικ για αποκλεισμό",
+    "clickToExclude": "Κλικ για αποκλεισμό — δεξί κλικ για αφαίρεση",
+    "clickToIncludeOnly": "Κλικ για συμπερίληψη",
+    "min": "ελάχ.",
+    "max": "μέγ.",
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "Από επίπεδο",
+    "seniorityMax": "Έως επίπεδο",
+    "anyLevel": "Οποιοδήποτε",
+    "browseCatalog": "Περιήγηση σε όλο τον κατάλογο",
+    "searchSkills": "Αναζήτηση δεξιοτήτων…",
+    "category": "Κατηγορία",
+    "allCategories": "Όλες οι κατηγορίες",
+    "noSkillsFound": "Δεν βρέθηκαν δεξιότητες",
+    "add": "Προσθήκη",
+    "added": "Προστέθηκε",
+    "loadMore": "Φόρτωση περισσότερων",
+    "selectedCount": "{{count}} επιλεγμένες",
+    "done": "Τέλος"
+  },
+  "card": {
+    "mode": "Τρόπος εργασίας",
+    "level": "Επίπεδο",
+    "contract": "Σύμβαση",
+    "hours": "Ώρες",
+    "salary": "Μισθός",
+    "education": "Εκπαίδευση",
+    "closes": "Λήγει",
+    "modeValue": {
+      "remote": "Εξ αποστάσεως",
+      "hybrid": "Υβριδικό",
+      "onsite": "Στο γραφείο"
+    },
+    "closesIn": "σε {{count}} ημ.",
+    "fit": "fit",
+    "coverage": "κάλυψη {{score}}",
+    "skills": "δεξιότητες",
+    "seen": "Αναγνωσμένη",
+    "closed": "Έκλεισε",
+    "closedOn": "Έκλεισε στις {{date}}",
+    "more": "+{{count}}",
+    "showLess": "λιγότερα",
+    "detailsPending": "Οι λεπτομέρειες δεν έχουν ανακτηθεί",
+    "partial": "Ορισμένες λεπτομέρειες δεν διαβάστηκαν με βεβαιότητα",
+    "provenanceValue": {
+      "extracted": "Πλήρη στοιχεία",
+      "fast-mapped": "Αντιστοιχισμένη",
+      "raw": "Μόνο πηγή"
+    },
+    "skillRequires": "απαιτεί επίπεδο {{level}} από 10",
+    "moreAria": "{{count}} ακόμη",
+    "noScore": "χωρίς βαθμολογία",
+    "perYear": "≈ {{range}} {{currency}}/έτος"
   },
   "companyRules": {
     "title": "Κανόνες εταιρειών",

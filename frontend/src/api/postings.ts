@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { PostingsResponse, PostingSourceInfo } from "@/types/wire";
+import type { PostingsResponse, PostingOut, PostingSourceInfo } from "@/types/wire";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingDetailOut } from "@/types/wire";
 import type { ExploreParams } from "@/types";
@@ -17,6 +17,122 @@ export interface PostingSearchParams {
   match_profile?: boolean;
   company?: string;
   no_company?: string;
+}
+
+export async function reextractPostings(
+  postingIds: string[],
+): Promise<{ queued: number; skipped: number; missing: string[]; requested: number }> {
+  const { data } = await api.post<
+    { queued: number; skipped: number; missing: string[]; requested: number }
+  >(
+    "/admin/postings/reextract",
+    { posting_ids: postingIds },
+  );
+  return data;
+}
+
+export async function reextractPosting(
+  postingId: string,
+): Promise<{ extracted: boolean; needs_review?: boolean }> {
+  const { data } = await api.post(`/admin/postings/${postingId}/extract`);
+  return data;
+}
+
+// ---------------------------------------------------- filter system (plan 136)
+
+export type SkillExpandMode = "off" | "down" | "related";
+
+export interface FilterSpec {
+  v: number;
+  skills: {
+    include: string[];
+    exclude: string[];
+    min_level: number | null;
+    /** Graph expansion knob (plan 138): exact / sub-skills / +related. */
+    expand: SkillExpandMode;
+    /** Relation hops for learned edges (1 or 2). */
+    hops: 1 | 2;
+  };
+  salary: { min: number | null; max: number | null; currency: string | null };
+  location: { include: string[]; exclude: string[]; remote_only: boolean | null };
+  companies: {
+    include: string[];
+    exclude: string[];
+    industries_include: string[];
+    industries_exclude: string[];
+  };
+  seniority: { min: string | null; max: string | null; exclude: string[] };
+  employment: { include: string[]; exclude: string[] };
+  work_mode: { include: string[]; exclude: string[] };
+  languages: { include: string[]; exclude: string[] };
+  education: { include: string[]; exclude: string[] };
+  posted_within: { days: number | null };
+  match_score: { min: number | null; max: number | null };
+  source: { include: string[]; exclude: string[] };
+  saved: { value: boolean | null };
+  description: { text: string | null };
+  sort: string;
+}
+
+export function emptyFilterSpec(): FilterSpec {
+  return {
+    v: 1,
+    skills: { include: [], exclude: [], min_level: null, expand: "down", hops: 1 },
+    salary: { min: null, max: null, currency: null },
+    location: { include: [], exclude: [], remote_only: null },
+    companies: { include: [], exclude: [], industries_include: [], industries_exclude: [] },
+    seniority: { min: null, max: null, exclude: [] },
+    employment: { include: [], exclude: [] },
+    work_mode: { include: [], exclude: [] },
+    languages: { include: [], exclude: [] },
+    education: { include: [], exclude: [] },
+    posted_within: { days: null },
+    match_score: { min: null, max: null },
+    source: { include: [], exclude: [] },
+    saved: { value: null },
+    description: { text: null },
+    sort: "fresh",
+  };
+}
+
+export async function filterPostings(
+  filters: FilterSpec,
+  feed?: { company?: string; no_company?: string },
+): Promise<PostingOut[]> {
+  const { data } = await api.post<PostingOut[]>("/postings/filter", { filters }, {
+    params: feed,
+  });
+  return data;
+}
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  tags: string[];
+  filters: FilterSpec;
+  updated_at: string | null;
+}
+
+export async function fetchFilterPresets(): Promise<FilterPreset[]> {
+  const { data } = await api.get<FilterPreset[]>("/me/posting-filters");
+  return data;
+}
+
+export async function saveFilterPreset(
+  name: string,
+  tags: string[],
+  filters: FilterSpec,
+): Promise<FilterPreset> {
+  const { data } = await api.post<FilterPreset>("/me/posting-filters", {
+    name,
+    tags,
+    filters,
+  });
+  return data;
+}
+
+export async function deleteFilterPreset(presetId: string): Promise<void> {
+  await api.delete(`/me/posting-filters/${presetId}`);
 }
 
 export async function searchPostings(

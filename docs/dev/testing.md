@@ -64,6 +64,10 @@ cd backend && PYTEST_XDIST_WORKERS=4 uv run pytest tests -q
 
 - Use the async fixtures in `tests/conftest.py`; every test runs inside a
   transaction that is rolled back, so tests are isolated.
+- After an API call writes through its own session, the test session's
+  cached rows are stale (`expire_on_commit=False`) — re-read with
+  `populate_existing=True` / `db.expire_all()` (see `_rows` in
+  `tests/test_skill_relations_admin.py`).
 - There are 100+ test modules, one per area (`test_cv_*`, `test_chat_*`,
   `test_ai_*`, `test_postings.py`, `test_migrations.py`, …) — put a new test
   in the module matching its area, or add one if the area is new.

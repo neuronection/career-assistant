@@ -74,6 +74,26 @@ Search vacancies by "skill X at level ≥ N" and rank them by deterministic
 coverage of your skills. Every card shows its provenance: raw → fast-mapped →
 extracted.
 
+### Matching skills — exact, sub-skills or related
+
+The Skills section of the filter rail carries a **match mode**:
+
+- **Exact** — only the skills you picked match.
+- **Sub-skills** (default) — also matches synonyms and the sub-skill
+  tree, so filtering for "programming" finds postings tagged java or
+  python.
+- **Related** — additionally matches part-of and related-to skills.
+
+**Hops** (1 or 2) bounds only the *learned* edges — the relation
+proposals and imports. The curated sub-skill tree and synonyms always
+count for **free**: they are not part of the hop budget. So the default
+setting widens on its own as reviewed relations fill the tree, and the
+hop knob is only needed for chains of learned edges (java → JVM
+languages → programming at 2 hops). **Exact** is always one click away.
+See
+[Skill taxonomy & relations](skills-taxonomy.md) for how proposals are
+reviewed before they ever widen a filter.
+
 ## The Explore page
 
 **Postings → Search** (`/postings/search`) filters every structured field —
@@ -83,9 +103,29 @@ with live facet counts. You can:
 - **Save searches** and schedule them (see
   [Notifications and scheduler](notifications-and-scheduler.md)).
 - **Paginate by cursor** through large result sets.
-- Open a posting's detail page for a **per-posting match score** built from
-  the extracted data, weighted by your fit sliders and stale-proof, plus
-  source attribution and similar roles.
+
+## Opening a posting
+
+Clicking a posting card opens the posting **inside the app** at
+`/postings/:ref` — nothing is lost to a third-party tab. The page shows
+everything the system knows about the role:
+
+- the full **description** captured from the source,
+- **key facts**: location, work mode (remote / hybrid / on-site with
+  office days), employment and contract type, seniority, work hours with
+  the weekly range, travel demand, education, languages, and the salary
+  range with its annualized figure,
+- a **timeline** — posted, first seen, last updated and expiry, each as
+  "3 days ago" with the exact date beside it,
+- **categories** — the mapped catalog role (with your interest tags and
+  the typed benefits) — and the skill requirements with level, priority
+  and their verbatim evidence quotes,
+- your per-posting **match score** with the per-dimension breakdown,
+  source attribution and similar openings.
+
+"Open on the original board" (the top button) jumps to the listing in a
+new tab and records the click; beside it sit the cover-letter draft, the
+practice interview and the [application tracker](applications.md) entry.
 
 The **Postings feed** (`/postings`) is the discovery view of everything
 available, ordered unseen-first.

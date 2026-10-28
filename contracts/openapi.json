@@ -13862,6 +13862,17 @@
             ],
             "title": "Catalog Job Id"
           },
+          "contract_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Type"
+          },
           "coverage": {
             "anyOf": [
               {
@@ -13872,6 +13883,34 @@
               }
             ],
             "title": "Coverage"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "education_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education Level"
           },
           "employment_type": {
             "anyOf": [
@@ -13931,6 +13970,28 @@
               }
             ],
             "title": "Fit"
+          },
+          "hours_per_week_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Max"
+          },
+          "hours_per_week_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Min"
           },
           "id": {
             "format": "uuid",
@@ -14002,15 +14063,9 @@
             "type": "string"
           },
           "org_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Org Key"
+            "default": "",
+            "title": "Org Key",
+            "type": "string"
           },
           "org_match_state": {
             "anyOf": [
@@ -14145,6 +14200,13 @@
             "title": "Similar",
             "type": "array"
           },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PostingSkillRefOut"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "source_connector": {
             "default": "",
             "title": "Source Connector",
@@ -14196,9 +14258,43 @@
             "title": "Title",
             "type": "string"
           },
+          "travel_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travel Class"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "url": {
             "title": "Url",
             "type": "string"
+          },
+          "work_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Hours"
           }
         },
         "required": [
@@ -14213,6 +14309,65 @@
           "mapping_reason"
         ],
         "title": "PostingDetailOut",
+        "type": "object"
+      },
+      "PostingExtractBenefitOut": {
+        "description": "Typed benefit: `kind` powers display grouping, `raw` keeps the\noriginal wording. Stored plain strings (legacy extract rows) coerce\nto `kind=\"other\"` at read \u2014 the extractor's `ExtractBenefit.coerce`\nprecedent.",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "raw": {
+            "title": "Raw",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "raw"
+        ],
+        "title": "PostingExtractBenefitOut",
+        "type": "object"
+      },
+      "PostingExtractContractOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "contract_type": {
+            "title": "Contract Type",
+            "type": "string"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contract_type"
+        ],
+        "title": "PostingExtractContractOut",
         "type": "object"
       },
       "PostingExtractEducationOut": {
@@ -14243,6 +14398,57 @@
         "title": "PostingExtractEducationOut",
         "type": "object"
       },
+      "PostingExtractHoursOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "hours_per_week_max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Max"
+          },
+          "hours_per_week_min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Min"
+          },
+          "pattern": {
+            "title": "Pattern",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "title": "PostingExtractHoursOut",
+        "type": "object"
+      },
       "PostingExtractLocationOut": {
         "properties": {
           "city": {
@@ -14271,16 +14477,77 @@
         "title": "PostingExtractLocationOut",
         "type": "object"
       },
+      "PostingExtractOnsiteOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "office_days_per_week": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Office Days Per Week"
+          },
+          "policy": {
+            "title": "Policy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "policy"
+        ],
+        "title": "PostingExtractOnsiteOut",
+        "type": "object"
+      },
       "PostingExtractOut": {
         "additionalProperties": true,
-        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).",
+        "description": "The posting's structured extraction payload (pipeline-written\nJSONB, envelope-typed since plan 123.4).\n\nRead coercion is part of the contract: ``apply_extract`` suppresses\nlow-confidence fields to ``null`` (``_suppressed_fields`` names\nthem) and legacy rows stored plain-string benefits, so lists\nnormalize to ``[]`` and benefit strings to ``kind=\"other\"`` instead\nof failing whole postings on read.",
         "properties": {
           "benefits": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/PostingExtractBenefitOut"
             },
             "title": "Benefits",
             "type": "array"
+          },
+          "contract_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractContractOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "description_clean": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description Clean"
           },
           "education": {
             "anyOf": [
@@ -14327,6 +14594,16 @@
               }
             ]
           },
+          "onsite_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractOnsiteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "prerequisites": {
             "items": {
               "$ref": "#/components/schemas/PostingExtractPrerequisiteOut"
@@ -14362,6 +14639,13 @@
               }
             ]
           },
+          "schedule_cues": {
+            "items": {
+              "$ref": "#/components/schemas/PostingExtractScheduleCueOut"
+            },
+            "title": "Schedule Cues",
+            "type": "array"
+          },
           "seniority": {
             "anyOf": [
               {
@@ -14390,6 +14674,33 @@
               }
             ],
             "title": "Title Norm"
+          },
+          "travel_required": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractTravelOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "values_cues": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Values Cues",
+            "type": "array"
+          },
+          "work_hours": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PostingExtractHoursOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "PostingExtractOut",
@@ -14526,6 +14837,35 @@
         "title": "PostingExtractSalaryOut",
         "type": "object"
       },
+      "PostingExtractScheduleCueOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "cue": {
+            "title": "Cue",
+            "type": "string"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cue"
+        ],
+        "title": "PostingExtractScheduleCueOut",
+        "type": "object"
+      },
       "PostingExtractSkillOut": {
         "properties": {
           "confidence": {
@@ -14585,6 +14925,46 @@
           "confidence"
         ],
         "title": "PostingExtractSkillOut",
+        "type": "object"
+      },
+      "PostingExtractTravelOut": {
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "days_per_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Per Month"
+          },
+          "evidence_quote": {
+            "default": "",
+            "title": "Evidence Quote",
+            "type": "string"
+          },
+          "level": {
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "level"
+        ],
+        "title": "PostingExtractTravelOut",
         "type": "object"
       },
       "PostingLocationOut": {
@@ -14724,6 +15104,17 @@
             ],
             "title": "Catalog Job Id"
           },
+          "contract_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract Type"
+          },
           "coverage": {
             "anyOf": [
               {
@@ -14734,6 +15125,29 @@
               }
             ],
             "title": "Coverage"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "education_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Education Level"
           },
           "employment_type": {
             "anyOf": [
@@ -14783,6 +15197,28 @@
               }
             ],
             "title": "Fit"
+          },
+          "hours_per_week_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Max"
+          },
+          "hours_per_week_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Week Min"
           },
           "id": {
             "format": "uuid",
@@ -14844,15 +15280,9 @@
             "type": "string"
           },
           "org_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Org Key"
+            "default": "",
+            "title": "Org Key",
+            "type": "string"
           },
           "org_match_state": {
             "anyOf": [
@@ -14980,6 +15410,13 @@
             ],
             "title": "Seniority"
           },
+          "skills": {
+            "items": {
+              "$ref": "#/components/schemas/PostingSkillRefOut"
+            },
+            "title": "Skills",
+            "type": "array"
+          },
           "source_id": {
             "format": "uuid",
             "title": "Source Id",
@@ -15009,9 +15446,43 @@
             "title": "Title",
             "type": "string"
           },
+          "travel_class": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travel Class"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
           "url": {
             "title": "Url",
             "type": "string"
+          },
+          "work_hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Work Hours"
           }
         },
         "required": [
@@ -15081,6 +15552,47 @@
           "score"
         ],
         "title": "PostingSimilarOut",
+        "type": "object"
+      },
+      "PostingSkillRefOut": {
+        "description": "One required skill as cards render it (plan 140): the posting's\nskill edge resolved to the taxonomy label, ordered by requirement.",
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "required_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Required Level"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "PostingSkillRefOut",
         "type": "object"
       },
       "PostingsOut": {
@@ -18516,6 +19028,21 @@
             ],
             "title": "Parent Id"
           },
+          "parent_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "curated",
+                  "learned"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Source"
+          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -18532,6 +19059,426 @@
         ],
         "title": "SkillOut",
         "type": "object"
+      },
+      "SkillRelationCreateIn": {
+        "additionalProperties": false,
+        "description": "Manual edge add; endpoints accept a skill key or id.\n\nManual adds land approved \u2014 unless the pair already carries a row,\nwhose lifecycle then stands (accept it from the queue).",
+        "properties": {
+          "confidence": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "from_skill": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "From Skill",
+            "type": "string"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/SkillRelationType"
+          },
+          "to_skill": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "To Skill",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_skill",
+          "to_skill",
+          "relation"
+        ],
+        "title": "SkillRelationCreateIn",
+        "type": "object"
+      },
+      "SkillRelationOut": {
+        "description": "One (pair, relation) row \u2014 the seam's grain, provenance included.",
+        "properties": {
+          "alias_candidate": {
+            "default": false,
+            "title": "Alias Candidate",
+            "type": "boolean"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "decided_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "from_skill": {
+            "$ref": "#/components/schemas/SkillRelationSkillOut"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/SkillRelationType"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "to_skill": {
+            "$ref": "#/components/schemas/SkillRelationSkillOut"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "relation",
+          "status",
+          "source",
+          "created_at",
+          "updated_at",
+          "from_skill",
+          "to_skill"
+        ],
+        "title": "SkillRelationOut",
+        "type": "object"
+      },
+      "SkillRelationRunLedgerOut": {
+        "description": "The run ledger keys the stats view renders (missing counters = 0).",
+        "properties": {
+          "backfilled": {
+            "default": 0,
+            "title": "Backfilled",
+            "type": "integer"
+          },
+          "batches": {
+            "default": 0,
+            "title": "Batches",
+            "type": "integer"
+          },
+          "below_bar": {
+            "default": 0,
+            "title": "Below Bar",
+            "type": "integer"
+          },
+          "candidates": {
+            "default": 0,
+            "title": "Candidates",
+            "type": "integer"
+          },
+          "capped": {
+            "default": false,
+            "title": "Capped",
+            "type": "boolean"
+          },
+          "derived": {
+            "default": 0,
+            "title": "Derived",
+            "type": "integer"
+          },
+          "dropped": {
+            "default": 0,
+            "title": "Dropped",
+            "type": "integer"
+          },
+          "edges_proposed": {
+            "default": 0,
+            "title": "Edges Proposed",
+            "type": "integer"
+          },
+          "failed_batches": {
+            "default": 0,
+            "title": "Failed Batches",
+            "type": "integer"
+          },
+          "judged_batches": {
+            "default": 0,
+            "title": "Judged Batches",
+            "type": "integer"
+          },
+          "materialized": {
+            "default": 0,
+            "title": "Materialized",
+            "type": "integer"
+          },
+          "negatives": {
+            "default": 0,
+            "title": "Negatives",
+            "type": "integer"
+          },
+          "uncovered": {
+            "default": 0,
+            "title": "Uncovered",
+            "type": "integer"
+          },
+          "watermark": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Watermark"
+          }
+        },
+        "title": "SkillRelationRunLedgerOut",
+        "type": "object"
+      },
+      "SkillRelationRunOut": {
+        "description": "One discovery run and its ledger.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "ledger": {
+            "$ref": "#/components/schemas/SkillRelationRunLedgerOut"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "created_at",
+          "ledger"
+        ],
+        "title": "SkillRelationRunOut",
+        "type": "object"
+      },
+      "SkillRelationSaveAliasOut": {
+        "description": "The saved outcome: the edge row is dismissed (negative edge) and\nthe label now resolves through the surviving skill's aliases.",
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/SkillRelationOut"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SkillRelationSkillOut"
+          }
+        },
+        "required": [
+          "relation",
+          "target",
+          "aliases"
+        ],
+        "title": "SkillRelationSaveAliasOut",
+        "type": "object"
+      },
+      "SkillRelationSkillOut": {
+        "description": "One pair endpoint with the facts the review queue shows.",
+        "properties": {
+          "evidence_quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Quote"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "status"
+        ],
+        "title": "SkillRelationSkillOut",
+        "type": "object"
+      },
+      "SkillRelationThresholdsIn": {
+        "additionalProperties": false,
+        "description": "Admin overrides for `skill_relation_learn.thresholds` (clamped).",
+        "properties": {
+          "batch_size": {
+            "maximum": 40.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "max_pairs_per_run": {
+            "minimum": 1.0,
+            "title": "Max Pairs Per Run",
+            "type": "integer"
+          },
+          "min_negative_confidence": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Min Negative Confidence",
+            "type": "number"
+          },
+          "min_support": {
+            "minimum": 1.0,
+            "title": "Min Support",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_support",
+          "batch_size",
+          "max_pairs_per_run",
+          "min_negative_confidence"
+        ],
+        "title": "SkillRelationThresholdsIn",
+        "type": "object"
+      },
+      "SkillRelationThresholdsOut": {
+        "description": "Effective discovery thresholds (constant fallbacks included).",
+        "properties": {
+          "batch_size": {
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "max_pairs_per_run": {
+            "title": "Max Pairs Per Run",
+            "type": "integer"
+          },
+          "min_negative_confidence": {
+            "title": "Min Negative Confidence",
+            "type": "number"
+          },
+          "min_support": {
+            "title": "Min Support",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min_support",
+          "batch_size",
+          "max_pairs_per_run",
+          "min_negative_confidence"
+        ],
+        "title": "SkillRelationThresholdsOut",
+        "type": "object"
+      },
+      "SkillRelationType": {
+        "description": "Edge vocabulary for the skill relation graph (plan 138).\n\n``DIRECTED`` kinds keep their direction (specific\u2192general,\ncomponent\u2192whole); every other kind is symmetric and stored with\ncanonically ordered endpoints (``from_skill_id`` = the lower UUID) so\none unordered pair can never carry two rows. The schema CHECK and the\nwrite seam both read this classification \u2014 never re-declare it.",
+        "enum": [
+          "is_a",
+          "synonym",
+          "part_of",
+          "related_to"
+        ],
+        "title": "SkillRelationType",
+        "type": "string"
       },
       "SkillUpdateIn": {
         "additionalProperties": false,
@@ -23734,52 +24681,6 @@
         ]
       }
     },
-    "/api/v1/admin/postings/sources/{source_id}/reextract": {
-      "post": {
-        "description": "Re-run the deep extraction for every posting of one source (admin,\nbulk) \u2014 AI cost is an explicit admin act. Only postings WITH a\ndescription queue (extraction on list-card data wastes the call);\nalready-queued ones are skipped. Jobs process through the worker\nsequentially, so the AI spend stays bounded and observable.",
-        "operationId": "reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "source_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Source Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "additionalProperties": true,
-                  "title": "Response Reextract Source Postings Api V1 Admin Postings Sources  Source Id  Reextract Post",
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Reextract Source Postings",
-        "tags": [
-          "admin"
-        ]
-      }
-    },
     "/api/v1/admin/postings/sources/{source_id}/runs": {
       "get": {
         "description": "The run ledger (plan 134): newest first \u2014 when it ran, trigger,\nduration, status, items synced and the bounded error.",
@@ -24112,6 +25013,411 @@
           }
         },
         "summary": "Admin Run Schedule Now",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations": {
+      "get": {
+        "description": "The review queue / editor listing (one row per (pair, relation),\nnewest first and bounded).",
+        "operationId": "list_skill_relations_api_v1_admin_skill_relations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(proposed|approved|rejected)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skill_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Skill Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillRelationOut"
+                  },
+                  "title": "Response List Skill Relations Api V1 Admin Skill Relations Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Skill Relations",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Manual edge add \u2014 approved on arrival when the pair is new.\n\nAn existing (pair, relation) row refreshes its confidence instead of\nduplicating and keeps its own lifecycle (the seam's dedup-update \u2014\naccept it from the queue); relation kinds are re-pointed by removing\nthe row and re-adding it (manual edit).",
+        "operationId": "add_skill_relation_api_v1_admin_skill_relations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillRelationCreateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Skill Relation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/runs": {
+      "get": {
+        "description": "Recent discovery runs and their ledgers (watermark may be null).",
+        "operationId": "list_skill_relation_runs_api_v1_admin_skill_relations_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SkillRelationRunOut"
+                  },
+                  "title": "Response List Skill Relation Runs Api V1 Admin Skill Relations Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Skill Relation Runs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/thresholds": {
+      "get": {
+        "description": "Effective discovery thresholds (constant fallbacks included).",
+        "operationId": "get_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Skill Relation Thresholds",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Admin overrides for the discovery job (clamped server-side).",
+        "operationId": "put_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillRelationThresholdsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Skill Relation Thresholds",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/{relation_id}": {
+      "delete": {
+        "description": "Hard-delete an edge (admin cleanup; dismiss is the negative edge).",
+        "operationId": "remove_skill_relation_api_v1_admin_skill_relations__relation_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Skill Relation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/{relation_id}/accept": {
+      "post": {
+        "description": "Accept a proposed edge (`approve()` \u2014 cycles are re-checked and\nrefused at click time, leaving the row proposed).",
+        "operationId": "accept_skill_relation_api_v1_admin_skill_relations__relation_id__accept_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Accept Skill Relation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/{relation_id}/dismiss": {
+      "post": {
+        "description": "Dismiss a suggestion \u2014 `reject()`, i.e. the negative edge (this\npair + relation never comes back).",
+        "operationId": "dismiss_skill_relation_api_v1_admin_skill_relations__relation_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Skill Relation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/{relation_id}/save-alias": {
+      "post": {
+        "description": "The alias-add path (decision 6): a raw label is not an edge.\n\nThe proposed label row merges into the active skill \u2014 its key/label\nbecome aliases the matcher resolves \u2014 and the edge row is dismissed so\nthe pair never returns as an edge suggestion.",
+        "operationId": "save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationSaveAliasOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Skill Relation As Alias",
         "tags": [
           "admin"
         ]
@@ -36460,6 +37766,113 @@
         ]
       }
     },
+    "/api/v1/me/posting-filters": {
+      "get": {
+        "description": "Saved filter presets for the active profile, newest first.",
+        "operationId": "list_filter_presets_api_v1_me_posting_filters_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Filter Presets Api V1 Me Posting Filters Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Filter Presets",
+        "tags": [
+          "postings"
+        ]
+      },
+      "post": {
+        "description": "Save (or update by name) a named, tagged filter preset.",
+        "operationId": "create_filter_preset_api_v1_me_posting_filters_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Create Filter Preset Api V1 Me Posting Filters Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Filter Preset",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/me/posting-filters/{preset_id}": {
+      "delete": {
+        "operationId": "delete_filter_preset_api_v1_me_posting_filters__preset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "preset_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Preset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Filter Preset",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
     "/api/v1/me/preferences/ai-setup": {
       "put": {
         "description": "Store whether the caller skipped the first-run AI setup step.\n\nThe skip rides a typed `profiles.preferences` key (schema is frozen \u2014\nplan 113); the setup prompt itself keeps rendering until a provider is\nconfigured, so dismissing never hides the gap.",
@@ -39540,6 +40953,90 @@
           }
         },
         "summary": "Postings Explore",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/filter": {
+      "post": {
+        "description": "The full filter spec search (plan 136): every axis, three-valued\ninclude/exclude/don't-care, open numeric bounds. `company` /\n`no_company` are the plan-135 feed filters and compose with the spec\n(same semantics as the live feed).",
+        "operationId": "postings_filter_api_v1_postings_filter_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Company"
+            }
+          },
+          {
+            "in": "query",
+            "name": "no_company",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(rejected|pending)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "No Company"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PostingOut"
+                  },
+                  "title": "Response Postings Filter Api V1 Postings Filter Post",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Filter",
         "tags": [
           "postings"
         ]

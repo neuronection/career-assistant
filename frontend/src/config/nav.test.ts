@@ -64,6 +64,8 @@ describe("resolveActiveId", () => {
       "/onboarding/setup",
       "/paths",
       "/postings",
+      "/settings/companies",
+      "/settings/taxonomy",
     ]);
     // Every registered surface is beta (un-gated 2026-10-21) except the
     // shipped first-run AI setup step; none are hidden. /companies joins

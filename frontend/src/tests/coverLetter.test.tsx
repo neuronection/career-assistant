@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
 import { CvStudio } from "@/features/cv/pages/CvStudio";
 import { CvBuilder } from "@/features/cv/pages/CvBuilder";
-import { PostingDetail } from "@/features/postings/components/PostingDetail";
+import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
 import type { CvDocumentOut } from "@/types/cv";
 
 const fetchCvs = vi.fn();
@@ -384,12 +384,9 @@ describe("PostingDetail cover-letter entry point", () => {
     createCoverLetter.mockResolvedValue(letterCv);
     render(
       <TooltipProvider>
-        <MemoryRouter initialEntries={["/postings"]}>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
           <Routes>
-            <Route
-              path="/postings"
-              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
-            />
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
             <Route path="/cv/:id" element={<div data-testid="letter-opened" />} />
           </Routes>
         </MemoryRouter>
@@ -423,12 +420,9 @@ describe("PostingDetail cover-letter entry point", () => {
     );
     render(
       <TooltipProvider>
-        <MemoryRouter initialEntries={["/postings"]}>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
           <Routes>
-            <Route
-              path="/postings"
-              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
-            />
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
             <Route path="/cv/:id" element={<div data-testid="letter-opened" />} />
           </Routes>
         </MemoryRouter>
@@ -463,12 +457,9 @@ describe("PostingDetail track-application entry point", () => {
     });
     render(
       <TooltipProvider>
-        <MemoryRouter initialEntries={["/postings"]}>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
           <Routes>
-            <Route
-              path="/postings"
-              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
-            />
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
             <Route path="/applications" element={<div data-testid="tracker-opened" />} />
           </Routes>
         </MemoryRouter>
@@ -500,12 +491,9 @@ describe("PostingDetail track-application entry point", () => {
     });
     render(
       <TooltipProvider>
-        <MemoryRouter initialEntries={["/postings"]}>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
           <Routes>
-            <Route
-              path="/postings"
-              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
-            />
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
             <Route path="/applications" element={<div data-testid="tracker-opened" />} />
           </Routes>
         </MemoryRouter>

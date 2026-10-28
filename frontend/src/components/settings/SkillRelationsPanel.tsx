@@ -1,0 +1,607 @@
+/**
+ * The skill-relations review surface (plan 138, step 6) — a Relations
+ * segment inside the admin Taxonomy settings page. Queue grain is one row
+ * per (pair, relation); proposed rows group by pair for adjudication
+ * context. Every write goes through the admin API's single seam.
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+
+import { apiDetail } from "@/api/client";
+import {
+  acceptSkillRelation,
+  createSkillRelation,
+  dismissSkillRelation,
+  fetchSkillRelationRuns,
+  fetchSkillRelationThresholds,
+  fetchSkillRelations,
+  removeSkillRelation,
+  saveSkillRelationAlias,
+  saveSkillRelationThresholds,
+  type SkillRelationRow,
+  type SkillRelationRun,
+  type SkillRelationThresholds,
+} from "@/api/skillRelations";
+import { fetchSkillRows, type SkillRow } from "@/api/taxonomy";
+import {
+  Button,
+  EmptyState,
+  MultiSelectPicker,
+  SegmentedTabs,
+  Spinner,
+  type PickerOption,
+  type PickerSelection,
+} from "@/components/ui";
+import {
+  FormRow,
+  NumberField,
+  SelectField,
+} from "@/features/cv/components/cv/formPrimitives";
+
+type Tab = "queue" | "editor" | "thresholds" | "runs";
+type RelationKind = SkillRelationRow["relation"];
+
+const RELATIONS: RelationKind[] = ["is_a", "synonym", "part_of", "related_to"];
+const LEDGER_KEYS: (keyof SkillRelationRun["ledger"])[] = [
+  "candidates",
+  "batches",
+  "judged_batches",
+  "failed_batches",
+  "uncovered",
+  "derived",
+  "edges_proposed",
+  "negatives",
+  "dropped",
+  "below_bar",
+  "materialized",
+  "backfilled",
+  "capped",
+  "watermark",
+];
+
+function pairKey(row: SkillRelationRow): string {
+  return [row.from_skill.id, row.to_skill.id].sort().join(":");
+}
+
+function RelationRowCard({
+  row,
+  note,
+  busy,
+  onAccept,
+  onDismiss,
+  onAlias,
+  onRemove,
+}: {
+  row: SkillRelationRow;
+  note?: string;
+  busy: boolean;
+  onAccept: () => void;
+  onDismiss: () => void;
+  onAlias: () => void;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  const rationale =
+    row.evidence && typeof row.evidence.rationale === "string"
+      ? (row.evidence.rationale as string)
+      : null;
+  return (
+    <div
+      className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+      data-testid={`relation-row-${row.id}`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--as-fg)]">
+          <span className="font-medium">{row.from_skill.label}</span>{" "}
+          <span className="text-[var(--as-muted-fg)]">
+            {t(`taxonomy.relations.relation.${row.relation}`)}
+          </span>{" "}
+          <span className="font-medium">{row.to_skill.label}</span>
+        </p>
+        <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-[var(--as-muted-fg)]">
+          <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5">
+            {t(`taxonomy.relations.source.${row.source}`)}
+          </span>
+          <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5">
+            {t(`taxonomy.relations.status.${row.status}`)}
+          </span>
+          {row.confidence !== null && (
+            <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5">{row.confidence}</span>
+          )}
+        </div>
+      </div>
+      {rationale && (
+        <p className="mt-1 text-xs text-[var(--as-muted-fg)]">
+          {t("taxonomy.relations.evidence")}: {rationale}
+        </p>
+      )}
+      {row.alias_candidate && (
+        <p className="mt-1 text-xs text-amber-700">{t("taxonomy.relations.aliasHint")}</p>
+      )}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {row.status === "proposed" && (
+          <Button
+            size="sm"
+            onClick={onAccept}
+            disabled={busy}
+            data-testid={`relation-accept-${row.id}`}
+          >
+            {t("taxonomy.relations.accept")}
+          </Button>
+        )}
+        {row.status !== "rejected" && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onDismiss}
+            disabled={busy}
+            data-testid={`relation-dismiss-${row.id}`}
+          >
+            {t("taxonomy.relations.dismiss")}
+          </Button>
+        )}
+        {row.alias_candidate && row.status !== "approved" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onAlias}
+            disabled={busy}
+            data-testid={`relation-alias-${row.id}`}
+          >
+            {t("taxonomy.relations.saveAlias")}
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={onRemove}
+          disabled={busy}
+          data-testid={`relation-remove-${row.id}`}
+        >
+          {t("taxonomy.relations.remove")}
+        </Button>
+      </div>
+      {note && <p className="mt-1 text-xs text-[var(--as-muted-fg)]">{note}</p>}
+    </div>
+  );
+}
+
+export function SkillRelationsPanel() {
+  const { t } = useTranslation();
+  const [tab, setTab] = useState<Tab>("queue");
+  const [rows, setRows] = useState<SkillRelationRow[]>([]);
+  const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<{
+    from: PickerSelection[];
+    to: PickerSelection[];
+    relation: RelationKind;
+    confidence: number | null;
+  }>({ from: [], to: [], relation: "is_a", confidence: null });
+  const [thresholds, setThresholds] = useState<SkillRelationThresholds | null>(null);
+  const [thresholdNote, setThresholdNote] = useState("");
+  const [globalNote, setGlobalNote] = useState("");
+  const [runs, setRuns] = useState<SkillRelationRun[]>([]);
+
+  const options = useMemo<PickerOption[]>(
+    () =>
+      skills.map((skill) => ({
+        value: skill.key,
+        label: skill.label,
+        category: skill.category,
+      })),
+    [skills],
+  );
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [listed, skillRows] = await Promise.all([
+        fetchSkillRelations(),
+        fetchSkillRows(),
+      ]);
+      setRows(listed);
+      setSkills(skillRows);
+      setError("");
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const runAction = useCallback(
+    async (row: SkillRelationRow, action: () => Promise<unknown>, note: string) => {
+      setBusyId(row.id);
+      setError("");
+      try {
+        await action();
+        if (note) {
+          setNotes((prev) => ({ ...prev, [row.id]: note }));
+        }
+        await load();
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load],
+  );
+
+  const aliasAction = useCallback(
+    async (row: SkillRelationRow) => {
+      setBusyId(row.id);
+      setError("");
+      try {
+        const saved = await saveSkillRelationAlias(row.id);
+        setGlobalNote(t("taxonomy.relations.aliasSaved", { target: saved.target.label }));
+        await load();
+      } catch (err) {
+        setError(apiDetail(err));
+      } finally {
+        setBusyId(null);
+      }
+    },
+    [load, t],
+  );
+
+  const onAdd = async () => {
+    const from = draft.from[0]?.value;
+    const to = draft.to[0]?.value;
+    if (!from || !to) return;
+    setError("");
+    try {
+      await createSkillRelation({
+        from_skill: from,
+        to_skill: to,
+        relation: draft.relation,
+        confidence: draft.confidence,
+      });
+      setDraft({ from: [], to: [], relation: "is_a", confidence: null });
+      await load();
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const loadThresholds = useCallback(async () => {
+    try {
+      setThresholds(await fetchSkillRelationThresholds());
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  }, []);
+
+  const loadRuns = useCallback(async () => {
+    try {
+      setRuns(await fetchSkillRelationRuns());
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (tab === "thresholds" && thresholds === null) void loadThresholds();
+    if (tab === "runs") void loadRuns();
+  }, [tab, thresholds, loadThresholds, loadRuns]);
+
+  const onThresholdsSave = async () => {
+    if (!thresholds) return;
+    setThresholdNote("");
+    try {
+      setThresholds(await saveSkillRelationThresholds(thresholds));
+      setThresholdNote(t("taxonomy.relations.thresholds.saved"));
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
+  const proposed = rows.filter((row) => row.status === "proposed");
+  const groups = useMemo(() => {
+    const map = new Map<string, SkillRelationRow[]>();
+    for (const row of proposed) {
+      const key = pairKey(row);
+      map.set(key, [...(map.get(key) ?? []), row]);
+    }
+    return [...map.entries()];
+  }, [proposed]);
+
+  return (
+    <div className="space-y-4" data-testid="skill-relations-panel">
+      <p className="text-sm text-[var(--as-muted-fg)]">{t("taxonomy.relations.intro")}</p>
+      <SegmentedTabs
+        ariaLabel={t("taxonomy.relations.tabsAria")}
+        className="max-w-xl"
+        items={(["queue", "editor", "thresholds", "runs"] as const).map((k) => ({
+          value: k,
+          label: t(`taxonomy.relations.tab.${k}`),
+        }))}
+        value={tab}
+        onValueChange={(next) => setTab(next as Tab)}
+      />
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+      {globalNote && <p className="text-sm text-emerald-700">{globalNote}</p>}
+
+      {loading ? (
+        <div className="flex w-full flex-col items-center justify-center py-16">
+          <Spinner size="lg" />
+          <p className="mt-3 text-sm text-[var(--as-muted-fg)]">{t("common.loading")}</p>
+        </div>
+      ) : tab === "queue" ? (
+        groups.length === 0 ? (
+          <EmptyState
+            title={t("taxonomy.relations.queue.empty")}
+            description={t("taxonomy.relations.queue.emptyBody")}
+          />
+        ) : (
+          <div className="space-y-3" data-testid="skill-relations-queue">
+            {groups.map(([key, group]) => (
+              <div key={key} className="space-y-2" data-testid={`relation-pair-${key}`}>
+                {group.length > 1 && (
+                  <p className="text-xs font-medium text-[var(--as-muted-fg)]">
+                    {group[0].from_skill.label} · {group[0].to_skill.label}
+                  </p>
+                )}
+                {group.map((row) => (
+                  <RelationRowCard
+                    key={row.id}
+                    row={row}
+                    note={notes[row.id]}
+                    busy={busyId === row.id}
+                    onAccept={() =>
+                      void runAction(
+                        row,
+                        () => acceptSkillRelation(row.id),
+                        t("taxonomy.relations.accepted"),
+                      )
+                    }
+                    onDismiss={() =>
+                      void runAction(
+                        row,
+                        () => dismissSkillRelation(row.id),
+                        t("taxonomy.relations.dismissed"),
+                      )
+                    }
+                    onAlias={() => void aliasAction(row)}
+                    onRemove={() =>
+                      void runAction(row, () => removeSkillRelation(row.id), "")
+                    }
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === "editor" ? (
+        <div className="space-y-4" data-testid="skill-relations-editor">
+          <div
+            className="space-y-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+            data-testid="relation-add-form"
+          >
+            <p className="text-sm font-medium text-[var(--as-fg)]">
+              {t("taxonomy.relations.addHeading")}
+            </p>
+            <div className="grid gap-3 md:grid-cols-2">
+              <FormRow label={t("taxonomy.relations.fromLabel")}>
+                <MultiSelectPicker
+                  mode="single"
+                  options={options}
+                  value={draft.from}
+                  onChange={(next) => setDraft({ ...draft, from: next.slice(-1) })}
+                  placeholder={t("filters.skillsPlaceholder")}
+                  labels={{
+                    browseLabel: t("filters.browseCatalog"),
+                    browseTitle: t("filters.browseCatalog"),
+                    searchPlaceholder: t("filters.searchSkills"),
+                    categoryLabel: t("filters.category"),
+                    allCategoriesLabel: t("filters.allCategories"),
+                    emptyLabel: t("filters.noSkillsFound"),
+                    addLabel: t("filters.add"),
+                    addedLabel: t("filters.added"),
+                    loadMoreLabel: t("filters.loadMore"),
+                    doneLabel: t("filters.done"),
+                    removeLabel: t("common.remove"),
+                  }}
+                />
+              </FormRow>
+              <FormRow label={t("taxonomy.relations.toLabel")}>
+                <MultiSelectPicker
+                  mode="single"
+                  options={options}
+                  value={draft.to}
+                  onChange={(next) => setDraft({ ...draft, to: next.slice(-1) })}
+                  placeholder={t("filters.skillsPlaceholder")}
+                  labels={{
+                    browseLabel: t("filters.browseCatalog"),
+                    browseTitle: t("filters.browseCatalog"),
+                    searchPlaceholder: t("filters.searchSkills"),
+                    categoryLabel: t("filters.category"),
+                    allCategoriesLabel: t("filters.allCategories"),
+                    emptyLabel: t("filters.noSkillsFound"),
+                    addLabel: t("filters.add"),
+                    addedLabel: t("filters.added"),
+                    loadMoreLabel: t("filters.loadMore"),
+                    doneLabel: t("filters.done"),
+                    removeLabel: t("common.remove"),
+                  }}
+                />
+              </FormRow>
+              <SelectField
+                label={t("taxonomy.relations.relationLabel")}
+                value={draft.relation}
+                onChange={(next) => setDraft({ ...draft, relation: next as RelationKind })}
+                options={RELATIONS.map((kind) => ({
+                  value: kind,
+                  label: t(`taxonomy.relations.relation.${kind}`),
+                }))}
+                testId="relation-kind-select"
+              />
+              <NumberField
+                label={t("taxonomy.relations.confidenceLabel")}
+                value={draft.confidence}
+                onChange={(value) => setDraft({ ...draft, confidence: value })}
+                min={0}
+                max={1}
+                testId="relation-confidence-input"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void onAdd()}
+              disabled={draft.from.length === 0 || draft.to.length === 0}
+              data-testid="relation-add-submit"
+            >
+              {t("taxonomy.relations.add")}
+            </Button>
+          </div>
+          {rows.length === 0 ? (
+            <EmptyState
+              title={t("taxonomy.relations.editor.empty")}
+              description={t("taxonomy.relations.editor.emptyBody")}
+            />
+          ) : (
+            <div className="space-y-2">
+              {rows.map((row) => (
+                <RelationRowCard
+                  key={row.id}
+                  row={row}
+                  note={notes[row.id]}
+                  busy={busyId === row.id}
+                  onAccept={() =>
+                    void runAction(
+                      row,
+                      () => acceptSkillRelation(row.id),
+                      t("taxonomy.relations.accepted"),
+                    )
+                  }
+                  onDismiss={() =>
+                    void runAction(
+                      row,
+                      () => dismissSkillRelation(row.id),
+                      t("taxonomy.relations.dismissed"),
+                    )
+                  }
+                  onAlias={() => void aliasAction(row)}
+                  onRemove={() => void runAction(row, () => removeSkillRelation(row.id), "")}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : tab === "thresholds" ? (
+        thresholds === null ? (
+          <div className="flex justify-center py-16">
+            <Spinner size="lg" />
+          </div>
+        ) : (
+          <div
+            className="max-w-xl space-y-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+            data-testid="skill-relations-thresholds"
+          >
+            <NumberField
+              label={t("taxonomy.relations.thresholds.minSupport")}
+              value={thresholds.min_support}
+              min={1}
+              onChange={(value) =>
+                setThresholds({ ...thresholds, min_support: value ?? 1 })
+              }
+              testId="threshold-min_support"
+            />
+            <NumberField
+              label={t("taxonomy.relations.thresholds.batchSize")}
+              value={thresholds.batch_size}
+              min={1}
+              max={40}
+              onChange={(value) =>
+                setThresholds({ ...thresholds, batch_size: value ?? 1 })
+              }
+              testId="threshold-batch_size"
+            />
+            <NumberField
+              label={t("taxonomy.relations.thresholds.maxPairs")}
+              value={thresholds.max_pairs_per_run}
+              min={1}
+              onChange={(value) =>
+                setThresholds({ ...thresholds, max_pairs_per_run: value ?? 1 })
+              }
+              testId="threshold-max_pairs_per_run"
+            />
+            <NumberField
+              label={t("taxonomy.relations.thresholds.minNegative")}
+              value={thresholds.min_negative_confidence}
+              min={0}
+              max={1}
+              onChange={(value) =>
+                setThresholds({ ...thresholds, min_negative_confidence: value ?? 0 })
+              }
+              testId="threshold-min_negative_confidence"
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                onClick={() => void onThresholdsSave()}
+                data-testid="thresholds-save"
+              >
+                {t("taxonomy.relations.thresholds.save")}
+              </Button>
+              {thresholdNote && <p className="text-xs text-emerald-700">{thresholdNote}</p>}
+            </div>
+          </div>
+        )
+      ) : runs.length === 0 ? (
+        <EmptyState
+          title={t("taxonomy.relations.runs.empty")}
+          description={t("taxonomy.relations.runs.emptyBody")}
+        />
+      ) : (
+        <div className="space-y-2" data-testid="skill-relations-runs">
+          {runs.map((run) => (
+            <div
+              key={run.id}
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid={`run-row-${run.id}`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-[var(--as-muted-fg)]">
+                  {new Date(run.created_at).toLocaleString()}
+                </p>
+                <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[11px] text-[var(--as-muted-fg)]">
+                  {run.status}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] text-[var(--as-muted-fg)]">
+                {LEDGER_KEYS.map((key) => (
+                  <span
+                    key={key}
+                    className="rounded bg-[var(--as-muted)] px-1.5 py-0.5"
+                    data-testid={`run-ledger-${key}`}
+                  >
+                    {t(`taxonomy.relations.ledger.${key}`)}:{" "}
+                    {key === "watermark" ? (
+                      <span data-testid={`run-watermark-${run.id}`}>
+                        {run.ledger.watermark === null
+                          ? t("taxonomy.relations.runs.heldWatermark")
+                          : run.ledger.watermark}
+                      </span>
+                    ) : (
+                      String(run.ledger[key])
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

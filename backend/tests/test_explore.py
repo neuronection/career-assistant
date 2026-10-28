@@ -69,6 +69,34 @@ async def test_explore_skill_level_filters(
     assert str(search_fixtures[2].id) not in ids
 
 
+async def test_explore_saved_keeps_closed_posting(
+    client, auth_headers, profile_ready, seeded_catalog, db, source
+):
+    from app.models.posting_model import JobPosting
+    from app.services.postings.postings_service import expire_stale, sync_source
+
+    await sync_source(db, source)
+    posting = (await db.execute(select(JobPosting))).scalars().first()
+    await client.post(
+        "/api/v1/postings/save",
+        json={"posting_id": str(posting.id)},
+        headers=auth_headers,
+    )
+    posting.expires_at = datetime.now(UTC) - timedelta(days=1)
+    await db.commit()
+    await expire_stale(db)
+
+    open_only = await client.get("/api/v1/postings/explore", headers=auth_headers)
+    assert open_only.json()["total"] == 0
+    saved = await client.get(
+        "/api/v1/postings/explore", params={"saved": "true"}, headers=auth_headers
+    )
+    assert saved.status_code == 200, saved.text
+    body = saved.json()
+    assert body["total"] == 1
+    assert body["items"][0]["status"] == "expired"
+
+
 async def test_explore_released_windows_and_fresh_only(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):

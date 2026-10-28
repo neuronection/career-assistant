@@ -15,8 +15,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { Badge } from "@neuronection/assistant-ui";
-import { Button, Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from "@/components/ui";
+import { Badge, Button, Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from "@/components/ui";
 import { ComboboxField, SelectField } from "@/features/cv/components/cv/formPrimitives";
 import { apiDetail } from "@/api/client";
 import { fetchJobs } from "@/api/jobs";

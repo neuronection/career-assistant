@@ -222,7 +222,9 @@ async def apply_extract(db: AsyncSession, posting: JobPosting, extract) -> JobPo
 async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: list[dict]) -> None:
     """Fill `posting_skills.required_level`/`priority` for resolved skills
     (update fast-pass rows in place — never delete them); unresolved raw
-    labels become proposals (never dropped, never label-matched).
+    labels become proposals (never dropped, never label-matched). Active
+    rows resolve first and deprecated exact keys fall back for unmatched
+    keys — the matcher precedence `_taxonomy_index` shares.
     """
     from app.services.postings.postings_service import _norm
 
@@ -238,14 +240,20 @@ async def _apply_extract_skills(db: AsyncSession, posting: JobPosting, skills: l
     if key_map:
         rows = await db.execute(
             select(Skill).where(
-                Skill.status == "active",
                 Skill.key.in_(list(key_map.keys())),
             )
         )
+        deprecated: dict[UUID, dict] = {}
         for skill in rows.scalars().all():
             entry = key_map.get(_norm(skill.key))
-            if entry is not None:
+            if entry is None:
+                continue
+            if skill.status == "active":
                 resolved_ids[skill.id] = entry
+            elif skill.status == "deprecated":
+                deprecated[skill.id] = entry
+        for skill_id, entry in deprecated.items():
+            resolved_ids.setdefault(skill_id, entry)
 
     existing: dict[UUID, PostingSkill] = {}
     if resolved_ids:

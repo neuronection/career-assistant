@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, Iterator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -94,6 +94,7 @@ TABLES = [
     "learning_resources",
     "growth_plan_steps",
     "growth_plans",
+    "posting_filter_presets",
     "posting_interactions",
     "posting_skills",
     "posting_fits",
@@ -151,6 +152,7 @@ TABLES = [
     "jobs",
     "job_families",
     "interest_tags",
+    "skill_relations",
     "skills",
     "profiles",
     "documents",
@@ -259,25 +261,83 @@ async def _provision_vapid_keys() -> None:
         await webpush_service.get_or_create_vapid_keys()
 
 
+async def _provision_quality_denylist() -> None:
+    """Re-seed the migration's junk-label exclusions for the next test.
+
+    The denylist is DATA (admin-editable `organization_match_exclusions`
+    rows, seeded by revision 0070). SQLite's deletion isolation wipes them
+    with everything else, while the Postgres lanes keep them outside the
+    per-test rollback — without this the quality gate admits "Confidential"
+    on the desktop lane only. The list stays owned by the migration module
+    (loaded by path: revision modules are not importable by name), so the
+    seed and this provision can never drift apart.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    revision_path = (
+        Path(__file__).resolve().parent.parent
+        / "alembic"
+        / "versions"
+        / "0070_company_entity_resolution.py"
+    )
+    spec = importlib.util.spec_from_file_location("_plan135_revision", revision_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+
+    seen_keys: set[str] = set()
+    async with _autocommit_engine.connect() as conn:
+        for label in module._QUALITY_DENYLIST:  # type: ignore[attr-defined]
+            label_key = module._alias_key(label)  # type: ignore[attr-defined]
+            if label_key in seen_keys:
+                continue
+            seen_keys.add(label_key)
+            await conn.execute(
+                text(
+                    "INSERT INTO organization_match_exclusions "
+                    "(id, label, label_key, org_id, reason, source, created_by) "
+                    "VALUES (:id, :label, :lkey, NULL, 'quality', 'seed', 'system')"
+                ),
+                {"id": str(uuid4()), "label": label, "lkey": label_key},
+            )
+
+
 async def _truncate_all(conn) -> None:
     """Delete every table's rows, children first (``TABLES`` is FK-ordered).
 
     The fast path is one transaction; migration tests legitimately leave
     the schema mid-chain (tables absent), so a failure falls back to
     best-effort per-table deletes.
+
+    Self-referencing FKs need their links cleared first: ``skills.parent_id``
+    is RESTRICT and RESTRICT is checked immediately, so one DELETE cannot
+    remove a parent row while its child row still exists (a test that seeds
+    a skill hierarchy would otherwise leak its rows into the next test).
     """
     from sqlalchemy import text
     from sqlalchemy.exc import SQLAlchemyError
 
+    clearers = {
+        "skills": "UPDATE skills SET parent_id = NULL",
+    }
+
+    async def delete_table(table: str) -> None:
+        clearer = clearers.get(table)
+        if clearer is not None:
+            await conn.execute(text(clearer))
+        await conn.execute(text(f"DELETE FROM {table}"))
+
     try:
         for table in TABLES:
-            await conn.execute(text(f"DELETE FROM {table}"))
+            await delete_table(table)
         await conn.commit()
     except SQLAlchemyError:
         await conn.rollback()
         for table in TABLES:
             try:
-                await conn.execute(text(f"DELETE FROM {table}"))
+                await delete_table(table)
                 await conn.commit()
             except SQLAlchemyError:
                 await conn.rollback()
@@ -308,6 +368,7 @@ async def clean_db(clean_identity) -> AsyncGenerator:
     if IS_SQLITE:
         async with _engine.connect() as conn:
             await _truncate_all(conn)
+        await _provision_quality_denylist()
         await _provision_vapid_keys()
         # A short-transaction connection for the tests that bind their own
         # sessions to the fixture (desktop tray, browser-push channel).

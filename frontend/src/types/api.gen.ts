@@ -1190,30 +1190,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/postings/sources/{source_id}/reextract": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reextract Source Postings
-         * @description Re-run the deep extraction for every posting of one source (admin,
-         *     bulk) — AI cost is an explicit admin act. Only postings WITH a
-         *     description queue (extraction on list-card data wastes the call);
-         *     already-queued ones are skipped. Jobs process through the worker
-         *     sequentially, so the AI spend stays bounded and observable.
-         */
-        post: operations["reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/postings/sources/{source_id}/runs": {
         parameters: {
             query?: never;
@@ -1349,6 +1325,166 @@ export interface paths {
          * @description Make the schedule due on the next tick.
          */
         post: operations["admin_run_schedule_now_api_v1_admin_scheduler_schedules__schedule_id__run_now_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skill Relations
+         * @description The review queue / editor listing (one row per (pair, relation),
+         *     newest first and bounded).
+         */
+        get: operations["list_skill_relations_api_v1_admin_skill_relations_get"];
+        put?: never;
+        /**
+         * Add Skill Relation
+         * @description Manual edge add — approved on arrival when the pair is new.
+         *
+         *     An existing (pair, relation) row refreshes its confidence instead of
+         *     duplicating and keeps its own lifecycle (the seam's dedup-update —
+         *     accept it from the queue); relation kinds are re-pointed by removing
+         *     the row and re-adding it (manual edit).
+         */
+        post: operations["add_skill_relation_api_v1_admin_skill_relations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skill Relation Runs
+         * @description Recent discovery runs and their ledgers (watermark may be null).
+         */
+        get: operations["list_skill_relation_runs_api_v1_admin_skill_relations_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Skill Relation Thresholds
+         * @description Effective discovery thresholds (constant fallbacks included).
+         */
+        get: operations["get_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_get"];
+        /**
+         * Put Skill Relation Thresholds
+         * @description Admin overrides for the discovery job (clamped server-side).
+         */
+        put: operations["put_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Skill Relation
+         * @description Hard-delete an edge (admin cleanup; dismiss is the negative edge).
+         */
+        delete: operations["remove_skill_relation_api_v1_admin_skill_relations__relation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Skill Relation
+         * @description Accept a proposed edge (`approve()` — cycles are re-checked and
+         *     refused at click time, leaving the row proposed).
+         */
+        post: operations["accept_skill_relation_api_v1_admin_skill_relations__relation_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Skill Relation
+         * @description Dismiss a suggestion — `reject()`, i.e. the negative edge (this
+         *     pair + relation never comes back).
+         */
+        post: operations["dismiss_skill_relation_api_v1_admin_skill_relations__relation_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}/save-alias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Skill Relation As Alias
+         * @description The alias-add path (decision 6): a raw label is not an edge.
+         *
+         *     The proposed label row merges into the active skill — its key/label
+         *     become aliases the matcher resolves — and the edge row is dismissed so
+         *     the pair never returns as an edge suggestion.
+         */
+        post: operations["save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6240,6 +6376,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/me/posting-filters": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Filter Presets
+         * @description Saved filter presets for the active profile, newest first.
+         */
+        get: operations["list_filter_presets_api_v1_me_posting_filters_get"];
+        put?: never;
+        /**
+         * Create Filter Preset
+         * @description Save (or update by name) a named, tagged filter preset.
+         */
+        post: operations["create_filter_preset_api_v1_me_posting_filters_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/me/posting-filters/{preset_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Filter Preset */
+        delete: operations["delete_filter_preset_api_v1_me_posting_filters__preset_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/preferences/ai-setup": {
         parameters: {
             query?: never;
@@ -7482,6 +7659,29 @@ export interface paths {
         get: operations["postings_explore_api_v1_postings_explore_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/filter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Postings Filter
+         * @description The full filter spec search (plan 136): every axis, three-valued
+         *     include/exclude/don't-care, open numeric bounds. `company` /
+         *     `no_company` are the plan-135 feed filters and compose with the spec
+         *     (same semantics as the live feed).
+         */
+        post: operations["postings_filter_api_v1_postings_filter_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -13394,8 +13594,19 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
+            /** Contract Type */
+            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Education Level */
+            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13407,6 +13618,10 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13434,8 +13649,11 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
-            /** Org Key */
-            org_key?: string | null;
+            /**
+             * Org Key
+             * @default
+             */
+            org_key: string;
             /** Org Match State */
             org_match_state?: string | null;
             /** Posted At */
@@ -13473,6 +13691,8 @@ export interface components {
             seniority?: string | null;
             /** Similar */
             similar?: components["schemas"]["PostingSimilarOut"][];
+            /** Skills */
+            skills?: components["schemas"]["PostingSkillRefOut"][];
             /**
              * Source Connector
              * @default
@@ -13501,8 +13721,41 @@ export interface components {
             status: string;
             /** Title */
             title: string;
+            /** Travel Class */
+            travel_class?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Hours */
+            work_hours?: string | null;
+        };
+        /**
+         * PostingExtractBenefitOut
+         * @description Typed benefit: `kind` powers display grouping, `raw` keeps the
+         *     original wording. Stored plain strings (legacy extract rows) coerce
+         *     to `kind="other"` at read — the extractor's `ExtractBenefit.coerce`
+         *     precedent.
+         */
+        PostingExtractBenefitOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Kind */
+            kind: string;
+            /** Raw */
+            raw: string;
+        };
+        /** PostingExtractContractOut */
+        PostingExtractContractOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Contract Type */
+            contract_type: string;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
         };
         /** PostingExtractEducationOut */
         PostingExtractEducationOut: {
@@ -13511,6 +13764,22 @@ export interface components {
             /** Level */
             level?: string | null;
         };
+        /** PostingExtractHoursOut */
+        PostingExtractHoursOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
+            /** Pattern */
+            pattern: string;
+        };
         /** PostingExtractLocationOut */
         PostingExtractLocationOut: {
             /** City */
@@ -13518,14 +13787,37 @@ export interface components {
             /** Country */
             country?: string | null;
         };
+        /** PostingExtractOnsiteOut */
+        PostingExtractOnsiteOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Office Days Per Week */
+            office_days_per_week?: number | null;
+            /** Policy */
+            policy: string;
+        };
         /**
          * PostingExtractOut
          * @description The posting's structured extraction payload (pipeline-written
          *     JSONB, envelope-typed since plan 123.4).
+         *
+         *     Read coercion is part of the contract: ``apply_extract`` suppresses
+         *     low-confidence fields to ``null`` (``_suppressed_fields`` names
+         *     them) and legacy rows stored plain-string benefits, so lists
+         *     normalize to ``[]`` and benefit strings to ``kind="other"`` instead
+         *     of failing whole postings on read.
          */
         PostingExtractOut: {
             /** Benefits */
-            benefits?: string[];
+            benefits?: components["schemas"]["PostingExtractBenefitOut"][];
+            contract_type?: components["schemas"]["PostingExtractContractOut"] | null;
+            /** Description Clean */
+            description_clean?: string | null;
             education?: components["schemas"]["PostingExtractEducationOut"] | null;
             /** Employment Type */
             employment_type?: string | null;
@@ -13536,6 +13828,7 @@ export interface components {
             /** Languages */
             languages?: string[];
             location?: components["schemas"]["PostingExtractLocationOut"] | null;
+            onsite_policy?: components["schemas"]["PostingExtractOnsiteOut"] | null;
             /** Prerequisites */
             prerequisites?: components["schemas"]["PostingExtractPrerequisiteOut"][];
             /** Remote Policy */
@@ -13543,12 +13836,18 @@ export interface components {
             /** Responsibilities */
             responsibilities?: components["schemas"]["PostingExtractResponsibilityOut"][];
             salary?: components["schemas"]["PostingExtractSalaryOut"] | null;
+            /** Schedule Cues */
+            schedule_cues?: components["schemas"]["PostingExtractScheduleCueOut"][];
             /** Seniority */
             seniority?: string | null;
             /** Skills */
             skills?: components["schemas"]["PostingExtractSkillOut"][];
             /** Title Norm */
             title_norm?: string | null;
+            travel_required?: components["schemas"]["PostingExtractTravelOut"] | null;
+            /** Values Cues */
+            values_cues?: string[];
+            work_hours?: components["schemas"]["PostingExtractHoursOut"] | null;
         } & {
             [key: string]: unknown;
         };
@@ -13591,6 +13890,18 @@ export interface components {
             /** Period */
             period?: string | null;
         };
+        /** PostingExtractScheduleCueOut */
+        PostingExtractScheduleCueOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Cue */
+            cue: string;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+        };
         /** PostingExtractSkillOut */
         PostingExtractSkillOut: {
             /** Confidence */
@@ -13607,6 +13918,20 @@ export interface components {
             skill_key?: string | null;
             /** Unresolved */
             unresolved?: boolean | null;
+        };
+        /** PostingExtractTravelOut */
+        PostingExtractTravelOut: {
+            /** Confidence */
+            confidence?: number | null;
+            /** Days Per Month */
+            days_per_month?: number | null;
+            /**
+             * Evidence Quote
+             * @default
+             */
+            evidence_quote: string;
+            /** Level */
+            level: string;
         };
         /** PostingLocationOut */
         PostingLocationOut: {
@@ -13655,8 +13980,14 @@ export interface components {
             catalog_job?: components["schemas"]["JobOut"] | null;
             /** Catalog Job Id */
             catalog_job_id?: string | null;
+            /** Contract Type */
+            contract_type?: string | null;
             /** Coverage */
             coverage?: number | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Education Level */
+            education_level?: string | null;
             /** Employment Type */
             employment_type?: string | null;
             /** Expires At */
@@ -13667,6 +13998,10 @@ export interface components {
             extract_version?: number | null;
             /** Fit */
             fit?: number | null;
+            /** Hours Per Week Max */
+            hours_per_week_max?: number | null;
+            /** Hours Per Week Min */
+            hours_per_week_min?: number | null;
             /**
              * Id
              * Format: uuid
@@ -13693,8 +14028,11 @@ export interface components {
             onsite_policy?: string | null;
             /** Org */
             org: string;
-            /** Org Key */
-            org_key?: string | null;
+            /**
+             * Org Key
+             * @default
+             */
+            org_key: string;
             /** Org Match State */
             org_match_state?: string | null;
             /** Posted At */
@@ -13730,6 +14068,8 @@ export interface components {
             seen: boolean;
             /** Seniority */
             seniority?: string | null;
+            /** Skills */
+            skills?: components["schemas"]["PostingSkillRefOut"][];
             /**
              * Source Id
              * Format: uuid
@@ -13746,8 +14086,14 @@ export interface components {
             status: string;
             /** Title */
             title: string;
+            /** Travel Class */
+            travel_class?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
             /** Url */
             url: string;
+            /** Work Hours */
+            work_hours?: string | null;
         };
         /**
          * PostingSearchOut
@@ -13771,6 +14117,21 @@ export interface components {
             score: number;
             /** Title */
             title: string;
+        };
+        /**
+         * PostingSkillRefOut
+         * @description One required skill as cards render it (plan 140): the posting's
+         *     skill edge resolved to the taxonomy label, ordered by requirement.
+         */
+        PostingSkillRefOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Priority */
+            priority?: string | null;
+            /** Required Level */
+            required_level?: number | null;
         };
         /** PostingsOut */
         PostingsOut: {
@@ -15093,9 +15454,236 @@ export interface components {
             origin: string;
             /** Parent Id */
             parent_id?: string | null;
+            /** Parent Source */
+            parent_source?: ("curated" | "learned") | null;
             /** Status */
             status: string;
         };
+        /**
+         * SkillRelationCreateIn
+         * @description Manual edge add; endpoints accept a skill key or id.
+         *
+         *     Manual adds land approved — unless the pair already carries a row,
+         *     whose lifecycle then stands (accept it from the queue).
+         */
+        SkillRelationCreateIn: {
+            /** Confidence */
+            confidence?: number | null;
+            /** From Skill */
+            from_skill: string;
+            relation: components["schemas"]["SkillRelationType"];
+            /** To Skill */
+            to_skill: string;
+        };
+        /**
+         * SkillRelationOut
+         * @description One (pair, relation) row — the seam's grain, provenance included.
+         */
+        SkillRelationOut: {
+            /**
+             * Alias Candidate
+             * @default false
+             */
+            alias_candidate: boolean;
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
+            from_skill: components["schemas"]["SkillRelationSkillOut"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            relation: components["schemas"]["SkillRelationType"];
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            to_skill: components["schemas"]["SkillRelationSkillOut"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SkillRelationRunLedgerOut
+         * @description The run ledger keys the stats view renders (missing counters = 0).
+         */
+        SkillRelationRunLedgerOut: {
+            /**
+             * Backfilled
+             * @default 0
+             */
+            backfilled: number;
+            /**
+             * Batches
+             * @default 0
+             */
+            batches: number;
+            /**
+             * Below Bar
+             * @default 0
+             */
+            below_bar: number;
+            /**
+             * Candidates
+             * @default 0
+             */
+            candidates: number;
+            /**
+             * Capped
+             * @default false
+             */
+            capped: boolean;
+            /**
+             * Derived
+             * @default 0
+             */
+            derived: number;
+            /**
+             * Dropped
+             * @default 0
+             */
+            dropped: number;
+            /**
+             * Edges Proposed
+             * @default 0
+             */
+            edges_proposed: number;
+            /**
+             * Failed Batches
+             * @default 0
+             */
+            failed_batches: number;
+            /**
+             * Judged Batches
+             * @default 0
+             */
+            judged_batches: number;
+            /**
+             * Materialized
+             * @default 0
+             */
+            materialized: number;
+            /**
+             * Negatives
+             * @default 0
+             */
+            negatives: number;
+            /**
+             * Uncovered
+             * @default 0
+             */
+            uncovered: number;
+            /** Watermark */
+            watermark?: string | null;
+        };
+        /**
+         * SkillRelationRunOut
+         * @description One discovery run and its ledger.
+         */
+        SkillRelationRunOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            ledger: components["schemas"]["SkillRelationRunLedgerOut"];
+            /** Status */
+            status: string;
+        };
+        /**
+         * SkillRelationSaveAliasOut
+         * @description The saved outcome: the edge row is dismissed (negative edge) and
+         *     the label now resolves through the surviving skill's aliases.
+         */
+        SkillRelationSaveAliasOut: {
+            /** Aliases */
+            aliases: string[];
+            relation: components["schemas"]["SkillRelationOut"];
+            target: components["schemas"]["SkillRelationSkillOut"];
+        };
+        /**
+         * SkillRelationSkillOut
+         * @description One pair endpoint with the facts the review queue shows.
+         */
+        SkillRelationSkillOut: {
+            /** Evidence Quote */
+            evidence_quote?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * SkillRelationThresholdsIn
+         * @description Admin overrides for `skill_relation_learn.thresholds` (clamped).
+         */
+        SkillRelationThresholdsIn: {
+            /** Batch Size */
+            batch_size: number;
+            /** Max Pairs Per Run */
+            max_pairs_per_run: number;
+            /** Min Negative Confidence */
+            min_negative_confidence: number;
+            /** Min Support */
+            min_support: number;
+        };
+        /**
+         * SkillRelationThresholdsOut
+         * @description Effective discovery thresholds (constant fallbacks included).
+         */
+        SkillRelationThresholdsOut: {
+            /** Batch Size */
+            batch_size: number;
+            /** Max Pairs Per Run */
+            max_pairs_per_run: number;
+            /** Min Negative Confidence */
+            min_negative_confidence: number;
+            /** Min Support */
+            min_support: number;
+        };
+        /**
+         * SkillRelationType
+         * @description Edge vocabulary for the skill relation graph (plan 138).
+         *
+         *     ``DIRECTED`` kinds keep their direction (specific→general,
+         *     component→whole); every other kind is symmetric and stored with
+         *     canonically ordered endpoints (``from_skill_id`` = the lower UUID) so
+         *     one unordered pair can never carry two rows. The schema CHECK and the
+         *     write seam both read this classification — never re-declare it.
+         * @enum {string}
+         */
+        SkillRelationType: "is_a" | "synonym" | "part_of" | "related_to";
         /**
          * SkillUpdateIn
          * @description Admin edits for a skill; keys stay immutable, lifecycle via status.
@@ -18105,39 +18693,6 @@ export interface operations {
             };
         };
     };
-    reextract_source_postings_api_v1_admin_postings_sources__source_id__reextract_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                source_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_source_runs_api_v1_admin_postings_sources__source_id__runs_get: {
         parameters: {
             query?: {
@@ -18353,6 +18908,278 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScheduleRunNowOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skill_relations_api_v1_admin_skill_relations_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                skill_id?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_skill_relation_api_v1_admin_skill_relations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillRelationCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skill_relation_runs_api_v1_admin_skill_relations_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationThresholdsOut"];
+                };
+            };
+        };
+    };
+    put_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillRelationThresholdsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationThresholdsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_skill_relation_api_v1_admin_skill_relations__relation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_skill_relation_api_v1_admin_skill_relations__relation_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_skill_relation_api_v1_admin_skill_relations__relation_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationSaveAliasOut"];
                 };
             };
             /** @description Validation Error */
@@ -27030,6 +27857,94 @@ export interface operations {
             };
         };
     };
+    list_filter_presets_api_v1_me_posting_filters_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    create_filter_preset_api_v1_me_posting_filters_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_filter_preset_api_v1_me_posting_filters__preset_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preset_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     put_ai_setup_pref_api_v1_me_preferences_ai_setup_put: {
         parameters: {
             query?: never;
@@ -29142,6 +30057,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ExploreOut"];
+                };
+            };
+        };
+    };
+    postings_filter_api_v1_postings_filter_post: {
+        parameters: {
+            query?: {
+                company?: string | null;
+                no_company?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

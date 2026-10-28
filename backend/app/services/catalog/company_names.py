@@ -4,7 +4,7 @@ organization matcher is built on.
 Split of duties: structural quality rules live here in code (a label with
 no letters is never a company — linguistic knowledge, not per-install
 policy); the generic *label* denylist ("confidential", "staffing", …)
-seeds as global `organization_match_exclusions` rows (migration 0065) so
+seeds as global `organization_match_exclusions` rows (migration 0070) so
 the rules surface edits it without a deploy.
 """
 

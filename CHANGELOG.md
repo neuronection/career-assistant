@@ -4,6 +4,251 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (item cards — uniform card system, 2026-10-28)
+- **Postings, catalog jobs, rankings and companies share one card grammar.**
+  A posting card now reads as title → company (initials tile + link) →
+  location/date → labeled spec slots (mode, level, contract, hours, salary,
+  education, "closes in n d") → skills → a quiet footer (seen, source, ref,
+  provenance, applied). Fit is the same score bubble the rest of the app
+  uses, never a bare number.
+- **Fewer, more meaningful chips.** Attribute facts (remote, seniority,
+  contract) are labeled slots, not pills; must-have/bonus is no longer
+  printed on skill chips. Skills show their requirement as a cold/warm/hot
+  bullet plus the level, ordered must-have first; a two-row card ends its
+  second row with a `+N` chip that expands the rest.
+- **Closed postings are visible and honest.** A posting past `expires_at`
+  renders desaturated with a "Closed" mark and a disabled Apply; both saved
+  views (Live and Explore) keep postings that closed after you saved them
+  instead of dropping them. "Needs review" is now the info dot it always
+  meant (extraction confidence), and a seen posting gets one quiet check
+  instead of a dimmed card.
+- **Deep-extracted postings can show their skills on the card** — the
+  posting payload carries the requirement-ordered skill list (bounded at
+  40).
+
+### Changed (capability showcase — family contract v1.3/v1.4, 2026-10-28)
+- **The capability showcase is text-first now.** `docs/capabilities.json`
+  moves to the family contract's v1.4 shape: the family comparison matrix,
+  the preview-widget hints and per-capability screenshot references are
+  gone — product captures appear once, in the visual tour. The
+  taxonomy-relations proof about approving a relation is reworded to the
+  tree-placement truth: a parent set — or cleared — by hand never moves.
+
+### Fixed (skill taxonomy — tree-placement provenance, 2026-10-28)
+- **Undoing a backfilled tree placement finally sticks.** Every skill
+  placement now carries provenance: `curated` (a human set it — or
+  deliberately cleared it), `learned` (the background catch-up filled it
+  from an approved `is a` edge). A deliberate clear (`parent_id: null`
+  through the skill-edit API) is never re-filled by later catch-up
+  passes, and removing or dismissing the edge that justified a `learned`
+  placement clears it. Placements from before this change keep their
+  previous behavior — a parent cleared before the upgrade is
+  indistinguishable from an untouched slot and will be re-filled once;
+  clear it again and it sticks. The skill admin API exposes the new
+  `parent_source` field.
+
+### Changed (posting detail page, 2026-10-28)
+- **The modal-era posting popup is gone** — every posting opens as the
+  full `/postings/:ref` page (the whole card is the click target), and
+  chat reference chips deep-link straight to it instead of the retired
+  `?posting=` popup URL. Board markup in a description renders as
+  readable plain text — never as third-party HTML.
+
+### Fixed (skill taxonomy graph — slice-C review fixes, 2026-10-28)
+- **Postings tagged to a deprecated skill survive re-mapping.** A skill
+  deprecated without a merge no longer loses its posting tags on every
+  re-map: deprecated rows stay in the matcher as fallbacks (their exact
+  key/label fill only tokens no active skill claims), matching the way
+  skill resolution already answered. A merged-away label row still never
+  shadows the surviving skill whose alias carries the label, and the deep
+  extract pass re-tags the same way.
+- **The tree catch-up only fills truly empty, truly live places.** A
+  candidate parent that is itself deprecated is skipped (the next
+  candidate wins), and a parent filled by a concurrent edit is never
+  overwritten by a stale catch-up pass.
+- **The save-as-alias refusal now names the working path.** Asking to
+  save an approved edge as an alias points at dismissing it first —
+  deleting the edge would destroy the row handle the save needs.
+- **A skill edit can undo a tree placement.** An update that sends
+  `parent_id: null` explicitly clears the parent back to the root (the
+  documented undo), while an update that omits the field leaves the
+  parent alone. Re-parenting also refuses cycles through approved
+  "is a" edges — the same walk the relation seam guards with.
+
+### Added (skill taxonomy graph — review queue, 2026-10-28)
+- **Skill-relation suggestions can be reviewed and curated** — an admin
+  surface lists every proposed, approved and dismissed relation with its
+  pair, evidence and provenance. Accept approves the edge (and catches the
+  sub-skill tree up), dismiss writes the negative edge so the suggestion
+  never returns, and manual relations can be added, re-scored and removed
+  per skill — including several relations between the same pair. Label
+  rows that are really aliases ("js" for JavaScript) can be saved as
+  aliases instead of edges. Discovery knobs (support floor, batch size,
+  per-run cap, negative-confidence bar) and the run statistics are
+  editable/visible there too. A saved alias resolves immediately — merged
+  label rows stop shadowing the surviving skill in matching. The surface
+  lives in Settings → Taxonomy → Relations. Review fixes: the relation
+  listing is bounded, and merged-away label rows no longer join the
+  sub-skill tree.
+
+### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
+- **The skill tree catches up with reviewed relations** — approving an
+  "is a" relation (or adding one by hand) now also fills the skill's empty
+  place in the sub-skill tree, so the taxonomy keeps reflecting the
+  reviewed hierarchy without a second edit. Only empty parents are filled
+  (an existing curated parent is never overwritten) and cycles are
+  refused. Practical effect on filters: a chain like java → JVM languages
+  → programming that needed the 2-hop setting before is reached at the
+  default 1 hop once the tree knows it — expansion widens as the tree
+  fills, deliberately.
+
+### Added (skill taxonomy graph — relation discovery, 2026-10-27)
+- **Internal groundwork: automatic skill-relation discovery** — a daily
+  background job proposes typed edges between skills from evidence in your
+  own data (skills that co-occur on postings/jobs, extraction labels that
+  look like synonyms of catalog skills, curated parent links). A configured
+  AI provider judges the candidates in batches and the proposals wait for
+  review; without one, only the string-matched label suggestions derive
+  deterministically — co-occurrence pairs wait for the first configured
+  provider instead of being pinned by the fallback. Once
+  pinned — a dismissal or a confident `none` judgement — a suggestion
+  comes back never. Nothing user-visible yet —
+  the review queue UI lands next.
+
+### Added (skill filter expansion, 2026-10-27)
+- **Skill filters can include related skills now** — the Skills section of
+  the postings filter rail gains a match switch: **Exact** (only the skills
+  you picked), **Sub-skills** (default — the curated sub-skill tree,
+  synonyms and is-a children) and **Related** (also part-of / related-to
+  links), with a 1 or 2 hop limit for learned relations. Picking
+  "programming" now matches postings tagged java or python; the summary
+  chips show the active mode. A "min level" without a selected skill is
+  refused instead of silently doing nothing. Saved presets and shared
+  filter URLs written before this change keep working — applying one fills
+  in the new defaults.
+
+### Added (skill taxonomy graph — expansion engine, 2026-10-27)
+- **Internal groundwork: the skill graph expansion engine and its single
+  write seam** — a pure, dialect-safe walk over the new edge table (curated
+  `parent_id` subtree + synonym identity + hop-capped is-a children, with an
+  opt-in related mode that also follows part-of/related-to), plus the one
+  service every write goes through: canonical endpoint ordering for
+  symmetric kinds, vocabulary + endpoint-matrix guards, cycle rejection on
+  is-a/part-of (tree-aware), propose/approve/reject transitions with
+  reviewer stamping, and rejected rows as permanent negative edges. No
+  user-visible behavior yet; the filter knob that consumes the walk lands
+  next.
+
+### Added (skill taxonomy graph — schema, 2026-10-27)
+- **Internal groundwork: the skill relation graph schema** — a new
+  `skill_relations` table of typed edges between skills (is-a, synonym,
+  part-of, related-to) with review status, provenance and a reserved
+  system schedule slot for the relation-learning job. No user-visible
+  behavior yet; filter expansion and the review UI land in the next
+  slices.
+
+### Fixed (skills filter axis, 2026-10-27)
+- **Skill filters in the postings filter actually filter now** — the
+  skills axis referenced a nonexistent column and raised a 500 whenever
+  a skill chip was active. It now resolves the selected skill keys
+  through the skills catalog onto the posting-skill links; include,
+  exclude and min-level all work end-to-end. Presets saved with skill
+  chips (previously dead) start applying — intended.
+
+### Fixed (skill picker empty catalog, 2026-10-27)
+- **The skill picker showed "No skills found" despite a populated
+  taxonomy** — the picker filtered on `status === "active"` but
+  `GET /skills` serves active rows and omits `status` entirely, so
+  every skill was dropped. The filter is now tolerant of a missing
+  status (the endpoint already guarantees active-only), the
+  `SkillSummary.status` type is optional, and the test mock now mirrors
+  the real endpoint shape so this mismatch class gets caught.
+
+
+### Changed (filter rail is the only filter UI, 2026-10-27)
+- **The old "filter by skill" bar is gone from the feed** — the filter
+  rail's Skills section (with the two-path picker) is now the only
+  filter surface. The redundant skill dropdown, level select, add
+  button, match-mode/priority selects and skill chips are removed.
+
+
+### Changed (skill picker rides the shared library, 2026-10-27)
+- **The two-path skill picker is promoted into `@neuronection/assistant-ui`**
+  as the generic `MultiSelectPicker` (with health-assistant's
+  CatalogItemPicker as the second adopter of the pattern). The app's
+  `SkillPicker` is now a thin mapping wrapper (ontology fetch stays
+  app-side). Same behavior; the inline type-ahead gains full combobox
+  keyboard navigation (Arrow/Home/End/Enter/Escape) and accessible
+  listbox semantics.
+
+### Changed (clean role descriptions, 2026-10-27)
+- **"About this role" shows a clean, role-only description** — the
+  deep-extraction pass now also writes `description_clean`: the role
+  content with all job-board chrome removed (premium upsells, applicant
+  counts, recruiter blocks, company marketing, job alerts), preserving
+  the text language and structure. The raw scraped text stays for audit
+  behind a "Show original" toggle. No extra AI cost — it rides the
+  existing extraction call.
+
+
+### Changed (seniority range + skill picker, 2026-10-27)
+- **Seniority is now an ordered range** — pick a "from" level (and up)
+  and/or a "to" level (and down), plus per-level exclude chips. The
+  query builder maps the ordered scale (intern → junior → mid → senior
+  → lead → principal) to an inclusive range.
+- **The skill filter gets a two-path picker** (the health-assistant
+  CatalogItemPicker pattern): a debounced type-ahead dropdown for quick
+  picks, plus a Browse button that opens the full skill catalog modal
+  with search, category filter, per-row Add/Added toggles, and
+  load-more pagination. Selected skills render as removable chips.
+
+
+### Added (postings filter system — frontend, 2026-10-27)
+- **The filter rail on the feed** — a collapsible rail with one section
+  per axis (Skills, Salary, Location, Companies, Seniority, Employment,
+  Work mode, Posted within, Match score, Saved, Description). Every
+  axis uses three-valued include/exclude/don't-care semantics with
+  chips; numeric bounds are open. Sections expand automatically when
+  they hold active filters.
+- **Active-filter summary chips** above the feed — one chip per active
+  filter with a one-click × to remove it.
+- **Saved presets** — save the current filter set as a named, tagged
+  preset (chips for tags), apply/delete presets inline. Presets are
+  profile-scoped.
+- **Auto-apply** — every filter change triggers a debounced search
+  (250ms); no Apply button. "Clear all" is the only explicit action.
+- **URL state** — the active filter spec serializes to the URL query
+  (`?f=…`); a filtered view is shareable and bookmarkable.
+
+
+### Added (postings filter system — backend, 2026-10-27)
+- **The full filter spec search** — `POST /postings/filter` accepts
+  every axis with three-valued include/exclude/don't-care semantics and
+  open numeric bounds: skills (+min level), salary (min/max/currency),
+  location (include/exclude/remote-only), companies (by name AND
+  industry), seniority, employment type, work mode, languages,
+  education, posted-within, match score, source, saved, and free-text
+  description search. Empty spec = the unfiltered feed.
+- **Saved filter presets** — `GET/POST/DELETE /me/posting-filters`:
+  named, tagged, profile-scoped. Upsert by name. The spec is versioned
+  JSONB (migration `0066`).
+
+
+### Changed (skills display + generic re-extraction, 2026-10-27)
+- **The Skills section on the posting page is rebuilt** — skills are
+  deduplicated (one chip per skill; the strongest demanded level and the
+  strictest priority win, with a "×N" mention count), grouped by
+  importance (**Must have → Nice to have → Bonus**, each with its count),
+  and sorted by level within groups. Unmapped skills lose their
+  "(unmapped)" noise — they render with a dashed border and a tooltip
+  instead. A **Compact / Detailed** toggle switches between the grouped
+  chips and the full per-skill view with evidence quotes.
+- **Re-extraction is generic, not source-scoped** — the source-page
+  button is gone; re-running AI extraction lives where the postings are:
+  per post (the detail page button) and multi-select in the feed
+  (Actions → Re-run AI extraction).
+
+
 ### Added (company entity resolution, 2026-10-27)
 - **Companies now resolve to one canonical employer** — postings ingest
   through a layered matcher (quality gate for junk labels like

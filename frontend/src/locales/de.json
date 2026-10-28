@@ -538,12 +538,17 @@
     "levelAtLeast": "Stufe ≥",
     "matchProfile": "mit meinem Profil übereinstimmen",
     "removeFilter": "{{name}} entfernen",
-    "postings.select": "Auswählen",
-    "postings.selectedCount": "{{count}} ausgewählt",
-    "postings.actions": "Aktionen",
-    "postings.reextract": "KI-Extraktion erneut ausführen",
-    "postings.reextractDone": "KI-Neuextraktion für {{count}} Stellen eingereiht",
-    "postings.clearSelection": "Auswahl aufheben",
+    "select": "Auswählen",
+    "selectedCount": "{{count}} ausgewählt",
+    "actions": "Aktionen",
+    "reextract": "KI-Extraktion erneut ausführen",
+    "reextractDone": "KI-Neuextraktion für {{count}} Stellen eingereiht",
+    "clearSelection": "Auswahl aufheben",
+    "filtersTitle": "Filter",
+    "filtersShow": "Anzeigen",
+    "filtersHide": "Ausblenden",
+    "filtersRemoveChip": "Diesen Filter entfernen",
+    "filtersActive": "{{count}} aktiv",
     "companyFilter": "Unternehmensfilter",
     "allCompanies": "Alle Unternehmen",
     "noCompanyRejected": "Ohne Unternehmen (abgelehnt)",
@@ -605,6 +610,7 @@
     "hide": "Ausblenden",
     "loading": "Laden…",
     "noFilterMatches": "Keine Ergebnisse zu diesen Filtern.",
+    "remove": "Entfernen",
     "reset": "Zurücksetzen",
     "save": "Speichern",
     "saving": "Speichern…",
@@ -1100,7 +1106,8 @@
       "interests": "Interessen",
       "skills": "Fähigkeiten",
       "paths": "Pfade",
-      "enrichment": "Ergänzung"
+      "enrichment": "Ergänzung",
+      "relations": "Relationen"
     },
     "newTag": "Neuer Tag",
     "keyPlaceholder": "Schlüssel (stabiler Slug, z.B. renewable-energy)",
@@ -1135,7 +1142,86 @@
     "enrichmentReject": "Ablehnen",
     "noEnrichment": "Keine Vorschläge zur Erweiterung",
     "noEnrichmentBody": "Vorschläge zur Erweiterung von Stellenangeboten, die von KI generiert wurden, werden hier zur Überprüfung angezeigt.",
-    "tabsAria": "Taxonomie-Bereiche"
+    "tabsAria": "Taxonomie-Bereiche",
+    "relations": {
+      "intro": "Typisierte Verbindungen zwischen Skills. Prüfe, was der Entdeckungs-Job vorschlägt, und kuratiere den Rest — eine Verwerfung kommt nie zurück.",
+      "tabsAria": "Bereiche der Skill-Relationen",
+      "tab": {
+        "queue": "Prüfwarteschlange",
+        "editor": "Alle Relationen",
+        "thresholds": "Schwellenwerte",
+        "runs": "Läufe"
+      },
+      "relation": {
+        "is_a": "ist ein",
+        "synonym": "ist ein Synonym von",
+        "part_of": "ist Teil von",
+        "related_to": "steht in Verbindung mit"
+      },
+      "source": {
+        "manual": "manuell",
+        "llm": "KI-Vorschlag",
+        "import": "importiert",
+        "derived": "abgeleitet"
+      },
+      "status": {
+        "proposed": "vorgeschlagen",
+        "approved": "bestätigt",
+        "rejected": "verworfen"
+      },
+      "evidence": "Belege",
+      "aliasHint": "Das sieht nach einem Roh-Label für den anderen Skill aus — speichere es als Alias statt als Kante.",
+      "accept": "Annehmen",
+      "dismiss": "Verwerfen",
+      "saveAlias": "Als Alias speichern",
+      "remove": "Entfernen",
+      "accepted": "Angenommen — der Unter-Skill-Baum ist auf dem Stand.",
+      "dismissed": "Verworfen — dieses Paar kommt nie zurück.",
+      "aliasSaved": "Als Alias von {{target}} gespeichert.",
+      "queue": {
+        "empty": "Nichts zu prüfen",
+        "emptyBody": "Vorgeschlagene Relationen aus dem Entdeckungs-Job erscheinen hier."
+      },
+      "editor": {
+        "empty": "Noch keine Relationen",
+        "emptyBody": "Füge oben eine typisierte Relation zwischen zwei Skills hinzu."
+      },
+      "addHeading": "Relation hinzufügen",
+      "fromLabel": "Skill",
+      "toLabel": "Zugehöriger Skill",
+      "relationLabel": "Relation",
+      "confidenceLabel": "Konfidenz (0–1, optional)",
+      "add": "Relation hinzufügen",
+      "thresholds": {
+        "minSupport": "Minimale Co-Occurrence-Häufigkeit",
+        "batchSize": "Paare pro KI-Aufruf (max. 40)",
+        "maxPairs": "Paare pro Lauf",
+        "minNegative": "Konfidenzgrenze für negative Urteile",
+        "save": "Schwellenwerte speichern",
+        "saved": "Gespeichert."
+      },
+      "runs": {
+        "empty": "Noch keine Entdeckungsläufe",
+        "emptyBody": "Läufe des täglichen Skill-Relation-Jobs erscheinen hier mit ihren Kennzahlen.",
+        "heldWatermark": "angehalten (noch nicht fortgeschritten)"
+      },
+      "ledger": {
+        "candidates": "Kandidaten",
+        "batches": "Stapel",
+        "judged_batches": "beurteilt",
+        "failed_batches": "fehlgeschlagen",
+        "uncovered": "unbeantwortet",
+        "derived": "abgeleitet",
+        "edges_proposed": "Kanten vorgeschlagen",
+        "negatives": "Negative",
+        "dropped": "verworfen",
+        "below_bar": "unter Grenze",
+        "materialized": "Baum gespiegelt",
+        "backfilled": "Baum gefüllt",
+        "capped": "begrenzt",
+        "watermark": "Wasserzeichen"
+      }
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
@@ -2930,8 +3016,6 @@
       "fast-mapped": "schnell abgebildet",
       "raw": "roh"
     },
-    "fit": "passt {{score}}",
-    "coverage": "Abdeckung {{score}}",
     "posted": "veröffentlicht {{date}}",
     "applied": "beantragt ✓",
     "apply": "Anwenden",
@@ -2942,12 +3026,15 @@
       "gross": "brutto",
       "net": "netto"
     },
-    "perYear": "≈ {{range}} {{currency}}/Jahr"
+    "period": {
+      "year": "Jahr",
+      "month": "Monat",
+      "week": "Woche",
+      "day": "Tag"
+    }
   },
   "postingDetail": {
-    "levelAria": "Level {{level}}",
     "unknown": "unbekannt",
-    "unmapped": "{{label}} (nicht verknüpft)",
     "priority": {
       "must_have": "muss haben",
       "nice_to_have": "ist wünschenswert",
@@ -3035,7 +3122,14 @@
       "meals": "Verpflegung",
       "transport": "Transport",
       "other": "Sonstiges"
-    }
+    },
+    "skillsCompact": "Kompakt",
+    "skillsDetailed": "Im Detail",
+    "skillsCount": "{{count}} Skills",
+    "unmappedTooltip": "Noch nicht in deiner Skill-Taxonomie",
+    "mentions": "{{count}}× gefordert",
+    "showOriginal": "Original anzeigen",
+    "hideOriginal": "Original ausblenden"
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",
@@ -4155,10 +4249,104 @@
     "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
     "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
     "presetLabel": "Starten mit",
-    "advancedLabel": "Erweitert (Traffic-Sicherheit)",
-    "reextractBtn": "KI-Extraktion erneut ausführen",
-    "reextractHint": "Die strukturierten Felder (Skills, Gehalt, Anforderungen) werden mit KI aus den gespeicherten Beschreibungen neu aufgebaut.",
-    "reextractQueued": "KI-Neuextraktion für {{count}} Stellen eingereiht"
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
+  },
+  "filters": {
+    "title": "Filter",
+    "activeCount": "{{count}} aktiv",
+    "clearAll": "Alle zurücksetzen",
+    "skills": "Skills",
+    "skillsPlaceholder": "Skill hinzufügen…",
+    "minLevel": "Min. Level",
+    "skillsExpand": "Übereinstimmung",
+    "skillsExpandAria": "Modus der Skill-Übereinstimmung",
+    "skillsExpandExact": "Exakt",
+    "skillsExpandDown": "Unterfähigkeiten",
+    "skillsExpandRelated": "Verwandt",
+    "skillsHops": "Sprünge",
+    "skillsHopsOne": "1 Sprung",
+    "skillsHopsTwo": "2 Sprünge",
+    "skillsExpandHintDown": "Trifft auch Synonyme und Unterfähigkeiten.",
+    "skillsExpandHintRelated": "Trifft auch Synonyme, Unterfähigkeiten, Teil-von und verwandte Fähigkeiten.",
+    "minLevelNeedsSkills": "Wähle zuerst eine Fähigkeit",
+    "salary": "Gehalt",
+    "location": "Standort",
+    "locationPlaceholder": "Stadt oder Land…",
+    "remoteOnly": "Nur remote",
+    "companies": "Unternehmen",
+    "companiesPlaceholder": "Firmenname…",
+    "seniority": "Karrierestufe",
+    "employment": "Anstellungsart",
+    "workMode": "Arbeitsmodus",
+    "education": "Bildung",
+    "postedWithin": "Veröffentlicht in",
+    "matchScore": "Match-Score",
+    "saved": "Gespeichert",
+    "savedOnly": "Nur gespeicherte",
+    "unsavedOnly": "Nur nicht gespeicherte",
+    "description": "Beschreibungstext",
+    "descriptionPlaceholder": "In Beschreibung suchen…",
+    "saveAs": "Als Voreinstellung speichern",
+    "presetName": "Name der Voreinstellung…",
+    "tagPlaceholder": "Tag…",
+    "save": "Speichern",
+    "applyPreset": "Diese Voreinstellung anwenden",
+    "deletePreset": "Voreinstellung löschen",
+    "include": "Einbeziehen",
+    "exclude": "Ausschließen",
+    "clickToInclude": "Klicken zum Einschließen — Rechtsklick zum Ausschließen",
+    "clickToExclude": "Klicken zum Ausschließen — Rechtsklick zum Entfernen",
+    "clickToIncludeOnly": "Klicken zum Einschließen",
+    "min": "min",
+    "max": "max",
+    "currencyPlaceholder": "EUR",
+    "seniorityMin": "Ab Stufe",
+    "seniorityMax": "Bis Stufe",
+    "anyLevel": "Beliebig",
+    "browseCatalog": "Gesamten Katalog durchsuchen",
+    "searchSkills": "Skills suchen…",
+    "category": "Kategorie",
+    "allCategories": "Alle Kategorien",
+    "noSkillsFound": "Keine Skills gefunden",
+    "add": "Hinzufügen",
+    "added": "Hinzugefügt",
+    "loadMore": "Mehr laden",
+    "selectedCount": "{{count}} ausgewählt",
+    "done": "Fertig"
+  },
+  "card": {
+    "mode": "Arbeitsmodell",
+    "level": "Level",
+    "contract": "Vertrag",
+    "hours": "Stunden",
+    "salary": "Gehalt",
+    "education": "Abschluss",
+    "closes": "Endet",
+    "modeValue": {
+      "remote": "Remote",
+      "hybrid": "Hybrid",
+      "onsite": "Vor Ort"
+    },
+    "closesIn": "in {{count}} T",
+    "fit": "Fit",
+    "coverage": "Abdeckung {{score}}",
+    "skills": "Skills",
+    "seen": "Gesehen",
+    "closed": "Geschlossen",
+    "closedOn": "Geschlossen am {{date}}",
+    "more": "+{{count}}",
+    "showLess": "weniger",
+    "detailsPending": "Details noch nicht geladen",
+    "partial": "Einige Angaben konnten nicht sicher gelesen werden",
+    "provenanceValue": {
+      "extracted": "Vollständig",
+      "fast-mapped": "Zugeordnet",
+      "raw": "Nur Quelle"
+    },
+    "skillRequires": "erfordert Level {{level}} von 10",
+    "moreAria": "{{count}} weitere",
+    "noScore": "kein Wert",
+    "perYear": "≈ {{range}} {{currency}}/Jahr"
   },
   "companyRules": {
     "title": "Unternehmensregeln",

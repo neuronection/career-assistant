@@ -4,9 +4,8 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
-import { explorePostings, fetchPostingDetail } from "@/api/postings";
+import { explorePostings } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
-import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 
@@ -18,7 +17,6 @@ vi.mock("@/api/postings", async (importOriginal) => {
     fetchPostingSources: vi.fn().mockResolvedValue([
       { key: "synth", connector_key: "synthetic", open_postings: 3 },
     ]),
-    fetchPostingDetail: vi.fn(),
   };
 });
 
@@ -62,6 +60,7 @@ function posting(overrides: Partial<PostingOut> = {}): PostingOut {
     external_id: "ext-1",
     title: "Backend Engineer",
     org: "ACME",
+    org_key: "",
     location: { city: "Athens", country: "GR", remote: true },
     url: "https://jobs.example/1",
     seniority: "mid",
@@ -229,74 +228,5 @@ describe("Explore page", () => {
     });
     fireEvent.click(await screen.findByTestId("clear-filters"));
     expect(screen.getByTestId("explore-q")).toHaveValue("");
-  });
-});
-
-describe("PostingDetail match card", () => {
-  it("renders the match score, source attribution, ref and similar rail", async () => {
-    mockExplore.mockResolvedValue(exploreResponse());
-    vi.mocked(fetchPostingDetail).mockResolvedValue({
-      ...posting({ seniority: "mid" }),
-      source_title: "Synthetic test connector",
-      source_connector: "synth",
-      source_synced_at: "2026-08-30T00:00:00Z",
-      match: {
-        score: 7.8,
-        breakdown: {
-          freshness: { score: 6.0, weight: 1, detail: "posted 2 weeks ago" },
-        },
-        extracted: true,
-        estimate: false,
-        inputs_hash: "abc",
-      },
-      similar: [
-        { ref: "AAAA2222", title: "Data Analyst", org: "BetaCo", score: 0.72 },
-      ],
-      extract: {
-        skills: [
-          {
-            skill_key: "programming",
-            required_level: 5,
-            priority: "must_have",
-            evidence_quote: "strong programming required",
-            confidence: 0.95,
-          },
-        ],
-      },
-    });
-    render(
-      <MemoryRouter>
-        <PostingDetail postingId="P3KX9Q2A" onClose={() => undefined} />
-      </MemoryRouter>
-    );
-    expect(await screen.findByTestId("match-score")).toHaveTextContent("7.8");
-    const attribution = await screen.findByTestId("source-attribution");
-    expect(attribution).toHaveTextContent("Synthetic test connector");
-    expect(attribution).toHaveTextContent("original listing");
-    expect(screen.getByTestId("posting-ref")).toHaveTextContent("P3KX9Q2A");
-    expect(screen.getByTestId("similar-rail")).toHaveTextContent("Data Analyst");
-  });
-
-  it("flags the archetype estimate for unextracted postings", async () => {
-    vi.mocked(fetchPostingDetail).mockResolvedValue({
-      ...posting({ seniority: "mid" }),
-      source_title: "QA Automation Engineer",
-      source_connector: "synth",
-      match: {
-        score: 6.5,
-        breakdown: {},
-        extracted: false,
-        estimate: true,
-        inputs_hash: "abc",
-      },
-    });
-    render(
-      <MemoryRouter>
-        <PostingDetail postingId="P3KX9Q2A" onClose={() => undefined} />
-      </MemoryRouter>
-    );
-    expect(await screen.findByTestId("match-estimate-note")).toHaveTextContent(
-      "archetype estimate"
-    );
   });
 });

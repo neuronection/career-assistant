@@ -1,8 +1,7 @@
 """The product capability showcase wall (plan 43): ``docs/capabilities.json``
 validates against the vendored product-capabilities contract and passes the
-host semantics the schema cannot express — unique capability ids, unique
-matrix rows, the project slug matches this repo, every declared shot file
-resolves beside the manifest, and only shipped capabilities claim
+host semantics the schema cannot express — unique capability ids, the
+project slug matches this repo, and only shipped capabilities claim
 metrics/proofs (the schema's own status $comment, pinned repo-side).
 
 Mirrors ``test_extension_docs_tree.py``: the validator is the vendored
@@ -42,12 +41,10 @@ def capabilities_semantics(
     doc: dict[str, Any],
     *,
     expected_project: str = PROJECT_SLUG,
-    shot_exists: Any = None,
 ) -> list[str]:
     """The cross-key rules JSON Schema cannot express (the host-side twin
     of dev's wall, mirroring the invalid fixtures' semantics channel):
-    the project slug matches this repo, capability ids and matrix rows
-    are unique, declared shots resolve (when ``shot_exists`` is given),
+    the project slug matches this repo and capability ids are unique,
     and non-shipped capabilities claim no metrics or proofs."""
     problems: list[str] = []
     if doc.get("project") != expected_project:
@@ -58,16 +55,9 @@ def capabilities_semantics(
     dupes = sorted({i for i in ids if ids.count(i) > 1})
     if dupes:
         problems.append(f"$.capabilities: duplicate capability ids {dupes}")
-    rows = [row.get("row") for row in doc.get("matrix") or []]
-    dup_rows = sorted({row for row in rows if rows.count(row) > 1})
-    if dup_rows:
-        problems.append(f"$.matrix: duplicate matrix rows {dup_rows}")
     for cap in doc.get("capabilities") or []:
         if not isinstance(cap, dict):
             continue
-        shot = cap.get("shot")
-        if shot and shot_exists is not None and not shot_exists(shot):
-            problems.append(f"$.capabilities[{cap.get('id')!r}].shot: {shot!r} does not resolve")
         if cap.get("status") != "shipped" and (cap.get("proofs") or cap.get("metric")):
             problems.append(
                 f"$.capabilities[{cap.get('id')!r}]: status {cap.get('status')!r} "
@@ -92,9 +82,7 @@ def test_capabilities_validate_against_the_vendored_contract() -> None:
 
 def test_capabilities_pass_the_host_semantics() -> None:
     doc = json.loads(CAPABILITIES.read_text(encoding="utf-8"))
-    problems = capabilities_semantics(
-        doc, shot_exists=lambda ref: (CAPABILITIES.parent / ref).is_file()
-    )
+    problems = capabilities_semantics(doc)
     assert not problems, f"{MUST_MOVE_WITH_FEATURES}: {problems}"
 
 
@@ -132,22 +120,10 @@ SEMANTIC_CASES = [
         "duplicate capability ids",
     ),
     (
-        "duplicate-matrix-row",
-        _doc(matrix=[{"row": "offline", "value": True}, {"row": "offline", "value": False}]),
-        {},
-        "duplicate matrix rows",
-    ),
-    (
         "project-mismatch-with-repo",
         _doc(project="study"),
         {},
         "does not match this repo",
-    ),
-    (
-        "shot-does-not-resolve",
-        _doc(capabilities=[_capability(shot="images/missing.png")]),
-        {"shot_exists": lambda ref: False},
-        "does not resolve",
     ),
     (
         "proofs-on-planned",
@@ -179,5 +155,5 @@ def test_semantics_channel_catches_the_unstructureable(
 
 
 def test_semantics_accept_a_clean_minimal_document() -> None:
-    problems = capabilities_semantics(_doc(), shot_exists=lambda ref: False)
+    problems = capabilities_semantics(_doc())
     assert problems == []

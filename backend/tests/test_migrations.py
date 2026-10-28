@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0066"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0071"], (
         "revision chain stays linear on one head"
     )
 
@@ -2473,7 +2473,8 @@ def _run_status_accepted(status: str, source_id: str) -> bool:
                         text(
                             "INSERT INTO source_runs (id, source_id, trigger, status,"
                             " duration_ms, items_synced, error, created_at, updated_at)"
-                            " VALUES (:id, :src, 'manual', :status, 0, 0, '', now(), now())"
+                            " VALUES (:id, :src, 'manual', :status, 0, 0, '',"
+                            " CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
                         ),
                         {"id": str(uuid.uuid4()), "src": source_id, "status": status},
                     )
@@ -2508,7 +2509,7 @@ def test_0064_running_status_roundtrip():
 
 
 def _org135_seed() -> None:
-    """Two organizations at the 0064 shape (aliases JSONB, no match keys)."""
+    """Two organizations at the pre-0070 shape (aliases JSONB, no match keys)."""
 
     async def _run():
         import json
@@ -2639,12 +2640,12 @@ def _org135_read() -> dict[str, dict]:
     return asyncio.run(_run())
 
 
-def test_0065_company_entity_resolution_fold():
+def test_0070_company_entity_resolution_fold():
     config = _configured()
 
     try:
         command.upgrade(config, "head")
-        command.downgrade(config, "0064")
+        command.downgrade(config, "0069")
         assert not _column_present("job_postings", "org_match"), "downgrade drops org_match"
         _org135_seed()
 
@@ -2666,7 +2667,7 @@ def test_0065_company_entity_resolution_fold():
         _org135_cleanup()
 
 
-def test_0065_denylist_seeds_as_rows():
+def test_0070_denylist_seeds_as_rows():
     config = _configured()
 
     async def _count():
@@ -2695,7 +2696,7 @@ def test_0065_denylist_seeds_as_rows():
 
 
 def _om_state_seed() -> None:
-    """One posting at the 0065 shape (org_match JSONB, no state column)."""
+    """One posting at the 0070 shape (org_match JSONB, no state column)."""
 
     async def _run():
         import json
@@ -2723,6 +2724,12 @@ def _om_state_seed() -> None:
                 )
                 session.add(source)
                 await session.flush()
+                # SQLite has no jsonb: CAST(x AS jsonb) numeric-casts the JSON
+                # text to 0 there, so the dialect picks its own binding.
+                if engine.dialect.name == "postgresql":
+                    cast = lambda param: f"CAST(:{param} AS jsonb)"  # noqa: E731
+                else:
+                    cast = lambda param: f":{param}"  # noqa: E731
                 await session.execute(
                     text(
                         "INSERT INTO job_postings "
@@ -2731,8 +2738,8 @@ def _om_state_seed() -> None:
                         "mapping_reason, org_match, created_at, updated_at) "
                         "VALUES (:id, :ref, :sid, 'omstate-1', :ch, 'Role', "
                         "'OmState Works', 'mapped', "
-                        "CAST(:loc AS jsonb), '', CAST(:raw AS jsonb), CAST(:facts AS jsonb), "
-                        "false, '', CAST(:om AS jsonb), :now, :now)"
+                        f"{cast('loc')}, '', {cast('raw')}, {cast('facts')}, "
+                        f"false, '', {cast('om')}, :now, :now)"
                     ),
                     {
                         "id": str(_uuid.uuid4()),
@@ -2785,12 +2792,12 @@ def _om_state_read() -> str | None:
     return asyncio.run(_run())
 
 
-def test_0066_org_match_state_backfill():
+def test_0071_org_match_state_backfill():
     config = _configured()
 
     try:
         command.upgrade(config, "head")
-        command.downgrade(config, "0065")
+        command.downgrade(config, "0070")
         assert not _column_present("job_postings", "org_match_state"), (
             "downgrade drops the projection"
         )
@@ -2820,3 +2827,351 @@ def _om_state_cleanup() -> None:
             await engine.dispose()
 
     asyncio.run(_run())
+
+
+def _relation_checks() -> dict[str, str]:
+    """CHECK expressions on `skill_relations` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("skill_relations")
+                )
+            return {c["name"].replace("ck_skill_relations_", ""): str(c["sqltext"]) for c in checks}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _relation_indexes() -> list[str]:
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                indexes = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_indexes("skill_relations")
+                )
+            return sorted(str(i["name"]) for i in indexes)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def test_0067_skill_relations_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _table_present("skill_relations"), "skill_relations exists at head"
+    assert {
+        "no_self_loop",
+        "relation_allowed",
+        "status_allowed",
+        "source_allowed",
+        "confidence_range",
+        "symmetric_pair_ordered",
+    } <= set(_relation_checks())
+    assert {
+        "ix_skill_relations_from",
+        "ix_skill_relations_relation_status",
+        "ix_skill_relations_to",
+    } <= set(_relation_indexes()), "edge indexes exist at head under the short names"
+    assert "system_skill_relation_learn" in _schedules_checks()["kind_allowed"]
+
+    command.downgrade(config, "0066")
+    assert not _table_present("skill_relations"), "downgrade 0066 drops skill_relations"
+    assert "system_skill_relation_learn" not in _schedules_checks()["kind_allowed"]
+
+    command.upgrade(config, "head")
+    assert _table_present("skill_relations"), "re-upgrade restores skill_relations"
+    assert "system_skill_relation_learn" in _schedules_checks()["kind_allowed"]
+
+
+def test_0068_skill_relation_learn_task_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert "skill_relation_learn" in _schedules_checks()["task_allowed"]
+
+    command.downgrade(config, "0067")
+    assert "skill_relation_learn" not in _schedules_checks()["task_allowed"]
+
+    command.upgrade(config, "head")
+    assert "skill_relation_learn" in _schedules_checks()["task_allowed"], "re-upgrade restores it"
+
+
+def _skills_checks() -> dict[str, str]:
+    """CHECK expressions on `skills` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("skills")
+                )
+            return {c["name"].replace("ck_skills_", ""): str(c["sqltext"] or "") for c in checks}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _parent_source_probe(value: str | None, *, violation: str | None = None) -> bool:
+    """Insert one throwaway skill row carrying `parent_source`; False = the
+    schema rejected it (the CHECK — NULL passes, out-of-vocabulary does not)."""
+
+    async def _run():
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                try:
+                    session.add(
+                        Skill(
+                            key=f"parent-probe-{value or 'null'}",
+                            label="Parent probe",
+                            category="test",
+                            parent_source=value,
+                        )
+                    )
+                    await session.commit()
+                    return True
+                except IntegrityError as exc:
+                    await session.rollback()
+                    if violation is not None:
+                        assert violation in str(exc.orig), f"expected {violation}, got: {exc.orig}"
+                    return False
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _parent_source_probe_cleanup() -> None:
+    """Migration-test seeds commit real rows on a separate engine — they
+    must self-clean (the _seed_cleanup gotcha)."""
+
+    async def _run():
+        from sqlalchemy import delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(delete(Skill).where(Skill.key.like("parent-probe-%")))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_0069_skill_parent_source_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _column_present("skills", "parent_source"), "skills.parent_source exists at head"
+    checks = _skills_checks()
+    assert "parent_source_allowed" in checks, "the provenance CHECK exists at head"
+    assert "'curated'" in checks["parent_source_allowed"]
+    assert "'learned'" in checks["parent_source_allowed"]
+
+    command.downgrade(config, "0068")
+    assert not _column_present("skills", "parent_source"), "downgrade drops column + CHECK"
+
+    command.upgrade(config, "head")
+    assert _column_present("skills", "parent_source"), "re-upgrade restores it"
+    assert "parent_source_allowed" in _skills_checks()
+
+
+def test_0069_parent_source_check_admits_the_vocabulary_and_null():
+    """CHECK admission: curated/learned/NULL land, anything else is rejected
+    (NULL passes a SQL CHECK by three-valued logic — the untouched state)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    try:
+        assert _parent_source_probe("curated"), "curated lands"
+        assert _parent_source_probe("learned"), "learned lands"
+        assert _parent_source_probe(None), "NULL lands (untouched)"
+        assert _parent_source_probe("machine", violation="parent_source_allowed") is False, (
+            "out-of-vocabulary provenance is rejected"
+        )
+    finally:
+        _parent_source_probe_cleanup()
+
+
+def _relation_skills() -> tuple[str, str]:
+    """Two throwaway skill rows on a separate engine; ids returned in
+    canonical order (lower UUID first — the symmetric-pair rule)."""
+
+    async def _run():
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                rows = [
+                    Skill(key=f"rel-probe-{n}", label=f"Rel probe {n}", category="test")
+                    for n in ("a", "b")
+                ]
+                session.add_all(rows)
+                await session.commit()
+                return tuple(sorted(str(row.id) for row in rows))
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _relation_insert(
+    from_id: str,
+    to_id: str,
+    relation: str,
+    status: str = "approved",
+    *,
+    violation: str | tuple[str, ...] | None = None,
+) -> bool:
+    """Insert one edge row on a separate engine; False = the schema
+    rejected it (CHECK or unique).
+
+    ``violation`` pins which constraint should have fired, for diagnostic
+    quality: a stray FK error must not read as "the CHECK worked". Postgres
+    names unique constraints in the message; SQLite names only CHECK
+    constraints, so unique violations accept the SQLite marker too.
+    """
+
+    async def _run():
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import SkillRelation
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                try:
+                    session.add(
+                        SkillRelation(
+                            from_skill_id=from_id,
+                            to_skill_id=to_id,
+                            relation=relation,
+                            status=status,
+                            source="manual",
+                        )
+                    )
+                    await session.commit()
+                    return True
+                except IntegrityError as exc:
+                    await session.rollback()
+                    if violation is not None:
+                        markers = (violation,) if isinstance(violation, str) else violation
+                        assert any(marker in str(exc.orig) for marker in markers), (
+                            f"expected {markers}, got: {exc.orig}"
+                        )
+                    return False
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _relation_probe_cleanup() -> None:
+    """Migration-test seeds commit real rows on a separate engine —
+    they must self-clean (the _seed_cleanup gotcha)."""
+
+    async def _run():
+        from sqlalchemy import delete, or_, select
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill, SkillRelation
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                probe_ids = select(Skill.id).where(Skill.key.like("rel-probe-%"))
+                await session.execute(
+                    delete(SkillRelation).where(
+                        or_(
+                            SkillRelation.from_skill_id.in_(probe_ids),
+                            SkillRelation.to_skill_id.in_(probe_ids),
+                        )
+                    )
+                )
+                await session.execute(delete(Skill).where(Skill.key.like("rel-probe-%")))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_0067_skill_relation_edge_guards():
+    """The schema rejects self-loops, reverse-symmetric pairs, duplicate
+    (pair, relation) edges and out-of-vocabulary values; both directions
+    stay legal for the directed kinds."""
+    config = _configured()
+    command.upgrade(config, "head")
+    low, high = _relation_skills()
+    duplicate = ("uq_skill_relation_edge", "UNIQUE constraint failed")
+    try:
+        assert _relation_insert(low, low, "related_to", violation="no_self_loop") is False, (
+            "no_self_loop CHECK"
+        )
+        assert _relation_insert(low, high, "synonym") is True, "canonical synonym edge lands"
+        assert (
+            _relation_insert(high, low, "synonym", violation="symmetric_pair_ordered") is False
+        ), "symmetric_pair_ordered CHECK"
+        assert _relation_insert(low, high, "synonym", violation=duplicate) is False, (
+            "uq_skill_relation_edge dedup"
+        )
+        assert _relation_insert(low, high, "is_a") is True, "directed edge lands"
+        assert _relation_insert(high, low, "is_a") is True, "directed reverse is its own edge"
+        assert _relation_insert(low, high, "is_a", violation=duplicate) is False, (
+            "(pair, relation) dedup"
+        )
+        assert _relation_insert(low, high, "brother_of", violation="relation_allowed") is False, (
+            "relation_allowed CHECK"
+        )
+        assert (
+            _relation_insert(low, high, "related_to", status="maybe", violation="status_allowed")
+            is False
+        ), "status_allowed CHECK"
+    finally:
+        _relation_probe_cleanup()

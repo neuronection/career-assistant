@@ -16,6 +16,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.ai.agents.posting_extractor import PostingExtract
+from app.ai.agents.skill_relation_suggest import SkillEdgeVerdictSet
 from app.ai.prompt_versions import prompt_version
 from app.ai.schemas import (
     ChatReply,
@@ -141,6 +142,16 @@ def _check_build_review(critique: CvBuildCritique) -> None:
     )
 
 
+def _check_skill_edge_verdicts(reply: SkillEdgeVerdictSet) -> None:
+    assert reply.verdicts
+    by_ref = {v.pair_ref: v for v in reply.verdicts}
+    assert by_ref["p1"].relation == "related_to"
+    assert by_ref["p2"].relation == "synonym"
+    assert all(0.0 <= v.confidence <= 1.0 for v in reply.verdicts)
+    assert all(v.rationale for v in reply.verdicts)
+    assert "Evidence quote: ML required" in by_ref["p2"].rationale
+
+
 def _build_cases() -> list[GoldenCase]:
     import app.ai.agents
     import app.ai.agents.cv_build_reviewer  # noqa: F401 — fixture side effect
@@ -148,6 +159,7 @@ def _build_cases() -> list[GoldenCase]:
     from app.ai.agents.job_generator import JOB_GENERATOR
     from app.ai.agents.posting_extractor import PostingExtract
     from app.ai.agents.prompts import CHATBOT, MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
+    from app.ai.agents.skill_relation_suggest import build_pair_prompt
     from app.schemas.cv_extract import CvExtract
 
     cases = [
@@ -331,6 +343,63 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.CV_BUILD_REVIEW.value),
             check=_check_build_review,
+        ),
+        GoldenCase(
+            task=AITaskType.SKILL_RELATION_SUGGEST.value,
+            schema=SkillEdgeVerdictSet,
+            system=("Decide which typed relation, if any, holds between each skill pair."),
+            user=build_pair_prompt(
+                [
+                    {
+                        "pair_ref": "p1",
+                        "hypothesis": "related_to",
+                        "signals": {"cooccurrence": {"postings": 3, "jobs": 1}},
+                        "skills": [
+                            {
+                                "key": "typescript",
+                                "label": "TypeScript",
+                                "aliases": ["ts"],
+                                "category": "programming",
+                                "parent_key": None,
+                                "evidence_quote": "TypeScript experience required",
+                            },
+                            {
+                                "key": "javascript",
+                                "label": "JavaScript",
+                                "aliases": ["js"],
+                                "category": "programming",
+                                "parent_key": None,
+                                "evidence_quote": None,
+                            },
+                        ],
+                    },
+                    {
+                        "pair_ref": "p2",
+                        "hypothesis": "synonym",
+                        "signals": {"label_match": {"kind": "initialism"}},
+                        "skills": [
+                            {
+                                "key": "ml",
+                                "label": "ML",
+                                "aliases": [],
+                                "category": "data",
+                                "parent_key": None,
+                                "evidence_quote": "ML required",
+                            },
+                            {
+                                "key": "machine-learning",
+                                "label": "Machine Learning",
+                                "aliases": [],
+                                "category": "data",
+                                "parent_key": None,
+                                "evidence_quote": None,
+                            },
+                        ],
+                    },
+                ]
+            ),
+            prompt_version=_blessed(AITaskType.SKILL_RELATION_SUGGEST.value),
+            check=_check_skill_edge_verdicts,
         ),
     ]
     return cases

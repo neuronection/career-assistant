@@ -23,6 +23,7 @@ class SkillOut(BaseModel):
     category: str
     description: str
     parent_id: UUID | None = None
+    parent_source: Literal["curated", "learned"] | None = None
     level_anchors: list[dict] = Field(default_factory=list)
     aliases: list[str] = Field(default_factory=list)
     status: str

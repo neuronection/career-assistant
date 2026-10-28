@@ -1,20 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { fetchRankings, rateJob } from "@/api/matching";
 import { fetchProfile } from "@/api/profile";
-import { DemandBadge } from "@/features/postings/components/DemandBadge";
 import { ScoreLegend } from "@/features/catalog/components/ScoreLegend";
-import { ScoreRing } from "@/features/catalog/components/ScoreRing";
+import { RankedJobCard } from "@/features/catalog/components/RankedJobCard";
 import { WeightsEditor } from "@/features/catalog/components/WeightsEditor";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
-import { dimensionKey } from "@/lib/fitDimensions";
 import { useCompareStore } from "@/stores/compareStore";
-import type { FitBreakdown, MatchStatus, RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
+import type { RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
 
 const FAMILY_KEYS = [
   "technology", "healthcare", "education", "engineering", "business",
@@ -257,123 +254,26 @@ export function Rankings() {
             />
           ) : (
             items.map((r) => (
-            <div key={r.job.id} className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-4">
-              <div className="flex flex-col items-center gap-0.5 shrink-0">
-                <ScoreRing score={r.score} size={52} />
-                <span className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.match")}</span>
-              </div>
-              <div
-                className="flex shrink-0 items-center gap-4 pr-4 border-r border-slate-100 self-stretch"
-                data-testid={`scores-${r.job.code}`}
-              >
-                <div className="text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.fit")}</p>
-                  <p className="text-sm font-semibold text-slate-700">{Number(r.fit_score).toFixed(1)}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.aiScore")}</p>
-                  <p className="text-sm font-semibold text-slate-700">{r.ai_score != null ? Number(r.ai_score).toFixed(1) : "–"}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-[10px] uppercase tracking-wide text-slate-400">{t("rankings.yourScore")}</p>
-                  <p className="text-sm font-semibold text-slate-700">{r.user_score ?? "–"}</p>
-                </div>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Link to={`/jobs/${r.job.code}`} className="font-medium text-slate-900 hover:text-primary-700 truncate">
-                    {r.job.title}
-                  </Link>
-                  <DemandBadge outlook={r.job.attributes?.demand?.outlook} />
-                  {r.specialist_dimension && (
-                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                      {t("rankings.strongIn", { dimension: t(dimensionKey(r.specialist_dimension)) })}
-                    </span>
-                  )}
-                  {r.gated && (r.gate_reasons ?? []).length > 0 && (
-                    <span className="text-xs bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-                      {(r.gate_reasons ?? []).join(", ")}
-                    </span>
-                  )}
-                </div>
-                <p className="text-sm text-slate-500 truncate">{r.job.short_description}</p>
-                <button
-                  onClick={() => setExpanded(expanded === r.job.id ? null : r.job.id)}
-                  className="mt-1 text-xs text-primary-700 hover:underline"
-                  data-testid={`breakdown-toggle-${r.job.code}`}
-                >
-                  {expanded === r.job.id ? t("rankings.hideBreakdown") : t("rankings.why")}
-                </button>
-                {expanded === r.job.id && r.breakdown && (
-                  <FitBars breakdown={r.breakdown} />
-                )}
-              </div>
-              <div className="flex flex-col gap-1">
-                {(["interested", "dismissed"] as MatchStatus[]).map((s) => (
-                  <button
-                    key={s}
-                    onClick={async () => {
-                      await rateJob({ job_id: r.job.id, status: s });
-                      setItems((prev) =>
-                        prev.map((x) => (x.job.id === r.job.id ? { ...x, status: s } : x))
-                      );
-                    }}
-                    className={`text-xs px-2.5 py-1 rounded-full border ${
-                      r.status === s ? "bg-primary-600 text-white border-primary-600" : "border-slate-200"
-                    }`}
-                  >
-                    {s === "interested" ? t("rankings.interested") : t("rankings.dismiss")}
-                  </button>
-                ))}
-                <button
-                  onClick={() => toggleCompare({ id: r.job.id, title: r.job.title })}
-                  className={`text-xs px-2.5 py-1 rounded-full border ${
-                    compareItems.some((i) => i.id === r.job.id)
-                      ? "bg-emerald-600 text-white border-emerald-600"
-                      : "border-slate-200 text-slate-600"
-                  }`}
-                  data-testid={`compare-add-${r.job.code}`}
-                >
-                  {compareItems.some((i) => i.id === r.job.id) ? t("rankings.comparing") : t("rankings.compare")}
-                </button>
-              </div>
-            </div>
+              <RankedJobCard
+                key={r.job.id}
+                item={r}
+                expanded={expanded === r.job.id}
+                onToggleBreakdown={() =>
+                  setExpanded(expanded === r.job.id ? null : r.job.id)
+                }
+                onRate={async (status) => {
+                  await rateJob({ job_id: r.job.id, status });
+                  setItems((prev) =>
+                    prev.map((x) => (x.job.id === r.job.id ? { ...x, status } : x))
+                  );
+                }}
+                compareSelected={compareItems.some((i) => i.id === r.job.id)}
+                onToggleCompare={() => toggleCompare({ id: r.job.id, title: r.job.title })}
+              />
             ))
           )}
         </section>
       </div>
-    </div>
-  );
-}
-
-export function FitBars({ breakdown }: { breakdown?: FitBreakdown | null }) {
-  const { t } = useTranslation();
-  if (!breakdown) return null;
-  const dims = Object.entries(breakdown.dimensions ?? {});
-  return (
-    <div className="mt-2 space-y-1.5" data-testid="fit-breakdown">
-      {dims.map(([dim, entry]) => (
-        <div key={dim} className="flex items-center gap-2">
-          <span className="text-xs text-slate-400 w-28 shrink-0">
-            {t(dimensionKey(dim), { defaultValue: dim })}
-            {entry.weight !== 3 && (
-              <span className="text-slate-300"> ×{entry.weight}</span>
-            )}
-          </span>
-          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-1.5 rounded-full ${entry.score >= 7 ? "bg-emerald-500" : entry.score >= 4 ? "bg-amber-500" : "bg-rose-400"}`}
-              style={{ width: `${(entry.score / 10) * 100}%` }}
-            />
-          </div>
-          <span className="text-xs text-slate-400 w-8 text-right">{Number(entry.score).toFixed(1)}</span>
-        </div>
-      ))}
-      {dims.length > 0 && (
-        <p className="text-xs text-slate-400 pt-0.5">
-          {dims.map(([dim, entry]) => `${t(dimensionKey(dim), { defaultValue: dim })}: ${entry.detail}`).join(" · ")}
-        </p>
-      )}
     </div>
   );
 }

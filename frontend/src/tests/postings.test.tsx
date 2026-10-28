@@ -1,12 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { Postings } from "@/features/postings/pages/Postings";
 import { PostingsFeed } from "@/features/postings/components/postings/PostingsFeed";
 import {
   fetchPostings,
-  fetchPostingDetail,
   markPostingsSeen,
   markApplied,
   savePosting,
@@ -24,32 +23,23 @@ vi.mock("@/api/postings", async (importOriginal) => {
     savePosting: vi.fn().mockResolvedValue(undefined),
     hidePosting: vi.fn().mockResolvedValue(undefined),
     searchPostings: vi.fn(),
-    fetchPostingDetail: vi.fn(),
+    filterPostings: vi.fn().mockResolvedValue([]),
+    fetchFilterPresets: vi.fn().mockResolvedValue([]),
+    saveFilterPreset: vi.fn(),
+    deleteFilterPreset: vi.fn(),
   };
 });
 
 vi.mock("@/api/skills", () => ({
   fetchSkillOntology: vi.fn().mockResolvedValue([
-    { key: "programming", label: "Programming", status: "active" },
-    { key: "sql", label: "SQL", status: "active" },
+    // mirrors GET /skills — active rows, no `status` field
+    { key: "programming", label: "Programming", category: "technical" },
+    { key: "sql", label: "SQL", category: "technical" },
   ]),
 }));
 
-vi.mock("@/components/ui", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/components/ui")>();
-  const FakeCombobox = (props: { value?: string; onChange: (v: string) => void }) => (
-    <input
-      data-testid="skill-combobox"
-      value={props.value ?? ""}
-      onChange={(e) => props.onChange(e.target.value)}
-    />
-  );
-  return { ...mod, SearchableDropdown: FakeCombobox };
-});
-
 const mockFetchPostings = vi.mocked(fetchPostings);
 const mockSearchPostings = vi.mocked(searchPostings);
-const mockFetchDetail = vi.mocked(fetchPostingDetail);
 
 function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   return {
@@ -59,6 +49,7 @@ function posting(overrides: Partial<PostingOut> = {}): PostingOut {
     external_id: "ext-1",
     title: "Backend Engineer",
     org: "ACME",
+    org_key: "",
     location: { city: "Athens", country: "GR", remote: true },
     url: "https://jobs.example/1",
     seniority: "mid",
@@ -92,20 +83,33 @@ describe("Postings live tab", () => {
     );
     expect(await screen.findByTestId("postings")).toBeInTheDocument();
     expect(screen.getByTestId("posting-title")).toHaveTextContent("Backend Engineer");
-    expect(screen.getByText("synth")).toBeInTheDocument();
+    expect(screen.getByText(/synth/)).toBeInTheDocument();
     expect(screen.getByText(/1 new/)).toBeInTheDocument();
-    expect(screen.getByText(/fit 7\.5/)).toBeInTheDocument();
+    expect(screen.getByTestId("score-ring")).toHaveAttribute("data-score", "7.5");
   });
 
-  it("marks seen and applied when opening the original url", async () => {
+  it("marks seen and applied when applying through the original url", async () => {
     render(
       <MemoryRouter>
         <PostingsFeed />
       </MemoryRouter>
     );
-    fireEvent.click(await screen.findByTestId("posting-title"));
+    fireEvent.click(await screen.findByTestId("posting-apply"));
     await waitFor(() => expect(markPostingsSeen).toHaveBeenCalledWith(["p1"]));
     expect(markApplied).toHaveBeenCalledWith("p1", "https://jobs.example/1");
+  });
+
+  it("opens the posting detail page when the card is clicked", async () => {
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Routes>
+          <Route path="/postings" element={<PostingsFeed />} />
+          <Route path="/postings/:ref" element={<div data-testid="detail-page" />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    fireEvent.click(await screen.findByTestId("posting-details"));
+    expect(await screen.findByTestId("detail-page")).toBeInTheDocument();
   });
 
   it("toggles save and reloads", async () => {
@@ -159,7 +163,7 @@ describe("Skill-level search & provenance", () => {
       </MemoryRouter>
     );
     const chip = await screen.findByTestId("posting-provenance");
-    expect(chip).toHaveTextContent("raw"); // no mapping yet in this fixture
+    expect(chip).toHaveTextContent("Source only"); // no mapping yet in this fixture
     first.unmount();
 
     mockFetchPostings.mockResolvedValue({
@@ -175,10 +179,14 @@ describe("Skill-level search & provenance", () => {
       </MemoryRouter>
     );
     const extracted = await screen.findByTestId("posting-provenance");
-    expect(extracted).toHaveTextContent("extracted");
+    expect(extracted).toHaveTextContent("Full details");
   });
 
-  it("adds a skill filter and searches with level + profile ranking", async () => {
+  it("filters via the rail: skill + min level compose a filter spec", async () => {
+    const { filterPostings } = await import("@/api/postings");
+    const mockFilter = vi.mocked(filterPostings);
+    mockFilter.mockResolvedValue([]);
+
     render(
       <MemoryRouter>
         <PostingsFeed />
@@ -186,110 +194,50 @@ describe("Skill-level search & provenance", () => {
     );
     await screen.findByTestId("postings");
 
-    fireEvent.change(screen.getByTestId("skill-combobox"), {
-      target: { value: "programming" },
-    });
-    fireEvent.change(screen.getByTestId("level-select"), {
+    // open the filter rail
+    fireEvent.click(screen.getByText("Filters"));
+    fireEvent.click(screen.getByText("Skills"));
+
+    // type a skill and add it via the type-ahead
+    const input = document.querySelector('[data-as="picker-input"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "programming" } });
+    const option = await screen.findByRole("option", { name: /Programming/ });
+    fireEvent.click(option);
+
+    // min level
+    fireEvent.change(screen.getByLabelText("Min level"), {
       target: { value: "4" },
     });
-    fireEvent.click(screen.getByTestId("add-skill-filter"));
 
-    const chip = await screen.findByTestId("skill-chip-programming");
-    expect(chip).toHaveTextContent("programming ≥ 4");
+    // graph expansion: sub-skills by default, related + 2 hops on request
+    expect(screen.getByRole("tab", { name: "Sub-skills" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Related" }));
+    fireEvent.click(screen.getByRole("button", { name: "2 hops" }));
+
+    // the browse modal lists the ontology (regression: "No skills found")
+    fireEvent.click(screen.getByRole("button", { name: /browse full catalog/i }));
     await waitFor(() =>
-      expect(mockSearchPostings).toHaveBeenCalledWith(
-        expect.objectContaining({ skills: "programming:4", mode: "all" })
-      )
+      expect(document.querySelector('[data-as="picker-browse-list"]')).toBeTruthy(),
     );
+    const browseList = document.querySelector(
+      '[data-as="picker-browse-list"]',
+    ) as HTMLElement;
+    expect(within(browseList).getByText("Programming")).toBeTruthy();
+    expect(within(browseList).getByText("SQL")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /done/i }));
 
-    fireEvent.change(screen.getByTestId("match-mode"), {
-      target: { value: "any" },
-    });
-    await waitFor(() =>
-      expect(mockSearchPostings).toHaveBeenLastCalledWith(
-        expect.objectContaining({ mode: "any" })
-      )
-    );
-
-    fireEvent.change(screen.getByTestId("priority-select"), {
-      target: { value: "must_have" },
-    });
-    await waitFor(() =>
-      expect(mockSearchPostings).toHaveBeenLastCalledWith(
-        expect.objectContaining({ priority: "must_have" })
-      )
-    );
-
-    fireEvent.click(screen.getByTestId("match-profile-toggle"));
-    await waitFor(() =>
-      expect(mockSearchPostings).toHaveBeenLastCalledWith(
-        expect.objectContaining({ match_profile: true })
-      )
-    );
-    expect(await screen.findByTestId("posting-coverage")).toHaveTextContent(
-      "coverage 8.2"
-    );
-  });
-
-  it("opens the detail modal with the structured extract", async () => {
-    mockFetchDetail.mockResolvedValue({
-      ...posting({ extract_version: 1 }),
-      source_title: "Backend Engineer",
-      source_connector: "synth",
-  extract: {
-          skills: [
-            {
-              skill_key: "programming",
-              required_level: 5,
-              priority: "must_have",
-              evidence_quote: "strong programming background required",
-              confidence: 0.95,
-            },
-          ],
-          prerequisites: [
-            {
-              kind: "certificate",
-              label: "PMP certificate",
-              evidence_quote: "PMP certification required",
-              confidence: 0.9,
-            },
-            {
-              kind: "apprenticeship",
-              label: "Completed apprenticeship",
-              evidence_quote: "completed apprenticeship preferred",
-              confidence: 0.9,
-            },
-          ],
-          responsibilities: [
-            { text: "Build dashboards", time_pct: 40, optional: false },
-          ],
-          benefits: ["Remote budget"],
-      },
-    });
-    render(
-      <MemoryRouter>
-        <PostingsFeed />
-      </MemoryRouter>
-    );
-    fireEvent.click(await screen.findByTestId("posting-details"));
-    const detail = await screen.findByTestId("posting-detail");
-    expect(detail).toBeInTheDocument();
-    expect(await screen.findByTestId("provenance")).toHaveTextContent("extracted");
-    expect(screen.getByText(/40% of time/)).toBeInTheDocument();
-    expect(screen.getByText("Remote budget")).toBeInTheDocument();
-    // prerequisites render with kind badges; unknown kinds fall back to
-    // the raw kind instead of a raw i18n key
-    const prereqs = await screen.findByTestId("extract-prerequisites");
-    expect(prereqs).toHaveTextContent("PMP certificate");
-    expect(prereqs).toHaveTextContent("Certificate");
-    expect(prereqs).toHaveTextContent("apprenticeship");
-    expect(prereqs).not.toHaveTextContent("prereqKind.");
-    // evidence quotes render on tap
-    fireEvent.click(screen.getByLabelText("Show evidence"));
-    expect(screen.getByTestId("skill-evidence")).toHaveTextContent(
-      "strong programming background required"
-    );
-  });
+    // auto-apply (debounced) → the spec reaches the filter endpoint
+    await waitFor(() => expect(mockFilter).toHaveBeenCalled(), { timeout: 3000 });
+    const calls = mockFilter.mock.calls;
+    const spec = calls[calls.length - 1]?.[0];
+    expect(spec.skills.include).toContain("programming");
+    expect(spec.skills.min_level).toBe(4);
+    expect(spec.skills.expand).toBe("related");
+    expect(spec.skills.hops).toBe(2);
+  }, 10000);
 });
 
 describe("Postings shell", () => {
