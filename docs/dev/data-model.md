@@ -154,6 +154,23 @@ deletion).
 
 ### Migration notes
 
+- **0069** — plan 139: `skills.parent_source`, tree-placement provenance
+  (`parent_source_allowed` CHECK: curated | learned, NULL allowed).
+  `curated` — a human set or deliberately cleared the parent, stamped by
+  `TaxonomyService.update_skill` (whose fill-only guard now REQUIRES the
+  `learned` stamp, so a machine fill can never claim human provenance);
+  `learned` — the tree catch-up's fill; NULL — untouched, the only slot
+  the catch-up fills (the write-time guard re-checks BOTH `parent_id` and
+  `parent_source` in the same transaction). The edge seam's `remove()` /
+  `reject()` heal stranded `learned` placements through
+  `TaxonomyService.heal_learned_placement` (clear when no approved `is_a`
+  row supports the parent; `curated` and NULL never touched). No data
+  migration — existing placements keep NULL (fills-only-empty makes NULL
+  degrade gracefully; pre-139 placements keep the sticky mirror
+  semantics). Covered by
+  `tests/test_migrations.py::test_0069_skill_parent_source_roundtrip` /
+  `::test_0069_parent_source_check_admits_the_vocabulary_and_null`, the
+  enum↔CHECK parity wall, and the plan-139 provenance/heal tests.
 - **0068** — plan 138 step 5: `schedules.task_allowed` widens with
   `skill_relation_learn` (mirrored CHECK — the `BackgroundJobType` member
   and the `Schedule.task` vocabulary grow together; `0067` reserved the

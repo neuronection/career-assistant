@@ -43,15 +43,16 @@ add — several relations between the same pair are allowed. Manual edges
 are trusted on arrival (approved immediately); the remove button
 hard-deletes an edge (dismiss keeps the negative edge instead).
 
-> Tree placement is sticky: once an accepted `is a` edge has filled a
-> skill's empty place in the sub-skill tree, removing the edge does not
-> un-fill it — the tree mirrors the placement back as an imported edge.
-> Undoing a placement needs a parent edit on the skill itself: send
-> `parent_id: null` explicitly to clear the parent back to the root (an
-> edit that omits `parent_id` leaves the parent alone). While the edge
-> that justified the placement stays approved, the next catch-up pass
-> re-fills the cleared place — dismiss or remove that edge too to make
-> the undo stick.
+> Tree placement carries provenance. An accepted `is a` edge fills the
+> skill's untouched place in the sub-skill tree, and the placement is
+> remembered as machine-placed; a parent you set in the skill editor —
+> including a deliberate clear (`parent_id: null`; an edit that omits
+> `parent_id` leaves the parent alone) — is remembered as yours, and the
+> catch-up never overwrites or re-fills it. Removing or dismissing the
+> edge that justified a machine placement un-fills it (unless another
+> accepted edge still supports the same parent), so the undo works from
+> either side. Placements made before provenance was tracked keep their
+> previous sticky behavior.
 
 ### Thresholds
 
