@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button, Modal, ModalContent, ModalFooter, ModalHeader, ModalTitle } from "@/components/ui";
 import { CopyButton } from "@/components/ui/copy-button";
+import { RunSummaryStrip } from "@/components/settings/RunSummaryStrip";
 import type { SourceRun } from "@/api/sources";
 
 /**
@@ -58,6 +59,7 @@ export function RunDetailsDialog({
               <dd>{run.items_synced}</dd>
             </div>
           </dl>
+          {run.report?.run_summary ? <RunSummaryStrip summary={run.report.run_summary} /> : null}
           {run.error ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2">

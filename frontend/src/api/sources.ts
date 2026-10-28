@@ -94,6 +94,16 @@ export async function fetchSourceRuns(
   return response.data;
 }
 
+export type RunSummary = {
+  schema?: number;
+  mode?: string;
+  launches?: { guest?: number; authenticated?: number };
+  navigations?: { search_pages?: number; detail_pages?: number };
+  walled_skips?: string[];
+  budget?: { limit_s?: number; search_used_s?: number; detail_used_s?: number };
+  rows?: { kept?: number; capped?: number };
+};
+
 export type SourceRun = {
   id: string;
   trigger: "manual" | "scheduled";
@@ -109,6 +119,7 @@ export type SourceRun = {
     detail_rows?: number;
     synced?: number;
     errors?: { code?: string; detail?: unknown }[];
+    run_summary?: RunSummary | null;
   } | null;
 };
 

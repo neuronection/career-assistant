@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (source runs — structured run summary, 2026-10-28)
+- **Every connector run can now tell you what it did.** Sources whose
+  connector emits the new `run_summary` envelope block (the LinkedIn
+  bundle ships it from 0.10.0) persist it on the run ledger, and the run
+  drawer renders a summary strip: the detail-fetch session
+  (guest/authenticated), browser launches per profile, pages loaded by
+  kind (search vs detail), the time-budget split as a bar, and the count
+  of postings skipped behind sign-in walls with an expandable id list.
+  The host slice is generic — any T3 connector bundle may emit the block
+  (JSON object, ≤2 KB, persisted verbatim on `source_runs.report`) — and
+  runs or bundles without one look exactly as before.
+
 ### Changed (postings — search is the default, 2026-10-28)
 - **`/postings/search` is the Postings default.** Opening Postings from the
   sidebar lands on the Explore (search) page now; `/postings` redirects
