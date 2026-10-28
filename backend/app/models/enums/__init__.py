@@ -123,6 +123,7 @@ from app.models.enums.taxonomy import PathSource as PathSource
 from app.models.enums.taxonomy import PathStatus as PathStatus
 from app.models.enums.taxonomy import SkillExpandMode as SkillExpandMode
 from app.models.enums.taxonomy import SkillOrigin as SkillOrigin
+from app.models.enums.taxonomy import SkillParentSource as SkillParentSource
 from app.models.enums.taxonomy import SkillRelationSource as SkillRelationSource
 from app.models.enums.taxonomy import SkillRelationStatus as SkillRelationStatus
 from app.models.enums.taxonomy import SkillRelationType as SkillRelationType

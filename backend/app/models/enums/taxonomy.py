@@ -115,6 +115,26 @@ class SkillRelationSource(StrEnum):
     DERIVED = "derived"
 
 
+class SkillParentSource(StrEnum):
+    """Provenance of a skill's tree placement (plan 139).
+
+    ``CURATED`` — a human set (or deliberately cleared) the parent;
+    ``LEARNED`` — the tree catch-up filled it from an approved ``is_a``
+    edge; NULL — the slot is untouched by human and machine, the only
+    state the catch-up may fill. ``TaxonomyService.update_skill`` stamps
+    ``curated``, the catch-up stamps ``learned``, and the seam's placement
+    heal resets a stranded ``learned`` placement back to NULL.
+    """
+
+    CURATED = "curated"
+    LEARNED = "learned"
+
+    @classmethod
+    def allowed_sql(cls) -> str:
+        """SQL value list for the whole vocabulary, for CHECK constraints."""
+        return ", ".join(f"'{member.value}'" for member in sorted(cls, key=lambda m: m.value))
+
+
 class JobSkillImportance(StrEnum):
     CORE = "core"
     IMPORTANT = "important"

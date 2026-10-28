@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0068"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0069"], (
         "revision chain stays linear on one head"
     )
 
@@ -2590,6 +2590,122 @@ def test_0068_skill_relation_learn_task_roundtrip():
 
     command.upgrade(config, "head")
     assert "skill_relation_learn" in _schedules_checks()["task_allowed"], "re-upgrade restores it"
+
+
+def _skills_checks() -> dict[str, str]:
+    """CHECK expressions on `skills` (dialect-safe)."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                checks = await conn.run_sync(
+                    lambda sync_conn: inspect(sync_conn).get_check_constraints("skills")
+                )
+            return {c["name"].replace("ck_skills_", ""): str(c["sqltext"] or "") for c in checks}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _parent_source_probe(value: str | None, *, violation: str | None = None) -> bool:
+    """Insert one throwaway skill row carrying `parent_source`; False = the
+    schema rejected it (the CHECK — NULL passes, out-of-vocabulary does not)."""
+
+    async def _run():
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                try:
+                    session.add(
+                        Skill(
+                            key=f"parent-probe-{value or 'null'}",
+                            label="Parent probe",
+                            category="test",
+                            parent_source=value,
+                        )
+                    )
+                    await session.commit()
+                    return True
+                except IntegrityError as exc:
+                    await session.rollback()
+                    if violation is not None:
+                        assert violation in str(exc.orig), f"expected {violation}, got: {exc.orig}"
+                    return False
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(_run())
+
+
+def _parent_source_probe_cleanup() -> None:
+    """Migration-test seeds commit real rows on a separate engine — they
+    must self-clean (the _seed_cleanup gotcha)."""
+
+    async def _run():
+        from sqlalchemy import delete
+        from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+        from app.core.config import settings
+        from app.models.taxonomy_model import Skill
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            session = async_sessionmaker(engine, expire_on_commit=False)()
+            async with session:
+                await session.execute(delete(Skill).where(Skill.key.like("parent-probe-%")))
+                await session.commit()
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_0069_skill_parent_source_roundtrip():
+    config = _configured()
+
+    command.upgrade(config, "head")
+    assert _column_present("skills", "parent_source"), "skills.parent_source exists at head"
+    checks = _skills_checks()
+    assert "parent_source_allowed" in checks, "the provenance CHECK exists at head"
+    assert "'curated'" in checks["parent_source_allowed"]
+    assert "'learned'" in checks["parent_source_allowed"]
+
+    command.downgrade(config, "0068")
+    assert not _column_present("skills", "parent_source"), "downgrade drops column + CHECK"
+
+    command.upgrade(config, "head")
+    assert _column_present("skills", "parent_source"), "re-upgrade restores it"
+    assert "parent_source_allowed" in _skills_checks()
+
+
+def test_0069_parent_source_check_admits_the_vocabulary_and_null():
+    """CHECK admission: curated/learned/NULL land, anything else is rejected
+    (NULL passes a SQL CHECK by three-valued logic — the untouched state)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    try:
+        assert _parent_source_probe("curated"), "curated lands"
+        assert _parent_source_probe("learned"), "learned lands"
+        assert _parent_source_probe(None), "NULL lands (untouched)"
+        assert _parent_source_probe("machine", violation="parent_source_allowed") is False, (
+            "out-of-vocabulary provenance is rejected"
+        )
+    finally:
+        _parent_source_probe_cleanup()
 
 
 def _relation_skills() -> tuple[str, str]:

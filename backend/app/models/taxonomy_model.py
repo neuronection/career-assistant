@@ -12,7 +12,12 @@ from app.models.base import (
     TZDateTime,
     UUIDPrimaryKeyMixin,
 )
-from app.models.enums import InterestTagKind, SkillRelationStatus, SkillRelationType
+from app.models.enums import (
+    InterestTagKind,
+    SkillParentSource,
+    SkillRelationStatus,
+    SkillRelationType,
+)
 
 # Semantic 1-10 proficiency anchors seeded onto every skill; AI drafts
 # per-skill anchors and admins review overrides (Phase 21).
@@ -70,6 +75,12 @@ class Skill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """
 
     __tablename__ = "skills"
+    __table_args__ = (
+        CheckConstraint(
+            f"parent_source IN ({SkillParentSource.allowed_sql()})",
+            name="parent_source_allowed",
+        ),
+    )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     label: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -78,6 +89,8 @@ class Skill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("skills.id", ondelete="RESTRICT"), nullable=True
     )
+    # Tree-placement provenance: curated human, learned backfill, NULL untouched.
+    parent_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     level_anchors: Mapped[list] = mapped_column(
         StructuredJSON, nullable=False, default=lambda: list(DEFAULT_LEVEL_ANCHORS)
     )

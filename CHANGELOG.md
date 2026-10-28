@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (skill taxonomy — tree-placement provenance, 2026-10-28)
+- **Undoing a backfilled tree placement finally sticks.** Every skill
+  placement now carries provenance: `curated` (a human set it — or
+  deliberately cleared it), `learned` (the background catch-up filled it
+  from an approved `is a` edge). A deliberate clear (`parent_id: null` in
+  the skill editor) is never re-filled by later catch-up passes, and
+  removing or dismissing the edge that justified a `learned` placement
+  clears it (unless another approved edge still supports the same
+  parent). Placements from before this change keep their previous
+  behavior. The skill admin API exposes the new `parent_source` field.
+
 ### Changed (posting detail page, 2026-10-28)
 - **The modal-era posting popup is gone** — every posting opens as the
   full `/postings/:ref` page (the whole card is the click target), and

@@ -18934,6 +18934,21 @@
             ],
             "title": "Parent Id"
           },
+          "parent_source": {
+            "anyOf": [
+              {
+                "enum": [
+                  "curated",
+                  "learned"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Source"
+          },
           "status": {
             "title": "Status",
             "type": "string"

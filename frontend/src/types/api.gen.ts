@@ -15240,6 +15240,8 @@ export interface components {
             origin: string;
             /** Parent Id */
             parent_id?: string | null;
+            /** Parent Source */
+            parent_source?: ("curated" | "learned") | null;
             /** Status */
             status: string;
         };
