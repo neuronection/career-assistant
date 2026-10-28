@@ -236,7 +236,7 @@ async def test_lifestyle_gate_rules(db, source):
 
 
 async def test_mock_extracts_v2_cues(db, auth_headers, seeded_catalog):
-    result = await extract_posting(
+    result, _audit = await extract_posting(
         db,
         _uid(auth_headers),
         title="Support Engineer",

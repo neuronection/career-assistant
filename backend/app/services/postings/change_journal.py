@@ -23,6 +23,7 @@ from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import Session
 
 from app.models.enums import PostingChangeKind, PostingChangeOutcome
 from app.models.posting_model import JobPosting, PostingChange
@@ -224,7 +225,7 @@ class PostingChangeJournal:
     @classmethod
     def record(
         cls,
-        db: AsyncSession,
+        db: AsyncSession | Session,
         posting_id,
         actor_kind: PostingChangeKind | str,
         actor_ref: dict | None = None,

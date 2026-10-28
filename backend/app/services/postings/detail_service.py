@@ -216,15 +216,17 @@ def merge_detail(
     if changed:
         from sqlalchemy.orm import object_session
 
-        PostingChangeJournal.record(
-            object_session(posting),
-            posting.id,
-            "detail_fetch",
-            actor_ref=actor_ref,
-            operation=operation,
-            before=before,
-            after={**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)},
-        )
+        session = object_session(posting)
+        if session is not None:
+            PostingChangeJournal.record(
+                session,
+                posting.id,
+                "detail_fetch",
+                actor_ref=actor_ref,
+                operation=operation,
+                before=before,
+                after={**snapshot(posting, DETAIL_FIELDS), "raw_summary": raw_summary(posting)},
+            )
     return changed
 
 

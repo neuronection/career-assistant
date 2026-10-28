@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
-from app.ai.gateway import ainvoke_structured, register_mock_fixture
+from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.models.enums import AITaskType
 
 
@@ -484,16 +484,16 @@ async def extract_posting(
     skills_raw: list[str],
     skill_taxonomy_keys: list[str],
     *,
-    run=None,
-    with_audit_ref: bool = False,
-):
+    run: "RunRef | None" = None,
+) -> "tuple[PostingExtract, dict]":
     """Validated deep extract for one posting (caller applies + audits).
 
     The per-feature brief is GENERATED from the feature map (39.3) —
     schema and prompt cannot drift apart. ``run`` (a gateway ``RunRef``)
-    pins the audit row to the background job the call served; with
-    ``with_audit_ref`` the audit summary comes back alongside the result
-    (plan 142: the journal links the generation id)."""
+    pins the audit row to the background job the call served
+    (``ai_generations.run_id``, the amendment-5 identity); the audit
+    summary comes back alongside the result so the journal (plan 142)
+    can link the generation id."""
     from app.services.feature_map import generated_feature_instructions
 
     return await ainvoke_structured(
@@ -532,5 +532,5 @@ async def extract_posting(
         ),
         user_id=user_id,
         run=run,
-        with_audit_ref=with_audit_ref,
+        with_audit_ref=True,
     )

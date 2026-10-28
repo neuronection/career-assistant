@@ -409,7 +409,6 @@ async def extract_posting_now(
         skills_raw,
         taxonomy,
         run=run_ref,
-        with_audit_ref=True,
     )
     actor_ref: dict = {"trigger": trigger}
     if job_id is not None:
