@@ -212,6 +212,12 @@
               "description": "Every settings page explained: AI configuration, models and tasks, taxonomy, users, scheduler, notifications and the AI audit."
             },
             {
+              "id": "skills-taxonomy",
+              "file": "user/skills-taxonomy.md",
+              "title": "Skill taxonomy and relations",
+              "description": "The skills ontology and its typed relation edges: the relations review queue, manual curation, discovery thresholds and how relations widen posting filters."
+            },
+            {
               "id": "import-extensions-from-git",
               "file": "user/import-extensions-from-git.md",
               "title": "Import extensions from git",
