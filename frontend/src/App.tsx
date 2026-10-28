@@ -39,6 +39,7 @@ import { ProfileImport } from "@/features/profile/pages/ProfileImport";
 import { Rankings } from "@/features/catalog/pages/Rankings";
 import { Compare } from "@/features/catalog/pages/Compare";
 import { Postings } from "@/features/postings/pages/Postings";
+import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
 import { PostingsFeed } from "@/features/postings/components/postings/PostingsFeed";
 import { Explore } from "@/features/catalog/pages/Explore";
 import { Autopilot } from "@/features/growth/pages/Autopilot";
@@ -82,6 +83,7 @@ export function App() {
             <Route index element={<PostingsFeed />} />
             <Route path="search" element={<Explore />} />
           </Route>
+          <Route path="/postings/:ref" element={<PostingDetailPage />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
           <Route path="/autopilot" element={<Autopilot />} />

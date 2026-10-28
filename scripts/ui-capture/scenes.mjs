@@ -116,7 +116,7 @@ export const scenes = [
     group: "Career exploration",
     caption: "Posting detail — extracted skills, provenance and fit for a seeded demo posting.",
     narration: "Every posting is parsed: extracted skills, provenance and how it fits you.",
-    path: "/postings?posting=DE000001",
+    path: "/postings/DE000001",
     viewports: ["desktop"],
     waitForSelector: "[data-testid='posting-detail']",
   },

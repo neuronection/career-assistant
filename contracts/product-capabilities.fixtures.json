@@ -33,6 +33,7 @@
             "category": "analyze",
             "audience": "user",
             "status": "shipped",
+            "preview": "chart",
             "proofs": [
               "Checks drug-drug, drug-food and duplicate-therapy conflicts",
               "Severity-ranked, with the source guideline linked per finding"
@@ -62,6 +63,10 @@
           { "row": "offline", "value": true },
           { "row": "self-host", "value": "Docker" },
           { "row": "license", "value": "Apache-2.0", "note": "core" }
+        ],
+        "useCases": [
+          "Compare cholesterol across two labs — drop both PDFs, read one normalized trend",
+          "Pull your hospital record onto your own server over SMART-on-FHIR"
         ]
       }
     },
@@ -296,6 +301,67 @@
             "order": 10
           }
         ]
+      }
+    },
+    {
+      "name": "use-cases-overrun",
+      "doc": {
+        "version": 1,
+        "project": "career",
+        "capabilities": [
+          {
+            "id": "explore-careers",
+            "verb": "Discover careers you didn't know exist",
+            "summary": "A structured job catalog you can browse by field and skill.",
+            "category": "discover",
+            "status": "shipped",
+            "order": 10
+          }
+        ],
+        "useCases": [
+          "One",
+          "Two",
+          "Three",
+          "Four",
+          "Five",
+          "Six — the contract allows at most five use cases per manifest"
+        ]
+      }
+    },
+    {
+      "name": "unknown-preview-kind",
+      "doc": {
+        "version": 1,
+        "project": "career",
+        "capabilities": [
+          {
+            "id": "explore-careers",
+            "verb": "Discover careers you didn't know exist",
+            "summary": "A structured job catalog you can browse by field and skill.",
+            "category": "discover",
+            "status": "shipped",
+            "preview": "hologram",
+            "order": 10
+          }
+        ]
+      }
+    },
+    {
+      "name": "use-case-too-short",
+      "doc": {
+        "version": 1,
+        "project": "career",
+        "capabilities": [
+          {
+            "id": "explore-careers",
+            "verb": "Discover careers you didn't know exist",
+            "summary": "A structured job catalog you can browse by field and skill.",
+            "category": "discover",
+            "status": "shipped",
+            "order": 10
+          }
+        ],
+        "useCases": ["Too short"]
       }
     },
     {

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-26",
+  "updated": "2026-10-27",
   "capabilities": [
     {
       "id": "job-catalog",
@@ -26,12 +26,13 @@
         "web",
         "desktop"
       ],
-      "order": 10
+      "order": 10,
+      "preview": "chart"
     },
     {
       "id": "profile-matching",
       "verb": "See which jobs fit you — and why",
-      "summary": "Every job gets an AI score with positives, negatives and missing prerequisites, your own score sits beside it, and a deterministic fit engine shows the per-dimension breakdown.",
+      "summary": "Any job can get an AI score with positives, negatives and missing prerequisites, your own score sits beside it, and a deterministic fit engine shows the per-dimension breakdown.",
       "category": "analyze",
       "status": "shipped",
       "proofs": [
@@ -39,6 +40,10 @@
         "The deterministic fit engine scores without any AI — per-dimension and re-weightable",
         "Compare 2–4 jobs side by side, per dimension, in the compare tray"
       ],
+      "metric": {
+        "value": "6",
+        "label": "fit dimensions"
+      },
       "links": [
         {
           "kind": "guide",
@@ -51,7 +56,8 @@
         "web",
         "desktop"
       ],
-      "order": 20
+      "order": 20,
+      "preview": "chart"
     },
     {
       "id": "cv-studio",
@@ -85,12 +91,76 @@
         "web",
         "desktop"
       ],
-      "order": 30
+      "order": 30,
+      "preview": "form"
+    },
+    {
+      "id": "assistant-chat",
+      "verb": "Ask an assistant that edits nothing without your approval",
+      "summary": "A chat grounded in your catalog, profile and postings through tool-calling: profile edits arrive as proposal cards with before/after previews and one-click revert, and a builder copilot operates CV Studio with vision.",
+      "category": "ai",
+      "status": "shipped",
+      "proofs": [
+        "Answers ground in your own data via tool-calling; long runs show a readable progress trace",
+        "Profile edits are anchored proposal cards with rendered before/after previews and one-click revert",
+        "A read-before-edit gate makes the assistant open an item's full content before proposing edits",
+        "The builder copilot sees rendered CV pages and applies validated operations on one audited path",
+        "Postings carry short ref ids — ask by board, recency or reference and get Explore deep-links"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/assistant-chat"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/chat-tools-and-approval"
+        }
+      ],
+      "shot": "images/chat-proposals-desktop.png",
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 33,
+      "preview": "chat"
+    },
+    {
+      "id": "application-tracker",
+      "verb": "Track every application from applied to offer",
+      "summary": "A board or list runs applied through screening, interview, offer and acceptance, with event timelines, the documents you sent and follow-up reminders on your cadence; stage changes proposed in chat ask first.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "Six stages: applied, screening, interview, offer, accepted, closed — closes record the outcome",
+        "Every application keeps an event timeline: stage moves, notes, documents, follow-up snoozes",
+        "Follow-up reminders default to +7 and +14 days and arrive through the notification funnel",
+        "The dashboard shows the real saved → applied → interviewing → offers funnel",
+        "Stage changes proposed in chat land as confirmation cards — the tracker never auto-applies"
+      ],
+      "metric": {
+        "value": "6",
+        "label": "pipeline stages"
+      },
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 35,
+      "preview": "kanban"
     },
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Connector engines pull live postings from ATS APIs, JSON-LD, RSS, CSV and three free job boards, a deep extraction pass turns them into auditable data, and Career Autopilot hunts a stated goal on cadence.",
+      "summary": "Thirteen bundled connectors pull live postings — job boards, career-site feeds, ATS APIs, JSON-LD, RSS, CSV, paste-a-URL — deep extraction makes them auditable data, and Career Autopilot hunts a stated goal on cadence.",
       "category": "integrate",
       "status": "beta",
       "links": [
@@ -109,7 +179,8 @@
         "web",
         "desktop"
       ],
-      "order": 40
+      "order": 40,
+      "preview": "list"
     },
     {
       "id": "radar-sourcing",
@@ -135,7 +206,8 @@
         "web",
         "desktop"
       ],
-      "order": 45
+      "order": 45,
+      "preview": "form"
     },
     {
       "id": "university-pathways",
@@ -145,7 +217,8 @@
       "status": "shipped",
       "proofs": [
         "Parsed admission data lands in the catalog only after you review and approve it",
-        "Departments link to jobs with relevance, required subjects and salary bands"
+        "Departments link to jobs with relevance, required subjects, salary bands and employment rates",
+        "University intake is gated behind the student career stage — hidden for the other stages"
       ],
       "links": [
         {
@@ -159,27 +232,53 @@
         "web",
         "desktop"
       ],
-      "order": 50
+      "order": 50,
+      "preview": "list"
+    },
+    {
+      "id": "career-paths",
+      "verb": "Follow a mapped route to the job you want",
+      "summary": "Curated and AI-drafted routes to each job, plus computed routes over the typed relation graph, render as graph, tree or list — fork a curated path into your own copy and activate it after review.",
+      "category": "discover",
+      "status": "beta",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/explore-the-catalog"
+        }
+      ],
+      "shot": "images/career-paths-desktop.png",
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 55,
+      "preview": "timeline"
     },
     {
       "id": "connector-sdk",
       "verb": "Extend the app with your own job sources",
-      "summary": "The connector SDK ships job sources as versioned, consent-gated extensions with trust tiers and sandboxing, and an MCP server exposes read-only career tools to external clients.",
+      "summary": "The connector SDK ships job sources as versioned, consent-gated extensions with trust tiers and sandboxing, and an MCP server exposes read-only-by-default career tools to external clients.",
       "category": "developer",
       "audience": "dev",
       "status": "shipped",
       "proofs": [
         "Imported extensions run out-of-process: sandboxed subprocess or external MCP script",
         "Installs are consent-gated and digest-pinned — they never auto-update",
-        "MCP clients read your career data through a locally generated, rotatable token",
-        "Bundles arrive as a zip upload or from git — the bundle's own settings form drives config, consent and pinning identical",
-        "When a source's page layout drifts, ingestion degrades to id+text rows the deep-extraction pass structures — never junk, never a crash"
+        "MCP clients read your career data through a locally generated, rotatable token; writes ride approval cards",
+        "Bundles install from https git sources — or a zip upload in dev/test — the bundle's own settings form drives config, consent and pinning",
+        "A drifted page still yields minimal valid rows the deep-extraction pass structures — typed errors, never a crash"
       ],
       "links": [
         {
           "kind": "guide",
           "href": "https://github.com/neuronection/career-assistant/tree/main/docs/dev/sdk",
           "label": "Connector SDK docs"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/import-extensions-from-git"
         },
         {
           "kind": "source",
@@ -192,14 +291,15 @@
         "web",
         "desktop"
       ],
-      "order": 60
+      "order": 60,
+      "preview": "list"
     }
   ],
   "matrix": [
     {
       "row": "offline",
       "value": false,
-      "note": "core runs local; AI needs a provider (Ollama works)"
+      "note": "server app; AI + job boards need network"
     },
     {
       "row": "self-host",
@@ -219,5 +319,12 @@
       "row": "license",
       "value": "Apache-2.0"
     }
+  ],
+  "useCases": [
+    "Pick a degree with a destination — upload the admission PDF, approve the parsed departments, and follow degree-to-job pathways into a target role.",
+    "Delegate the hunt — describe “junior QA role, remote, €30k+” once; Autopilot searches connected boards on cadence and returns a shortlist with reasons.",
+    "Re-enter the market — import your old CV or GitHub profile review-first, then ship a tailored CV plus a per-posting cover letter from CV Studio.",
+    "Feed the radar, not the boards — add job-board sources, set one salary-floor radar, and get digests only when unseen matches clear it.",
+    "Run the pipeline like a pipeline — move cards applied → offer while +7/+14-day follow-up nudges arrive through the notification funnel."
   ]
 }

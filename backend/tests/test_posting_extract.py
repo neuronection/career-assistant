@@ -160,6 +160,34 @@ async def test_low_confidence_fields_suppressed_and_flagged(
     assert len([r for r in levels if r.required_level is not None]) == 1
 
 
+def test_extract_model_reads_suppressed_stored_rows():
+    """Suppressed fields are stored as nulls — the typed readers (cover
+    letter brief, CV synth, suggestions) must coerce them instead of
+    failing every posting that has a suppressed field."""
+    from app.ai.agents.posting_extractor import PostingExtract
+
+    extract = PostingExtract.model_validate(
+        {
+            "languages": None,
+            "benefits": None,
+            "responsibilities": None,
+            "prerequisites": None,
+            "skills": None,
+            "schedule_cues": None,
+            "values_cues": None,
+            "field_confidence": None,
+        }
+    )
+    assert extract.languages == []
+    assert extract.benefits == []
+    assert extract.responsibilities == []
+    assert extract.prerequisites == []
+    assert extract.skills == []
+    assert extract.schedule_cues == []
+    assert extract.values_cues == []
+    assert extract.field_confidence == {}
+
+
 async def test_column_normalization_from_extract(
     db, client, auth_headers, seeded_catalog, source, kinds
 ):

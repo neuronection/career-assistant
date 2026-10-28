@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (posting detail page, 2026-10-28)
+- **The modal-era posting popup is gone** — every posting opens as the
+  full `/postings/:ref` page (the whole card is the click target), and
+  chat reference chips deep-link straight to it instead of the retired
+  `?posting=` popup URL. Board markup in a description renders as
+  readable plain text — never as third-party HTML.
+
 ### Fixed (skill taxonomy graph — slice-C review fixes, 2026-10-28)
 - **Postings tagged to a deprecated skill survive re-mapping.** A skill
   deprecated without a merge no longer loses its posting tags on every

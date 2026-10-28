@@ -83,9 +83,29 @@ with live facet counts. You can:
 - **Save searches** and schedule them (see
   [Notifications and scheduler](notifications-and-scheduler.md)).
 - **Paginate by cursor** through large result sets.
-- Open a posting's detail page for a **per-posting match score** built from
-  the extracted data, weighted by your fit sliders and stale-proof, plus
-  source attribution and similar roles.
+
+## Opening a posting
+
+Clicking a posting card opens the posting **inside the app** at
+`/postings/:ref` — nothing is lost to a third-party tab. The page shows
+everything the system knows about the role:
+
+- the full **description** captured from the source,
+- **key facts**: location, work mode (remote / hybrid / on-site with
+  office days), employment and contract type, seniority, work hours with
+  the weekly range, travel demand, education, languages, and the salary
+  range with its annualized figure,
+- a **timeline** — posted, first seen, last updated and expiry, each as
+  "3 days ago" with the exact date beside it,
+- **categories** — the mapped catalog role (with your interest tags and
+  the typed benefits) — and the skill requirements with level, priority
+  and their verbatim evidence quotes,
+- your per-posting **match score** with the per-dimension breakdown,
+  source attribution and similar openings.
+
+"Open on the original board" (the top button) jumps to the listing in a
+new tab and records the click; beside it sit the cover-letter draft, the
+practice interview and the [application tracker](applications.md) entry.
 
 The **Postings feed** (`/postings`) is the discovery view of everything
 available, ordered unseen-first.

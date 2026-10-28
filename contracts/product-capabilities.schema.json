@@ -26,6 +26,17 @@
       "maxItems": 40,
       "items": { "$ref": "#/$defs/capability" }
     },
+    "useCases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 20,
+        "maxLength": 160
+      },
+      "$comment": "Concrete scenarios a visitor recognizes themselves in ('Compare cholesterol across two labs after switching providers — …'), verb-first, one per line. Optional; when present the hub renders them as the 'what you can do with it' section on the capability page. These are REPRESENTATIVE, not exhaustive — pick the five that best say what the product is for."
+    },
     "matrix": {
       "type": "array",
       "maxItems": 24,
@@ -159,6 +170,10 @@
       "propertyNames": { "$ref": "#/$defs/localeCode" },
       "additionalProperties": { "$ref": "#/$defs/capStrings" }
     },
+    "preview": {
+      "enum": ["chat", "chart", "timeline", "kanban", "approvals", "form", "list"],
+      "$comment": "Which mini-UI mockup the hub draws for this capability — a static HTML/SVG screen with dummy data, styled to echo the product's real interface. Presentation ONLY: dummy values live on the hub (like use cases), facts live in this manifest. Optional; absent = the card renders without a preview. The vocabulary is closed: a product whose UI fits none of these EXTENDS this enum (family decision, canonical-first)."
+    },
     "capability": {
       "type": "object",
       "required": ["id", "verb", "summary", "category", "status", "order"],
@@ -170,6 +185,7 @@
         "category": { "$ref": "#/$defs/category" },
         "audience": { "$ref": "#/$defs/audience" },
         "status": { "$ref": "#/$defs/status" },
+        "preview": { "$ref": "#/$defs/preview" },
         "proofs": {
           "type": "array",
           "minItems": 1,

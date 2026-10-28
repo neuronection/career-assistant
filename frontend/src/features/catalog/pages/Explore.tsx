@@ -1,5 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Bookmark, Plus, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
@@ -9,7 +10,6 @@ import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
-import { PostingDetail } from "@/features/postings/components/PostingDetail";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
@@ -74,7 +74,7 @@ export function Explore() {
   const [skillKey, setSkillKey] = useState("");
   const [skillLevel, setSkillLevel] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
 
@@ -590,7 +590,7 @@ export function Explore() {
             <PostingCard
               key={posting.id}
               posting={posting}
-              onOpenDetail={() => setDetailId(posting.id)}
+              onOpen={(item) => navigate(`/postings/${item.ref}`)}
               onChanged={() => load(filters, false)}
             />
           ))}
@@ -614,7 +614,6 @@ export function Explore() {
           )}
         </div>
       </div>
-      {detailId && <PostingDetail postingId={detailId} onClose={() => setDetailId(null)} />}
     </div>
   );
 }

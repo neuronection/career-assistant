@@ -72,6 +72,19 @@ body {
   }
 }
 
+/* Posting detail page: the fact/timeline sidebar sits beside the long
+   content only while the container itself is wide (chat-dock safe, plan
+   95); below it everything stacks. */
+.ca-detail-cols {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 64rem) {
+  .ca-detail-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  }
+}
+
 /* Generate-flow advanced options: grouped tiles reflow by the PANEL's
  * width (container query — the generate modal shrinks beside the chat
  * dock, viewport breakpoints cannot see that). Below 42rem the tiles

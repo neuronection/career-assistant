@@ -1,7 +1,10 @@
-import { Bookmark, ExternalLink, EyeOff, MapPin } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Bookmark, ExternalLink, EyeOff, MapPin } from "lucide-react";
 
 import { hidePosting, markApplied, markPostingsSeen, savePosting } from "@/api/postings";
+import { buttonVariants } from "@/components/ui";
+import { formatAbsolute, formatRelativeTime } from "@/lib/time";
+import { safeExternalUrl } from "@/lib/url";
 import type { PostingOut } from "@/types/wire";
 
 export function provenanceOf(posting: PostingOut): "raw" | "fast-mapped" | "extracted" {
@@ -21,43 +24,42 @@ function annualRange(posting: PostingOut): string | null {
 }
 
 /**
- * The posting card shared by the Live tab and Explore: source
- * badge everywhere (display-only, per discipline), provenance
- * chip, fit/coverage line, apply/save/hide actions.
+ * The posting card shared by the Live tab and Explore: the card body
+ * opens the posting's detail page, the action column keeps apply/save/
+ * hide (apply leads out to the original listing). Source badge,
+ * provenance chip and fit/coverage line as before.
  */
 export function PostingCard({
   posting,
-  onOpenDetail,
+  onOpen,
   onChanged,
 }: {
   posting: PostingOut;
-  onOpenDetail?: (posting: PostingOut) => void;
+  onOpen?: (posting: PostingOut) => void;
   onChanged?: () => void;
 }) {
   const { t } = useTranslation();
-  const openOriginal = () => {
-    void markPostingsSeen([posting.id]).catch(() => undefined);
-    if (posting.url) {
-      void markApplied(posting.id, posting.url).catch(() => undefined);
-      window.open(posting.url, "_blank", "noopener");
-    }
-  };
+  const postedRel = formatRelativeTime(posting.posted_at);
+  const postedAt = postedRel
+    ? t(postedRel.key, { count: postedRel.count })
+    : formatAbsolute(posting.posted_at);
+  const applyUrl = safeExternalUrl(posting.url);
 
   return (
     <div
-      className={`bg-white border rounded-xl p-4 flex items-start gap-4 ${
+      className={`bg-white border rounded-xl p-4 flex items-start gap-4 cursor-pointer hover:border-primary-300 ${
         posting.seen ? "border-slate-100 opacity-80" : "border-slate-200"
       }`}
       data-testid="posting-card"
+      onClick={() => onOpen?.(posting)}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={openOriginal}
-            className="font-medium text-slate-900 hover:text-primary-700"
-            data-testid="posting-title"
+            className="font-medium text-slate-900 hover:text-primary-700 text-left"
+            data-testid="posting-details"
           >
-            {posting.title}
+            <span data-testid="posting-title">{posting.title}</span>
           </button>
           <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
             {posting.source_key || posting.ref}
@@ -65,6 +67,13 @@ export function PostingCard({
           {posting.location?.remote && (
             <span className="text-xs bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded">
               {t("postingCard.remote")}
+            </span>
+          )}
+          {posting.contract_type && (
+            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded">
+              {t(`explore.facetValue.${posting.contract_type}`, {
+                defaultValue: posting.contract_type.replace(/_/g, " "),
+              })}
             </span>
           )}
           {posting.seniority && (
@@ -140,37 +149,27 @@ export function PostingCard({
             </span>
           )}
           {posting.posted_at && (
-            <span>
-              {t("postingCard.posted", {
-                date: new Date(posting.posted_at).toLocaleDateString(),
-              })}
+            <span title={formatAbsolute(posting.posted_at)}>
+              {t("postingCard.posted", { date: postedAt })}
             </span>
           )}
           {posting.applied_at && (
             <span className="text-emerald-600">{t("postingCard.applied")}</span>
           )}
-          {onOpenDetail && (
-            <button
-              onClick={() => onOpenDetail(posting)}
-              className="text-primary-700 hover:underline"
-              data-testid="posting-details"
-            >
-              {t("postingCard.details")}
-            </button>
-          )}
         </div>
       </div>
-      <div className="flex flex-col gap-1.5">
-        {posting.url && (
+      <div className="flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+        {applyUrl && (
           <a
-            href={posting.url}
+            href={applyUrl}
             target="_blank"
-            rel="noreferrer"
+            rel="noopener noreferrer"
             onClick={() => {
               void markPostingsSeen([posting.id]).catch(() => undefined);
               void markApplied(posting.id, posting.url).catch(() => undefined);
             }}
-            className="text-xs bg-primary-600 text-white rounded-lg px-3 py-1.5 flex items-center gap-1"
+            className={buttonVariants({ variant: "default", size: "sm" })}
+            data-testid="posting-apply"
           >
             <ExternalLink className="w-3 h-3" /> {t("postingCard.apply")}
           </a>
@@ -179,7 +178,8 @@ export function PostingCard({
           onClick={() => {
             void savePosting(posting.id, !posting.saved).then(() => onChanged?.());
           }}
-          className="text-xs border border-slate-200 rounded-lg px-3 py-1.5"
+          className={buttonVariants({ variant: "outline", size: "sm" })}
+          data-testid="posting-save"
         >
           {posting.saved ? t("postingCard.unsave") : t("common.save")}
         </button>
@@ -189,6 +189,7 @@ export function PostingCard({
           }}
           className="text-xs text-slate-400 flex items-center gap-1 justify-center"
           title={t("postingCard.hideTitle")}
+          data-testid="posting-hide"
         >
           <EyeOff className="w-3 h-3" /> {t("postingCard.hide")}
         </button>
