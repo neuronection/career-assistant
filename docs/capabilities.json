@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-27",
+  "updated": "2026-10-28",
   "capabilities": [
     {
       "id": "job-catalog",
@@ -160,7 +160,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Thirteen bundled connectors pull live postings — job boards, career-site feeds, ATS APIs, JSON-LD, RSS, CSV, paste-a-URL — deep extraction makes them auditable data, and Career Autopilot hunts a stated goal on cadence.",
+      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted into auditable data; skill filters expand through sub-skills and related skills; Career Autopilot hunts on cadence.",
       "category": "integrate",
       "status": "beta",
       "links": [
@@ -255,6 +255,37 @@
       ],
       "order": 55,
       "preview": "timeline"
+    },
+    {
+      "id": "taxonomy-relations",
+      "verb": "Curate the skill relations behind your filters",
+      "summary": "A background job proposes skill relations from your own data and every edge waits for admin review — accepted relations widen the posting filters and catch the sub-skill tree up.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Skill filters expand through the reviewed graph — Exact, Sub-skills or Related, 1–2 hops for learned edges",
+        "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
+        "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias",
+        "Approving an is a edge fills the skill's empty place in the sub-skill tree; curated parents never move",
+        "Discovery thresholds and the run ledger — pairs judged, edges proposed, the run watermark — live in Settings → Taxonomy"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/skills-taxonomy"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 57,
+      "preview": "approvals"
     },
     {
       "id": "connector-sdk",
