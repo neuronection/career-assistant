@@ -91,6 +91,41 @@ describe("RunSummaryStrip", () => {
     expect(ids.textContent?.split(",").length).toBe(20);
   });
 
+  it("omits the line for cap-dropped keys instead of rendering zeros", () => {
+    render(
+      <RunSummaryStrip
+        summary={{
+          schema: 1,
+          mode: "guest",
+          walled_skips: ["4101111101"],
+          rows: { kept: 25, capped: 0 },
+        }}
+      />,
+    );
+    expect(screen.getByTestId("run-summary-mode").textContent).toContain("Guest");
+    expect(screen.queryByTestId("run-summary-launches")).toBeNull();
+    expect(screen.queryByTestId("run-summary-navigations")).toBeNull();
+    expect(screen.queryByTestId("run-summary-budget-bar")).toBeNull();
+    expect(screen.queryByTestId("run-summary-budget-label")).toBeNull();
+  });
+
+  it("renders the facts but no mode chip when the summary states no mode", () => {
+    render(
+      <RunSummaryStrip
+        summary={{ schema: 1, launches: { guest: 1, authenticated: 0 } }}
+      />,
+    );
+    expect(screen.queryByTestId("run-summary-mode")).toBeNull();
+    expect(screen.getByTestId("run-summary-launches").textContent).toContain(
+      "guest 1",
+    );
+  });
+
+  it("renders nothing for an empty summary object — no invented facts", () => {
+    const { container } = render(<RunSummaryStrip summary={{}} />);
+    expect(container.querySelector('[data-testid="run-summary"]')).toBeNull();
+  });
+
   it("hides itself in the drawer when the run has no summary", async () => {
     const { report: _report, ...rest } = RUN_WITH_SUMMARY;
     render(<RunDetailsDialog run={rest} onClose={() => {}} />);

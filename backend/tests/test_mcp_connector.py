@@ -512,6 +512,27 @@ async def test_run_summary_lands_verbatim_on_the_source_run(db, seeded_catalog, 
     assert row.report["synced"] == 1
 
 
+async def test_empty_run_summary_object_is_still_a_summary(db, seeded_catalog, fake_server):
+    """The generic contract counts an empty object as a valid summary —
+    persistence gates on presence (``is not None``), never truthiness."""
+
+    def fetch(config: dict, state: dict) -> dict:
+        return {"items": [GOOD_ROW], "next_state": {}, "run_summary": {}}
+
+    fake_server(fetch)
+    source = await _make_source(
+        db, key="mcp-empty-summary", config={"transport": "stdio", "command": "unused"}
+    )
+    result = await sync_source(db, source)
+    assert result["run_summary"] == {}
+    row = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == source.id)))
+        .scalars()
+        .one()
+    )
+    assert row.report["run_summary"] == {}
+
+
 async def test_fetch_level_result_carries_the_summary(mcp_connector, fake_server):
     def fetch(config: dict, state: dict) -> dict:
         return {"items": [], "next_state": {}, "run_summary": RUN_SUMMARY}

@@ -8,7 +8,11 @@ import type { RunSummary } from "@/api/sources";
  * configured detail session, browser launches per profile, pages loaded
  * by kind, the budget split, and the walled-skip count with an
  * expandable id list. Rendered only when report.run_summary exists;
- * runs and bundles without one degrade silently.
+ * runs and bundles without one degrade silently. Keys the bundle's size
+ * cap dropped render as absent (the whole line is omitted) — never as a
+ * zero count or an empty bar — and a summary asserting nothing (no mode,
+ * no counters, no budget, no walled ids) renders nothing at all: the
+ * strip never invents a fact the summary does not state.
  */
 
 export function RunSummaryStrip({ summary }: { summary: RunSummary }) {
@@ -25,10 +29,21 @@ export function RunSummaryStrip({ summary }: { summary: RunSummary }) {
   const detailPct =
     limit > 0 ? Math.min(100 - searchPct, (detailUsed / limit) * 100) : 0;
   const usedTotal = Math.round((searchUsed + detailUsed) * 10) / 10;
+  const hasMode = summary.mode != null;
   const modeLabel =
     summary.mode === "authenticated"
       ? t("sourceDetail.runSummaryModeAuthenticated")
       : t("sourceDetail.runSummaryModeGuest");
+
+  if (
+    !hasMode &&
+    summary.launches == null &&
+    summary.navigations == null &&
+    summary.budget == null &&
+    walled.length === 0
+  ) {
+    return null;
+  }
 
   return (
     <div
@@ -37,66 +52,74 @@ export function RunSummaryStrip({ summary }: { summary: RunSummary }) {
     >
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium">{t("sourceDetail.runSummaryTitle")}</span>
-        <span
-          className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
-          data-testid="run-summary-mode"
-        >
-          {t("sourceDetail.runSummaryMode")}: {modeLabel}
-        </span>
+        {hasMode ? (
+          <span
+            className="rounded-full border border-[var(--as-border)] px-2 py-0.5"
+            data-testid="run-summary-mode"
+          >
+            {t("sourceDetail.runSummaryMode")}: {modeLabel}
+          </span>
+        ) : null}
       </div>
-      <p
-        className="text-xs text-[var(--as-muted-fg)]"
-        data-testid="run-summary-launches"
-      >
-        {t("sourceDetail.runSummaryLaunches", {
-          guest: launches.guest ?? 0,
-          authenticated: launches.authenticated ?? 0,
-        })}
-      </p>
-      <p
-        className="text-xs text-[var(--as-muted-fg)]"
-        data-testid="run-summary-navigations"
-      >
-        {t("sourceDetail.runSummaryNavigations", {
-          search: navigations.search_pages ?? 0,
-          details: navigations.detail_pages ?? 0,
-        })}
-      </p>
-      <div className="space-y-1">
-        <div
-          className="flex h-2 w-full overflow-hidden rounded-full border border-[var(--as-border)] bg-[var(--as-muted)]"
-          data-testid="run-summary-budget-bar"
-          role="img"
-          aria-label={t("sourceDetail.runSummaryBudget", {
-            used: usedTotal,
-            limit,
-            search: searchUsed,
-            details: detailUsed,
-          })}
-        >
-          <div
-            className="h-full bg-[var(--as-info)]"
-            data-testid="run-summary-budget-search"
-            style={{ width: `${searchPct}%` }}
-          />
-          <div
-            className="h-full bg-[var(--as-warning)]"
-            data-testid="run-summary-budget-detail"
-            style={{ width: `${detailPct}%` }}
-          />
-        </div>
+      {summary.launches != null ? (
         <p
           className="text-xs text-[var(--as-muted-fg)]"
-          data-testid="run-summary-budget-label"
+          data-testid="run-summary-launches"
         >
-          {t("sourceDetail.runSummaryBudget", {
-            used: usedTotal,
-            limit,
-            search: searchUsed,
-            details: detailUsed,
+          {t("sourceDetail.runSummaryLaunches", {
+            guest: launches.guest ?? 0,
+            authenticated: launches.authenticated ?? 0,
           })}
         </p>
-      </div>
+      ) : null}
+      {summary.navigations != null ? (
+        <p
+          className="text-xs text-[var(--as-muted-fg)]"
+          data-testid="run-summary-navigations"
+        >
+          {t("sourceDetail.runSummaryNavigations", {
+            search: navigations.search_pages ?? 0,
+            details: navigations.detail_pages ?? 0,
+          })}
+        </p>
+      ) : null}
+      {summary.budget != null ? (
+        <div className="space-y-1">
+          <div
+            className="flex h-2 w-full overflow-hidden rounded-full border border-[var(--as-border)] bg-[var(--as-muted)]"
+            data-testid="run-summary-budget-bar"
+            role="img"
+            aria-label={t("sourceDetail.runSummaryBudget", {
+              used: usedTotal,
+              limit,
+              search: searchUsed,
+              details: detailUsed,
+            })}
+          >
+            <div
+              className="h-full bg-[var(--as-info)]"
+              data-testid="run-summary-budget-search"
+              style={{ width: `${searchPct}%` }}
+            />
+            <div
+              className="h-full bg-[var(--as-warning)]"
+              data-testid="run-summary-budget-detail"
+              style={{ width: `${detailPct}%` }}
+            />
+          </div>
+          <p
+            className="text-xs text-[var(--as-muted-fg)]"
+            data-testid="run-summary-budget-label"
+          >
+            {t("sourceDetail.runSummaryBudget", {
+              used: usedTotal,
+              limit,
+              search: searchUsed,
+              details: detailUsed,
+            })}
+          </p>
+        </div>
+      ) : null}
       {walled.length > 0 ? (
         <div className="space-y-1">
           <button

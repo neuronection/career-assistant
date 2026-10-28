@@ -416,7 +416,7 @@ async def _sync_source_inner(
     report: dict = {"synced": synced, "extract_queued": extract_queued, "errors": errors}
     if query_note:
         report["note"] = query_note
-    if result.run_summary:
+    if result.run_summary is not None:
         report["run_summary"] = result.run_summary
     return report
 
