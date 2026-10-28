@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
+- **The skill tree catches up with reviewed relations** — approving an
+  "is a" relation (or adding one by hand) now also fills the skill's empty
+  place in the sub-skill tree, so the taxonomy keeps reflecting the
+  reviewed hierarchy without a second edit. Only empty parents are filled
+  (an existing curated parent is never overwritten) and cycles are
+  refused. Practical effect on filters: a chain like java → JVM languages
+  → programming that needed the 2-hop setting before is reached at the
+  default 1 hop once the tree knows it — expansion widens as the tree
+  fills, deliberately.
+
 ### Added (skill taxonomy graph — relation discovery, 2026-10-27)
 - **Internal groundwork: automatic skill-relation discovery** — a daily
   background job proposes typed edges between skills from evidence in your

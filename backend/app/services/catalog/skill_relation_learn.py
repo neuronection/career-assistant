@@ -13,6 +13,12 @@ pair — any relation, any status — settles that pair for this job forever,
 so a redirected verdict can never re-bill the same pair. The seam keeps its
 per-(pair, relation) UNIQUE; manual rows for one pair are unaffected.
 
+Tree catch-up lives here beside its converse
+(:func:`materialize_parent_edges`): where the import mirror copies
+``parent_id`` into approved ``is_a`` edges, :func:`backfill_parent_edges`
+fills an EMPTY ``parent_id`` from an approved ``is_a`` row so ``/skills``
+reflects the learned hierarchy.
+
 The delta watermark lives on the run ledger (``background_jobs.result``),
 not in a table: a run only re-examines evidence newer than the last
 succeeded run's watermark, and a run that capped out, had failed batches,
@@ -435,6 +441,80 @@ async def materialize_parent_edges(db: AsyncSession) -> int:
     return count
 
 
+_SOURCE_CURATION = {
+    SkillRelationSource.MANUAL.value: 0,
+    SkillRelationSource.IMPORT.value: 1,
+    SkillRelationSource.LLM.value: 2,
+    SkillRelationSource.DERIVED.value: 3,
+}
+
+
+def _backfill_rank(row: SkillRelation) -> tuple[int, float, int, datetime, str]:
+    """Total, dialect-independent order for one backfill candidate row.
+
+    Scored confidence DESC first (``NULL`` = "not scored" — never
+    fabricated, never outranks a scored row), then source curation
+    (manual → import → llm → derived), then earliest ``created_at``, then
+    row id. Comparison happens in Python on purpose: SQL ``NULL`` ordering
+    differs between the dialects.
+    """
+    scored = row.confidence is not None
+    return (
+        0 if scored else 1,
+        -float(row.confidence) if scored else 0.0,
+        _SOURCE_CURATION.get(row.source, len(_SOURCE_CURATION)),
+        _aware(row.created_at) or datetime.max.replace(tzinfo=UTC),
+        str(row.id),
+    )
+
+
+async def backfill_parent_edges(db: AsyncSession) -> int:
+    """Approved ``is_a`` edges → empty ``parent_id`` (step 7, the converse).
+
+    Fills only EMPTY display parents — it never re-parents, so it never
+    fights :func:`materialize_parent_edges` (import mirrors exist only
+    where ``parent_id`` was already set). Among a skill's approved ``is_a``
+    rows — any source, the skill being the specific end — the winner is
+    picked by :func:`_backfill_rank`; each write goes through
+    ``TaxonomyService.update_skill``'s cycle guard, and a candidate that
+    would close a parent cycle is skipped and the next is tried.
+
+    Returns the number of parents written; a second run writes zero.
+    """
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    taxonomy = TaxonomyService(db)
+    skills = await _load_skills(db)
+    rows = (
+        (
+            await db.execute(
+                select(SkillRelation).where(
+                    SkillRelation.relation == SkillRelationType.IS_A.value,
+                    SkillRelation.status == SkillRelationStatus.APPROVED.value,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    candidates: dict[uuid.UUID, list[SkillRelation]] = {}
+    for row in rows:
+        candidates.setdefault(row.from_skill_id, []).append(row)
+    count = 0
+    for skill_id in sorted(candidates, key=str):
+        info = skills.get(skill_id)
+        if info is None or info.parent_key is not None:
+            continue
+        for row in sorted(candidates[skill_id], key=_backfill_rank):
+            try:
+                await taxonomy.update_skill(skill_id, {"parent_id": row.to_skill_id})
+            except ValidationError:
+                continue
+            count += 1
+            break
+    return count
+
+
 def _evidence(verdict: SkillEdgeVerdict | None, signals: dict) -> dict:
     payload: dict = {"signals": signals}
     if verdict is not None:
@@ -624,7 +704,7 @@ async def run_skill_relation_learn(
     run_id: uuid.UUID | None = None,
     cancelled: Callable[[], Awaitable[bool]] | None = None,
 ) -> dict:
-    """One discovery run: materialize, collect, judge, write, report.
+    """One discovery run: materialize, catch up the tree, collect, judge, write, report.
 
     Never raises for AI problems: an unconfigured provider derives
     string-grounded label matches and holds the watermark; failed,
@@ -635,6 +715,7 @@ async def run_skill_relation_learn(
     since = await _load_watermark(db)
     collected_at = datetime.now(UTC)
     materialized = await materialize_parent_edges(db)
+    backfilled = await backfill_parent_edges(db)
     candidates, capped = await collect_candidates(db, since=since, thresholds=thresholds)
     batch_size = thresholds.batch_size
     batches = [candidates[i : i + batch_size] for i in range(0, len(candidates), batch_size)]
@@ -671,6 +752,7 @@ async def run_skill_relation_learn(
     watermark = since if leftover else collected_at
     return {
         "materialized": materialized,
+        "backfilled": backfilled,
         "candidates": len(candidates),
         "batches": len(batches),
         "judged_batches": judged,

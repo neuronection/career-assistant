@@ -39,6 +39,7 @@ from app.models.taxonomy_model import Skill, SkillRelation
 from app.services.catalog.skill_relation_learn import (
     Thresholds,
     apply_verdicts,
+    backfill_parent_edges,
     collect_candidates,
     load_thresholds,
     materialize_parent_edges,
@@ -382,6 +383,138 @@ async def test_reparenting_rejects_stale_import_mirrors_and_writes_new(db):
     assert new.status == SkillRelationStatus.APPROVED.value
     assert new.source == SkillRelationSource.IMPORT.value
     assert await materialize_parent_edges(db) == 0
+
+
+# -------------------------------------------- tree catch-up (plan 138, step 7)
+
+
+async def test_backfill_fills_only_empty_parents_and_is_idempotent(db):
+    skills = await _seed(
+        db,
+        _skill("programming"),
+        _skill("jvm-languages"),
+        _skill("java"),
+        _skill("databases"),
+        _skill("sql"),
+    )
+    skills["sql"].parent_id = skills["databases"].id
+    await db.flush()
+    service = SkillRelationService(db)
+    await service.add("java", "jvm-languages", "is_a", source="manual")
+    await service.add("jvm-languages", "programming", "is_a", source="manual")
+    await service.add("sql", "programming", "is_a", source="manual")
+
+    assert await backfill_parent_edges(db) == 2
+
+    assert skills["java"].parent_id == skills["jvm-languages"].id
+    assert skills["jvm-languages"].parent_id == skills["programming"].id
+    assert skills["programming"].parent_id is None
+    assert skills["sql"].parent_id == skills["databases"].id, "a filled parent is never re-parented"
+    assert await backfill_parent_edges(db) == 0
+
+
+async def test_backfill_prefers_the_highest_scored_is_a_target(db):
+    """§7 multi-parent java: both expansion paths stay, but `parent_id`
+    gets exactly one display parent — the highest-confidence target."""
+    skills = await _seed(db, _skill("java"), _skill("programming"), _skill("jvm-languages"))
+    service = SkillRelationService(db)
+    weak = await service.add("java", "programming", "is_a", source="llm", confidence=0.6)
+    strong = await service.add("java", "jvm-languages", "is_a", source="llm", confidence=0.9)
+    await service.approve(weak.id)
+    await service.approve(strong.id)
+
+    assert await backfill_parent_edges(db) == 1
+
+    assert skills["java"].parent_id == skills["jvm-languages"].id
+
+
+async def test_backfill_unscored_rows_never_outrank_a_scored_one(db):
+    """NULL confidence is "not scored" — never fabricated into a number
+    that could win the comparison."""
+    skills = await _seed(db, _skill("java"), _skill("programming"), _skill("jvm-languages"))
+    service = SkillRelationService(db)
+    await service.add("java", "programming", "is_a", source="manual")
+    scored = await service.add("java", "jvm-languages", "is_a", source="llm", confidence=0.2)
+    await service.approve(scored.id)
+
+    assert await backfill_parent_edges(db) == 1
+
+    assert skills["java"].parent_id == skills["jvm-languages"].id
+
+
+async def test_backfill_unscored_ties_fall_to_curation_then_age(db):
+    skills = await _seed(
+        db,
+        _skill("alpha"),
+        _skill("beta"),
+        _skill("gamma"),
+        _skill("delta"),
+    )
+    service = SkillRelationService(db)
+    manual = await service.add("alpha", "beta", "is_a", source="manual")
+    learned = await service.add("alpha", "gamma", "is_a", source="llm")
+    older = await service.add("delta", "beta", "is_a", source="llm")
+    newer = await service.add("delta", "gamma", "is_a", source="llm")
+    for row in (learned, older, newer):
+        await service.approve(row.id)
+    manual.created_at = _now()
+    learned.created_at = _now() - timedelta(days=1)
+    older.created_at = _now() - timedelta(days=1)
+    newer.created_at = _now()
+    await db.commit()
+
+    assert await backfill_parent_edges(db) == 2
+
+    assert skills["alpha"].parent_id == skills["beta"].id, (
+        "curation beats age — the manual edge wins even though it is newer"
+    )
+    assert skills["delta"].parent_id == skills["beta"].id, "equal rows fall to the earliest edge"
+
+
+async def test_backfill_skips_a_cycle_candidate_and_tries_the_next(db):
+    skills = await _seed(db, _skill("a"), _skill("b"), _skill("c"))
+    service = SkillRelationService(db)
+    await service.add("a", "b", "is_a", source="manual", confidence=0.9)
+    await service.add("a", "c", "is_a", source="manual", confidence=0.5)
+    skills["b"].parent_id = skills["a"].id
+    await db.flush()
+
+    assert await backfill_parent_edges(db) == 1
+
+    assert skills["a"].parent_id == skills["c"].id, (
+        "the cycle guard skips b and the next candidate wins"
+    )
+
+
+async def test_backfill_leaves_the_parent_empty_when_every_candidate_cycles(db):
+    skills = await _seed(db, _skill("a"), _skill("b"))
+    service = SkillRelationService(db)
+    await service.add("a", "b", "is_a", source="manual")
+    skills["b"].parent_id = skills["a"].id
+    await db.flush()
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["a"].parent_id is None
+
+
+async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):
+    from app.ai.providers import resolution
+
+    async def _no_ai(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(resolution, "resolve_task_model", _no_ai)
+    skills = await _seed(db, _skill("programming"), _skill("jvm-languages"), _skill("java"))
+    service = SkillRelationService(db)
+    edge = await service.add("java", "jvm-languages", "is_a", source="llm", confidence=0.9)
+    await service.approve(edge.id)
+
+    result = await run_skill_relation_learn(db)
+
+    assert result["materialized"] == 0
+    assert result["backfilled"] == 1
+    assert skills["java"].parent_id == skills["jvm-languages"].id
 
 
 # --------------------------------------------- verdict application (§7 corpus)

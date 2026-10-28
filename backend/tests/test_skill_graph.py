@@ -138,6 +138,67 @@ def test_tree_subtree_also_applies_to_is_a_children():
     assert _uid("java-ee") in expand({_uid("programming")}, index, edges, mode="down", hops=1)
 
 
+def test_backfilled_parent_turns_hop_reach_into_free_reach():
+    """Plan 138 step 7: the tree catch-up migrates hop-capped reach into
+    FREE reach — the budget widens as the tree fills. Same edges both
+    times; the filled display parents are the only difference."""
+    edges = (
+        _edge("jvm-lang", "programming", "is_a"),
+        _edge("java", "jvm-lang", "is_a"),
+    )
+    before_nodes, before_edges = _graph(
+        _node("programming"), _node("jvm-lang"), _node("java"), edges=edges
+    )
+    one_before = expand({_uid("programming")}, before_nodes, before_edges, mode="down", hops=1)
+    assert one_before == {_uid("programming"), _uid("jvm-lang")}, "java needs two hops before"
+
+    after_nodes, after_edges = _graph(
+        _node("programming"),
+        _node("jvm-lang", parent="programming"),
+        _node("java", parent="jvm-lang"),
+        edges=edges,
+    )
+    one_after = expand({_uid("programming")}, after_nodes, after_edges, mode="down", hops=1)
+    assert one_after == {_uid("programming"), _uid("jvm-lang"), _uid("java")}
+    assert one_after == expand(
+        {_uid("programming")}, after_nodes, after_edges, mode="down", hops=2
+    ), "the budget saturated — the free subtree ignores hops"
+
+
+def test_unrelated_parent_fills_never_change_synonym_or_related_reach():
+    """§7 machine-learning / ml and typescript / javascript: the catch-up
+    migrates is_a rows only — filling display parents elsewhere in the
+    catalog never changes synonym identity or related-mode reach."""
+    edges = (
+        _edge("ml", "machine-learning", "synonym"),
+        _edge("typescript", "javascript", "related_to"),
+    )
+    before_nodes, before_edges = _graph(
+        _node("machine-learning"),
+        _node("ml"),
+        _node("javascript"),
+        _node("typescript"),
+        edges=edges,
+    )
+    after_nodes, after_edges = _graph(
+        _node("machine-learning", parent="data"),
+        _node("ml", parent="data"),
+        _node("data"),
+        _node("javascript", parent="web"),
+        _node("typescript", parent="web"),
+        _node("web"),
+        edges=edges,
+    )
+    for seed, mode, expected in (
+        ("machine-learning", "down", {"machine-learning", "ml"}),
+        ("javascript", "down", {"javascript"}),
+        ("javascript", "related", {"javascript", "typescript"}),
+    ):
+        before = expand({_uid(seed)}, before_nodes, before_edges, mode=mode, hops=1)
+        after = expand({_uid(seed)}, after_nodes, after_edges, mode=mode, hops=1)
+        assert before == after == {_uid(key) for key in expected}
+
+
 # ---------------------------------------------------------------- synonyms
 
 

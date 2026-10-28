@@ -44,6 +44,40 @@ async def test_unknown_skill_404(client, auth_headers, seeded_catalog):
     assert response.status_code == 404
 
 
+async def test_skills_tree_reflects_the_backfilled_parent(db, client, auth_headers):
+    """Step 7: the tree catch-up fills display parents from approved is_a
+    edges and the tree-shaped API keeps its shape (plan 138, decisions 1/4)."""
+    from app.services.catalog.skill_relation_learn import backfill_parent_edges
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    programming = Skill(key="catchup-programming", label="Catchup Programming", category="test")
+    jvm = Skill(key="catchup-jvm", label="Catchup JVM", category="test")
+    java = Skill(key="catchup-java", label="Catchup Java", category="test")
+    db.add_all([programming, jvm, java])
+    await db.flush()
+    service = SkillRelationService(db)
+    await service.add("catchup-java", "catchup-jvm", "is_a", source="manual")
+    await service.add("catchup-jvm", "catchup-programming", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 2
+
+    rows = (await client.get("/api/v1/skills", headers=auth_headers)).json()
+    by_key = {row["key"]: row for row in rows}
+    assert by_key["catchup-java"]["parent_id"] == str(jvm.id)
+    assert by_key["catchup-jvm"]["parent_id"] == str(programming.id)
+    assert set(by_key["catchup-java"]) == {
+        "id",
+        "key",
+        "label",
+        "category",
+        "description",
+        "parent_id",
+        "level_anchors",
+    }, "the tree API shape is unchanged"
+
+    detail = (await client.get("/api/v1/skills/catchup-jvm", headers=auth_headers)).json()
+    assert detail["children_keys"] == ["catchup-java"]
+
+
 async def test_put_user_skills_roundtrip_and_validation(client, auth_headers, seeded_catalog):
     payload = {
         "skills": [

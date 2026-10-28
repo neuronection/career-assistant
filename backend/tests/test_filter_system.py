@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 from app.models.taxonomy_model import Skill
+from app.services.catalog.skill_relation_learn import backfill_parent_edges
 from app.services.postings.filter_query import build_where
 from app.services.postings.filter_spec import PostingFilterSpec
 
@@ -555,3 +556,138 @@ async def test_learned_edges_stay_invisible_until_approved(db, client, auth_head
         client, auth_headers, {"include": ["programming"], "expand": "down"}
     )
     assert after == {"g-learned"}
+
+
+# ------------------------------------------ tree catch-up stability (step 7)
+
+
+async def test_backfill_widens_the_free_budget_on_the_java_chain(db, client, auth_headers):
+    """§7 java / jvm-languages / programming: before the tree catch-up the
+    transitive chain is reachable from "programming" only at hops=2; after
+    the approved is_a edges fill the empty parents the SAME reach is free —
+    hops=1 matches it and hops=2 adds nothing. Budgets widen as the tree
+    fills; deliberate and pinned (plan 138 v5 kickback)."""
+    await _graph_fixture(db)
+    one_before = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    two_before = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
+    assert "g-java" not in one_before
+    assert "g-java" in two_before
+
+    assert await backfill_parent_edges(db) == 4
+
+    one_after = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    two_after = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
+    assert one_after == two_after == two_before
+
+
+async def test_backfill_keeps_a_direct_is_a_reach_identical(db, client, auth_headers):
+    """§7 java / programming (direct): the fill frees the same pair the hop
+    already reached — the result set is identical before and after."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    skills = {
+        key: Skill(key=key, label=key.title(), category="test") for key in ("programming", "java")
+    }
+    db.add_all(skills.values())
+    await db.flush()
+    src = _source({"keywords": "direct"})
+    db.add(src)
+    await db.flush()
+    posting = _posting(src, "g-direct", title="Java Dev")
+    db.add(posting)
+    await db.flush()
+    db.add(PostingSkill(posting_id=posting.id, skill_id=skills["java"].id, required_level=8))
+    await db.commit()
+
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "is_a", source="llm", confidence=0.9)
+    await service.approve(edge.id)
+
+    before = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    assert before == {"g-direct"}
+
+    assert await backfill_parent_edges(db) == 1
+
+    after = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    assert after == before
+
+
+async def test_backfill_leaves_synonym_reach_unchanged(db, client, auth_headers):
+    """§7 machine-learning / ml: synonym identity is 0-cost and the tree
+    catch-up migrates is_a rows only — it writes nothing here and the reach
+    is identical before and after."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    skills = {
+        key: Skill(key=key, label=key.replace("-", " ").title(), category="test")
+        for key in ("machine-learning", "ml")
+    }
+    db.add_all(skills.values())
+    await db.flush()
+    src = _source({"keywords": "syn"})
+    db.add(src)
+    await db.flush()
+    postings = {
+        "g-mlearn": _posting(src, "g-mlearn", title="ML Dev"),
+        "g-ml": _posting(src, "g-ml", title="ML Ops"),
+    }
+    db.add_all(postings.values())
+    await db.flush()
+    db.add(PostingSkill(posting_id=postings["g-mlearn"].id, skill_id=skills["machine-learning"].id))
+    db.add(PostingSkill(posting_id=postings["g-ml"].id, skill_id=skills["ml"].id))
+    await db.commit()
+
+    service = SkillRelationService(db)
+    await service.add("ml", "machine-learning", "synonym", source="manual")
+
+    before = await _filtered_ids(client, auth_headers, {"include": ["machine-learning"]})
+    assert before == {"g-mlearn", "g-ml"}
+
+    assert await backfill_parent_edges(db) == 0
+
+    after = await _filtered_ids(client, auth_headers, {"include": ["machine-learning"]})
+    assert after == before
+
+
+async def test_backfill_leaves_related_reach_unchanged(db, client, auth_headers):
+    """§7 typescript / javascript: related_to stays a related-mode hop —
+    the catch-up never migrates it into the tree."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    skills = {
+        key: Skill(key=key, label=key.title(), category="test")
+        for key in ("typescript", "javascript")
+    }
+    db.add_all(skills.values())
+    await db.flush()
+    src = _source({"keywords": "related"})
+    db.add(src)
+    await db.flush()
+    postings = {
+        "g-ts": _posting(src, "g-ts", title="TS Dev"),
+        "g-js": _posting(src, "g-js", title="JS Dev"),
+    }
+    db.add_all(postings.values())
+    await db.flush()
+    db.add(PostingSkill(posting_id=postings["g-ts"].id, skill_id=skills["typescript"].id))
+    db.add(PostingSkill(posting_id=postings["g-js"].id, skill_id=skills["javascript"].id))
+    await db.commit()
+
+    service = SkillRelationService(db)
+    await service.add("typescript", "javascript", "related_to", source="manual")
+
+    down_before = await _filtered_ids(client, auth_headers, {"include": ["javascript"]})
+    related_before = await _filtered_ids(
+        client, auth_headers, {"include": ["javascript"], "expand": "related"}
+    )
+    assert down_before == {"g-js"}
+    assert related_before == {"g-js", "g-ts"}
+
+    assert await backfill_parent_edges(db) == 0
+
+    down_after = await _filtered_ids(client, auth_headers, {"include": ["javascript"]})
+    related_after = await _filtered_ids(
+        client, auth_headers, {"include": ["javascript"], "expand": "related"}
+    )
+    assert down_after == down_before
+    assert related_after == related_before

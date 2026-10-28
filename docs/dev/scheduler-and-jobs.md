@@ -20,7 +20,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `cv_generate` / `cv_polish` / `cv_synth` | CV generation, polish loop, variants |
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
-| `skill_relation_learn` | Skill-relation edge discovery (plan 138) |
+| `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
 | `data_export` | Exports |
 
 Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
