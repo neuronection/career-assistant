@@ -1,4 +1,4 @@
-import type { SpecItem } from "./specOrder";
+import { MODE_ICON, seniorityScale, type SpecItem } from "./specOrder";
 
 /**
  * The spec source fields `postingSpecs` reads. Both `PostingOut` (the feed
@@ -103,6 +103,7 @@ export function postingSpecs(
       value: t(`card.modeValue.${mode}`, {
         defaultValue: String(mode).replace(/_/g, " "),
       }),
+      icon: MODE_ICON[mode],
     });
   }
   if (posting.seniority) {
@@ -112,6 +113,7 @@ export function postingSpecs(
       value: t(`autopilot.seniority.${posting.seniority}`, {
         defaultValue: posting.seniority,
       }),
+      scale: seniorityScale(posting.seniority),
     });
   }
   const contract = posting.employment_type ?? posting.contract_type;

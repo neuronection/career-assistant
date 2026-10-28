@@ -218,10 +218,12 @@ Information is **three tiers**, never one chip soup:
    mode · level · contract · hours · salary · education · closes. A slot
    renders only when the value exists.
    - **Nominal values** (mode, contract, education) are plain text in one
-     neutral tone, optionally with a small glyph that carries the mapping —
+     neutral tone with a small glyph that carries the mapping where the
+     vocabulary has one (mode: globe / house / building — `MODE_ICON`) —
      never a per-value hue.
-   - **Ordinal values** (level) may use an intensity cue (1–5 dots) in one
-     accent.
+   - **Ordinal values** (level) use the intensity cue: a 1–5 dot scale in
+     the accent (`seniorityScale`: intern 1 → senior 4, lead/principal 5),
+     rendered by `CardSpec` as `spec-scale-{key}` with `data-filled`.
    - Hue is reserved for **state** (fit band, warning, closed) and for the
      skill **heat ramp**: "amber" must never mean both "hybrid" and
      "closing soon".

@@ -28,6 +28,25 @@ export function CardSpec({
           <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
             {item.label}
           </span>
+          {item.scale ? (
+            <span
+              className="inline-flex items-center gap-0.5"
+              aria-hidden
+              data-testid={`spec-scale-${item.key}`}
+              data-filled={item.scale.filled}
+            >
+              {Array.from({ length: item.scale.total }, (_, dot) => (
+                <span
+                  key={dot}
+                  className={`h-1 w-1 rounded-full ${
+                    dot < item.scale!.filled
+                      ? "bg-[var(--as-accent)]"
+                      : "bg-[var(--as-border)]"
+                  }`}
+                />
+              ))}
+            </span>
+          ) : null}
           <span
             className={
               item.tone === "warning"
@@ -35,6 +54,7 @@ export function CardSpec({
                 : "text-[12px] text-[var(--as-fg)]"
             }
           >
+            {item.icon ? <item.icon aria-hidden className="mr-0.5 inline h-3 w-3 align-[-2px] text-[var(--as-muted-fg)]" /> : null}
             {item.value}
           </span>
           {index < ordered.length - 1 && (

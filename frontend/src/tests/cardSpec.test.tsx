@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 
+import { Globe as GlobeIcon } from "lucide-react";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { orderSpecs, type SpecItem } from "@/components/cards/specOrder";
-import { postingSpecs } from "@/features/postings/components/PostingCard";
+import { postingSpecs } from "@/components/cards/postingSpecs";
 import type { PostingOut } from "@/types/wire";
 
 const TEMPLATES: Record<string, string> = {
@@ -86,6 +87,12 @@ describe("postingSpecs", () => {
     const byKey = Object.fromEntries(specs.map((spec) => [spec.key, spec.value]));
     expect(byKey.mode).toBe("hybrid");
     expect(byKey.level).toBe("senior");
+    const mode = specs.find((spec) => spec.key === "mode");
+    expect(mode?.icon).toBeDefined();
+    expect(specs.find((spec) => spec.key === "level")?.scale).toEqual({
+      filled: 4,
+      total: 5,
+    });
     expect(byKey.contract).toBe("full time");
     expect(byKey.hours).toBe("40 h");
     expect(byKey.salary).toBe("EUR 60k–75k / year gross");
@@ -122,6 +129,44 @@ describe("postingSpecs", () => {
       posting({ location: { city: "Berlin", country: "DE", remote: true } }),
       t
     );
-    expect(specs.find((spec) => spec.key === "mode")?.value).toBe("remote");
+    const mode = specs.find((spec) => spec.key === "mode");
+    expect(mode?.value).toBe("remote");
+    expect(mode?.icon).toBeDefined();
+  });
+
+  it("leaves the seniority scale out for unknown values", () => {
+    const specs = postingSpecs(posting({ seniority: "principal" }), t);
+    expect(specs.find((spec) => spec.key === "level")?.scale).toEqual({
+      filled: 5,
+      total: 5,
+    });
+    const specs2 = postingSpecs(posting({ seniority: "whatever" }), t);
+    expect(specs2.find((spec) => spec.key === "level")?.scale).toBeUndefined();
+  });
+
+  it("renders glyphs and dot scales in the spec row", () => {
+    render(
+      <CardSpec
+        items={[
+          {
+            key: "mode",
+            label: "mode",
+            value: "Remote",
+            icon: GlobeIcon,
+          },
+          {
+            key: "level",
+            label: "level",
+            value: "Senior",
+            scale: { filled: 4, total: 5 },
+          },
+        ]}
+      />
+    );
+    expect(screen.getByTestId("spec-scale-level")).toHaveAttribute(
+      "data-filled",
+      "4"
+    );
+    expect(screen.getByTestId("spec-scale-level").children).toHaveLength(5);
   });
 });
