@@ -3160,7 +3160,27 @@
     "mentions": "required {{count}}×",
     "showOriginal": "Show original",
     "hideOriginal": "Hide original",
-    "timelineInfo": "Posting timestamps"
+    "timelineInfo": "Posting timestamps",
+    "history": {
+      "heading": "History",
+      "loading": "Loading history…",
+      "error": "History is unavailable right now.",
+      "empty": "No recorded changes yet — history begins {{date}}.",
+      "emptyNoDate": "No recorded changes yet.",
+      "showDiff": "Show changes ({{count}})",
+      "hideDiff": "Hide changes",
+      "from": "from",
+      "to": "to",
+      "kind": {
+        "sync_run": "Sync",
+        "extract_llm": "LLM extract",
+        "detail_fetch": "Detail fetch",
+        "company_match": "Company match",
+        "retag": "Re-tag",
+        "manual": "Manual",
+        "expiry": "Expiry"
+      }
+    }
   },
   "sessionList": {
     "renameChat": "Rename chat",

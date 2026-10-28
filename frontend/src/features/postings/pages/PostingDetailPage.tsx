@@ -33,6 +33,7 @@ import {
 } from "@/api/postings";
 import { openInterviewChat } from "@/features/chat/components/chat/interviewChatLink";
 import { MatchCard } from "@/features/postings/components/posting-detail/MatchCard";
+import { PostingHistory } from "@/features/postings/components/posting-detail/PostingHistory";
 import {
   CompactSkillChip,
   SkillChip,
@@ -751,6 +752,8 @@ export function PostingDetailPage() {
               </span>
             )}
           </section>
+
+          <PostingHistory postingRef={posting.ref} createdAt={posting.created_at} />
 
           <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-700">

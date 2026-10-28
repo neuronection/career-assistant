@@ -3159,7 +3159,27 @@
     "mentions": "{{count}}× gefordert",
     "showOriginal": "Original anzeigen",
     "hideOriginal": "Original ausblenden",
-    "timelineInfo": "Zeitstempel der Anzeige"
+    "timelineInfo": "Zeitstempel der Anzeige",
+    "history": {
+      "heading": "Verlauf",
+      "loading": "Verlauf wird geladen…",
+      "error": "Der Verlauf ist gerade nicht verfügbar.",
+      "empty": "Noch keine Änderungen aufgezeichnet — der Verlauf beginnt am {{date}}.",
+      "emptyNoDate": "Noch keine Änderungen aufgezeichnet.",
+      "showDiff": "Änderungen anzeigen ({{count}})",
+      "hideDiff": "Änderungen ausblenden",
+      "from": "von",
+      "to": "zu",
+      "kind": {
+        "sync_run": "Sync",
+        "extract_llm": "LLM-Extraktion",
+        "detail_fetch": "Detailabruf",
+        "company_match": "Firmenabgleich",
+        "retag": "Neu-Tagging",
+        "manual": "Manuell",
+        "expiry": "Ablauf"
+      }
+    }
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",
