@@ -20,14 +20,12 @@
           "href": "docs/career/user/explore-the-catalog"
         }
       ],
-      "shot": "images/catalog-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 10,
-      "preview": "chart"
+      "order": 10
     },
     {
       "id": "profile-matching",
@@ -50,14 +48,12 @@
           "href": "docs/career/user/matching-and-rankings"
         }
       ],
-      "shot": "images/rankings-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 20,
-      "preview": "chart"
+      "order": 20
     },
     {
       "id": "cv-studio",
@@ -85,14 +81,12 @@
           "label": "GitHub"
         }
       ],
-      "shot": "images/cv-studio-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 30,
-      "preview": "form"
+      "order": 30
     },
     {
       "id": "assistant-chat",
@@ -117,14 +111,12 @@
           "href": "docs/career/user/chat-tools-and-approval"
         }
       ],
-      "shot": "images/chat-proposals-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 33,
-      "preview": "chat"
+      "order": 33
     },
     {
       "id": "application-tracker",
@@ -154,8 +146,7 @@
         "web",
         "desktop"
       ],
-      "order": 35,
-      "preview": "kanban"
+      "order": 35
     },
     {
       "id": "live-postings",
@@ -173,14 +164,12 @@
           "href": "docs/career/user/career-autopilot"
         }
       ],
-      "shot": "images/postings-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 40,
-      "preview": "list"
+      "order": 40
     },
     {
       "id": "radar-sourcing",
@@ -206,8 +195,7 @@
         "web",
         "desktop"
       ],
-      "order": 45,
-      "preview": "form"
+      "order": 45
     },
     {
       "id": "university-pathways",
@@ -226,14 +214,12 @@
           "href": "docs/career/user/universities"
         }
       ],
-      "shot": "images/universities-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 50,
-      "preview": "list"
+      "order": 50
     },
     {
       "id": "career-paths",
@@ -247,14 +233,12 @@
           "href": "docs/career/user/explore-the-catalog"
         }
       ],
-      "shot": "images/career-paths-desktop.png",
       "platforms": [
         "selfhosted",
         "web",
         "desktop"
       ],
-      "order": 55,
-      "preview": "timeline"
+      "order": 55
     },
     {
       "id": "taxonomy-relations",
@@ -266,7 +250,7 @@
         "Skill filters expand through the reviewed graph — Exact, Sub-skills or Related, 1–2 hops for learned edges",
         "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
         "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias",
-        "Approving an is a edge fills the skill's empty place in the sub-skill tree; curated parents never move",
+        "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",
         "Discovery thresholds and the run ledger — pairs judged, edges proposed, the run watermark — live in Settings → Taxonomy"
       ],
       "links": [
@@ -284,8 +268,7 @@
         "web",
         "desktop"
       ],
-      "order": 57,
-      "preview": "approvals"
+      "order": 57
     },
     {
       "id": "connector-sdk",
@@ -322,33 +305,7 @@
         "web",
         "desktop"
       ],
-      "order": 60,
-      "preview": "list"
-    }
-  ],
-  "matrix": [
-    {
-      "row": "offline",
-      "value": false,
-      "note": "server app; AI + job boards need network"
-    },
-    {
-      "row": "self-host",
-      "value": "Docker",
-      "note": "prod + standalone compose; bare metal"
-    },
-    {
-      "row": "extension-sdk",
-      "value": "connector SDK",
-      "note": "T0–T3 trust tiers; MCP in and out"
-    },
-    {
-      "row": "platforms",
-      "value": "Linux, Windows, Docker, web"
-    },
-    {
-      "row": "license",
-      "value": "Apache-2.0"
+      "order": 60
     }
   ],
   "useCases": [

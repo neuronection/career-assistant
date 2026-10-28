@@ -4,6 +4,36 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (item cards — uniform card system, 2026-10-28)
+- **Postings, catalog jobs, rankings and companies share one card grammar.**
+  A posting card now reads as title → company (initials tile + link) →
+  location/date → labeled spec slots (mode, level, contract, hours, salary,
+  education, "closes in n d") → skills → a quiet footer (seen, source, ref,
+  provenance, applied). Fit is the same score bubble the rest of the app
+  uses, never a bare number.
+- **Fewer, more meaningful chips.** Attribute facts (remote, seniority,
+  contract) are labeled slots, not pills; must-have/bonus is no longer
+  printed on skill chips. Skills show their requirement as a cold/warm/hot
+  bullet plus the level, ordered must-have first; a two-row card ends its
+  second row with a `+N` chip that expands the rest.
+- **Closed postings are visible and honest.** A posting past `expires_at`
+  renders desaturated with a "Closed" mark and a disabled Apply; the saved
+  view keeps postings that closed after you saved them instead of dropping
+  them. "Needs review" is now the info dot it always meant (extraction
+  confidence), and a seen posting gets one quiet check instead of a dimmed
+  card.
+- **Deep-extracted postings can show their skills on the card** — the
+  posting payload carries the requirement-ordered skill list (bounded at
+  40).
+
+### Changed (capability showcase — family contract v1.3/v1.4, 2026-10-28)
+- **The capability showcase is text-first now.** `docs/capabilities.json`
+  moves to the family contract's v1.4 shape: the family comparison matrix,
+  the preview-widget hints and per-capability screenshot references are
+  gone — product captures appear once, in the visual tour. The
+  taxonomy-relations proof about approving a relation is reworded to the
+  tree-placement truth: a parent set — or cleared — by hand never moves.
+
 ### Fixed (skill taxonomy — tree-placement provenance, 2026-10-28)
 - **Undoing a backfilled tree placement finally sticks.** Every skill
   placement now carries provenance: `curated` (a human set it — or
