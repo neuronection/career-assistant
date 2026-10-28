@@ -1100,7 +1100,8 @@
       "interests": "Interests",
       "skills": "Skills",
       "paths": "Paths",
-      "enrichment": "Enrichment"
+      "enrichment": "Enrichment",
+      "relations": "Relations"
     },
     "newTag": "New tag",
     "keyPlaceholder": "key (stable slug, e.g. renewable-energy)",
@@ -1135,7 +1136,86 @@
     "enrichmentReject": "Discard",
     "noEnrichment": "No enrichment proposals",
     "noEnrichmentBody": "AI-generated job enrichment proposals appear here for review.",
-    "tabsAria": "Taxonomy sections"
+    "tabsAria": "Taxonomy sections",
+    "relations": {
+      "intro": "Typed edges between skills. Review what the discovery job proposes, curate the rest — a dismissal never comes back.",
+      "tabsAria": "Skill relation sections",
+      "tab": {
+        "queue": "Review queue",
+        "editor": "All relations",
+        "thresholds": "Thresholds",
+        "runs": "Runs"
+      },
+      "relation": {
+        "is_a": "is a",
+        "synonym": "is a synonym of",
+        "part_of": "is part of",
+        "related_to": "is related to"
+      },
+      "source": {
+        "manual": "manual",
+        "llm": "AI proposed",
+        "import": "imported",
+        "derived": "derived"
+      },
+      "status": {
+        "proposed": "proposed",
+        "approved": "approved",
+        "rejected": "dismissed"
+      },
+      "evidence": "Evidence",
+      "aliasHint": "This looks like a raw label for the other skill — save it as an alias instead of an edge.",
+      "accept": "Accept",
+      "dismiss": "Dismiss",
+      "saveAlias": "Save as alias",
+      "remove": "Remove",
+      "accepted": "Accepted — the sub-skill tree is caught up.",
+      "dismissed": "Dismissed — this pair never comes back.",
+      "aliasSaved": "Saved as an alias of {{target}}.",
+      "queue": {
+        "empty": "Nothing to review",
+        "emptyBody": "Suggested relations from the discovery job appear here."
+      },
+      "editor": {
+        "empty": "No relations yet",
+        "emptyBody": "Add a typed relation between two skills above."
+      },
+      "addHeading": "Add a relation",
+      "fromLabel": "Skill",
+      "toLabel": "Related skill",
+      "relationLabel": "Relation",
+      "confidenceLabel": "Confidence (0–1, optional)",
+      "add": "Add relation",
+      "thresholds": {
+        "minSupport": "Minimum co-occurrence support",
+        "batchSize": "Pairs per AI call (max 40)",
+        "maxPairs": "Pairs per run",
+        "minNegative": "Confidence bar for negative verdicts",
+        "save": "Save thresholds",
+        "saved": "Saved."
+      },
+      "runs": {
+        "empty": "No discovery runs yet",
+        "emptyBody": "Runs of the daily skill-relation job appear here with their statistics.",
+        "heldWatermark": "held (not yet advanced)"
+      },
+      "ledger": {
+        "candidates": "candidates",
+        "batches": "batches",
+        "judged_batches": "judged",
+        "failed_batches": "failed",
+        "uncovered": "uncovered",
+        "derived": "derived",
+        "edges_proposed": "edges proposed",
+        "negatives": "negatives",
+        "dropped": "dropped",
+        "below_bar": "below bar",
+        "materialized": "tree mirrored",
+        "backfilled": "tree filled",
+        "capped": "capped",
+        "watermark": "watermark"
+      }
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",

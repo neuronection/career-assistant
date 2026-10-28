@@ -47,6 +47,12 @@
       "state": "beta",
       "since": "2026-10-25",
       "docs": "docs/user/companies.md"
+    },
+    {
+      "key": "/settings/taxonomy",
+      "state": "on",
+      "since": "2026-10-28",
+      "docs": "docs/user/skills-taxonomy.md"
     }
   ]
 }

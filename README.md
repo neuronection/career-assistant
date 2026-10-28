@@ -104,6 +104,7 @@ fails when a claim here drifts from the code.
 | Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |
 | Growth toolkit | `/growth` | beta | [user/growth.md](docs/user/growth.md) |
 | Career paths | `/paths` | beta | [user/career-paths.md](docs/user/career-paths.md) |
+| Skill relations admin | `/settings/taxonomy` | on | [user/skills-taxonomy.md](docs/user/skills-taxonomy.md) |
 
 `beta` means the surface works end to end and carries a visible Beta chip
 plus one expectation line in the app; everything else the catalog lists is

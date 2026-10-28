@@ -14,6 +14,7 @@ import {
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
 import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
+import { SkillRelationsPanel } from "@/components/settings/SkillRelationsPanel";
 import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
 
 interface PathRow {
@@ -38,7 +39,9 @@ interface EnrichmentRow {
 /** Admin taxonomy management: create, edit, promote/deprecate, merge, delete. */
 export function Taxonomy() {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<"interests" | "skills" | "paths" | "enrichment">("interests");
+  const [kind, setKind] = useState<"interests" | "skills" | "paths" | "enrichment" | "relations">(
+    "interests",
+  );
   const [tags, setTags] = useState<Tag[]>([]);
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [paths, setPaths] = useState<PathRow[]>([]);
@@ -61,7 +64,7 @@ export function Taxonomy() {
       } else if (kind === "enrichment") {
         const { data } = await api.get<EnrichmentRow[]>("/admin/jobs/enrichment");
         setEnrichment(data);
-      } else {
+      } else if (kind === "paths") {
         const { data } = await api.get<PathRow[]>("/admin/paths", {
           params: { status: "draft" },
         });
@@ -165,14 +168,16 @@ export function Taxonomy() {
         <SegmentedTabs
           ariaLabel={t("taxonomy.tabsAria")}
           className="max-w-lg"
-          items={(["interests", "skills", "paths", "enrichment"] as const).map((k) => ({
-            value: k,
-            label: t(`taxonomy.kind.${k}`),
-          }))}
+          items={(["interests", "skills", "paths", "enrichment", "relations"] as const).map(
+            (k) => ({
+              value: k,
+              label: t(`taxonomy.kind.${k}`),
+            }),
+          )}
           value={kind}
           onValueChange={(next) => setKind(next as typeof kind)}
         />
-        {kind !== "paths" && kind !== "enrichment" && (
+        {kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
           <button
             onClick={() => setCreating((v) => !v)}
             className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
@@ -182,7 +187,7 @@ export function Taxonomy() {
         )}
       </div>
 
-      {creating && kind !== "paths" && kind !== "enrichment" && (
+      {creating && kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
         <div className="bg-white border border-slate-200 rounded-xl p-4 grid md:grid-cols-2 gap-2">
           <input
             placeholder={t("taxonomy.keyPlaceholder")}
@@ -221,7 +226,9 @@ export function Taxonomy() {
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {note && <p className="text-xs text-amber-600">{note}</p>}
 
-      {loading ? (
+      {kind === "relations" ? (
+        <SkillRelationsPanel />
+      ) : loading ? (
         <div className="flex w-full flex-col items-center justify-center py-24">
           <Spinner size="lg" />
           <p className="mt-3 text-sm text-slate-400">{t("common.loading")}</p>

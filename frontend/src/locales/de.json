@@ -1100,7 +1100,8 @@
       "interests": "Interessen",
       "skills": "Fähigkeiten",
       "paths": "Pfade",
-      "enrichment": "Ergänzung"
+      "enrichment": "Ergänzung",
+      "relations": "Relationen"
     },
     "newTag": "Neuer Tag",
     "keyPlaceholder": "Schlüssel (stabiler Slug, z.B. renewable-energy)",
@@ -1135,7 +1136,86 @@
     "enrichmentReject": "Ablehnen",
     "noEnrichment": "Keine Vorschläge zur Erweiterung",
     "noEnrichmentBody": "Vorschläge zur Erweiterung von Stellenangeboten, die von KI generiert wurden, werden hier zur Überprüfung angezeigt.",
-    "tabsAria": "Taxonomie-Bereiche"
+    "tabsAria": "Taxonomie-Bereiche",
+    "relations": {
+      "intro": "Typisierte Verbindungen zwischen Skills. Prüfe, was der Entdeckungs-Job vorschlägt, und kuratiere den Rest — eine Verwerfung kommt nie zurück.",
+      "tabsAria": "Bereiche der Skill-Relationen",
+      "tab": {
+        "queue": "Prüfwarteschlange",
+        "editor": "Alle Relationen",
+        "thresholds": "Schwellenwerte",
+        "runs": "Läufe"
+      },
+      "relation": {
+        "is_a": "ist ein",
+        "synonym": "ist ein Synonym von",
+        "part_of": "ist Teil von",
+        "related_to": "steht in Verbindung mit"
+      },
+      "source": {
+        "manual": "manuell",
+        "llm": "KI-Vorschlag",
+        "import": "importiert",
+        "derived": "abgeleitet"
+      },
+      "status": {
+        "proposed": "vorgeschlagen",
+        "approved": "bestätigt",
+        "rejected": "verworfen"
+      },
+      "evidence": "Belege",
+      "aliasHint": "Das sieht nach einem Roh-Label für den anderen Skill aus — speichere es als Alias statt als Kante.",
+      "accept": "Annehmen",
+      "dismiss": "Verwerfen",
+      "saveAlias": "Als Alias speichern",
+      "remove": "Entfernen",
+      "accepted": "Angenommen — der Unter-Skill-Baum ist auf dem Stand.",
+      "dismissed": "Verworfen — dieses Paar kommt nie zurück.",
+      "aliasSaved": "Als Alias von {{target}} gespeichert.",
+      "queue": {
+        "empty": "Nichts zu prüfen",
+        "emptyBody": "Vorgeschlagene Relationen aus dem Entdeckungs-Job erscheinen hier."
+      },
+      "editor": {
+        "empty": "Noch keine Relationen",
+        "emptyBody": "Füge oben eine typisierte Relation zwischen zwei Skills hinzu."
+      },
+      "addHeading": "Relation hinzufügen",
+      "fromLabel": "Skill",
+      "toLabel": "Zugehöriger Skill",
+      "relationLabel": "Relation",
+      "confidenceLabel": "Konfidenz (0–1, optional)",
+      "add": "Relation hinzufügen",
+      "thresholds": {
+        "minSupport": "Minimale Co-Occurrence-Häufigkeit",
+        "batchSize": "Paare pro KI-Aufruf (max. 40)",
+        "maxPairs": "Paare pro Lauf",
+        "minNegative": "Konfidenzgrenze für negative Urteile",
+        "save": "Schwellenwerte speichern",
+        "saved": "Gespeichert."
+      },
+      "runs": {
+        "empty": "Noch keine Entdeckungsläufe",
+        "emptyBody": "Läufe des täglichen Skill-Relation-Jobs erscheinen hier mit ihren Kennzahlen.",
+        "heldWatermark": "angehalten (noch nicht fortgeschritten)"
+      },
+      "ledger": {
+        "candidates": "Kandidaten",
+        "batches": "Stapel",
+        "judged_batches": "beurteilt",
+        "failed_batches": "fehlgeschlagen",
+        "uncovered": "unbeantwortet",
+        "derived": "abgeleitet",
+        "edges_proposed": "Kanten vorgeschlagen",
+        "negatives": "Negative",
+        "dropped": "verworfen",
+        "below_bar": "unter Grenze",
+        "materialized": "Baum gespiegelt",
+        "backfilled": "Baum gefüllt",
+        "capped": "begrenzt",
+        "watermark": "Wasserzeichen"
+      }
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",

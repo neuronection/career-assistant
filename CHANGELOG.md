@@ -15,7 +15,8 @@ All notable changes to **Career Assistant** are documented here.
   aliases instead of edges. Discovery knobs (support floor, batch size,
   per-run cap, negative-confidence bar) and the run statistics are
   editable/visible there too. A saved alias resolves immediately — merged
-  label rows stop shadowing the surviving skill in matching.
+  label rows stop shadowing the surviving skill in matching. The surface
+  lives in Settings → Taxonomy → Relations.
 
 ### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
 - **The skill tree catches up with reviewed relations** — approving an
