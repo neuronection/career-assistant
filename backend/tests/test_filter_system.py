@@ -5,10 +5,15 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 from app.models.taxonomy_model import Skill
-from app.services.catalog.skill_relation_learn import backfill_parent_edges
+from app.services.catalog.skill_relation_learn import (
+    backfill_parent_edges,
+    materialize_parent_edges,
+)
+from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.postings.filter_query import build_where
 from app.services.postings.filter_spec import PostingFilterSpec
 
@@ -566,7 +571,9 @@ async def test_backfill_widens_the_free_budget_on_the_java_chain(db, client, aut
     transitive chain is reachable from "programming" only at hops=2; after
     the approved is_a edges fill the empty parents the SAME reach is free —
     hops=1 matches it and hops=2 adds nothing. Budgets widen as the tree
-    fills; deliberate and pinned (plan 138 v5 kickback)."""
+    fills; deliberate and pinned (plan 138 v5 kickback). The undo tail
+    (plan 139): clearing the learned placement narrows the reach back to
+    the pre-backfill shape and the clear sticks across the catch-up tick."""
     await _graph_fixture(db)
     one_before = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
     two_before = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
@@ -578,6 +585,23 @@ async def test_backfill_widens_the_free_budget_on_the_java_chain(db, client, aut
     one_after = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
     two_after = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
     assert one_after == two_after == two_before
+
+    for key in ("java", "jvm-languages"):
+        row = (await db.execute(select(Skill).where(Skill.key == key))).scalar_one()
+        await TaxonomyService(db).update_skill(row.id, {"parent_id": None})
+
+    one_undo = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    two_undo = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 2})
+    assert one_undo == one_before, "clearing the learned chain narrows the reach back"
+    assert two_undo == two_before, "the hop-capped path still reaches java through the edges"
+
+    assert await backfill_parent_edges(db) == 0, "the curated clears never re-fill"
+    assert await materialize_parent_edges(db) == 2, (
+        "only the fixture's two never-touched raw placements mirror — not the cleared slots"
+    )
+
+    one_stable = await _filtered_ids(client, auth_headers, {"include": ["programming"], "hops": 1})
+    assert one_stable == one_before, "the deliberate clear sticks across the catch-up tick"
 
 
 async def test_backfill_keeps_a_direct_is_a_reach_identical(db, client, auth_headers):
@@ -691,3 +715,25 @@ async def test_backfill_leaves_related_reach_unchanged(db, client, auth_headers)
     )
     assert down_after == down_before
     assert related_after == related_before
+
+
+async def test_clearing_a_curated_placement_narrows_expansion_back(db, client, auth_headers):
+    """§7 undo pin (plan 139 decision 8): a curated placement's clear
+    narrows the reach exactly like a learned one — the subtree leaves the
+    filter's reach and the clear sticks (nothing refills a curated slot)."""
+    await _graph_fixture(db)
+    assert await backfill_parent_edges(db) == 4
+    frontend = (await db.execute(select(Skill).where(Skill.key == "frontend"))).scalar_one()
+    web_dev = (await db.execute(select(Skill).where(Skill.key == "web-dev"))).scalar_one()
+    await TaxonomyService(db).update_skill(frontend.id, {"parent_id": web_dev.id})
+    assert frontend.parent_source == "curated"
+
+    before = await _filtered_ids(client, auth_headers, {"include": ["web-dev"]})
+    assert before == {"g-frontend", "g-fesyn", "g-react"}, "the subtree rides the curated parent"
+
+    await TaxonomyService(db).update_skill(frontend.id, {"parent_id": None})
+
+    assert frontend.parent_source == "curated", "the clear claims human provenance"
+    after = await _filtered_ids(client, auth_headers, {"include": ["web-dev"]})
+    assert after == set(), "the cleared parent takes its subtree out of the reach"
+    assert await backfill_parent_edges(db) == 0, "a curated slot is never refilled"
