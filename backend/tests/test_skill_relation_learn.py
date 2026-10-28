@@ -666,6 +666,98 @@ async def test_a_guarded_fill_must_stamp_learned(db):
     assert skills["a"].parent_source is None
 
 
+# ------------------------------------- placement heal (plan 139, step 3)
+
+
+async def test_remove_filling_edge_clears_unsupported_learned_placement(db):
+    skills = await _seed(db, _skill("programming"), _skill("java"))
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+
+    await service.remove(edge.id)
+
+    assert skills["java"].parent_id is None
+    assert skills["java"].parent_source is None, "the slot is untouched again"
+
+
+async def test_remove_of_an_unrelated_edge_keeps_a_supported_placement(db):
+    """The keep branch: the heal fires for the skill, but the placement's
+    own approved `is_a` row still stands — kept, still `learned`. (A
+    same-pair second row cannot exist — `uq_skill_relation_edge` dedupes
+    (pair, relation) — so "other support" always means a different pair's
+    row triggered the heal.)"""
+    skills = await _seed(db, _skill("programming"), _skill("jvm-languages"), _skill("java"))
+    service = SkillRelationService(db)
+    await service.add("java", "programming", "is_a", source="manual", confidence=0.9)
+    other = await service.add("java", "jvm-languages", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+    assert skills["java"].parent_id == skills["programming"].id
+
+    await service.remove(other.id)
+
+    assert skills["java"].parent_id == skills["programming"].id
+    assert skills["java"].parent_source == "learned"
+
+
+async def test_reject_filling_edge_clears_unsupported_learned_placement(db):
+    """Dismissal strands a placement exactly like deletion — reject() heals
+    too, and the negative edge keeps the slot from re-filling."""
+    skills = await _seed(db, _skill("programming"), _skill("java"))
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+
+    await service.reject(edge.id)
+
+    assert skills["java"].parent_id is None
+    assert skills["java"].parent_source is None
+    assert await backfill_parent_edges(db) == 0, "the negative edge never re-fills it"
+
+
+async def test_remove_leaves_curated_and_legacy_placements_alone(db):
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(
+        db, _skill("programming"), _skill("databases"), _skill("java"), _skill("sql")
+    )
+    service = SkillRelationService(db)
+    curated_edge = await service.add("java", "programming", "is_a", source="manual")
+    await TaxonomyService(db).update_skill(
+        skills["java"].id, {"parent_id": skills["programming"].id}
+    )
+    legacy_edge = await service.add("sql", "databases", "is_a", source="manual")
+    skills["sql"].parent_id = skills["databases"].id
+    await db.flush()
+
+    await service.remove(curated_edge.id)
+    await service.remove(legacy_edge.id)
+
+    assert skills["java"].parent_id == skills["programming"].id
+    assert skills["java"].parent_source == "curated"
+    assert skills["sql"].parent_id == skills["databases"].id
+    assert skills["sql"].parent_source is None
+    assert await materialize_parent_edges(db) == 2, (
+        "curated and legacy placements keep the sticky mirror semantics (documented)"
+    )
+
+
+async def test_delete_resurrection_is_gone(db):
+    """Plan 138's weak point dies for learned placements: hard-deleting the
+    filling edge heals the slot to untouched, so the next materialization
+    has nothing to resurrect as an import mirror."""
+    await _seed(db, _skill("programming"), _skill("java"))
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+
+    await service.remove(edge.id)
+
+    assert await materialize_parent_edges(db) == 0
+    rows = await _relation_rows(db)
+    assert rows == [], "no import mirror resurrects the placement"
+
+
 async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):
     from app.ai.providers import resolution
 

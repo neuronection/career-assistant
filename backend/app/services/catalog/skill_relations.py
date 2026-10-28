@@ -192,19 +192,51 @@ class SkillRelationService:
         return edge
 
     async def reject(self, edge_id: SkillRef, decided_by: uuid.UUID | None = None) -> SkillRelation:
-        """Write (or confirm) the negative edge for this pair + relation."""
+        """Write (or confirm) the negative edge for this pair + relation.
+
+        Rejecting an ``is_a`` row can strand a ``learned`` tree placement
+        it justified — the placement heal re-derives it from the surviving
+        approved support (plan 139 decision 4).
+        """
         edge = await self._require_edge(edge_id)
+        kind = self._relation(edge.relation)
+        subject = edge.from_skill_id
         edge.status = SkillRelationStatus.REJECTED.value
         edge.decided_by = decided_by
         edge.decided_at = datetime.now(UTC)
         await self.db.commit()
+        if kind is SkillRelationType.IS_A:
+            await self._heal_learned_placement(subject)
         return edge
 
     async def remove(self, edge_id: SkillRef) -> None:
-        """Hard-delete an edge (admin cleanup; rejections are the negative edge)."""
+        """Hard-delete an edge (admin cleanup; rejections are the negative edge).
+
+        Deleting an ``is_a`` row can strand a ``learned`` tree placement it
+        justified — the placement heal re-derives it from the surviving
+        approved support, so the tree never keeps a placement nobody's
+        evidence endorses (and materialization has nothing to resurrect,
+        plan 139 decision 4).
+        """
         edge = await self._require_edge(edge_id)
+        kind = self._relation(edge.relation)
+        subject = edge.from_skill_id
         await self.db.delete(edge)
         await self.db.commit()
+        if kind is SkillRelationType.IS_A:
+            await self._heal_learned_placement(subject)
+
+    async def _heal_learned_placement(self, skill_id: uuid.UUID) -> None:
+        """Route the placement heal through the tree-write owner.
+
+        The tree write belongs to ``TaxonomyService`` — the deferred
+        import breaks the module cycle (``taxonomy_service`` imports this
+        module's ``assert_acyclic``), the same pattern the tree catch-up
+        uses. Edge writes stay here; this reads nothing but the skill.
+        """
+        from app.services.catalog.taxonomy_service import TaxonomyService
+
+        await TaxonomyService(self.db).heal_learned_placement(skill_id)
 
     # -------------------------------------------------------------- helpers
 

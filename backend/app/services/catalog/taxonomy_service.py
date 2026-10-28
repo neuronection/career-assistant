@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
 from app.models.career_path_model import CareerPathStep
-from app.models.enums import InterestTagKind, SkillRelationType
+from app.models.enums import InterestTagKind, SkillRelationStatus, SkillRelationType
 from app.models.job_model import JobSkill, JobTag
-from app.models.taxonomy_model import InterestTag, Skill
+from app.models.taxonomy_model import InterestTag, Skill, SkillRelation
 from app.models.user_model import Profile, UserInterest, UserSkill
 from app.services.catalog.skill_relations import assert_acyclic
 from app.services.catalog.skills_service import SkillService
@@ -178,6 +178,34 @@ class TaxonomyService:
         await self.db.commit()
         await self.db.refresh(skill)
         return skill
+
+    async def heal_learned_placement(self, skill_id: UUID) -> None:
+        """Re-derive a ``learned`` tree placement from surviving support.
+
+        The edge seam calls this after removing or rejecting an ``is_a``
+        row (the evidence changed; plan 139 decision 4). A ``learned``
+        placement whose parent still has an approved ``is_a`` row keeps
+        it — the tri-state stamp records no row identity, so "re-stamp
+        from the new winner" is a value no-op and nothing is written.
+        Without support the placement clears back to untouched (empty +
+        ``NULL``) through :meth:`update_skill`, so the next catch-up pass
+        may re-fill it from the next-best edge. ``curated`` and
+        pre-provenance (``NULL``) placements are never touched.
+        """
+        skill = await self.db.get(Skill, skill_id)
+        if skill is None or skill.parent_id is None or skill.parent_source != "learned":
+            return
+        support = await self.db.execute(
+            select(SkillRelation.id).where(
+                SkillRelation.from_skill_id == skill.id,
+                SkillRelation.to_skill_id == skill.parent_id,
+                SkillRelation.relation == SkillRelationType.IS_A.value,
+                SkillRelation.status == SkillRelationStatus.APPROVED.value,
+            )
+        )
+        if support.first() is not None:
+            return
+        await self.update_skill(skill.id, {"parent_id": None}, parent_source=None)
 
     async def _update(self, model, tag_id, data: dict):
         tag = await self.db.get(model, tag_id)
