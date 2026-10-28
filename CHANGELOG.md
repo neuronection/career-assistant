@@ -14,7 +14,8 @@ All notable changes to **Career Assistant** are documented here.
   rows that are really aliases ("js" for JavaScript) can be saved as
   aliases instead of edges. Discovery knobs (support floor, batch size,
   per-run cap, negative-confidence bar) and the run statistics are
-  editable/visible there too.
+  editable/visible there too. A saved alias resolves immediately — merged
+  label rows stop shadowing the surviving skill in matching.
 
 ### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
 - **The skill tree catches up with reviewed relations** — approving an

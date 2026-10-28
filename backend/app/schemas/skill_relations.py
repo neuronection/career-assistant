@@ -78,6 +78,15 @@ class SkillRelationThresholdsIn(BaseModel):
     min_negative_confidence: float = Field(ge=0.0, le=1.0)
 
 
+class SkillRelationSaveAliasOut(BaseModel):
+    """The saved outcome: the edge row is dismissed (negative edge) and
+    the label now resolves through the surviving skill's aliases."""
+
+    relation: SkillRelationOut
+    target: SkillRelationSkillOut
+    aliases: list[str]
+
+
 class SkillRelationRunLedgerOut(BaseModel):
     """The run ledger keys the stats view renders (missing counters = 0)."""
 

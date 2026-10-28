@@ -19229,6 +19229,31 @@
         "title": "SkillRelationRunOut",
         "type": "object"
       },
+      "SkillRelationSaveAliasOut": {
+        "description": "The saved outcome: the edge row is dismissed (negative edge) and\nthe label now resolves through the surviving skill's aliases.",
+        "properties": {
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Aliases",
+            "type": "array"
+          },
+          "relation": {
+            "$ref": "#/components/schemas/SkillRelationOut"
+          },
+          "target": {
+            "$ref": "#/components/schemas/SkillRelationSkillOut"
+          }
+        },
+        "required": [
+          "relation",
+          "target",
+          "aliases"
+        ],
+        "title": "SkillRelationSaveAliasOut",
+        "type": "object"
+      },
       "SkillRelationSkillOut": {
         "description": "One pair endpoint with the facts the review queue shows.",
         "properties": {
@@ -24608,6 +24633,50 @@
           }
         },
         "summary": "Dismiss Skill Relation",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skill-relations/{relation_id}/save-alias": {
+      "post": {
+        "description": "The alias-add path (decision 6): a raw label is not an edge.\n\nThe proposed label row merges into the active skill \u2014 its key/label\nbecome aliases the matcher resolves \u2014 and the edge row is dismissed so\nthe pair never returns as an edge suggestion.",
+        "operationId": "save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "relation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Relation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationSaveAliasOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Skill Relation As Alias",
         "tags": [
           "admin"
         ]

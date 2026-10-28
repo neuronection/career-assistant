@@ -91,14 +91,17 @@ class SkillRelationService:
             query = query.where(SkillRelation.status == self._status(status).value)
         if skill_id is not None:
             query = query.where(
-                (SkillRelation.from_skill_id == skill_id)
-                | (SkillRelation.to_skill_id == skill_id)
+                (SkillRelation.from_skill_id == skill_id) | (SkillRelation.to_skill_id == skill_id)
             )
         query = query.order_by(SkillRelation.created_at.desc())
         rows = await self.db.execute(query)
         return list(rows.scalars().all())
 
     # ------------------------------------------------------------ write path
+
+    async def get(self, edge_id: SkillRef) -> SkillRelation:
+        """One row by id (queue actions operate on exactly this grain)."""
+        return await self._require_edge(edge_id)
 
     async def add(
         self,

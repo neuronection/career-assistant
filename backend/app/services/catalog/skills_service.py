@@ -57,19 +57,27 @@ class SkillService:
         return skill
 
     async def resolve(self, key: str) -> Skill | None:
-        """Resolve a key, accepting display aliases (case-insensitive)."""
-        skill = await self.get_by_key(key.strip())
-        if skill is not None:
-            return skill
+        """Resolve a key, accepting display aliases (case-insensitive).
+
+        A deprecated row never shadows a live skill: when the key belongs
+        to a merged-away label row, the alias scan finds the surviving
+        skill whose alias now carries the label (decision 6's matcher
+        contract), and only then does the deprecated exact-key hit answer.
+        """
+        exact = await self.get_by_key(key.strip())
+        if exact is not None and exact.status != SkillStatus.DEPRECATED.value:
+            return exact
         rows = await self.db.execute(select(Skill))
         for candidate in rows.scalars().all():
+            if candidate.status == SkillStatus.DEPRECATED.value:
+                continue
             haystack = {
                 _norm(candidate.label),
                 *(_norm(a) for a in candidate.aliases or []),
             }
             if _norm(key) in haystack:
                 return candidate
-        return None
+        return exact
 
     async def propose(
         self,

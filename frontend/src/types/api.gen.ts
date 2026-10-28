@@ -1288,6 +1288,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/skill-relations/{relation_id}/save-alias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Save Skill Relation As Alias
+         * @description The alias-add path (decision 6): a raw label is not an edge.
+         *
+         *     The proposed label row merges into the active skill — its key/label
+         *     become aliases the matcher resolves — and the edge row is dismissed so
+         *     the pair never returns as an edge suggestion.
+         */
+        post: operations["save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/skills/proposals": {
         parameters: {
             query?: never;
@@ -15370,6 +15394,17 @@ export interface components {
             status: string;
         };
         /**
+         * SkillRelationSaveAliasOut
+         * @description The saved outcome: the edge row is dismissed (negative edge) and
+         *     the label now resolves through the surviving skill's aliases.
+         */
+        SkillRelationSaveAliasOut: {
+            /** Aliases */
+            aliases: string[];
+            relation: components["schemas"]["SkillRelationOut"];
+            target: components["schemas"]["SkillRelationSkillOut"];
+        };
+        /**
          * SkillRelationSkillOut
          * @description One pair endpoint with the facts the review queue shows.
          */
@@ -18479,6 +18514,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationSaveAliasOut"];
                 };
             };
             /** @description Validation Error */

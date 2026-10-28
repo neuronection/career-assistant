@@ -143,9 +143,7 @@ async def test_manual_add_creates_an_approved_row(db, client, _admin_and_user):
     assert len(await _rows(db)) == 2, "multi-relation rows per pair are possible"
 
 
-async def test_manual_add_refreshes_confidence_instead_of_duplicating(
-    db, client, _admin_and_user
-):
+async def test_manual_add_refreshes_confidence_instead_of_duplicating(db, client, _admin_and_user):
     admin, _ = _admin_and_user
     await _seed_skills(db, "java", "programming")
     payload = {"from_skill": "java", "to_skill": "programming", "relation": "is_a"}
@@ -168,9 +166,7 @@ async def test_accept_approves_and_runs_the_tree_catch_up(db, client, _admin_and
     edge = await service.add("java", "programming", "is_a", source="llm", confidence=0.9)
     assert edge.status == "proposed"
 
-    response = await client.post(
-        f"/api/v1/admin/skill-relations/{edge.id}/accept", headers=admin
-    )
+    response = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/accept", headers=admin)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["status"] == "approved"
@@ -182,9 +178,7 @@ async def test_accept_approves_and_runs_the_tree_catch_up(db, client, _admin_and
     )
 
 
-async def test_accept_refuses_a_cycle_and_leaves_the_row_proposed(
-    db, client, _admin_and_user
-):
+async def test_accept_refuses_a_cycle_and_leaves_the_row_proposed(db, client, _admin_and_user):
     admin, _ = _admin_and_user
     skills = await _seed_skills(db, "a", "b")
     service = SkillRelationService(db)
@@ -192,9 +186,7 @@ async def test_accept_refuses_a_cycle_and_leaves_the_row_proposed(
     skills["b"].parent_id = skills["a"].id
     await db.flush()
 
-    response = await client.post(
-        f"/api/v1/admin/skill-relations/{edge.id}/accept", headers=admin
-    )
+    response = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/accept", headers=admin)
     assert response.status_code == 400
     assert "cycle" in response.text
 
@@ -208,9 +200,7 @@ async def test_dismiss_writes_the_negative_edge(db, client, _admin_and_user):
     service = SkillRelationService(db)
     edge = await service.add("java", "programming", "is_a", source="llm", confidence=0.2)
 
-    response = await client.post(
-        f"/api/v1/admin/skill-relations/{edge.id}/dismiss", headers=admin
-    )
+    response = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/dismiss", headers=admin)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["status"] == "rejected"
@@ -228,9 +218,7 @@ async def test_remove_deletes_the_row(db, client, _admin_and_user):
     service = SkillRelationService(db)
     edge = await service.add("java", "programming", "is_a", source="manual")
 
-    response = await client.delete(
-        f"/api/v1/admin/skill-relations/{edge.id}", headers=admin
-    )
+    response = await client.delete(f"/api/v1/admin/skill-relations/{edge.id}", headers=admin)
     assert response.status_code == 204
     assert await _rows(db) == []
     missing = await client.delete(f"/api/v1/admin/skill-relations/{edge.id}", headers=admin)
@@ -261,12 +249,16 @@ async def test_thresholds_round_trip_and_bounds(db, client, _admin_and_user):
     )
     assert saved.status_code == 200, saved.text
     reread = (await client.get("/api/v1/admin/skill-relations/thresholds", headers=admin)).json()
-    assert reread == saved.json() == {
-        "min_support": 5,
-        "batch_size": 10,
-        "max_pairs_per_run": 50,
-        "min_negative_confidence": 0.8,
-    }
+    assert (
+        reread
+        == saved.json()
+        == {
+            "min_support": 5,
+            "batch_size": 10,
+            "max_pairs_per_run": 50,
+            "min_negative_confidence": 0.8,
+        }
+    )
 
     over_cap = await client.put(
         "/api/v1/admin/skill-relations/thresholds",
@@ -356,3 +348,104 @@ async def test_runs_ledger_renders_and_handles_null_watermark(db, client, _admin
         "capped",
         "watermark",
     }
+
+
+# --------------------------------------------- alias-add path (decision 6)
+
+
+async def test_save_alias_merges_the_label_row_and_writes_the_negative_edge(
+    db, client, _admin_and_user
+):
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "js", "javascript")
+    skills["js"].status = "proposed"
+    skills["js"].provenance = {"evidence_quote": "JS and React required"}
+    await db.flush()
+    service = SkillRelationService(db)
+    edge = await service.add("js", "javascript", "synonym", source="llm", confidence=0.7)
+
+    response = await client.post(
+        f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["target"]["key"] == "javascript"
+    assert "js" in body["aliases"], "the label lands on the surviving skill's aliases"
+    assert body["relation"]["status"] == "rejected", "the edge is dismissed — the negative edge"
+
+    db.expire_all()
+    rows = await _rows(db)
+    assert rows[0].status == SkillRelationStatus.REJECTED.value
+    assert rows[0].decided_by is not None
+    merged_away = (await db.execute(select(Skill).where(Skill.key == "js"))).scalars().first()
+    assert merged_away.status == "deprecated", "the label row is merged away"
+
+
+async def test_save_alias_makes_the_matcher_resolve_the_label(db, client, _admin_and_user):
+    """§7 "js" label / javascript row: after the alias save the matcher
+    resolves the label to the surviving skill — no edge needed."""
+    from app.services.catalog.skills_service import SkillService
+    from app.services.postings.postings_service import _taxonomy_index
+
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "js", "javascript")
+    skills["js"].status = "proposed"
+    await db.flush()
+    service = SkillRelationService(db)
+    edge = await service.add("js", "javascript", "synonym", source="llm", confidence=0.7)
+    await client.post(f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin)
+    db.expire_all()
+
+    resolved = await SkillService(db).resolve("js")
+    assert resolved is not None
+    assert resolved.key == "javascript", "the deprecated label row no longer shadows the alias"
+    merged_away = (await db.execute(select(Skill).where(Skill.key == "js"))).scalars().first()
+    index = await _taxonomy_index(db)
+    assert merged_away.id not in index.values(), "a merged-away label row never shadows the matcher"
+    assert index["javascript"] == skills["javascript"].id
+
+
+async def test_the_matcher_index_skips_deprecated_rows(db):
+    from app.services.postings.postings_service import _taxonomy_index
+
+    skills = await _seed_skills(db, "javascript", "jsx")
+    skills["jsx"].status = "deprecated"
+    await db.flush()
+
+    index = await _taxonomy_index(db)
+
+    assert "jsx" not in index, "a deprecated row contributes nothing to the matcher"
+    assert index["javascript"] == skills["javascript"].id
+
+
+async def test_save_alias_works_on_a_dismissed_label_row(db, client, _admin_and_user):
+    """Even after a `none` verdict pinned the pair, the label can still be
+    saved as the alias it really is."""
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "js", "javascript")
+    skills["js"].status = "proposed"
+    await db.flush()
+    service = SkillRelationService(db)
+    edge = await service.add(
+        "js", "javascript", "synonym", source="llm", status="rejected", confidence=0.9
+    )
+
+    response = await client.post(
+        f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin
+    )
+    assert response.status_code == 200, response.text
+    assert "js" in response.json()["aliases"]
+
+
+async def test_save_alias_requires_a_proposed_label_pair(db, client, _admin_and_user):
+    admin, _ = _admin_and_user
+    await _seed_skills(db, "java", "programming")
+    service = SkillRelationService(db)
+    edge = await service.add("java", "programming", "synonym", source="llm", confidence=0.7)
+
+    denied = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin)
+    assert denied.status_code == 400, "two active skills are not an alias candidate"
+
+    await service.approve(edge.id)
+    denied = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin)
+    assert denied.status_code == 400, "an approved edge is not an alias candidate"

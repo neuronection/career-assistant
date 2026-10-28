@@ -467,10 +467,16 @@ async def upsert_posting(db: AsyncSession, source: JobSource, raw) -> JobPosting
 
 
 async def _taxonomy_index(db: AsyncSession) -> dict[str, UUID]:
-    """lower(alias/label/key) + extra aliases → skill_id."""
+    """lower(alias/label/key) + extra aliases → skill_id.
+
+    Deprecated rows are skipped: a merged-away label row must never
+    shadow the surviving skill whose alias carries the label (decision 6).
+    """
     rows = (await db.execute(select(Skill))).scalars().all()
     index: dict[str, UUID] = {}
     for skill in rows:
+        if skill.status == "deprecated":
+            continue
         index[_norm(skill.key)] = skill.id
         index[_norm(skill.label)] = skill.id
         for alias in skill.aliases or []:

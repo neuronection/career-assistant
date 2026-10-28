@@ -23,6 +23,7 @@ from app.schemas.skill_relations import (
     SkillRelationOut,
     SkillRelationRunLedgerOut,
     SkillRelationRunOut,
+    SkillRelationSaveAliasOut,
     SkillRelationSkillOut,
     SkillRelationThresholdsIn,
     SkillRelationThresholdsOut,
@@ -35,6 +36,7 @@ from app.services.catalog.skill_relation_learn import (
     save_thresholds,
 )
 from app.services.catalog.skill_relations import SkillRelationService
+from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.deps import get_current_user, require_admin
 
 router = APIRouter(
@@ -226,6 +228,59 @@ async def dismiss_skill_relation(
     except DomainError as exc:
         raise _http(exc) from exc
     return await _one(db, row)
+
+
+@router.post("/{relation_id}/save-alias", response_model=SkillRelationSaveAliasOut)
+async def save_skill_relation_as_alias(
+    relation_id: uuid.UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SkillRelationSaveAliasOut:
+    """The alias-add path (decision 6): a raw label is not an edge.
+
+    The proposed label row merges into the active skill — its key/label
+    become aliases the matcher resolves — and the edge row is dismissed so
+    the pair never returns as an edge suggestion.
+    """
+    service = SkillRelationService(db)
+    try:
+        row = await service.get(relation_id)
+    except DomainError as exc:
+        raise _http(exc) from exc
+    if row.status == "approved":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "An approved edge is not an alias candidate — remove it first",
+        )
+    skills = {
+        skill.id: skill
+        for skill in (
+            (
+                await db.execute(
+                    select(Skill).where(Skill.id.in_([row.from_skill_id, row.to_skill_id]))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    }
+    first, second = skills[row.from_skill_id], skills[row.to_skill_id]
+    if not _alias_candidate(first, second):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Save-as-alias needs one proposed label row and one active skill",
+        )
+    source, target = (first, second) if first.status == "proposed" else (second, first)
+    try:
+        merged = await TaxonomyService(db).merge(source.id, target.id)
+        row = await service.reject(row.id, decided_by=user.id)
+    except DomainError as exc:
+        raise _http(exc) from exc
+    return SkillRelationSaveAliasOut(
+        relation=(await _out(db, [row]))[0],
+        target=_endpoint_out(merged),
+        aliases=list(merged.aliases or []),
+    )
 
 
 @router.delete("/{relation_id}", status_code=204)
