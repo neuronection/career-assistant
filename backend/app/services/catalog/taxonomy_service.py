@@ -89,20 +89,36 @@ class TaxonomyService:
         return await self._update(InterestTag, tag_id, data)
 
     async def update_skill(
-        self, skill_id: UUID, data: dict, *, only_if_parent_empty: bool = False
+        self,
+        skill_id: UUID,
+        data: dict,
+        *,
+        only_if_parent_empty: bool = False,
+        parent_source: str | None = "curated",
     ) -> Skill:
         """Edit a skill (key immutable); lifecycle transitions via status.
 
         A ``parent_id`` key present with ``None`` clears the parent back to
         the root (the documented undo); a key ABSENT from ``data`` never
-        touches it. The re-parent shares the seam's generality walk
+        touches it. Every explicit parent write stamps placement
+        provenance (``parent_source``, plan 139): ``"curated"`` for human
+        callers (the default — a deliberate clear lands empty + curated,
+        so the tree catch-up never re-fills it), ``"learned"`` for the tree
+        catch-up, and ``None`` to reset the slot to untouched (the seam's
+        placement heal). The fill-only guard and the machine stamp are one
+        contract: ``only_if_parent_empty=True`` requires
+        ``parent_source="learned"`` — a guarded fill can never claim human
+        provenance, even by omission.
+
+        The re-parent shares the seam's generality walk
         (:func:`assert_acyclic`) so a parent that would close a cycle
         through an approved ``is_a`` edge is refused — clearing cannot
         create a cycle and needs no guard. ``only_if_parent_empty``
         additionally guards the tree catch-up's fill-only contract at
-        write time: the parent is re-checked inside this transaction and
-        a parent filled by a concurrent write is never overwritten (the
-        backfill skips to its next candidate).
+        write time: BOTH the parent and its provenance are re-checked
+        inside this transaction, so a parent filled — or a slot a human
+        deliberately cleared — after the catch-up's snapshot is never
+        overwritten (the backfill skips to its next candidate).
         """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
@@ -112,8 +128,11 @@ class TaxonomyService:
         if "status" in data and data["status"] is not None:
             skill.status = SkillService.validate_status(data["status"])
         if "parent_id" in data:
+            if only_if_parent_empty and parent_source != "learned":
+                raise ValidationError("A guarded fill must stamp 'learned' provenance")
             if data["parent_id"] is None:
                 skill.parent_id = None
+                skill.parent_source = parent_source
             else:
                 parent = await self.db.get(Skill, data["parent_id"])
                 if parent is None:
@@ -126,11 +145,16 @@ class TaxonomyService:
                     raise ValidationError("Parent chain would create a cycle") from exc
                 if only_if_parent_empty:
                     current = (
-                        await self.db.execute(select(Skill.parent_id).where(Skill.id == skill.id))
-                    ).scalar_one_or_none()
-                    if current is not None:
+                        await self.db.execute(
+                            select(Skill.parent_id, Skill.parent_source).where(Skill.id == skill.id)
+                        )
+                    ).one()
+                    if current.parent_id is not None:
                         raise ValidationError("Parent is already set")
+                    if current.parent_source is not None:
+                        raise ValidationError("Parent slot is already stamped")
                 skill.parent_id = data["parent_id"]
+                skill.parent_source = parent_source
         if "aliases" in data and data["aliases"] is not None:
             skill.aliases = [str(a).strip() for a in data["aliases"] if str(a).strip()]
         if "level_anchors" in data and data["level_anchors"] is not None:

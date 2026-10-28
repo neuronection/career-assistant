@@ -552,6 +552,120 @@ async def test_backfill_never_overwrites_a_concurrently_filled_parent(db, monkey
     )
 
 
+async def test_backfill_stamps_learned_provenance(db):
+    skills = await _seed(db, _skill("programming"), _skill("java"))
+    service = SkillRelationService(db)
+    await service.add("java", "programming", "is_a", source="manual")
+
+    assert await backfill_parent_edges(db) == 1
+
+    assert skills["java"].parent_source == "learned", "the fill claims machine provenance"
+
+
+async def test_clear_then_re_tick_never_refills(db):
+    """The core regression (plan 139): a deliberate clear stamps `curated`
+    and the next catch-up pass leaves the slot empty — the undo sticks."""
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(db, _skill("programming"), _skill("java"))
+    service = SkillRelationService(db)
+    await service.add("java", "programming", "is_a", source="manual")
+    assert await backfill_parent_edges(db) == 1
+    await TaxonomyService(db).update_skill(skills["java"].id, {"parent_id": None})
+
+    assert skills["java"].parent_id is None
+    assert skills["java"].parent_source == "curated", "the clear claims human provenance"
+
+    assert await backfill_parent_edges(db) == 0
+    assert await materialize_parent_edges(db) == 0, "an empty slot mirrors nothing"
+
+    assert skills["java"].parent_id is None, "the undo sticks across ticks"
+    assert skills["java"].parent_source == "curated"
+
+
+async def test_guarded_fill_refuses_a_stamped_empty_slot(db, monkeypatch):
+    """F10 extension: the write-time guard re-checks BOTH parent and
+    source — a deliberate clear survives even a stale 'untouched'
+    snapshot (the guard runs in the same write as the stamp)."""
+    from dataclasses import replace
+
+    from app.services.catalog import skill_relation_learn as learn
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(db, _skill("a"), _skill("b"))
+    service = SkillRelationService(db)
+    await service.add("a", "b", "is_a", source="manual")
+    await TaxonomyService(db).update_skill(skills["a"].id, {"parent_id": None})
+
+    real_load = learn._load_skills
+
+    async def stale_load(session):
+        infos = await real_load(session)
+        return {
+            info.id: replace(info, parent_key=None, parent_source=None)
+            if info.id == skills["a"].id
+            else info
+            for info in infos.values()
+        }
+
+    monkeypatch.setattr(learn, "_load_skills", stale_load)
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["a"].parent_id is None
+    assert skills["a"].parent_source == "curated"
+
+
+async def test_curated_placement_is_never_overwritten_by_backfill(db):
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(db, _skill("programming"), _skill("jvm-languages"), _skill("java"))
+    service = SkillRelationService(db)
+    strong = await service.add("java", "programming", "is_a", source="llm", confidence=0.9)
+    await service.approve(strong.id)
+    await TaxonomyService(db).update_skill(
+        skills["java"].id, {"parent_id": skills["jvm-languages"].id}
+    )
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["java"].parent_id == skills["jvm-languages"].id
+    assert skills["java"].parent_source == "curated"
+
+
+async def test_legacy_null_placement_is_untouched(db):
+    """Pre-139 placements (parent set, source NULL) are skipped by the
+    catch-up — provenance unknown, never re-stamped or re-parented."""
+    skills = await _seed(db, _skill("programming"), _skill("databases"), _skill("java"))
+    service = SkillRelationService(db)
+    await service.add("java", "programming", "is_a", source="manual")
+    skills["java"].parent_id = skills["databases"].id
+    await db.flush()
+
+    assert await backfill_parent_edges(db) == 0
+
+    assert skills["java"].parent_id == skills["databases"].id
+    assert skills["java"].parent_source is None
+
+
+async def test_a_guarded_fill_must_stamp_learned(db):
+    """The fill-only guard and the machine stamp are one contract: a
+    guarded fill that forgets `parent_source='learned'` fails loudly
+    instead of silently stamping `curated` (plan 139 decision 3)."""
+    from app.core.errors import ValidationError
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    skills = await _seed(db, _skill("a"), _skill("b"))
+
+    with pytest.raises(ValidationError, match="learned"):
+        await TaxonomyService(db).update_skill(
+            skills["a"].id, {"parent_id": skills["b"].id}, only_if_parent_empty=True
+        )
+
+    assert skills["a"].parent_id is None
+    assert skills["a"].parent_source is None
+
+
 async def test_run_reports_backfilled_on_the_ledger(db, monkeypatch):
     from app.ai.providers import resolution
 

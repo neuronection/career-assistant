@@ -155,6 +155,7 @@ class SkillInfo:
     status: str
     origin: str
     created_at: datetime | None
+    parent_source: str | None = None
     provenance: dict = field(default_factory=dict)
 
 
@@ -200,6 +201,7 @@ async def _load_skills(db: AsyncSession) -> dict[uuid.UUID, SkillInfo]:
             status=row.status,
             origin=row.origin,
             created_at=_aware(row.created_at),
+            parent_source=row.parent_source,
             provenance=row.provenance or {},
         )
         for row in rows
@@ -504,15 +506,18 @@ def _backfill_rank(row: SkillRelation) -> tuple[int, float, int, datetime, str]:
 
 
 async def backfill_parent_edges(db: AsyncSession) -> int:
-    """Approved ``is_a`` edges → empty ``parent_id`` (step 7, the converse).
+    """Approved ``is_a`` edges → the skill's untouched ``parent_id`` slot.
 
-    Fills only EMPTY display parents — it never re-parents, so it never
-    fights :func:`materialize_parent_edges` (import mirrors exist only
-    where ``parent_id`` was already set). Among a skill's approved ``is_a``
-    rows — any source, the skill being the specific end — the winner is
-    picked by :func:`_backfill_rank`; each write goes through
-    ``TaxonomyService.update_skill``'s cycle guard, and a candidate that
-    would close a parent cycle is skipped and the next is tried.
+    Fills only slots that are empty AND unstamped — ``parent_id IS NULL``
+    and ``parent_source IS NULL`` (plan 139): a deliberate human clear
+    (empty + ``curated``) is never resurrected, a pre-provenance placement
+    (set + NULL) is never re-parented or re-stamped, and the fill stamps
+    ``learned``. Among a skill's approved ``is_a`` rows — any source, the
+    skill being the specific end — the winner is picked by
+    :func:`_backfill_rank`; each write goes through
+    ``TaxonomyService.update_skill``'s cycle guard and write-time
+    emptiness re-check, and a candidate that would close a parent cycle
+    is skipped and the next is tried.
 
     Returns the number of parents written; a second run writes zero.
     """
@@ -538,7 +543,7 @@ async def backfill_parent_edges(db: AsyncSession) -> int:
     count = 0
     for skill_id in sorted(candidates, key=str):
         info = skills.get(skill_id)
-        if info is None or info.parent_key is not None:
+        if info is None or info.parent_key is not None or info.parent_source is not None:
             continue
         if info.status == SkillStatus.DEPRECATED.value:
             continue
@@ -548,7 +553,10 @@ async def backfill_parent_edges(db: AsyncSession) -> int:
                 continue
             try:
                 await taxonomy.update_skill(
-                    skill_id, {"parent_id": row.to_skill_id}, only_if_parent_empty=True
+                    skill_id,
+                    {"parent_id": row.to_skill_id},
+                    only_if_parent_empty=True,
+                    parent_source="learned",
                 )
             except ValidationError:
                 continue
