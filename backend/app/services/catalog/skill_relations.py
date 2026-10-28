@@ -74,6 +74,30 @@ class SkillRelationService:
         )
         return SkillGraph(nodes=nodes, edges=edges)
 
+    async def list_relations(
+        self,
+        *,
+        status: str | SkillRelationStatus | None = None,
+        skill_id: uuid.UUID | None = None,
+    ) -> list[SkillRelation]:
+        """Review-grain listing: every (pair, relation) row, any status.
+
+        ``load_graph`` is expansion-only (approved rows); this is the
+        admin queue's read API — pair ids, evidence and provenance ride
+        each row, newest first.
+        """
+        query = select(SkillRelation)
+        if status is not None:
+            query = query.where(SkillRelation.status == self._status(status).value)
+        if skill_id is not None:
+            query = query.where(
+                (SkillRelation.from_skill_id == skill_id)
+                | (SkillRelation.to_skill_id == skill_id)
+            )
+        query = query.order_by(SkillRelation.created_at.desc())
+        rows = await self.db.execute(query)
+        return list(rows.scalars().all())
+
     # ------------------------------------------------------------ write path
 
     async def add(

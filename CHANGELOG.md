@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill taxonomy graph — review queue, 2026-10-28)
+- **Skill-relation suggestions can be reviewed and curated** — an admin
+  surface lists every proposed, approved and dismissed relation with its
+  pair, evidence and provenance. Accept approves the edge (and catches the
+  sub-skill tree up), dismiss writes the negative edge so the suggestion
+  never returns, and manual relations can be added, re-scored and removed
+  per skill — including several relations between the same pair. Label
+  rows that are really aliases ("js" for JavaScript) can be saved as
+  aliases instead of edges. Discovery knobs (support floor, batch size,
+  per-run cap, negative-confidence bar) and the run statistics are
+  editable/visible there too.
+
 ### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
 - **The skill tree catches up with reviewed relations** — approving an
   "is a" relation (or adding one by hand) now also fills the skill's empty

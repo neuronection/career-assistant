@@ -1154,6 +1154,140 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/skill-relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skill Relations
+         * @description The review queue / editor listing (one row per (pair, relation)).
+         */
+        get: operations["list_skill_relations_api_v1_admin_skill_relations_get"];
+        put?: never;
+        /**
+         * Add Skill Relation
+         * @description Manual edge add (admin-curated ⇒ approved on arrival).
+         *
+         *     An existing (pair, relation) row refreshes its confidence instead of
+         *     duplicating — the seam's dedup-update; relation kinds are re-pointed by
+         *     removing the row and re-adding it (manual edit).
+         */
+        post: operations["add_skill_relation_api_v1_admin_skill_relations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Skill Relation Runs
+         * @description Recent discovery runs and their ledgers (watermark may be null).
+         */
+        get: operations["list_skill_relation_runs_api_v1_admin_skill_relations_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Skill Relation Thresholds
+         * @description Effective discovery thresholds (constant fallbacks included).
+         */
+        get: operations["get_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_get"];
+        /**
+         * Put Skill Relation Thresholds
+         * @description Admin overrides for the discovery job (clamped server-side).
+         */
+        put: operations["put_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Skill Relation
+         * @description Hard-delete an edge (admin cleanup; dismiss is the negative edge).
+         */
+        delete: operations["remove_skill_relation_api_v1_admin_skill_relations__relation_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Skill Relation
+         * @description Accept a proposed edge (`approve()` — cycles are re-checked and
+         *     refused at click time, leaving the row proposed).
+         */
+        post: operations["accept_skill_relation_api_v1_admin_skill_relations__relation_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skill-relations/{relation_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Skill Relation
+         * @description Dismiss a suggestion — `reject()`, i.e. the negative edge (this
+         *     pair + relation never comes back).
+         */
+        post: operations["dismiss_skill_relation_api_v1_admin_skill_relations__relation_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/skills/proposals": {
         parameters: {
             query?: never;
@@ -15084,6 +15218,217 @@ export interface components {
             status: string;
         };
         /**
+         * SkillRelationCreateIn
+         * @description Manual edge add; endpoints accept a skill key or id.
+         */
+        SkillRelationCreateIn: {
+            /** Confidence */
+            confidence?: number | null;
+            /** From Skill */
+            from_skill: string;
+            relation: components["schemas"]["SkillRelationType"];
+            /** To Skill */
+            to_skill: string;
+        };
+        /**
+         * SkillRelationOut
+         * @description One (pair, relation) row — the seam's grain, provenance included.
+         */
+        SkillRelationOut: {
+            /**
+             * Alias Candidate
+             * @default false
+             */
+            alias_candidate: boolean;
+            /** Confidence */
+            confidence?: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Decided At */
+            decided_at?: string | null;
+            /** Decided By */
+            decided_by?: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            } | null;
+            from_skill: components["schemas"]["SkillRelationSkillOut"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            relation: components["schemas"]["SkillRelationType"];
+            /** Source */
+            source: string;
+            /** Status */
+            status: string;
+            to_skill: components["schemas"]["SkillRelationSkillOut"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SkillRelationRunLedgerOut
+         * @description The run ledger keys the stats view renders (missing counters = 0).
+         */
+        SkillRelationRunLedgerOut: {
+            /**
+             * Backfilled
+             * @default 0
+             */
+            backfilled: number;
+            /**
+             * Batches
+             * @default 0
+             */
+            batches: number;
+            /**
+             * Below Bar
+             * @default 0
+             */
+            below_bar: number;
+            /**
+             * Candidates
+             * @default 0
+             */
+            candidates: number;
+            /**
+             * Capped
+             * @default false
+             */
+            capped: boolean;
+            /**
+             * Derived
+             * @default 0
+             */
+            derived: number;
+            /**
+             * Dropped
+             * @default 0
+             */
+            dropped: number;
+            /**
+             * Edges Proposed
+             * @default 0
+             */
+            edges_proposed: number;
+            /**
+             * Failed Batches
+             * @default 0
+             */
+            failed_batches: number;
+            /**
+             * Judged Batches
+             * @default 0
+             */
+            judged_batches: number;
+            /**
+             * Materialized
+             * @default 0
+             */
+            materialized: number;
+            /**
+             * Negatives
+             * @default 0
+             */
+            negatives: number;
+            /**
+             * Uncovered
+             * @default 0
+             */
+            uncovered: number;
+            /** Watermark */
+            watermark?: string | null;
+        };
+        /**
+         * SkillRelationRunOut
+         * @description One discovery run and its ledger.
+         */
+        SkillRelationRunOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error?: string | null;
+            /** Finished At */
+            finished_at?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            ledger: components["schemas"]["SkillRelationRunLedgerOut"];
+            /** Status */
+            status: string;
+        };
+        /**
+         * SkillRelationSkillOut
+         * @description One pair endpoint with the facts the review queue shows.
+         */
+        SkillRelationSkillOut: {
+            /** Evidence Quote */
+            evidence_quote?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * SkillRelationThresholdsIn
+         * @description Admin overrides for `skill_relation_learn.thresholds` (clamped).
+         */
+        SkillRelationThresholdsIn: {
+            /** Batch Size */
+            batch_size: number;
+            /** Max Pairs Per Run */
+            max_pairs_per_run: number;
+            /** Min Negative Confidence */
+            min_negative_confidence: number;
+            /** Min Support */
+            min_support: number;
+        };
+        /**
+         * SkillRelationThresholdsOut
+         * @description Effective discovery thresholds (constant fallbacks included).
+         */
+        SkillRelationThresholdsOut: {
+            /** Batch Size */
+            batch_size: number;
+            /** Max Pairs Per Run */
+            max_pairs_per_run: number;
+            /** Min Negative Confidence */
+            min_negative_confidence: number;
+            /** Min Support */
+            min_support: number;
+        };
+        /**
+         * SkillRelationType
+         * @description Edge vocabulary for the skill relation graph (plan 138).
+         *
+         *     ``DIRECTED`` kinds keep their direction (specific→general,
+         *     component→whole); every other kind is symmetric and stored with
+         *     canonically ordered endpoints (``from_skill_id`` = the lower UUID) so
+         *     one unordered pair can never carry two rows. The schema CHECK and the
+         *     write seam both read this classification — never re-declare it.
+         * @enum {string}
+         */
+        SkillRelationType: "is_a" | "synonym" | "part_of" | "related_to";
+        /**
          * SkillUpdateIn
          * @description Admin edits for a skill; keys stay immutable, lifecycle via status.
          */
@@ -17894,6 +18239,246 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScheduleRunNowOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skill_relations_api_v1_admin_skill_relations_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                skill_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_skill_relation_api_v1_admin_skill_relations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillRelationCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_skill_relation_runs_api_v1_admin_skill_relations_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationRunOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationThresholdsOut"];
+                };
+            };
+        };
+    };
+    put_skill_relation_thresholds_api_v1_admin_skill_relations_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillRelationThresholdsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationThresholdsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_skill_relation_api_v1_admin_skill_relations__relation_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    accept_skill_relation_api_v1_admin_skill_relations__relation_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_skill_relation_api_v1_admin_skill_relations__relation_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                relation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationOut"];
                 };
             };
             /** @description Validation Error */

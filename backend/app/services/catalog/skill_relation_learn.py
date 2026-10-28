@@ -108,6 +108,40 @@ async def load_thresholds(db: AsyncSession) -> Thresholds:
     )
 
 
+async def save_thresholds(db: AsyncSession, thresholds: Thresholds) -> None:
+    """Persist the admin overrides (validated upstream; the loader's
+    clamps stay as read defense)."""
+    row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == SETTINGS_KEY)))
+        .scalars()
+        .first()
+    )
+    value = {
+        "min_support": thresholds.min_support,
+        "batch_size": thresholds.batch_size,
+        "max_pairs_per_run": thresholds.max_pairs_per_run,
+        "min_negative_confidence": thresholds.min_negative_confidence,
+    }
+    if row is None:
+        db.add(
+            AppSetting(key=SETTINGS_KEY, value=value, description="Skill-relation learn thresholds")
+        )
+    else:
+        row.value = value
+    await db.commit()
+
+
+async def list_runs(db: AsyncSession, *, limit: int = 20) -> list[BackgroundJob]:
+    """Recent discovery runs, newest first (the stats view's source)."""
+    rows = await db.execute(
+        select(BackgroundJob)
+        .where(BackgroundJob.job_type == BackgroundJobType.SKILL_RELATION_LEARN.value)
+        .order_by(BackgroundJob.created_at.desc())
+        .limit(limit)
+    )
+    return list(rows.scalars().all())
+
+
 @dataclass(frozen=True)
 class SkillInfo:
     """The catalog facts one prompt pair carries per endpoint."""
@@ -458,14 +492,15 @@ def _backfill_rank(row: SkillRelation) -> tuple[int, float, int, datetime, str]:
     row id. Comparison happens in Python on purpose: SQL ``NULL`` ordering
     differs between the dialects.
     """
-    scored = row.confidence is not None
-    return (
-        0 if scored else 1,
-        -float(row.confidence) if scored else 0.0,
+    tail = (
         _SOURCE_CURATION.get(row.source, len(_SOURCE_CURATION)),
         _aware(row.created_at) or datetime.max.replace(tzinfo=UTC),
         str(row.id),
     )
+    confidence = row.confidence
+    if confidence is None:
+        return (1, 0.0, *tail)
+    return (0, -float(confidence), *tail)
 
 
 async def backfill_parent_edges(db: AsyncSession) -> int:
