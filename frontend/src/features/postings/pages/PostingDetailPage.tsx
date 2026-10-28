@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, ExternalLink, GraduationCap, Sparkles, Target } from "lucide-react";
+import {
+  ArrowLeft,
+  Banknote,
+  Building2,
+  Briefcase,
+  Clock,
+  ExternalLink,
+  FileText,
+  GraduationCap,
+  Info,
+  Languages,
+  MapPin,
+  Plane,
+  Sparkles,
+  Target,
+} from "lucide-react";
 
 import { trackApplication } from "@/api/applications";
 import { reextractPosting } from "@/api/postings";
@@ -23,7 +38,13 @@ import {
   SkillChip,
 } from "@/features/postings/components/posting-detail/SkillChip";
 import { groupByPriority, normalizeSkills } from "@/features/postings/components/posting-detail/skills";
-import { Button, EmptyState, SegmentedTabs } from "@/components/ui";
+import { Badge, Button, EmptyState, SegmentedTabs } from "@/components/ui";
+import { CardMeta } from "@/components/cards/CardMeta";
+import { CardStateMarker } from "@/components/cards/CardState";
+import { OrgAvatar } from "@/components/company/OrgAvatar";
+import { MODE_ICON, seniorityScale } from "@/components/cards/specOrder";
+import type { LucideIcon } from "lucide-react";
+import { Sparkles as SparklesIcon, Link2, FileText as FileTextIcon } from "lucide-react";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 import { safeExternalUrl } from "@/lib/url";
 import type { PostingDetailOut } from "@/types/wire";
@@ -71,6 +92,7 @@ export function PostingDetailPage() {
   const skillGroups = groupByPriority(normalizeSkills(posting?.extract?.skills ?? []));
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [showRawDescription, setShowRawDescription] = useState(false);
+  const [timelineInfoOpen, setTimelineInfoOpen] = useState(false);
   const [trackBusy, setTrackBusy] = useState(false);
   const [trackError, setTrackError] = useState("");
   const [letterBusy, setLetterBusy] = useState(false);
@@ -158,12 +180,12 @@ export function PostingDetailPage() {
 
   function hide() {
     if (posting === null) return;
-    void hidePosting(posting.id, true).then(() => navigate("/postings"));
+    void hidePosting(posting.id, true).then(() => navigate("/postings/feed"));
   }
 
   const backLink = (
     <Link
-      to="/postings"
+      to="/postings/feed"
       className="inline-flex items-center gap-1.5 text-sm text-primary-700 hover:underline"
     >
       <ArrowLeft className="w-4 h-4" /> {t("postingDetail.backToPostings")}
@@ -253,18 +275,42 @@ export function PostingDetailPage() {
           .join(" ")
       : null;
 
-  const facts: Array<[string, string | null | undefined]> = [
-    [t("postingDetail.fact.location"), location || null],
-    [t("postingDetail.fact.remote"), onsiteValue || null],
-    [t("postingDetail.fact.employment"), valueLabel(posting.employment_type)],
-    [t("postingDetail.fact.contract"), valueLabel(posting.contract_type)],
-    [t("postingDetail.fact.seniority"), posting.seniority ? t(`autopilot.seniority.${posting.seniority}`, { defaultValue: posting.seniority }) : null],
-    [t("postingDetail.fact.hours"), hoursValue || null],
-    [t("postingDetail.fact.travel"), travelValue || null],
-    [t("postingDetail.fact.education"), educationValue || null],
-    [t("postingDetail.fact.languages"), (extract?.languages ?? []).join(", ") || null],
-    [t("postingDetail.fact.salary"), salaryValue],
+  const facts: Array<{
+    key: string;
+    icon: LucideIcon;
+    label: string;
+    value: string | null | undefined;
+    scale?: { filled: number; total: number };
+  }> = [
+    { key: "location", icon: MapPin, label: t("postingDetail.fact.location"), value: location || null },
+    {
+      key: "remote",
+      icon: MODE_ICON[posting.onsite_policy ?? ""] ?? (posting.location?.remote ? MODE_ICON.remote : undefined) ?? Building2,
+      label: t("postingDetail.fact.remote"),
+      value: onsiteValue || null,
+    },
+    { key: "employment", icon: Briefcase, label: t("postingDetail.fact.employment"), value: valueLabel(posting.employment_type) },
+    { key: "contract", icon: FileText, label: t("postingDetail.fact.contract"), value: valueLabel(posting.contract_type) },
+    {
+      key: "seniority",
+      icon: Target,
+      label: t("postingDetail.fact.seniority"),
+      value: posting.seniority
+        ? t(`autopilot.seniority.${posting.seniority}`, { defaultValue: posting.seniority })
+        : null,
+      scale: posting.seniority ? seniorityScale(posting.seniority) : undefined,
+    },
+    { key: "hours", icon: Clock, label: t("postingDetail.fact.hours"), value: hoursValue || null },
+    { key: "travel", icon: Plane, label: t("postingDetail.fact.travel"), value: travelValue || null },
+    { key: "education", icon: GraduationCap, label: t("postingDetail.fact.education"), value: educationValue || null },
+    { key: "languages", icon: Languages, label: t("postingDetail.fact.languages"), value: (extract?.languages ?? []).join(", ") || null },
+    { key: "salary", icon: Banknote, label: t("postingDetail.fact.salary"), value: salaryValue },
   ];
+
+  const postedRel = formatRelativeTime(posting.posted_at);
+  const postedText = postedRel
+    ? t(postedRel.key, { count: postedRel.count })
+    : formatAbsolute(posting.posted_at);
 
   const scheduleCues = extract?.schedule_cues ?? [];
   const description = (posting.description ?? "").trim();
@@ -275,23 +321,24 @@ export function PostingDetailPage() {
       {backLink}
       <div className="ca-detail-cols grid gap-6">
         <div className="space-y-6 min-w-0">
-          <header className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+          <header className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-3">
             <div className="flex items-start justify-between gap-3 flex-wrap">
               <div className="space-y-1 min-w-0">
-                <h1 className="text-xl font-semibold text-slate-900">{posting.title}</h1>
-                <div className="flex items-center gap-2 flex-wrap text-sm">
+                <h1 className="text-xl font-semibold text-[var(--as-fg)]">{posting.title}</h1>
+                <div className="flex items-center gap-2 min-w-0">
+                  <OrgAvatar name={posting.org} size={24} />
                   {posting.org_key ? (
                     <Link
                       to={`/companies/${posting.org_key}`}
-                      className="font-medium text-slate-700 hover:text-primary-700"
+                      className="truncate text-sm font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
                     >
                       {posting.org}
                     </Link>
                   ) : (
-                    <span className="font-medium text-slate-700">{posting.org}</span>
+                    <span className="truncate text-sm font-medium text-[var(--as-fg)]">{posting.org}</span>
                   )}
                   <span
-                    className="text-xs font-mono text-slate-400 border border-slate-200 rounded px-1.5 py-0.5"
+                    className="text-xs font-mono text-[var(--as-muted-fg)] border border-[var(--as-border)] rounded px-1.5 py-0.5"
                     title={t("postingDetail.refTitle")}
                     data-testid="posting-ref"
                   >
@@ -300,46 +347,55 @@ export function PostingDetailPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">
-                  {posting.source_key || posting.ref}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded text-xs ${
-                    provenance === "extracted"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-slate-100 text-slate-500"
-                  }`}
-                  data-testid="provenance"
-                >
+                <Badge variant={provenance === "extracted" ? "success" : "secondary"} data-testid="provenance">
+                  {provenance === "extracted" ? (
+                    <SparklesIcon aria-hidden />
+                  ) : provenance === "fast-mapped" ? (
+                    <Link2 aria-hidden />
+                  ) : (
+                    <FileTextIcon aria-hidden />
+                  )}
                   {t(`postingCard.provenanceValue.${provenance}`, { defaultValue: provenance })}
-                </span>
-                {posting.needs_review && (
-                  <span
-                    className="px-2 py-0.5 rounded text-xs bg-amber-50 text-amber-700"
-                    data-testid="needs-review"
-                  >
-                    {t("postingCard.needsReview")}
-                  </span>
-                )}
-                {posting.coverage != null && (
-                  <span
-                    className="px-2 py-0.5 rounded text-xs bg-primary-50 text-primary-700"
-                    data-testid="coverage"
-                  >
+                </Badge>
+                {posting.needs_review ? (
+                  <CardStateMarker
+                    icon={Info}
+                    label={t("postingCard.needsReview")}
+                    title={t("card.partial")}
+                    tone="warning"
+                    testId="needs-review"
+                  />
+                ) : null}
+                {posting.coverage != null ? (
+                  <Badge variant="default" data-testid="coverage">
                     {t("postingDetail.coverage", { score: posting.coverage.toFixed(1) })}
-                  </span>
-                )}
-                {posting.applied_at && (
-                  <span className="text-xs text-emerald-600">{t("postingCard.applied")}</span>
-                )}
+                  </Badge>
+                ) : null}
+                {posting.applied_at ? (
+                  <span className="text-xs text-[var(--as-success)]">{t("postingCard.applied")}</span>
+                ) : null}
               </div>
             </div>
+            <CardMeta
+              items={[
+                ...(location
+                  ? [{ key: "location", icon: MapPin, text: location }]
+                  : []),
+                {
+                  key: "posted",
+                  icon: Clock,
+                  text: t("postingCard.posted", { date: postedText }),
+                  title: formatAbsolute(posting.posted_at),
+                },
+              ]}
+            />
             {extractNote ? (
               <p role="status" className="text-xs text-[var(--as-muted-fg)]" data-testid="reextract-note">
                 {extractNote}
               </p>
             ) : null}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="space-y-2 border-t border-[var(--as-border)] pt-3">
+              <div className="flex items-center gap-2 flex-wrap">
               {originalUrl && (
                 <Button asChild size="sm">
                   <a
@@ -425,28 +481,35 @@ export function PostingDetailPage() {
                 <GraduationCap className="mr-1 h-3.5 w-3.5" />
                 {t("postingDetail.practiceInterview")}
               </Button>
-              <Button variant="ghost" size="sm" onClick={toggleSave} data-testid="save-posting">
+              <span className="flex-1" aria-hidden />
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSave}
+                data-testid="save-posting"
+              >
                 {posting.saved ? t("postingCard.unsave") : t("common.save")}
               </Button>
               <Button variant="ghost" size="sm" onClick={hide} data-testid="hide-posting">
                 {t("postingCard.hide")}
               </Button>
+              </div>
+              {interviewError && (
+                <p role="alert" className="text-xs text-red-600" data-testid="interview-error">
+                  {interviewError}
+                </p>
+              )}
+              {letterError && (
+                <p role="alert" className="text-xs text-red-600" data-testid="letter-error">
+                  {letterError}
+                </p>
+              )}
+              {trackError && (
+                <p role="alert" className="text-xs text-red-600" data-testid="track-error">
+                  {trackError}
+                </p>
+              )}
             </div>
-            {interviewError && (
-              <p role="alert" className="text-xs text-red-600" data-testid="interview-error">
-                {interviewError}
-              </p>
-            )}
-            {letterError && (
-              <p role="alert" className="text-xs text-red-600" data-testid="letter-error">
-                {letterError}
-              </p>
-            )}
-            {trackError && (
-              <p role="alert" className="text-xs text-red-600" data-testid="track-error">
-                {trackError}
-              </p>
-            )}
           </header>
 
           <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
@@ -585,47 +648,49 @@ export function PostingDetailPage() {
             <p className="text-xs text-slate-400">{t("postingDetail.noExtraction")}</p>
           )}
 
-          {(posting.similar?.length ?? 0) > 0 && (
-            <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
-              <h2 className="text-sm font-semibold text-slate-700">
-                {t("postingDetail.similarHeading")}
-              </h2>
-              <div className="flex flex-col gap-1" data-testid="similar-rail">
-                {posting.similar?.map((s) => (
-                  <button
-                    key={s.ref}
-                    onClick={() => navigate(`/postings/${s.ref}`)}
-                    className="text-left text-xs text-slate-600 hover:text-primary-700 flex items-center justify-between border border-slate-100 rounded-lg px-2 py-1.5"
-                  >
-                    <span>
-                      <span className="font-mono text-slate-400 mr-1.5">{s.ref}</span>
-                      {s.title} · {s.org}
-                    </span>
-                    <span className="text-slate-400">{Math.round(s.score * 100)}%</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
 
         <div className="space-y-6 min-w-0">
-          <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
-            <h2 className="text-sm font-semibold text-slate-700">
+          <section className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-2">
+            <h2 className="text-sm font-semibold text-[var(--as-fg)]">
               {t("postingDetail.factsHeading")}
             </h2>
-            <dl className="space-y-1" data-testid="posting-facts">
-              {facts.map(([label, value]) =>
-                value ? (
-                  <div key={label} className="flex gap-3 text-sm">
-                    <dt className="text-slate-400 w-28 shrink-0">{label}</dt>
-                    <dd className="text-slate-700">{value}</dd>
+            <dl className="space-y-1.5" data-testid="posting-facts">
+              {facts.map((fact) =>
+                fact.value ? (
+                  <div key={fact.key} className="flex items-baseline gap-2.5 text-sm">
+                    <fact.icon aria-hidden className="h-3.5 w-3.5 shrink-0 translate-y-0.5 text-[var(--as-muted-fg)]" />
+                    <dt className="w-24 shrink-0 text-[9.5px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+                      {fact.label}
+                    </dt>
+                    <dd className="min-w-0 text-[var(--as-fg)]">
+                      {fact.scale ? (
+                        <span
+                          className="mr-1.5 inline-flex items-center gap-0.5 align-[-1px]"
+                          aria-hidden
+                          data-testid={`fact-scale-${fact.key}`}
+                          data-filled={fact.scale.filled}
+                        >
+                          {Array.from({ length: fact.scale.total }, (_, dot) => (
+                            <span
+                              key={dot}
+                              className={`h-1 w-1 rounded-full ${
+                                dot < fact.scale!.filled
+                                  ? "bg-[var(--as-accent)]"
+                                  : "bg-[var(--as-border)]"
+                              }`}
+                            />
+                          ))}
+                        </span>
+                      ) : null}
+                      {fact.value}
+                    </dd>
                   </div>
                 ) : null,
               )}
             </dl>
             {(posting.salary_normalized_min != null || posting.salary_normalized_max != null) && (
-              <p className="text-xs text-slate-400" data-testid="salary-annualized">
+              <p className="text-xs text-[var(--as-muted-fg)]" data-testid="salary-annualized">
                 {t("postingDetail.salaryAnnual", {
                   range: [posting.salary_normalized_min, posting.salary_normalized_max]
                     .filter((v) => v != null)
@@ -638,27 +703,43 @@ export function PostingDetailPage() {
             {scheduleCues.length > 0 && (
               <div className="flex flex-wrap gap-1 pt-1" data-testid="posting-schedule">
                 {scheduleCues.map((cue) => (
-                  <span
-                    key={cue.cue}
-                    className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded"
-                    title={cue.evidence_quote}
-                  >
+                  <Badge key={cue.cue} variant="outline" title={cue.evidence_quote}>
                     {valueLabel(cue.cue)}
-                  </span>
+                  </Badge>
                 ))}
               </div>
             )}
           </section>
 
-          <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-1">
-            <h2 className="text-sm font-semibold text-slate-700">
-              {t("postingDetail.timelineHeading")}
-            </h2>
-            <div data-testid="posting-timeline">
+          <section className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-sm font-semibold text-[var(--as-fg)]">
+                {t("postingDetail.timelineHeading")}
+              </h2>
+              <button
+                type="button"
+                className="text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                aria-label={t("postingDetail.timelineInfo")}
+                title={t("postingDetail.timelineInfo")}
+                aria-expanded={timelineInfoOpen}
+                onClick={() => setTimelineInfoOpen((value) => !value)}
+                data-testid="timeline-info"
+              >
+                <Info className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div data-testid="posting-timeline" className="space-y-1">
               <TimelineRow label={t("postingDetail.time.posted")} iso={posting.posted_at} />
-              <TimelineRow label={t("postingDetail.time.firstSeen")} iso={posting.created_at} />
-              <TimelineRow label={t("postingDetail.time.updated")} iso={posting.updated_at} />
               <TimelineRow label={t("postingDetail.time.expires")} iso={posting.expires_at} />
+              {timelineInfoOpen ? (
+                <div
+                  className="mt-1 space-y-1 rounded-lg border border-[var(--as-border)] bg-[var(--as-muted)] p-2"
+                  data-testid="timeline-info-panel"
+                >
+                  <TimelineRow label={t("postingDetail.time.firstSeen")} iso={posting.created_at} />
+                  <TimelineRow label={t("postingDetail.time.updated")} iso={posting.updated_at} />
+                </div>
+              ) : null}
             </div>
             {(posting.status === "expired" ||
               (posting.expires_at != null && new Date(posting.expires_at) < new Date())) && (
@@ -758,6 +839,37 @@ export function PostingDetailPage() {
           </section>
         </div>
       </div>
+
+      {(posting.similar?.length ?? 0) > 0 && (
+        <section
+          className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-2"
+          data-testid="similar-section"
+        >
+          <h2 className="text-sm font-semibold text-[var(--as-fg)]">
+            {t("postingDetail.similarHeading")}
+          </h2>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" data-testid="similar-rail">
+            {posting.similar?.map((s) => (
+              <button
+                key={s.ref}
+                onClick={() => navigate(`/postings/${s.ref}`)}
+                className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] p-2.5 text-left transition-colors hover:border-[var(--as-accent)] hover:bg-[var(--as-surface-raised)]"
+              >
+                <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
+                  {s.title}
+                </span>
+                <span className="mt-0.5 flex items-center justify-between gap-2 text-xs text-[var(--as-muted-fg)]">
+                  <span className="min-w-0 truncate">
+                    <span className="mr-1 font-mono">{s.ref}</span>
+                    {s.org}
+                  </span>
+                  <span className="tabular-nums">{Math.round(s.score * 100)}%</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

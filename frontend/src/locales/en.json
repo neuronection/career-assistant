@@ -371,6 +371,7 @@
     "nothingMatches": "Nothing matches those filters",
     "nothingMatchesBody": "Loosen a filter or ask an admin to connect more posting sources.",
     "loadMore": "Load more",
+    "loadingMore": "Loading more postings…",
     "searchSaved": "Search saved — schedule it in Settings → Scheduler.",
     "saveFailed": "Could not save the search",
     "intro": "Every open vacancy across your sources — filter, facet, deep-extract.",
@@ -387,6 +388,14 @@
     },
     "removeSkill": "Remove {{skill}}",
     "noSources": "No sources connected yet.",
+    "excludeSkills": "Excluded skills",
+    "excludeSkillPlaceholder": "Exclude skill…",
+    "orgPlaceholder": "Add organization…",
+    "excludeOrganizations": "Excluded organizations",
+    "excludeOrgPlaceholder": "Exclude organization…",
+    "browseCompanies": "Browse companies",
+    "searchCompanies": "Search companies…",
+    "noCompaniesFound": "No companies found",
     "clearAllFilters": "Clear all filters",
     "facetValue": {
       "remote": "Remote",
@@ -1220,7 +1229,27 @@
         "backfilled": "tree filled",
         "capped": "capped",
         "watermark": "watermark"
+      },
+      "bulk": {
+        "select": "Select",
+        "selectOne": "Select {{label}}",
+        "done_one": "{{count}} edge updated.",
+        "done_other": "{{count}} edges updated."
       }
+    },
+    "bulk": {
+      "select": "Select",
+      "exit": "Done",
+      "selectProposed": "Select proposed ({{count}})",
+      "selectOne": "Select {{label}}",
+      "mergeLabel": "Merge {{count}} into:",
+      "deleteBody": "Skills referenced by jobs or profiles are skipped and reported.",
+      "done_one": "{{count}} skill updated.",
+      "done_other": "{{count}} skills updated.",
+      "deleted_one": "{{count}} skill deleted.",
+      "deleted_other": "{{count}} skills deleted.",
+      "deleteTitle_one": "Delete {{count}} skill?",
+      "deleteTitle_other": "Delete {{count}} skills?"
     }
   },
   "aiSettings": {
@@ -3130,7 +3159,8 @@
     "unmappedTooltip": "Not in your skill taxonomy yet",
     "mentions": "required {{count}}×",
     "showOriginal": "Show original",
-    "hideOriginal": "Hide original"
+    "hideOriginal": "Hide original",
+    "timelineInfo": "Posting timestamps"
   },
   "sessionList": {
     "renameChat": "Rename chat",
@@ -4315,6 +4345,7 @@
     "clickToInclude": "Click to include — right-click to exclude",
     "clickToExclude": "Click to exclude — right-click to remove",
     "clickToIncludeOnly": "Click to include",
+    "clickToToggle": "Click to filter by this",
     "min": "min",
     "max": "max",
     "currencyPlaceholder": "EUR",

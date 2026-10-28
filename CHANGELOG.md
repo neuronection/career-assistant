@@ -4,6 +4,29 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (posting detail page — the card grammar, 2026-10-28)
+- **The posting page reads like its card now.** Key facts are icon-labeled
+  spec slots with the seniority dot scale, work mode carries its glyph, and
+  the hero shows the company tile, status badges and a structured action
+  area (primary open-original CTA, secondary actions, Save/Hide pushed
+  right). Similar postings moved to the end of the page as a card grid, and
+  first-seen / last-updated moved behind an info toggle in the timeline —
+  posted and closes stay visible.
+
+### Added (taxonomy — bulk review actions, 2026-10-28)
+- **Admins can now curate the taxonomy in bulk.** The Skills table on
+  Settings → Taxonomy gains a **Select** mode: checkboxes with a bulk bar
+  for **Promote / Deprecate / Restore / Merge into a chosen active skill /
+  Delete** (delete behind a confirm), where each action's button shows how
+  many of the selection it applies to — and a "Select proposed" shortcut
+  grabs every AI proposal at once. The relations **Review queue** gets the
+  same treatment with bulk **Accept / Dismiss**, one decision for the whole
+  batch (a nightly learn run can land dozens of edges). Both bulk
+  endpoints (`POST /admin/skills/bulk`,
+  `POST /admin/skill-relations/bulk`) are best-effort with a per-item
+  report: skills still referenced by jobs or profiles are skipped and
+  listed with the reason, never a failed whole-call.
+
 ### Added (source runs — structured run summary, 2026-10-28)
 - **Every connector run can now tell you what it did.** Sources whose
   connector emits the new `run_summary` envelope block (the LinkedIn
@@ -15,6 +38,24 @@ All notable changes to **Career Assistant** are documented here.
   The host slice is generic — any T3 connector bundle may emit the block
   (JSON object, ≤2 KB, persisted verbatim on `source_runs.report`) — and
   runs or bundles without one look exactly as before.
+
+### Changed (explore filters — the feed's filter language, 2026-10-28)
+- **The search page's filter rail speaks the feed's language now.** Every
+  multi-value axis is tri-state — click to include, click again to exclude,
+  once more to clear; right-click excludes directly. Skills use the
+  type-ahead + browse-catalog picker with a per-skill minimum level
+  (replacing the dropdown + level select + "+" dance), with a second picker
+  for **excluded skills**; **organization** is a companies-catalog picker
+  with an exclude list; **sources** are include/exclude chips with live
+  facet counts; sections collapse with active-dots + counts. The rail is
+  **sticky** (stays in view beside the results, scrolls internally when
+  tall) and results **auto-load** the next page as you near the end —
+  the Load-more button is gone. Backend: the
+  explore vocabulary gains `skill_exclude`, `org_exclude`,
+  `source_exclude` and `*_exclude` for seniority / work mode / contract /
+  travel / schedule (`org` widens to a list, sent as repeated params so
+  company names containing commas survive) — additive, so saved searches
+  and the chatbot's explore filters keep parsing.
 
 ### Changed (postings — search is the default, 2026-10-28)
 - **`/postings/search` is the Postings default.** Opening Postings from the

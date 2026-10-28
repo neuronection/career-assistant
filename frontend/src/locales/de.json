@@ -371,6 +371,7 @@
     "nothingMatches": "Keine Ergebnisse für diese Filter",
     "nothingMatchesBody": "Entfernen Sie einen Filter oder bitten Sie einen Administrator, weitere Jobquellen zu verbinden.",
     "loadMore": "Mehr anzeigen",
+    "loadingMore": "Weitere Stellen werden geladen…",
     "searchSaved": "Suche speichern — planen Sie sie in den Einstellungen → Zeitplaner.",
     "saveFailed": "Suche konnte nicht gespeichert werden",
     "intro": "Alle offenen Stellenangebote aus Ihren Quellen — filtern, verfeinern, detailliert analysieren.",
@@ -387,6 +388,14 @@
     },
     "removeSkill": "{{skill}} entfernen",
     "noSources": "Noch keine Quellen verbunden.",
+    "excludeSkills": "Ausgeschlossene Skills",
+    "excludeSkillPlaceholder": "Skill ausschließen…",
+    "orgPlaceholder": "Organisation hinzufügen…",
+    "excludeOrganizations": "Ausgeschlossene Organisationen",
+    "excludeOrgPlaceholder": "Organisation ausschließen…",
+    "browseCompanies": "Unternehmen durchsuchen",
+    "searchCompanies": "Unternehmen suchen…",
+    "noCompaniesFound": "Keine Unternehmen gefunden",
     "clearAllFilters": "Alle Filter löschen",
     "facetValue": {
       "remote": "Remote",
@@ -1220,7 +1229,27 @@
         "backfilled": "Baum gefüllt",
         "capped": "begrenzt",
         "watermark": "Wasserzeichen"
+      },
+      "bulk": {
+        "select": "Auswählen",
+        "selectOne": "{{label}} auswählen",
+        "done_one": "{{count}} Kante aktualisiert.",
+        "done_other": "{{count}} Kanten aktualisiert."
       }
+    },
+    "bulk": {
+      "select": "Auswählen",
+      "exit": "Fertig",
+      "selectProposed": "Vorgeschlagene auswählen ({{count}})",
+      "selectOne": "{{label}} auswählen",
+      "mergeLabel": "{{count}} zusammenführen in:",
+      "deleteBody": "Skills, die von Jobs oder Profilen referenziert werden, werden übersprungen und gemeldet.",
+      "done_one": "{{count}} Skill aktualisiert.",
+      "done_other": "{{count}} Skills aktualisiert.",
+      "deleted_one": "{{count}} Skill gelöscht.",
+      "deleted_other": "{{count}} Skills gelöscht.",
+      "deleteTitle_one": "{{count}} Skill löschen?",
+      "deleteTitle_other": "{{count}} Skills löschen?"
     }
   },
   "aiSettings": {
@@ -3129,7 +3158,8 @@
     "unmappedTooltip": "Noch nicht in deiner Skill-Taxonomie",
     "mentions": "{{count}}× gefordert",
     "showOriginal": "Original anzeigen",
-    "hideOriginal": "Original ausblenden"
+    "hideOriginal": "Original ausblenden",
+    "timelineInfo": "Zeitstempel der Anzeige"
   },
   "sessionList": {
     "renameChat": "Chat umbenennen",
@@ -4314,6 +4344,7 @@
     "clickToInclude": "Klicken zum Einschließen — Rechtsklick zum Ausschließen",
     "clickToExclude": "Klicken zum Ausschließen — Rechtsklick zum Entfernen",
     "clickToIncludeOnly": "Klicken zum Einschließen",
+    "clickToToggle": "Klicken, um danach zu filtern",
     "min": "min",
     "max": "max",
     "currencyPlaceholder": "EUR",
