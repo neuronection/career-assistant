@@ -2,4 +2,5 @@
 
 from app.api.v1.postings import applications as applications
 from app.api.v1.postings import engagement as engagement
+from app.api.v1.postings import history as history
 from app.api.v1.postings import postings as postings

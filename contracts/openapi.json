@@ -13634,6 +13634,63 @@
         "title": "PlanCreateIn",
         "type": "object"
       },
+      "PostingChangeOut": {
+        "description": "One journal row (plan 142): actor kind + links (ids and knobs\nonly), the operation's parameters, duration and the capped diff.",
+        "properties": {
+          "actor_kind": {
+            "title": "Actor Kind",
+            "type": "string"
+          },
+          "actor_ref": {
+            "additionalProperties": true,
+            "title": "Actor Ref",
+            "type": "object"
+          },
+          "diff": {
+            "additionalProperties": true,
+            "title": "Diff",
+            "type": "object"
+          },
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "operation": {
+            "additionalProperties": true,
+            "title": "Operation",
+            "type": "object"
+          },
+          "outcome": {
+            "default": "ok",
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "actor_kind"
+        ],
+        "title": "PostingChangeOut",
+        "type": "object"
+      },
       "PostingDetailOut": {
         "description": "Detail view: full extract, source attribution, the\nmatch-score card and the similar-postings rail.",
         "properties": {
@@ -15414,6 +15471,44 @@
           "label"
         ],
         "title": "PostingSkillRefOut",
+        "type": "object"
+      },
+      "PostingsHistoryOut": {
+        "description": "The posting history read: newest-first journal page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PostingChangeOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "posting_id": {
+            "format": "uuid",
+            "title": "Posting Id",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "posting_id"
+        ],
+        "title": "PostingsHistoryOut",
         "type": "object"
       },
       "PostingsOut": {
@@ -18683,6 +18778,120 @@
         "title": "ShiftTolerance",
         "type": "string"
       },
+      "SkillBulkFailure": {
+        "description": "One id the bulk call could not act on, and why (verbatim reason).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "job_refs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Refs"
+          },
+          "key": {
+            "default": "",
+            "title": "Key",
+            "type": "string"
+          },
+          "profile_refs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile Refs"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "reason"
+        ],
+        "title": "SkillBulkFailure",
+        "type": "object"
+      },
+      "SkillBulkIn": {
+        "additionalProperties": false,
+        "description": "Body of POST /admin/skills/bulk \u2014 one lifecycle action over many skills.\n\nMerge is many-to-one: every id merges into `target_id` (an active skill).",
+        "properties": {
+          "action": {
+            "enum": [
+              "promote",
+              "deprecate",
+              "restore",
+              "delete",
+              "merge"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          }
+        },
+        "required": [
+          "ids",
+          "action"
+        ],
+        "title": "SkillBulkIn",
+        "type": "object"
+      },
+      "SkillBulkOut": {
+        "description": "Outcome of one bulk call \u2014 acted-on ids plus per-item failures.",
+        "properties": {
+          "affected": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/SkillBulkFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          }
+        },
+        "title": "SkillBulkOut",
+        "type": "object"
+      },
       "SkillGapReport": {
         "properties": {
           "gaps": {
@@ -18879,6 +19088,58 @@
           "origin"
         ],
         "title": "SkillOut",
+        "type": "object"
+      },
+      "SkillRelationBulkIn": {
+        "additionalProperties": false,
+        "description": "Body of POST /admin/skill-relations/bulk \u2014 one review decision over\nmany queue rows. Only real transitions count as affected.",
+        "properties": {
+          "action": {
+            "enum": [
+              "accept",
+              "dismiss"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ids",
+          "action"
+        ],
+        "title": "SkillRelationBulkIn",
+        "type": "object"
+      },
+      "SkillRelationBulkOut": {
+        "description": "Outcome of one relations bulk call \u2014 transitioned ids + failures.",
+        "properties": {
+          "affected": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Affected",
+            "type": "array"
+          },
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/SkillBulkFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          }
+        },
+        "title": "SkillRelationBulkOut",
         "type": "object"
       },
       "SkillRelationCreateIn": {
@@ -24963,6 +25224,48 @@
         ]
       }
     },
+    "/api/v1/admin/skill-relations/bulk": {
+      "post": {
+        "description": "One review decision over many queue rows (accept / dismiss).\n\nEach row rides the single-row path (cycle re-check at click time, the\nis_a tree catch-up, the negative-edge heal); only real transitions\ncount as affected \u2014 a row already in the target state is a no-op and a\nrefused one (cycle, unknown id) lands in `failed` with the pair as its\nidentity.",
+        "operationId": "bulk_skill_relation_action_api_v1_admin_skill_relations_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillRelationBulkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationBulkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Skill Relation Action",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/skill-relations/runs": {
       "get": {
         "description": "Recent discovery runs and their ledgers (watermark may be null).",
@@ -25239,6 +25542,48 @@
           }
         },
         "summary": "Save Skill Relation As Alias",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/skills/bulk": {
+      "post": {
+        "description": "One lifecycle action over many skills (promote/deprecate/restore/\ndelete, or many-to-one merge into `target_id`).\n\nBest-effort with a per-item report: ids the seams refuse (wrong status,\nstill referenced, unknown) come back as failure rows, never a 4xx.",
+        "operationId": "bulk_skill_action_api_v1_admin_skills_bulk_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillBulkIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillBulkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bulk Skill Action",
         "tags": [
           "admin"
         ]
@@ -41247,6 +41592,72 @@
           }
         },
         "summary": "Posting Detail",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/{posting_ref}/history": {
+      "get": {
+        "description": "One posting's change journal, newest first \u2014 actor kind, links,\noperation knobs, duration and the capped field diff per row.",
+        "operationId": "posting_history_api_v1_postings__posting_ref__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_ref",
+            "required": true,
+            "schema": {
+              "title": "Posting Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingsHistoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Posting History",
         "tags": [
           "postings"
         ]

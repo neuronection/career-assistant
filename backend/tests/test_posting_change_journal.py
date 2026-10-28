@@ -414,3 +414,44 @@ async def test_company_match_writer_merge_journals_repoint(db, source, seeded_ca
     move = rows[-1]
     assert move.diff == {"org_id": {"from": str(dup.id), "to": str(target.id)}}
     assert move.operation == {"merged_org": str(dup.id), "into_org": str(target.id)}
+
+
+# -------------------------------------------------------------- the read API
+
+
+async def test_history_endpoint_is_paginated_newest_first(
+    db, client, auth_headers, source, seeded_catalog
+):
+    from tests.conftest import _make_posting, _raw_posting
+
+    posting = await _make_posting(db, source)
+    await upsert_posting(db, source, _raw_posting(title="Data Analyst II"))
+    await db.commit()
+
+    resp = await client.get(f"/api/v1/postings/{posting.ref}/history", headers=auth_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == len(body["items"]) >= 1
+    assert body["posting_id"] == str(posting.id)
+    kinds = [entry["actor_kind"] for entry in body["items"]]
+    assert kinds[0] == "sync_run", "newest first"
+    assert set(kinds) >= {"sync_run", "retag"}
+    entry = body["items"][0]
+    assert entry["diff"]["title"]["to"] == "Data Analyst II"
+    assert entry["outcome"] in ("ok", "partial", "error")
+
+    page = await client.get(
+        f"/api/v1/postings/{posting.ref}/history",
+        headers=auth_headers,
+        params={"limit": 1, "offset": 1},
+    )
+    assert page.status_code == 200
+    assert len(page.json()["items"]) == 1
+    assert page.json()["items"][0]["id"] != entry["id"]
+
+
+async def test_history_endpoint_scoped_and_404s(db, client, auth_headers, source):
+    resp = await client.get("/api/v1/postings/ZZZZZZZZ/history")
+    assert resp.status_code == 401, "the read is user-scoped like the posting route"
+    resp = await client.get("/api/v1/postings/ZZZZZZZZ/history", headers=auth_headers)
+    assert resp.status_code == 404

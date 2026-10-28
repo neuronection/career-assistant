@@ -356,3 +356,27 @@ class AppliedIn(BaseModel):
 
 class MapIn(BaseModel):
     catalog_job_id: UUID
+
+
+class PostingChangeOut(BaseModel):
+    """One journal row (plan 142): actor kind + links (ids and knobs
+    only), the operation's parameters, duration and the capped diff."""
+
+    id: UUID
+    occurred_at: datetime
+    actor_kind: str
+    actor_ref: dict = Field(default_factory=dict)
+    operation: dict = Field(default_factory=dict)
+    duration_ms: int | None = None
+    diff: dict = Field(default_factory=dict)
+    outcome: str = "ok"
+
+
+class PostingsHistoryOut(BaseModel):
+    """The posting history read: newest-first journal page."""
+
+    items: list[PostingChangeOut]
+    total: int
+    limit: int
+    offset: int
+    posting_id: UUID

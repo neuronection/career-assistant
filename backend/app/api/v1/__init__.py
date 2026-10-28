@@ -34,6 +34,7 @@ from app.api.v1.integrations import extensions as extensions
 from app.api.v1.integrations import feeds as feeds
 from app.api.v1.postings import applications as applications
 from app.api.v1.postings import engagement as engagement
+from app.api.v1.postings import history as history
 from app.api.v1.postings import postings as postings
 from app.api.v1.profile import documents as documents
 from app.api.v1.profile import experience as experience
@@ -76,6 +77,7 @@ api_router.include_router(notifications.router)
 api_router.include_router(feeds.router)
 api_router.include_router(growth.router)
 api_router.include_router(postings.router)
+api_router.include_router(history.router)
 api_router.include_router(scheduler.router)
 api_router.include_router(chat.router)
 api_router.include_router(interview.router)
