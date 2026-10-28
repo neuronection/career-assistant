@@ -3,8 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { fetchCompany, fetchCompanyPostings } from "@/api/companies";
-import { EmptyState } from "@/components/ui";
+import { Badge, EmptyState } from "@/components/ui";
+import { OrgAvatar } from "@/components/company/OrgAvatar";
+import { CompanyPostingCard } from "@/features/companies/components/CompanyPostingCard";
 import { apiDetail } from "@/api/client";
+import { safeExternalUrl } from "@/lib/url";
 import type { CompanyDetail, CompanyPosting } from "@/types/wire";
 
 export function CompanyDetail() {
@@ -16,6 +19,7 @@ export function CompanyDetail() {
 
   useEffect(() => {
     setError("");
+    setCompany(null);
     void fetchCompany(key)
       .then(setCompany)
       .catch((err) => setError(apiDetail(err)));
@@ -28,11 +32,20 @@ export function CompanyDetail() {
     return (
       <div className="max-w-4xl mx-auto space-y-4" data-testid="company-detail">
         <BackLink />
-        <p className="text-sm text-rose-600">{error}</p>
+        <p className="text-sm text-[var(--as-danger)]">{error}</p>
       </div>
     );
   }
-  if (!company) return <p>{t("common.loading")}</p>;
+  if (!company) {
+    return (
+      <div className="max-w-4xl mx-auto space-y-6" data-testid="company-detail">
+        <BackLink />
+        <div className="cv-shimmer h-16 rounded-[var(--as-radius-lg)]" />
+        <div className="cv-shimmer h-24 rounded-[var(--as-radius-lg)]" />
+        <div className="cv-shimmer h-64 rounded-[var(--as-radius-lg)]" />
+      </div>
+    );
+  }
 
   const facts: Array<[string, string | null | undefined]> = [
     [t("companyDetail.hq"), [company.hq_city, company.hq_country].filter(Boolean).join(", ")],
@@ -50,80 +63,97 @@ export function CompanyDetail() {
   return (
     <div className="max-w-4xl mx-auto space-y-6" data-testid="company-detail">
       <BackLink />
-      <header className="space-y-1">
-        <div className="flex items-center gap-3">
-          <h1 className="text-xl font-semibold">{company.name}</h1>
-          {company.status === "proposed" && (
-            <span
-              className="text-xs bg-sky-100 text-sky-700 px-2 py-1 rounded-full"
-              data-testid="company-proposed-badge"
-            >
-              {t("companyDetail.proposed")}
-            </span>
-          )}
-          {company.company_type && (
-            <span className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-              {t(`companies.type.${company.company_type}`)}
-            </span>
-          )}
-          {company.needs_review && (
-            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-              {t("companyDetail.needsReview")}
-            </span>
-          )}
+      <header className="space-y-1.5">
+        <div className="flex min-w-0 items-center gap-3">
+          <OrgAvatar name={company.name} size={40} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl font-semibold text-[var(--as-fg)]">{company.name}</h1>
+              {company.status === "proposed" && (
+                <Badge variant="outline" data-testid="company-proposed-badge">
+                  {t("companyDetail.proposed")}
+                </Badge>
+              )}
+              {company.needs_review && (
+                <Badge variant="secondary" data-testid="company-needs-review">
+                  {t("companyDetail.needsReview")}
+                </Badge>
+              )}
+            </div>
+            {company.company_type ? (
+              <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+                {t(`companies.type.${company.company_type}`, {
+                  defaultValue: String(company.company_type),
+                })}
+              </p>
+            ) : null}
+          </div>
         </div>
         {(company.aliases?.length ?? 0) > 0 && (
-          <p className="text-xs text-slate-400" data-testid="company-aliases">
+          <p className="text-xs text-[var(--as-muted-fg)]" data-testid="company-aliases">
             {t("companyDetail.alsoKnownAs")} {(company.aliases ?? []).join(" · ")}
           </p>
         )}
-        {company.description && <p className="text-sm text-slate-600">{company.description}</p>}
+        {company.description && (
+          <p className="text-sm text-[var(--as-fg)]">{company.description}</p>
+        )}
       </header>
 
-      <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-2">
+      <section
+        className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4 space-y-2"
+        data-testid="company-facts"
+      >
         <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-2">
           {facts.map(([label, value]) =>
             value ? (
               <div key={label} className="flex gap-2 text-sm">
-                <dt className="text-slate-400 w-24 shrink-0">{label}</dt>
-                <dd className="text-slate-700">{value}</dd>
+                <dt className="w-24 shrink-0 text-[var(--as-muted-fg)]">{label}</dt>
+                <dd className="text-[var(--as-fg)]">{value}</dd>
               </div>
             ) : null,
           )}
         </dl>
         {(company.links ?? []).length > 0 && (
           <div className="flex flex-wrap gap-3 pt-1">
-            {(company.links ?? []).map((link) => (
-              <a
-                key={link.url}
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-primary-700 inline-flex items-center gap-1"
-              >
-                {link.label} <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-            ))}
+            {(company.links ?? []).map((link) => {
+              const url = safeExternalUrl(link.url);
+              return url ? (
+                <a
+                  key={link.url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-[var(--as-accent)] inline-flex items-center gap-1 hover:underline"
+                >
+                  {link.label} <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              ) : null;
+            })}
           </div>
         )}
       </section>
 
       {(company.financials ?? []).length > 0 && (
         <section className="space-y-2" data-testid="company-financials">
-          <h2 className="font-semibold">{t("companyDetail.financials")}</h2>
+          <h2 className="font-semibold text-[var(--as-fg)]">{t("companyDetail.financials")}</h2>
           <div className="grid md:grid-cols-2 gap-3">
             {(company.financials ?? []).map((claim, index) => (
-              <div key={`${claim.kind}-${index}`} className="bg-white border border-slate-200 rounded-xl p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400">
+              <div
+                key={`${claim.kind}-${index}`}
+                className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+              >
+                <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
                   {t(`companyDetail.claimKind.${claim.kind}`)}
                 </p>
-                <p className="font-medium">
+                <p className="font-medium text-[var(--as-fg)]">
                   {formatMoney(claim.amount, claim.currency)}
                   {claim.as_of && (
-                    <span className="text-xs text-slate-400 font-normal"> · {claim.as_of}</span>
+                    <span className="text-xs font-normal text-[var(--as-muted-fg)]"> · {claim.as_of}</span>
                   )}
                 </p>
-                {claim.source && <p className="text-xs text-slate-400 mt-1">{claim.source}</p>}
+                {claim.source && (
+                  <p className="mt-1 text-xs text-[var(--as-muted-fg)]">{claim.source}</p>
+                )}
               </div>
             ))}
           </div>
@@ -133,15 +163,21 @@ export function CompanyDetail() {
       <DerivedStats company={company} />
 
       <section className="space-y-3" data-testid="company-postings">
-        <h2 className="font-semibold">
+        <h2 className="font-semibold text-[var(--as-fg)]">
           {t("companyDetail.postingsTitle", { count: company.open_postings })}
         </h2>
         {postings.length === 0 ? (
-          <EmptyState compact title={t("companyDetail.noPostings")} />
+          <EmptyState
+            compact
+            title={t("companyDetail.noPostings")}
+            description={t("companyDetail.noPostingsBody")}
+          />
         ) : (
           <ul className="space-y-2">
             {postings.map((posting) => (
-              <PostingRow key={posting.id} posting={posting} />
+              <li key={posting.id}>
+                <CompanyPostingCard posting={posting} />
+              </li>
             ))}
           </ul>
         )}
@@ -158,16 +194,24 @@ function DerivedStats({ company }: { company: CompanyDetail }) {
   const onsite = derived.by_onsite_policy ?? {};
   const locations = derived.top_locations ?? [];
   return (
-    <section className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-      <h2 className="font-semibold text-sm">{t("companyDetail.hiringSignal")}</h2>
+    <section
+      className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4 space-y-3"
+      data-testid="company-derived"
+    >
+      <h2 className="font-semibold text-sm text-[var(--as-fg)]">{t("companyDetail.hiringSignal")}</h2>
       <div className="grid sm:grid-cols-2 gap-4 text-sm">
         {Object.keys(seniority).length > 0 && (
           <div>
-            <p className="text-xs text-slate-400 mb-1">{t("companyDetail.bySeniority")}</p>
+            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+              {t("companyDetail.bySeniority")}
+            </p>
             <div className="flex flex-wrap gap-1">
               {Object.entries(seniority).map(([level, count]) => (
-                <span key={level} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-                  {level} · {count}
+                <span
+                  key={level}
+                  className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-xs text-[var(--as-muted-fg)]"
+                >
+                  {t(`autopilot.seniority.${level}`, { defaultValue: level })} · {count}
                 </span>
               ))}
             </div>
@@ -175,11 +219,19 @@ function DerivedStats({ company }: { company: CompanyDetail }) {
         )}
         {Object.keys(onsite).length > 0 && (
           <div>
-            <p className="text-xs text-slate-400 mb-1">{t("companyDetail.byOnsite")}</p>
+            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+              {t("companyDetail.byOnsite")}
+            </p>
             <div className="flex flex-wrap gap-1">
               {Object.entries(onsite).map(([policy, count]) => (
-                <span key={policy} className="text-xs bg-slate-100 text-slate-600 px-2 py-1 rounded-full">
-                  {t(`companyDetail.onsite.${policy}`)} · {count}
+                <span
+                  key={policy}
+                  className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-xs text-[var(--as-muted-fg)]"
+                >
+                  {t(`companyDetail.onsite.${policy}`, {
+                    defaultValue: policy.replace(/_/g, " "),
+                  })}{" "}
+                  · {count}
                 </span>
               ))}
             </div>
@@ -188,12 +240,12 @@ function DerivedStats({ company }: { company: CompanyDetail }) {
       </div>
       {locations.length > 0 && (
         <div className="text-sm">
-          <p className="text-xs text-slate-400 mb-1">{t("companyDetail.topLocations")}</p>
-          <p className="text-slate-600">
+          <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+            {t("companyDetail.topLocations")}
+          </p>
+          <p className="text-[var(--as-fg)]">
             {locations
-              .map((spot) =>
-                [spot.city, spot.country].filter(Boolean).join(", ") + ` (${spot.count})`,
-              )
+              .map((spot) => [spot.city, spot.country].filter(Boolean).join(", ") + ` (${spot.count})`)
               .join(" · ")}
           </p>
         </div>
@@ -202,44 +254,13 @@ function DerivedStats({ company }: { company: CompanyDetail }) {
   );
 }
 
-function PostingRow({ posting }: { posting: CompanyPosting }) {
-  const { t } = useTranslation();
-  const location = posting.location
-    ? [posting.location.city, posting.location.country].filter(Boolean).join(", ")
-    : "";
-  return (
-    <li className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3">
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-sm truncate">{posting.title}</p>
-        <p className="text-xs text-slate-400">
-          {[
-            location || t("companies.locationUnknown"),
-            posting.seniority,
-            posting.onsite_policy ? t(`companyDetail.onsite.${posting.onsite_policy}`) : null,
-            posting.posted_at ? new Date(posting.posted_at).toLocaleDateString() : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      </div>
-      {posting.url && (
-        <a
-          href={posting.url}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm text-primary-700 inline-flex items-center gap-1 whitespace-nowrap"
-        >
-          {t("companyDetail.viewPosting")} <ExternalLink className="w-3.5 h-3.5" />
-        </a>
-      )}
-    </li>
-  );
-}
-
 function BackLink() {
   const { t } = useTranslation();
   return (
-    <Link to="/companies" className="text-sm text-primary-700 inline-flex items-center gap-1">
+    <Link
+      to="/companies"
+      className="text-sm text-[var(--as-accent)] inline-flex items-center gap-1 hover:underline"
+    >
       <ArrowLeft className="w-4 h-4" /> {t("companyDetail.back")}
     </Link>
   );

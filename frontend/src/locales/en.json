@@ -4098,7 +4098,13 @@
       "government": "Government",
       "startup": "Startup"
     },
-    "proposed": "New"
+    "proposed": "New",
+    "filter": {
+      "all": "All",
+      "new": "New"
+    },
+    "noMatchTitle": "No companies match",
+    "noMatchBody": "Try a different name or clear the New filter."
   },
   "companyDetail": {
     "back": "All companies",
@@ -4129,7 +4135,8 @@
     "noPostings": "No open postings right now.",
     "viewPosting": "View posting",
     "proposed": "New",
-    "alsoKnownAs": "Also known as:"
+    "alsoKnownAs": "Also known as:",
+    "noPostingsBody": "No open postings right now — check the live feed for new arrivals."
   },
   "jobRadar": {
     "subtitle": "One configuration, used everywhere: Explore matches it live, and (at the cadence you pick) notifications tell you when fresh postings fit.",
@@ -4347,7 +4354,10 @@
     "skillRequires": "requires level {{level}} of 10",
     "moreAria": "{{count}} more",
     "noScore": "no score",
-    "perYear": "≈ {{range}} {{currency}}/yr"
+    "perYear": "≈ {{range}} {{currency}}/yr",
+    "type": "type",
+    "size": "size",
+    "founded": "founded"
   },
   "companyRules": {
     "title": "Companies rules",

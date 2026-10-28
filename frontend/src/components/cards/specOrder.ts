@@ -6,6 +6,10 @@ export const SPEC_ORDER = [
   "salary",
   "education",
   "closes",
+  // company-card slots (closed vocabularies of the company facts)
+  "type",
+  "size",
+  "founded",
 ] as const;
 
 export type SpecKey = (typeof SPEC_ORDER)[number];

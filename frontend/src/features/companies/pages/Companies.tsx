@@ -1,18 +1,33 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Building2, Search } from "lucide-react";
+import { Building2, Globe, MapPin, Search } from "lucide-react";
 import { fetchCompanies } from "@/api/companies";
 import { Badge, EmptyState } from "@/components/ui";
+import { CardMeta } from "@/components/cards/CardMeta";
+import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
 import { ItemCardShell } from "@/components/cards/ItemCardShell";
+import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
 import type { Company } from "@/types/wire";
+
+type StatusFilter = "all" | "new";
+
+const FILTERS: StatusFilter[] = ["all", "new"];
+
+function employeesRange(company: Company): string | null {
+  const parts = [company.employees_min, company.employees_max].filter(
+    (v) => v != null
+  );
+  return parts.length > 0 ? parts.join("–") : null;
+}
 
 export function Companies() {
   const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<StatusFilter>("all");
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
 
@@ -27,33 +42,67 @@ export function Companies() {
     return () => clearTimeout(handle);
   }, [query, t]);
 
+  const visible =
+    filter === "new" ? companies.filter((c) => c.status === "proposed") : companies;
+  const searching = query.trim().length > 0;
+
   return (
     <div className="max-w-4xl mx-auto space-y-6" data-testid="companies">
-      <p className="text-slate-500">{t("companies.subtitle")}</p>
+      <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
-      <label className="relative block">
-        <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("companies.searchPlaceholder")}
-          aria-label={t("companies.searchPlaceholder")}
-          className="w-full rounded-xl border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm focus:border-primary-400 focus:outline-none"
-          data-testid="company-search"
-        />
-      </label>
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="relative min-w-0 flex-1 basis-56">
+          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--as-muted-fg)]" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("companies.searchPlaceholder")}
+            aria-label={t("companies.searchPlaceholder")}
+            className="w-full rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] py-2 pl-9 pr-3 text-sm text-[var(--as-fg)] outline-none focus:border-[var(--as-accent)]"
+            data-testid="company-search"
+          />
+        </label>
+        <div className="flex gap-1.5" data-testid="company-filter-statuses">
+          {FILTERS.map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={filter === mode}
+              onClick={() => setFilter(mode)}
+              className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${
+                filter === mode
+                  ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
+                  : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+              }`}
+              data-testid={`company-filter-${mode}`}
+            >
+              {t(`companies.filter.${mode}`)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
-      {loaded && companies.length === 0 ? (
+      {!loaded ? (
+        <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3" data-testid="company-skeleton">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="cv-shimmer h-36 rounded-[var(--as-radius-lg)]" />
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
         <EmptyState
           icon={Building2}
           compact
-          title={t("companies.noneYetTitle")}
-          description={t("companies.noneYetBody")}
+          title={searching || filter === "new" ? t("companies.noMatchTitle") : t("companies.noneYetTitle")}
+          description={
+            searching || filter === "new"
+              ? t("companies.noMatchBody")
+              : t("companies.noneYetBody")
+          }
         />
       ) : (
         <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-          {companies.map((company) => (
+          {visible.map((company) => (
             <CompanyCard key={company.key} company={company} />
           ))}
         </div>
@@ -62,50 +111,77 @@ export function Companies() {
   );
 }
 
+function companySpecs(company: Company, t: (key: string, opts?: Record<string, unknown>) => string): SpecItem[] {
+  const specs: SpecItem[] = [];
+  if (company.company_type) {
+    specs.push({
+      key: "type",
+      label: t("card.type"),
+      value: t(`companies.type.${company.company_type}`, {
+        defaultValue: String(company.company_type),
+      }),
+    });
+  }
+  const size = employeesRange(company);
+  if (size) specs.push({ key: "size", label: t("card.size"), value: size });
+  if (company.founded_year) {
+    specs.push({ key: "founded", label: t("card.founded"), value: String(company.founded_year) });
+  }
+  return specs;
+}
+
 function CompanyCard({ company }: { company: Company }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const min = company.employees_min;
-  const max = company.employees_max;
-  const employees =
-    min != null || max != null ? [min, max].filter((v) => v != null).join("–") : null;
+  const hq = [company.hq_city, company.hq_country].filter(Boolean).join(", ");
   return (
     <ItemCardShell
       testId={`company-card-${company.key}`}
       onOpen={() => navigate(`/companies/${company.key}`)}
     >
       <div className="min-w-0 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <OrgAvatar name={company.name} size={24} />
-            <Link
-              to={`/companies/${company.key}`}
-              onClick={(event) => event.stopPropagation()}
-              className="truncate font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
+        <div className="flex min-w-0 items-center gap-2">
+          <OrgAvatar name={company.name} size={28} />
+          <button
+            type="button"
+            className="min-w-0 truncate text-left font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
+            data-testid="company-details"
+          >
+            <span data-testid="company-title">{company.name}</span>
+          </button>
+          {company.status === "proposed" ? (
+            <Badge
+              variant="outline"
+              className="ml-auto shrink-0"
+              data-testid={`company-proposed-${company.key}`}
             >
-              {company.name}
-            </Link>
-          </div>
-          <div className="flex shrink-0 gap-1">
-            {company.status === "proposed" ? (
-              <Badge
-                variant="outline"
-                data-testid={`company-proposed-${company.key}`}
-              >
-                {t("companies.proposed")}
-              </Badge>
-            ) : null}
-            {company.company_type ? (
-              <Badge variant="secondary">
-                {t(`companies.type.${company.company_type}`)}
-              </Badge>
-            ) : null}
-          </div>
+              {t("companies.proposed")}
+            </Badge>
+          ) : null}
         </div>
-        <p className="mt-1 text-sm text-[var(--as-muted-fg)]">
-          {[company.hq_city, company.hq_country].filter(Boolean).join(", ") ||
-            t("companies.locationUnknown")}
-        </p>
+
+        {hq || company.domain ? (
+          <CardMeta
+            className="mt-1"
+            items={[
+              ...(hq
+                ? [
+                    {
+                      key: "hq",
+                      icon: MapPin,
+                      text: hq,
+                    },
+                  ]
+                : []),
+              ...(company.domain
+                ? [{ key: "domain", icon: Globe, text: company.domain }]
+                : []),
+            ]}
+          />
+        ) : null}
+
+        <CardSpec className="mt-1.5 border-t border-[var(--as-border)] pt-1.5" items={companySpecs(company, t)} />
+
         {(company.industry_tags ?? []).length > 0 ? (
           <ChipRow
             className="mt-1.5"
@@ -120,12 +196,10 @@ function CompanyCard({ company }: { company: Company }) {
             }))}
           />
         ) : null}
-        <div className="mt-2 flex items-center gap-3 text-xs text-[var(--as-muted-fg)]">
-          <span className="font-medium text-[var(--as-accent)]">
-            {t("companies.openPostings", { count: company.open_postings })}
-          </span>
-          {employees ? <span>{t("companies.employees", { range: employees })}</span> : null}
-        </div>
+
+        <p className="mt-2 text-xs font-medium text-[var(--as-accent)]">
+          {t("companies.openPostings", { count: company.open_postings })}
+        </p>
       </div>
     </ItemCardShell>
   );

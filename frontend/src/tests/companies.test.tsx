@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
@@ -107,5 +107,60 @@ describe("Companies browsing (plan 135)", () => {
     expect(await screen.findByTestId("company-detail")).toBeInTheDocument();
     expect(screen.queryByTestId("company-aliases")).not.toBeInTheDocument();
     expect(screen.queryByTestId("company-proposed-badge")).not.toBeInTheDocument();
+  });
+
+  it("the New filter shows only posting-born companies", async () => {
+    mocked.fetchCompanies.mockResolvedValue([COMPANY, PROPOSED]);
+    render(
+      <MemoryRouter>
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    fireEvent.click(screen.getByTestId("company-filter-new"));
+    expect(screen.queryByTestId("company-card-acme-cloud")).not.toBeInTheDocument();
+    expect(screen.getByTestId("company-card-newborn-works")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("company-filter-all"));
+    expect(screen.getByTestId("company-card-acme-cloud")).toBeInTheDocument();
+  });
+
+  it("company postings open the in-app posting page and keep the source link", async () => {
+    mocked.fetchCompany.mockResolvedValue(DETAIL);
+    mocked.fetchCompanyPostings.mockResolvedValue([POSTING]);
+    render(
+      <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
+        <Routes>
+          <Route path="/companies/:key" element={<CompanyDetail />} />
+          <Route
+            path="/postings/:ref"
+            element={<div data-testid="posting-page-stub" />}
+          />
+        </Routes>
+      </MemoryRouter>
+    );
+    expect(await screen.findByTestId("company-posting-P3KX9Q2A")).toBeInTheDocument();
+    const view = screen.getByTestId("company-posting-view");
+    expect(view).toHaveAttribute("href", "https://jobs.example/1");
+    expect(view).toHaveAttribute("target", "_blank");
+    expect(view).toHaveAttribute("rel", "noopener noreferrer");
+    fireEvent.click(screen.getByTestId("company-posting-title"));
+    expect(await screen.findByTestId("posting-page-stub")).toBeInTheDocument();
+  });
+
+  it("a closed company posting renders in the closed state", async () => {
+    mocked.fetchCompany.mockResolvedValue(DETAIL);
+    mocked.fetchCompanyPostings.mockResolvedValue([
+      { ...POSTING, status: "hidden" } as CompanyPosting,
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/companies/acme-cloud"]}>
+        <Routes>
+          <Route path="/companies/:key" element={<CompanyDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const card = await screen.findByTestId("company-posting-P3KX9Q2A");
+    expect(card).toHaveAttribute("data-state", "closed");
+    expect(screen.getByTestId("company-posting-closed")).toBeInTheDocument();
   });
 });

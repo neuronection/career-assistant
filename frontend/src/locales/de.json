@@ -4097,7 +4097,13 @@
       "government": "Öffentlich-rechtlich",
       "startup": "Startup"
     },
-    "proposed": "Neu"
+    "proposed": "Neu",
+    "filter": {
+      "all": "Alle",
+      "new": "Neu"
+    },
+    "noMatchTitle": "Keine passenden Unternehmen",
+    "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter."
   },
   "companyDetail": {
     "back": "Alle Unternehmen",
@@ -4128,7 +4134,8 @@
     "noPostings": "Aktuell keine offenen Stellen.",
     "viewPosting": "Stelle ansehen",
     "proposed": "Neu",
-    "alsoKnownAs": "Auch bekannt als:"
+    "alsoKnownAs": "Auch bekannt als:",
+    "noPostingsBody": "Aktuell keine offenen Stellen — wirf einen Blick in den Live-Feed."
   },
   "jobRadar": {
     "subtitle": "Eine Konfiguration, überall genutzt: Explore matcht live, und (im gewählten Takt) meldet sich der Benachrichtigungs-Digest, wenn frische Stellen passen.",
@@ -4346,7 +4353,10 @@
     "skillRequires": "erfordert Level {{level}} von 10",
     "moreAria": "{{count}} weitere",
     "noScore": "kein Wert",
-    "perYear": "≈ {{range}} {{currency}}/Jahr"
+    "perYear": "≈ {{range}} {{currency}}/Jahr",
+    "type": "Typ",
+    "size": "Größe",
+    "founded": "gegründet"
   },
   "companyRules": {
     "title": "Unternehmensregeln",

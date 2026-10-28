@@ -15,14 +15,18 @@ on one page.
 ## Browsing companies
 
 Open **Companies** from the sidebar (`/companies`). The list shows every
-company with at least one open posting, busiest first, each card with:
+company with at least one open posting, busiest first, each card in the
+app's item-card grammar:
 
-- the company name and type badge (public, private, subsidiary,
-  non-profit, government, startup — when known),
-- headquarters city/country and industry tags (when known),
-- the number of open postings and the employee range.
+- the company's org tile and name (the whole card opens the company
+  page),
+- labeled spec facts — company type, employee range, founding year
+  (when known) — plus headquarters and website domain,
+- industry tags and the number of open postings.
 
-The search box filters by company name.
+The search box filters by company name; the **New** filter narrows the
+list to posting-born companies (created from a job post and not yet
+reviewed — they carry a New badge until an admin promotes them).
 
 ## The company page
 
@@ -38,8 +42,10 @@ Open a company to see everything about it in one place:
   work-mode split (on-site / hybrid / remote) and the top locations.
   This section reflects what the company is doing right now, not what
   someone wrote about it last year.
-- **Open postings** — every open posting, freshest first, with a direct
-  link to the source.
+- **Open postings** — every open posting as a card in the same grammar as
+  the live feed (seniority, contract, work mode, salary when known). The
+  card opens the posting's in-app page (`/postings/:ref`); the link to
+  the source board stays in the card's action column.
 
 ## Where the data comes from
 
