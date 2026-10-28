@@ -24,6 +24,7 @@ from app.extensions.sdk import (
 from app.models.posting_model import JobPosting
 from app.services.postings.postings_service import (
     expire_stale,
+    map_posting,
     posting_fit,
     sync_source,
     upsert_posting,
@@ -288,6 +289,49 @@ async def test_mapping_skill_id_intersection_and_aliases(
     )
     assert {e.evidence for e in edges} <= {"explicit", "inferred"}
     assert all(e.skill_id for e in edges)
+
+
+async def test_deprecated_no_merge_tag_survives_remap(db, source):
+    """F1 pin 1: a posting tagged to a deprecated (no-merge) row survives
+    `map_posting` — deprecated exact key/label entries stay in the matcher
+    index as fallbacks so the delete-and-recreate re-tags them."""
+    from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
+
+    skill = Skill(key="legacy-x", label="Legacy X", category="test")
+    db.add(skill)
+    await db.flush()
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="legacy-1",
+            title="Legacy X Engineer",
+            url="https://ex.example/legacy-1",
+            skills_raw=["legacy-x"],
+            raw={"description": "Legacy X and programming required."},
+        ),
+    )
+    await db.flush()
+    tagged = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    assert skill.id in {row.skill_id for row in tagged}
+
+    skill.status = "deprecated"
+    await db.flush()
+    await map_posting(db, posting)
+
+    tagged = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    assert skill.id in {row.skill_id for row in tagged}, (
+        "a deprecated (no-merge) skill's tag survives every re-map"
+    )
 
 
 async def test_no_label_matching_regression(

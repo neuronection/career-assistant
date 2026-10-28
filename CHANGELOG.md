@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (skill taxonomy graph — slice-C review fixes, 2026-10-28)
+- **Postings tagged to a deprecated skill survive re-mapping.** A skill
+  deprecated without a merge no longer loses its posting tags on every
+  re-map: deprecated rows stay in the matcher as fallbacks (their exact
+  key/label fill only tokens no active skill claims), matching the way
+  skill resolution already answered. A merged-away label row still never
+  shadows the surviving skill whose alias carries the label, and the deep
+  extract pass re-tags the same way.
+
 ### Added (skill taxonomy graph — review queue, 2026-10-28)
 - **Skill-relation suggestions can be reviewed and curated** — an admin
   surface lists every proposed, approved and dismissed relation with its

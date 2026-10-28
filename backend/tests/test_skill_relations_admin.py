@@ -423,16 +423,44 @@ async def test_save_alias_makes_the_matcher_resolve_the_label(db, client, _admin
     assert index["javascript"] == skills["javascript"].id
 
 
-async def test_the_matcher_index_skips_deprecated_rows(db):
+async def test_matcher_index_deprecated_fallback_never_shadows_active(db):
+    """F1 pin 2: deprecated rows fill only tokens no active row claimed —
+    a deprecated key/label never shadows an active row's key/label/alias."""
+    from app.services.postings.postings_service import _taxonomy_index
+
+    skills = await _seed_skills(db, "modern", "legacy-one", "old-e")
+    skills["legacy-one"].status = "deprecated"
+    skills["old-e"].status = "deprecated"
+    skills["old-e"].label = "Modern"
+    skills["modern"].aliases = ["legacy-one", "Legacy One"]
+    await db.flush()
+
+    index = await _taxonomy_index(db)
+
+    assert index["legacy-one"] == skills["modern"].id, "an active alias beats a deprecated key"
+    assert index["legacy one"] == skills["modern"].id, "an active alias beats a deprecated label"
+    assert index["modern"] == skills["modern"].id, "a deprecated label never shadows an active key"
+    assert skills["legacy-one"].id not in index.values(), (
+        "a row shadowed on every token contributes nothing (the merged-away shape)"
+    )
+    assert index["old-e"] == skills["old-e"].id, "the fallback still fills unmatched tokens"
+
+
+async def test_matchers_agree_on_the_deprecated_exact_key_fallback(db):
+    """F1: `SkillService.resolve` and the postings index answer the same
+    deprecated exact-key fallback when no active row claims the token."""
+    from app.services.catalog.skills_service import SkillService
     from app.services.postings.postings_service import _taxonomy_index
 
     skills = await _seed_skills(db, "javascript", "jsx")
     skills["jsx"].status = "deprecated"
     await db.flush()
 
-    index = await _taxonomy_index(db)
+    resolved = await SkillService(db).resolve("jsx")
+    assert resolved is not None and resolved.id == skills["jsx"].id
 
-    assert "jsx" not in index, "a deprecated row contributes nothing to the matcher"
+    index = await _taxonomy_index(db)
+    assert index["jsx"] == skills["jsx"].id
     assert index["javascript"] == skills["javascript"].id
 
 

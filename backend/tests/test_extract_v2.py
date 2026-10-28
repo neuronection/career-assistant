@@ -3,6 +3,7 @@ onsite + typed benefits; lifestyle gates against constraints."""
 
 import pytest
 from pydantic import ValidationError
+from sqlalchemy import select
 
 from app.ai.agents.posting_extractor import (
     ExtractBenefit,
@@ -140,6 +141,44 @@ async def test_apply_extract_v2_suppression_keeps_gates_honest(
     assert "lifestyle" not in (posting.posting_facts or {})
     assert posting.needs_review is True
     assert lifestyle_gates(posting, {"travel_days_per_month": 2}) == []
+
+
+async def test_extract_skills_re_tags_a_deprecated_no_merge_row(
+    db, client, auth_headers, seeded_catalog, source
+):
+    """F1: the extract path resolves deprecated exact keys as a fallback
+    (active rows preferred) so a dropped tag can come back — before the
+    fix only `status == "active"` rows were re-tagged."""
+    from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
+
+    posting = await _make_posting(db, source)
+    deprecated = Skill(key="legacy-x", label="Legacy X", category="test", status="deprecated")
+    db.add(deprecated)
+    await db.flush()
+    extract = PostingExtract(
+        skills=[
+            {
+                "skill_key": "legacy-x",
+                "required_level": 4,
+                "priority": "must_have",
+                "evidence_quote": "Legacy X required",
+                "confidence": 0.9,
+            }
+        ],
+    )
+    await apply_extract(db, posting, extract)
+    await db.commit()
+
+    rows = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    tagged = {row.skill_id: row for row in rows}
+    assert deprecated.id in tagged, "the deprecated exact-key fallback re-tags the posting"
+    assert tagged[deprecated.id].required_level == 4
+    assert tagged[deprecated.id].priority == "must_have"
 
 
 # ---------------------------------------------------------------- gates
