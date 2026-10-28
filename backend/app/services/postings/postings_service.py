@@ -174,6 +174,7 @@ def _run_status(report: dict) -> str:
 
 
 STALE_RUN_MINUTES = 30
+RUN_ERRORS_WITH_SUMMARY = 10
 
 
 async def _begin_run(
@@ -255,6 +256,15 @@ async def _finish_run(db: AsyncSession, run_id, *, started: datetime, report: di
                 f"{entry.get('code')}: {entry.get('detail')}" for entry in errors[:5]
             )
         bounded = dict(report)
+        if bounded.get("run_summary") is not None:
+            # A run summary present: bound the errors COUNT so the pair
+            # fits the report cap — the summary survives, errors truncate
+            # (plan 003 amendment 5) instead of waiting for the whole-report
+            # pop below.
+            errors_list = bounded.get("errors") or []
+            if len(errors_list) > RUN_ERRORS_WITH_SUMMARY:
+                bounded["errors"] = errors_list[:RUN_ERRORS_WITH_SUMMARY]
+                bounded["errors_truncated"] = True
         if len(json.dumps(bounded, default=str)) > 8_192:
             bounded.pop("errors", None)
             bounded["errors_truncated"] = True
@@ -406,6 +416,8 @@ async def _sync_source_inner(
     report: dict = {"synced": synced, "extract_queued": extract_queued, "errors": errors}
     if query_note:
         report["note"] = query_note
+    if result.run_summary:
+        report["run_summary"] = result.run_summary
     return report
 
 

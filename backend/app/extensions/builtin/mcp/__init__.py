@@ -47,6 +47,7 @@ from app.extensions.sdk import (
 
 MAX_ITEMS = 300
 RAW_JSON_CAP = 8_192
+RUN_SUMMARY_CAP = 2_048
 
 
 @lru_cache(maxsize=1)
@@ -270,29 +271,43 @@ class McpConnector(PostingConnector):
         if audit is not None:
             await audit(effect)
 
-        rows, next_state, tool_errors, envelope_error = self._parse_envelope(texts)
+        rows, next_state, run_summary, tool_errors, envelope_error = self._parse_envelope(texts)
         if envelope_error is not None:
             return ConnectorResult(partial_errors=[envelope_error])
         items, errors = self._validate_rows(rows)
         errors.extend(tool_errors)
-        return ConnectorResult(items=items, next_state=next_state, partial_errors=errors)
+        return ConnectorResult(
+            items=items,
+            next_state=next_state,
+            partial_errors=errors,
+            run_summary=run_summary,
+        )
 
     def _parse_envelope(
         self, texts: list[str]
-    ) -> tuple[list, dict, list[ConnectorError], ConnectorError | None]:
+    ) -> tuple[list, dict, dict | None, list[ConnectorError], ConnectorError | None]:
         """The tool's first text block must be the family envelope JSON:
-        ``{"items": [...], "next_state": {...}, "partial_errors": [...]}``."""
+        ``{"items": [...], "next_state": {...}, "partial_errors": [...]}``
+        plus the optional ``run_summary`` observability block (plan 003) —
+        generic for ANY T3 bundle: validated only as a JSON object under
+        the size cap, never against a vocabulary."""
         if not texts:
-            return [], {}, [], _protocol("tool returned no text content")
+            return [], {}, None, [], _protocol("tool returned no text content")
         try:
             payload = json.loads(texts[0])
         except json.JSONDecodeError as exc:
-            return [], {}, [], _protocol(f"tool output is not JSON: {exc}")
+            return [], {}, None, [], _protocol(f"tool output is not JSON: {exc}")
         if not isinstance(payload, dict):
-            return [], {}, [], _protocol("tool output is not the {items, next_state} envelope")
+            return (
+                [],
+                {},
+                None,
+                [],
+                _protocol("tool output is not the {items, next_state} envelope"),
+            )
         rows = payload.get("items", [])
         if not isinstance(rows, list):
-            return [], {}, [], _protocol("envelope items is not a list")
+            return [], {}, None, [], _protocol("envelope items is not a list")
         next_state = payload.get("next_state") or {}
         errors: list[ConnectorError] = []
         if not isinstance(next_state, dict):
@@ -301,12 +316,20 @@ class McpConnector(PostingConnector):
         if len(json.dumps(next_state, default=str)) > RAW_JSON_CAP:
             errors.append(_invalid("envelope next_state exceeds the size cap — dropped"))
             next_state = {}
+        run_summary = payload.get("run_summary")
+        if run_summary is not None:
+            if not isinstance(run_summary, dict):
+                errors.append(_invalid("envelope run_summary is not an object — dropped"))
+                run_summary = None
+            elif len(json.dumps(run_summary, default=str)) > RUN_SUMMARY_CAP:
+                errors.append(_invalid("envelope run_summary exceeds the size cap — dropped"))
+                run_summary = None
         for entry in payload.get("partial_errors") or []:
             try:
                 errors.append(ConnectorError.model_validate(entry))
             except Exception:
                 errors.append(_invalid(f"unusable partial error from tool: {entry!r}"))
-        return rows, next_state, errors, None
+        return rows, next_state, run_summary, errors, None
 
     def _validate_rows(self, rows: list) -> tuple[list[RawPosting], list[ConnectorError]]:
         """Every row is untrusted: schema-check against RawPosting

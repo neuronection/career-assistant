@@ -128,6 +128,62 @@ async def test_run_row_is_live_from_start_to_finish(db, synthetic_connector):
     assert row.duration_ms >= 0
 
 
+async def test_finish_run_bounds_errors_count_when_summary_present(db, synthetic_connector):
+    """Plan 003 amendment 5: with a run_summary on the report the errors
+    list is count-bounded first — the summary survives, errors truncate."""
+    from datetime import UTC, datetime
+
+    from app.services.postings.postings_service import (
+        RUN_ERRORS_WITH_SUMMARY,
+        _begin_run,
+        _finish_run,
+    )
+
+    src = await _source(db, "runs-summary", "synthetic")
+    started = datetime.now(UTC)
+    row = await _begin_run(db, src, trigger="manual", started=started, stage="fetching")
+    summary = {"schema": 1, "mode": "guest", "rows": {"kept": 3, "capped": 0}}
+    errors = [{"code": "provider", "detail": f"problem {i}"} for i in range(30)]
+    await _finish_run(
+        db,
+        row.id,
+        started=started,
+        report={"synced": 3, "errors": errors, "run_summary": summary},
+    )
+    await db.refresh(row)
+    assert row.report["run_summary"] == summary
+    assert len(row.report["errors"]) == RUN_ERRORS_WITH_SUMMARY
+    assert row.report["errors_truncated"] is True
+
+
+async def test_finish_run_pops_errors_when_report_still_oversize(db, synthetic_connector):
+    """The whole-report 8 KB bound still wins: a summary plus a fat report
+    pops the errors entirely — the summary never pays for the bound."""
+    from datetime import UTC, datetime
+
+    from app.services.postings.postings_service import _begin_run, _finish_run
+
+    src = await _source(db, "runs-fat", "synthetic")
+    started = datetime.now(UTC)
+    row = await _begin_run(db, src, trigger="manual", started=started, stage="fetching")
+    summary = {"schema": 1, "mode": "guest"}
+    await _finish_run(
+        db,
+        row.id,
+        started=started,
+        report={
+            "synced": 1,
+            "note": "x" * 7_700,
+            "errors": [{"code": "provider", "detail": "d" * 400}],
+            "run_summary": summary,
+        },
+    )
+    await db.refresh(row)
+    assert row.report["run_summary"] == summary
+    assert "errors" not in row.report
+    assert row.report["errors_truncated"] is True
+
+
 async def test_stale_running_rows_close_as_interrupted(db, synthetic_connector):
     """A crash never leaves a ghost: the next run closes stale running
     rows and opens its own."""

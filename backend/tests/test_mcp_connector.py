@@ -45,7 +45,7 @@ from app.extensions.registry import (
 )
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
-from app.models.posting_model import JobPosting, JobSource
+from app.models.posting_model import JobPosting, JobSource, SourceRun
 from app.services.postings.postings_service import sync_source
 
 TEMPLATE_DIR = Path(__file__).resolve().parents[2].parent / "career-connector-template"
@@ -474,6 +474,91 @@ async def test_mcp_source_registers_and_probes_through_the_generic_api(
         headers=auth_headers,
     )
     assert bad.status_code == 400, "the x-secret law rejects plaintext tokens"
+
+
+# ------------------------------------------------ the run_summary block (plan 003)
+
+RUN_SUMMARY = {
+    "schema": 1,
+    "mode": "guest",
+    "launches": {"guest": 1, "authenticated": 1},
+    "navigations": {"search_pages": 2, "detail_pages": 5},
+    "walled_skips": ["4101111101"],
+    "budget": {"limit_s": 80, "search_used_s": 31.2, "detail_used_s": 18.9},
+    "rows": {"kept": 25, "capped": 0},
+}
+
+
+async def test_run_summary_lands_verbatim_on_the_source_run(db, seeded_catalog, fake_server):
+    """The generic slice (plan 003): a tool-emitted run_summary crosses
+    the envelope parse, rides ConnectorResult, and persists verbatim on
+    source_runs.report — vocabulary never validated, only shape+size."""
+
+    def fetch(config: dict, state: dict) -> dict:
+        return {"items": [GOOD_ROW], "next_state": {}, "run_summary": RUN_SUMMARY}
+
+    fake_server(fetch)
+    source = await _make_source(
+        db, key="mcp-summary", config={"transport": "stdio", "command": "unused"}
+    )
+    result = await sync_source(db, source)
+    assert result["run_summary"] == RUN_SUMMARY
+    row = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == source.id)))
+        .scalars()
+        .one()
+    )
+    assert row.report["run_summary"] == RUN_SUMMARY
+    assert row.report["synced"] == 1
+
+
+async def test_fetch_level_result_carries_the_summary(mcp_connector, fake_server):
+    def fetch(config: dict, state: dict) -> dict:
+        return {"items": [], "next_state": {}, "run_summary": RUN_SUMMARY}
+
+    fake_server(fetch)
+    result = await mcp_connector.fetch({"transport": "stdio", "command": "unused"}, {}, secrets={})
+    assert result.run_summary == RUN_SUMMARY
+
+
+async def test_run_without_summary_is_unchanged(db, seeded_catalog, fake_server):
+    def fetch(config: dict, state: dict) -> dict:
+        return {"items": [GOOD_ROW], "next_state": {}}
+
+    fake_server(fetch)
+    source = await _make_source(
+        db, key="mcp-plain", config={"transport": "stdio", "command": "unused"}
+    )
+    result = await sync_source(db, source)
+    assert "run_summary" not in result
+    row = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == source.id)))
+        .scalars()
+        .one()
+    )
+    assert "run_summary" not in row.report
+
+
+async def test_oversize_run_summary_dropped_with_typed_error(mcp_connector, fake_server):
+    def fat(config: dict, state: dict) -> dict:
+        return {"items": [], "next_state": {}, "run_summary": {"blob": "x" * 3_000}}
+
+    fake_server(fat)
+    result = await mcp_connector.fetch({"transport": "stdio", "command": "unused"}, {}, secrets={})
+    assert result.run_summary is None
+    dropped = [e for e in result.partial_errors if "run_summary" in e.detail]
+    assert len(dropped) == 1
+    assert dropped[0].code == "invalid"
+
+
+async def test_non_object_run_summary_dropped_with_typed_error(mcp_connector, fake_server):
+    def bad(config: dict, state: dict) -> dict:
+        return {"items": [], "next_state": {}, "run_summary": ["not", "an", "object"]}
+
+    fake_server(bad)
+    result = await mcp_connector.fetch({"transport": "stdio", "command": "unused"}, {}, secrets={})
+    assert result.run_summary is None
+    assert any(e.code == "invalid" and "run_summary" in e.detail for e in result.partial_errors)
 
 
 # ------------------------------------------------- template-repo fidelity

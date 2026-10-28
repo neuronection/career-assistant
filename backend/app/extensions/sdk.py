@@ -163,11 +163,16 @@ class ConnectorCapabilities(BaseModel):
 class ConnectorResult(BaseModel):
     """The charter result envelope (ADR-0040 clause 9): ``{items,
     next_state, partial_errors}``. ``next_state`` is opaque and
-    host-round-tripped (conditional-GET validators ride it)."""
+    host-round-tripped (conditional-GET validators ride it).
+    ``run_summary`` (plan 003) is the optional structured observability
+    block a connector may emit beside them — shape-agnostic to the host
+    (persisted verbatim on the source run, never ingested); ``None``
+    when the connector emits none."""
 
     items: list[RawPosting] = Field(default_factory=list)
     next_state: dict = Field(default_factory=dict)
     partial_errors: list[ConnectorError] = Field(default_factory=list)
+    run_summary: dict | None = None
 
 
 # Transport injected by the runtime (or tests): a polite GET over the
