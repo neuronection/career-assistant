@@ -16,6 +16,9 @@ All notable changes to **Career Assistant** are documented here.
   candidate parent that is itself deprecated is skipped (the next
   candidate wins), and a parent filled by a concurrent edit is never
   overwritten by a stale catch-up pass.
+- **The save-as-alias refusal now names the working path.** Asking to
+  save an approved edge as an alias points at dismissing it first —
+  deleting the edge would destroy the row handle the save needs.
 
 ### Added (skill taxonomy graph — review queue, 2026-10-28)
 - **Skill-relation suggestions can be reviewed and curated** — an admin

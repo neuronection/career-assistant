@@ -73,7 +73,7 @@ async def _out(db: AsyncSession, rows: list[SkillRelation]) -> list[SkillRelatio
         out.append(
             SkillRelationOut(
                 id=row.id,
-                relation=row.relation,
+                relation=SkillRelationType(row.relation),
                 status=row.status,
                 source=row.source,
                 confidence=row.confidence,
@@ -255,7 +255,7 @@ async def save_skill_relation_as_alias(
     if row.status == "approved":
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "An approved edge is not an alias candidate — remove it first",
+            "An approved edge is not an alias candidate — dismiss it first",
         )
     skills = {
         skill.id: skill

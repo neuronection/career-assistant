@@ -495,3 +495,68 @@ async def test_save_alias_requires_a_proposed_label_pair(db, client, _admin_and_
     await service.approve(edge.id)
     denied = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin)
     assert denied.status_code == 400, "an approved edge is not an alias candidate"
+
+
+async def test_save_alias_on_an_approved_edge_recommends_dismiss_not_delete(
+    db, client, _admin_and_user
+):
+    """F7: the hint names the working path — dismissing keeps the row
+    handle save-alias needs; removing destroys it."""
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "js", "javascript")
+    skills["js"].status = "proposed"
+    await db.flush()
+    service = SkillRelationService(db)
+    edge = await service.add("js", "javascript", "synonym", source="llm", confidence=0.7)
+    await service.approve(edge.id)
+
+    denied = await client.post(f"/api/v1/admin/skill-relations/{edge.id}/save-alias", headers=admin)
+
+    assert denied.status_code == 400
+    detail = str(denied.json()["detail"]).lower()
+    assert "dismiss" in detail, "dismiss first is the working path"
+    assert "remove" not in detail, "removing the row destroys the handle save-alias needs"
+
+
+async def test_admin_dismiss_blocks_the_pair_from_the_next_collection(db, client, _admin_and_user):
+    """F8 bridge: a dismissal through the admin endpoint settles the pair
+    — the next collection never re-suggests it (the real entry points:
+    collect → verdict application → dismiss → collect)."""
+    from app.ai.agents.skill_relation_suggest import SkillEdgeVerdict
+    from app.services.catalog.skill_relation_learn import (
+        Thresholds,
+        apply_verdicts,
+        collect_candidates,
+    )
+    from tests.test_skill_relation_learn import _tagged_postings
+
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "c-sharp", "java")
+    await _tagged_postings(
+        db,
+        skills,
+        [("p-1", ("c-sharp", "java")), ("p-2", ("c-sharp", "java"))],
+    )
+    candidates, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    assert len(candidates) == 1, "the pair is suggested before any adjudication"
+
+    await apply_verdicts(
+        db,
+        candidates,
+        [
+            SkillEdgeVerdict(
+                pair_ref=candidates[0].pair_ref,
+                relation="related_to",
+                confidence=0.8,
+                rationale="Frequently co-occurring languages.",
+            )
+        ],
+    )
+    row = (await _rows(db))[0]
+    assert row.status == SkillRelationStatus.PROPOSED.value
+
+    response = await client.post(f"/api/v1/admin/skill-relations/{row.id}/dismiss", headers=admin)
+    assert response.status_code == 200, response.text
+
+    again, _ = await collect_candidates(db, since=None, thresholds=Thresholds())
+    assert again == [], "a dismissed pair is never re-suggested"
