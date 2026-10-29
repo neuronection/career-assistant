@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings overhaul phase 4 — account, 2026-10-29)
+- **The account page is rebuilt on the settings kit**: an identity
+  header (name, email, admin badge) with the profile surface (create
+  additional profiles, choose the default — switching stays in the top
+  bar), the appearance card, signed-in devices with device glyphs and
+  **Sign out everywhere** (`POST /auth/logout-all`), the password card,
+  a **Data & privacy** card exposing the GDPR export
+  (`POST /me/export` → background job → archive download) that existed
+  only in the API until now, and account deletion as a danger-zone card
+  with an armed two-step confirm.
+
 ### Fixed (taxonomy — bulk selections of any size, 2026-10-29)
 - **Bulk skill actions now handle selections larger than the 200-id
   request cap** — "Select proposed" with a big backlog chunks into

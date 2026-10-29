@@ -35,6 +35,6 @@ describe("locale switcher", () => {
     await waitFor(() => expect(setMyLocale).toHaveBeenCalledWith("de"));
     await waitFor(() => expect(document.documentElement.lang).toBe("de"));
     expect(i18next.language).toBe("de");
-    expect(screen.getByText("Aussehen")).toBeInTheDocument();
+    expect(screen.getAllByText("Aussehen").length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -157,6 +157,12 @@ export async function revokeMySession(familyId: string): Promise<void> {
   await api.delete(`/me/sessions/${familyId}`);
 }
 
+/** Identity-auth §12: revoke every session row + `ver` bump — the
+ * caller ends up signed out everywhere, this device included. */
+export async function logoutAllDevices(): Promise<void> {
+  await api.post("/auth/logout-all");
+}
+
 /** Changes the password and rotates the caller's session cookies — the
  * caller stays signed in, every other session is signed out. */
 export async function changeMyPassword(

@@ -7,6 +7,9 @@ rail. This page explains each page and its purpose.
 
 Account self-service — every signed-in user, on any instance mode:
 
+- **Profile** — your name, email and admin badge, plus the profiles your
+  data is scoped to: create additional profiles and choose which one is
+  the default. Switching the active profile stays in the top bar.
 - **Appearance** — pick the interface language (English, German or Greek).
   The choice is personal and applies immediately, including the catalog
   labels that have an approved translation. Admins also set the
@@ -15,12 +18,15 @@ Account self-service — every signed-in user, on any instance mode:
 - **Signed-in devices** — every login opens one session per device
   (shown by its device label). Sign out anything you don't recognize;
   the device you are using is marked, and signing it out returns you to
-  the login screen.
-- **Change password** — current password plus a new one (10+ chars).
-  You stay signed in; every other device is signed out.
-- **Delete account** — confirmed with your password. Everything you own
-  (profiles, applications, documents) is deleted with it. This cannot
-  be undone.
+  the login screen. **Sign out everywhere** revokes every session at
+  once (this one included).
+- **Password** — current password plus a new one (10+ chars). You stay
+  signed in; every other device is signed out.
+- **Data & privacy** — request a full export of your profile,
+  applications, documents and settings as a downloadable archive.
+- **Delete account** — a danger-zone card: enter your password to arm
+  the button, then confirm. Everything you own (profiles, applications,
+  documents) is deleted with it. This cannot be undone.
 
 ## AI Configuration (`/settings/ai`)
 
