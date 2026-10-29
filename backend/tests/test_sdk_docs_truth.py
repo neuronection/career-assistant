@@ -272,3 +272,40 @@ def test_every_honored_capability_is_named() -> None:
     text = (SDK_DIR / "authoring-and-configuration.md").read_text(encoding="utf-8")
     missing = [cap for cap in CAREER_PROFILE["honors"] if f"`{cap}`" not in text]
     assert not missing, "capabilities this host honors but the authoring chapter never names"
+
+
+def test_rawposting_cap_facts_agree_across_repos() -> None:
+    """The RawPosting row caps are deliberately restated in two repos
+    (the SDK authoring chapter and the template's authoring guide — the
+    docs-parity audit's D1/D3 drift surface). This pin makes silent
+    drift impossible: every cap token below must appear in BOTH
+    restatements' field rows, and both guides must state the envelope
+    caps (300 items / 8 KB)."""
+    template = REPO_ROOT.parent / "career-connector-template" / "docs" / "authoring.md"
+    sdk_text = (SDK_DIR / "authoring-and-configuration.md").read_text(encoding="utf-8")
+    template_text = template.read_text(encoding="utf-8")
+    caps = {
+        "external_id": ("1", "300"),
+        "title": ("1", "300"),
+        "org": ("200",),
+        "url": ("1000", "http(s)"),
+        "seniority": ("intern", "principal"),
+        "employment_type": ("full_time", "internship"),
+        "onsite_policy": ("onsite", "remote"),
+        "skills_raw": ("60",),
+        "raw": ("8 KB",),
+    }
+    failures: list[str] = []
+    for field, tokens in caps.items():
+        for label, text in (("sdk", sdk_text), ("template", template_text)):
+            rows = [line for line in text.splitlines() if line.startswith(f"| `{field}`")]
+            if not rows:
+                failures.append(f"{label}: no `{field}` row in the row-contract table")
+                continue
+            missing = [token for token in tokens if token not in rows[0]]
+            if missing:
+                failures.append(f"{label} `{field}` row lost cap token(s) {missing}: {rows[0]}")
+    for label, text in (("sdk", sdk_text), ("template", template_text)):
+        if "300" not in text or "8 KB" not in text:
+            failures.append(f"{label}: envelope caps (300 items / 8 KB) not stated")
+    assert not failures, "RawPosting cap facts drifted between repos:\n" + "\n".join(failures)

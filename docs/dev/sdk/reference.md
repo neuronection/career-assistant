@@ -191,7 +191,10 @@ capability never see the overlay. The rotation cursor advances by the
 batch size. T3 scripts receive it inside the tool's `config`
 argument alongside `config.options` (the tool-level settings
 passthrough — a JSON-object string, since the manifest configSchema has
-no object type). The merged-query artifact (role groups, term→radar
+no object type). The `mcp` connector itself declares the capability —
+**every `mcp` source, including managed imports, can *Follow my
+radar***; no manifest field is needed, the source form offers the
+switch and the overlay arrives inside the tool's `config`. The merged-query artifact (role groups, term→radar
 provenance, rotation cursor) lives in `job_sources.query_cache` and is
 rebuilt on radar change by the `query_curator` background job (Layer 2:
 an AI-curator task that clusters keywords; the deterministic Layer 1
@@ -262,6 +265,13 @@ the known keys renders nothing at all. An oversize or non-object
 summary is dropped with a typed `invalid` partial error. Envelopes
 without the block (and bundles on older versions) look exactly as
 before — the block is optional on every tier that speaks the envelope.
+
+`budget.limit_s` is the **emitter's own declared soft budget** — a
+`configSchema` field (conventionally `budget_seconds`) the connector
+self-enforces through admission control and merely reports here; the
+host's only wall around it is the source's `timeout_seconds` (5–120),
+so keep the declared budget comfortably under it (the reference
+bundles ship `timeout ≥ budget + 30`).
 
 ## Probe semantics
 

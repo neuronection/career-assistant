@@ -4,6 +4,26 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (connector SDK — audit follow-ups, 2026-10-30)
+- **The authenticated-source credential patterns are public law now.**
+  The SDK security chapter gains "Authenticated sources at T3": why
+  secrets can ride neither `config` (stripped) nor environment
+  variables (stdio spawns run under the MCP SDK's sanitized
+  environment), and the three workable patterns — the user's own
+  logged-in session held in bundle-owned state, CLI arguments on an
+  admin-authored command, and the http transport's sealed `token`
+  slot — each with its honest costs. The template's authoring guide
+  mirrors the short version (its old env-var advice was wrong and is
+  gone). Also: the dynamic-queries section now says every `mcp`
+  source — including managed imports — can *Follow my radar*;
+  `run_summary.budget.limit_s` is documented as the emitter's own
+  declared soft budget (keep it under `timeout_seconds`); recipe 2's
+  envelope wording includes `run_summary`; the `x-*` form hints get a
+  real worked example; and the two orphaned user pages (Career paths,
+  Skill pages) joined the docs tree. A new docs-truth pin asserts the
+  RawPosting cap facts agree between the SDK chapter and the template
+  guide across repos.
+
 ### Changed (settings overhaul phase 5 — automations + admin pages, 2026-10-29)
 - **The automations page is rebuilt on the settings kit**: saved-search
   rhythms keep the preset picker; your own runs (check-ins, digests,

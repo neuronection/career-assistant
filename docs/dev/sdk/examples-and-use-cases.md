@@ -284,7 +284,8 @@ allowlist, timeout are validated `mcp` connector config).
 - **Rows are validated and capped**: >300 rows or >8 KB `raw`/
   `next_state` are dropped with typed errors; `url` must be http(s).
   Keep the envelope exactly `{items, next_state}` (+ optional
-  `partial_errors` as typed errors).
+  `partial_errors` as typed errors, and the optional `run_summary`
+  observability block).
 - **Never put secrets in config**: the config handed to your tool is
   stripped of declared secret slots; tokens arrive only through the
   transport (`token` is an `x-secret` slot resolved host-side).

@@ -194,10 +194,46 @@ how a field renders, never what is stored beyond what their
 | `x-section` | field | string ≤ 40 (e.g. `"advanced"`) | the field groups under a collapsed section |
 | `x-presets` | configSchema | array ≤ 8 of `{label ≤ 80, values: ≤ 16 string props}` | one-click starting points above the fields; the form merges the values |
 
-The worked example is the `mcp` passthrough in action on any managed
-import: a bundle's `configSchema` with `x-choices` + `x-csv` renders
-chips whose selection is stored as one CSV string — which is exactly
-the shape the tool then receives in `config`.
+A worked fragment — a chips field (multi-select stored as CSV), a
+field grouped under a collapsed section, and a schema-level preset:
+
+```json
+{
+  "seniority": {
+    "type": "string",
+    "title": "Seniority",
+    "description": "Pick the levels to include — chips toggle on/off.",
+    "maxLength": 120,
+    "x-choices": [
+      { "value": "internship", "label": "Internship" },
+      { "value": "entry", "label": "Entry level" },
+      { "value": "mid_senior", "label": "Mid-senior" }
+    ],
+    "x-csv": true
+  },
+  "pause_between_pages": {
+    "type": "number",
+    "title": "Pause between page loads (seconds)",
+    "minimum": 2,
+    "maximum": 15,
+    "default": 2.5,
+    "x-section": "advanced"
+  }
+}
+```
+
+The admin form renders `seniority` as toggle chips; the stored value
+(and what the tool then receives in `config`) is the comma-joined
+string of the selected values in choices order. At the `configSchema`
+level, one-click starting points render above the fields:
+
+```json
+{
+  "x-presets": [
+    { "label": "Internships", "values": { "seniority": "internship" } }
+  ]
+}
+```
 
 ### The declared-domains honesty rule
 

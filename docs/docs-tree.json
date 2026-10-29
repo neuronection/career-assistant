@@ -125,6 +125,12 @@
               "description": "Describe a goal once and let an agent search your connected boards on cadence, rank by fit and deliver explainable shortlists within budgets."
             },
             {
+              "id": "career-paths",
+              "file": "user/career-paths.md",
+              "title": "Career paths",
+              "description": "Every route to a target job in one place: curated paths from the catalog, your own path copies, and the computed roads-leading-here graph (beta)."
+            },
+            {
               "id": "growth",
               "file": "user/growth.md",
               "title": "Growth toolkit",
@@ -216,6 +222,12 @@
               "file": "user/skills-taxonomy.md",
               "title": "Skill taxonomy and relations",
               "description": "The skills ontology and its typed relation edges: the relations review queue, manual curation, discovery thresholds and how relations widen posting filters."
+            },
+            {
+              "id": "skill-pages",
+              "file": "user/skills.md",
+              "title": "Skill pages",
+              "description": "Every skill has a page at /skills/:key — what it is, who demands it, how it relates to other skills, and how it has changed."
             },
             {
               "id": "import-extensions-from-git",

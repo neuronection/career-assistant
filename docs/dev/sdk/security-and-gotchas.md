@@ -81,6 +81,43 @@ sides:
 - in T3, the config handed to the tool is stripped of declared secret
   slots; the optional transport token resolves host-side.
 
+## Authenticated sources at T3 (the credential patterns)
+
+Boards behind a login need credentials, and two doors are closed by
+design: values never ride `config` (the stripping rule above), and
+**stdio spawns run under the MCP SDK's sanitized environment** — on
+Linux/macOS only `HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM` and `USER`
+cross to the child (Windows keeps a comparable allowlist), so secrets
+cannot ride environment variables either, no matter who writes the
+launch command. Three patterns work:
+
+1. **The user's own session, held in bundle-owned state.** Ship a
+   `--login`-style CLI mode: a human signs in once in a real browser
+   window — credentials typed by the human, never seen by the app — and
+   the session persists in a profile directory the bundle owns under
+   the OS state dir (outside the install, so it survives re-imports).
+   Syncs ride that session; expiry surfaces as a typed `auth` partial
+   ("run `--login`"), never a crash. The natural fit for
+   browser-session boards and the only pattern that survives managed
+   imports unchanged.
+2. **CLI arguments on an admin-authored command.** An admin-registered
+   stdio source can carry a token in its launch command
+   (`python server.py --board-token=…`). Two honest costs: the value is
+   visible in the host machine's process listing, and managed-import
+   commands are host-minted (the interpreter rule) — hand-added
+   arguments are lost on re-import. Keep this to admin-registered
+   sources you control.
+3. **http transport + the sealed `token` slot.** Declare `token` as an
+   `x-secret` configSchema field: the value is sealed at rest and
+   resolved host-side into `Authorization: Bearer …` when the app
+   connects to *your* http server — your tool sits behind that server
+   and never sees the token. Clean fit for imports when your fetcher
+   can run as a small service.
+
+Whichever pattern: an auth barrier mid-run is a typed `auth` partial
+error with rows kept so far — never a crash and never a silent empty
+fetch.
+
 ## Politeness, SSRF and robots (T1/T2 network)
 
 Connectors never open sockets. Everything network-shaped funnels
