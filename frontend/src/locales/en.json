@@ -3999,7 +3999,24 @@
       "cv_template": "CV template"
     }
   },
+  "settingsKit": {
+    "onThisPage": "On this page",
+    "adminBadge": "Admin",
+    "save": {
+      "saved": "Saved",
+      "saving": "Saving…",
+      "dirty": "Unsaved changes",
+      "error": "Couldn't save",
+      "retry": "Retry"
+    }
+  },
   "settingsNav": {
+    "section": {
+      "personal": "Personal",
+      "aiTools": "AI & tools",
+      "automation": "Automation",
+      "administration": "Administration"
+    },
     "account": {
       "label": "Account",
       "description": "Sessions, password and account deletion"

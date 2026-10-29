@@ -162,3 +162,123 @@ body {
   --as-danger: var(--as-muted-fg);
   --ca-heat-hot: var(--as-muted-fg);
 }
+
+/* Settings kit (plan 148): every "is there room" decision keys off the
+   PAGE column's own width (container query, plan-95 rule — the chat dock
+   narrows the column without moving the viewport). /settings renders
+   full-bleed so these breakpoints can engage on real displays. The shell
+   is a flex child of the full-bleed column — auto margins alone would
+   disable stretch and shrink-wrap it, so width is explicit; max-width +
+   auto margins center and cap it on ultrawide. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-settings-shell {
+  width: 100%;
+  max-width: 100rem;
+  margin-inline: auto;
+}
+
+.ca-settings {
+  container-type: inline-size;
+}
+
+.ca-settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.ca-settings-head > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.ca-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.ca-settings-rail {
+  display: none;
+}
+
+.ca-settings-rail-title {
+  margin: 0 0 0.5rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--as-muted-fg);
+}
+
+.ca-settings-rail-link {
+  display: block;
+  padding: 0.34rem 0.55rem;
+  border-radius: calc(var(--as-radius, 0.75rem) - 0.25rem);
+  color: var(--as-muted-fg);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.ca-settings-rail-link:hover {
+  color: var(--as-fg);
+  background: var(--as-muted);
+}
+
+.ca-settings-rail-link-active {
+  color: var(--as-fg);
+  font-weight: 600;
+  background: var(--as-surface-raised);
+  box-shadow: inset 0 0 0 1px var(--as-border);
+}
+
+/* Related small cards share a row once the column has room. */
+.ca-settings-duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+@container (min-width: 48rem) {
+  .ca-settings-duo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 62rem) {
+  .ca-settings-layout {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+
+  .ca-settings-rail {
+    display: block;
+    position: sticky;
+    top: 0;
+    align-self: start;
+  }
+}
+
+/* Very wide columns: keep the reading measure at 52rem (rail grows a
+   little; the leftover stays whitespace to the right). */
+@container (min-width: 68rem) {
+  .ca-settings-layout {
+    grid-template-columns: 200px minmax(0, 52rem);
+  }
+}
+
+/* Taxonomy listing (plan 150): rows collapse to icon + label + status
+   badge under narrow page columns — the mono key and the alias/description
+   hint hide first (container query, plan-95 rule; must stay AFTER
+   @tailwind utilities so the container rules win the cascade). */
+.ca-tax-list {
+  container-type: inline-size;
+}
+
+@container (max-width: 26rem) {
+  .ca-tax-key,
+  .ca-tax-hint {
+    display: none;
+  }
+}

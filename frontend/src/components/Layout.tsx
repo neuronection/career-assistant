@@ -3,7 +3,7 @@ import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 
-import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
+import { SidebarNav, TooltipProvider, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useIsShortViewport } from "@/hooks/useMediaQuery";
@@ -49,6 +49,7 @@ export function Layout() {
   const chatMode = useChatStore((state) => state.chatMode);
   const chatModeChosen = useChatStore((state) => state.chatModeChosen);
   const profileEpoch = useProfilesStore((state) => state.epoch);
+  const isSettingsRoute = location.pathname.startsWith("/settings");
   const fullBleed =
     isBuilderRoute ||
     isTemplateRoute ||
@@ -56,6 +57,7 @@ export function Layout() {
     isEducationRoute ||
     isApplicationsRoute ||
     isPathsRoute ||
+    isSettingsRoute ||
     location.pathname === "/onboarding" ||
     location.pathname === "/onboarding/setup" ||
     location.pathname === "/chat";
@@ -98,6 +100,7 @@ export function Layout() {
   ];
 
   return (
+    <TooltipProvider>
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Skip to content — first focusable element for keyboard users */}
       <a
@@ -208,5 +211,6 @@ export function Layout() {
       <ToastHost />
       <DesktopNotifications />
     </div>
+    </TooltipProvider>
   );
 }

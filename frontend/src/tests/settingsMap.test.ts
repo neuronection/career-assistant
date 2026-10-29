@@ -56,6 +56,26 @@ describe("settings-map contract", () => {
     }
   });
 
+  // Plan 148: the app rail groups tabs into display sections derived from
+  // the contract's domain groups (app+user → personal, ai/tools → aiTools,
+  // automations, app+admin → administration) and the runs stay contiguous.
+  it("rail display sections derive from the contract groups and stay contiguous", () => {
+    const expectedSection = (tab: (typeof declared)[number]) => {
+      if (tab.group === "ai" || tab.group === "tools") return "aiTools";
+      if (tab.group === "automations") return "automation";
+      return tab.admin ? "administration" : "personal";
+    };
+    for (const tab of declared) {
+      const item = settingsNav.find((entry) => entry.to === `/settings/${tab.id}`);
+      expect(item?.sectionKey, `section for ${tab.id}`).toBe(expectedSection(tab));
+    }
+    const runs: string[] = [];
+    for (const item of settingsNav) {
+      if (runs[runs.length - 1] !== item.sectionKey) runs.push(item.sectionKey);
+    }
+    expect(runs).toEqual(["personal", "aiTools", "automation", "administration"]);
+  });
+
   it("the declared ai tab sections match the app's AI tabs", () => {
     expect(declaredSections("ai")).toEqual([...AI_TABS]);
   });

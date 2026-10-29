@@ -3998,7 +3998,24 @@
       "cv_template": "CV-Vorlage"
     }
   },
+  "settingsKit": {
+    "onThisPage": "Auf dieser Seite",
+    "adminBadge": "Admin",
+    "save": {
+      "saved": "Gespeichert",
+      "saving": "Speichern…",
+      "dirty": "Ungespeicherte Änderungen",
+      "error": "Speichern fehlgeschlagen",
+      "retry": "Erneut versuchen"
+    }
+  },
   "settingsNav": {
+    "section": {
+      "personal": "Persönlich",
+      "aiTools": "KI & Tools",
+      "automation": "Automatisierung",
+      "administration": "Verwaltung"
+    },
     "account": {
       "label": "Konto",
       "description": "Sitzungen, Passwort und Kontoentfernung"

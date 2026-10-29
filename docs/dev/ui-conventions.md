@@ -398,6 +398,39 @@ page-local form for a profile section.
   (`practice-interview-posting`) creates + starts + jumps straight to
   chat.
 
+## 2f. Settings surfaces (plan 148)
+
+Every settings page composes from the app kit in `components/settings/`
+(never re-roll page-local cards):
+
+- **`SettingsPage`** — icon + title + description + status chips, then an
+  optional **in-page section rail** (sticky anchor nav; exists only ≥62rem
+  of PAGE-column width — `ca-settings` container queries, plan-95 law) and
+  the content column (reading measure caps at 52rem ≥68rem so wide
+  displays stay readable). `/settings` renders full-bleed (Layout
+  allow-list) so those breakpoints engage on real displays; the shell
+  is a flex child — width is explicit (auto margins would disable
+  stretch), capped and centered at 100rem on ultrawide.
+- **`SettingsSectionCard`** — icon tile, title, description, badge slots
+  (incl. `adminOnly`), `summary` chip strip, `footer` actions, optional
+  `collapsible` body (`cv-collapse`), `variant="danger"` for destructive
+  zones. Testids `settings-section-{name}` (+`-toggle`/`-body`).
+- **Hybrid save contract**: switches/toggles save instantly (optimistic
+  via `useOptimisticToggle` — rollback + failure flag), forms save
+  explicitly; every card carries a `SaveStateIndicator`
+  (`Saved ✓ / Saving… / Unsaved changes / Couldn't save — Retry`,
+  `aria-live`); drafts flow through `useSettingsDraft` (the profile
+  `useSectionDraft` contract generalized — dirty tracking, payload-JSON
+  compare so untouched drafts never PUT, unmount-safe debounce).
+  Notices render IN the card that caused them; toasts only for
+  cross-card events.
+- **Navigation** (`config/settingsNav.ts`): rail display sections derive
+  from the settings-map contract groups (app+user → Personal,
+  ai/tools → AI & tools, automations → Automation, app+admin →
+  Administration) via each item's `sectionKey`; `settingsMap.test.ts`
+  pins both the derivation and the contiguous runs. The library
+  `SettingsShell` renders the labels (chip mode hides them).
+
 ## 2d. Feature state (beta affordance)
 
 `frontend/src/config/features.json` is the single feature-state table
