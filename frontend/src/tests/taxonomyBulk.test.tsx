@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import * as taxonomyApi from "@/api/taxonomy";
 import type { SkillRow } from "@/api/taxonomy";
@@ -54,7 +55,11 @@ const SKILLS: SkillRow[] = [
 ];
 
 async function openSkillsTab() {
-  render(<Taxonomy />);
+  render(
+    <MemoryRouter initialEntries={["/settings/taxonomy"]}>
+      <Taxonomy />
+    </MemoryRouter>,
+  );
   fireEvent.click(await screen.findByRole("tab", { name: "Skills" }));
   await screen.findByText("python");
 }

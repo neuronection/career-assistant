@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   bulkSkillAction,
@@ -17,7 +18,11 @@ import {
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
 import { EmptyState, SegmentedTabs, Spinner, ConfirmationModal } from "@/components/ui";
-import { SkillRelationsPanel } from "@/components/settings/SkillRelationsPanel";
+import {
+  parseRelationSection,
+  SkillRelationsPanel,
+  type RelationSection,
+} from "@/components/settings/SkillRelationsPanel";
 import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
 import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 
@@ -40,12 +45,29 @@ interface EnrichmentRow {
   proposed_at: string | null;
 }
 
+export type TaxonomyTab = "interests" | "skills" | "paths" | "enrichment" | "relations";
+
+// Exported for the taxonomy-tabs conformance tests.
+export const TAXONOMY_TABS: readonly TaxonomyTab[] = [
+  "interests",
+  "skills",
+  "paths",
+  "enrichment",
+  "relations",
+];
+
+export function parseTaxonomyTab(raw: string | null): TaxonomyTab {
+  return (TAXONOMY_TABS as readonly string[]).includes(raw ?? "")
+    ? (raw as TaxonomyTab)
+    : "interests";
+}
+
 /** Admin taxonomy management: create, edit, promote/deprecate, merge, delete. */
 export function Taxonomy() {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<"interests" | "skills" | "paths" | "enrichment" | "relations">(
-    "interests",
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const kind = parseTaxonomyTab(searchParams.get("tab"));
+  const section = parseRelationSection(searchParams.get("section"));
   const [tags, setTags] = useState<Tag[]>([]);
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [paths, setPaths] = useState<PathRow[]>([]);
@@ -63,6 +85,31 @@ export function Taxonomy() {
   const [bulkNote, setBulkNote] = useState("");
   const [bulkFailures, setBulkFailures] = useState<SkillBulkFailure[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    const expectedTab = kind === "interests" ? null : kind;
+    const expectedSection = kind === "relations" && section !== "queue" ? section : null;
+    if (
+      searchParams.get("tab") === expectedTab &&
+      searchParams.get("section") === expectedSection
+    ) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    if (expectedTab) next.set("tab", expectedTab);
+    else next.delete("tab");
+    if (expectedSection) next.set("section", expectedSection);
+    else next.delete("section");
+    setSearchParams(next, { replace: true });
+  }, [kind, section, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setBulkTarget("");
+    setBulkNote("");
+    setBulkFailures([]);
+  }, [kind]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -166,6 +213,13 @@ export function Taxonomy() {
     setBulkTarget("");
   };
 
+  const setSection = (next: RelationSection) => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === "queue") nextParams.delete("section");
+    else nextParams.set("section", next);
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const applyBulk = async (action: SkillBulkAction, ids: string[]) => {
     if (ids.length === 0) return;
     setError("");
@@ -230,18 +284,17 @@ export function Taxonomy() {
         <SegmentedTabs
           ariaLabel={t("taxonomy.tabsAria")}
           className="max-w-lg"
-          items={(["interests", "skills", "paths", "enrichment", "relations"] as const).map(
-            (k) => ({
-              value: k,
-              label: t(`taxonomy.kind.${k}`),
-            }),
-          )}
+          items={TAXONOMY_TABS.map((k) => ({
+            value: k,
+            label: t(`taxonomy.kind.${k}`),
+          }))}
           value={kind}
           onValueChange={(next) => {
-            setKind(next as typeof kind);
-            exitSelect();
-            setBulkNote("");
-            setBulkFailures([]);
+            const nextParams = new URLSearchParams(searchParams);
+            if (next === "interests") nextParams.delete("tab");
+            else nextParams.set("tab", next);
+            nextParams.delete("section");
+            setSearchParams(nextParams, { replace: true });
           }}
         />
         {kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
@@ -331,7 +384,7 @@ export function Taxonomy() {
       )}
 
       {kind === "relations" ? (
-        <SkillRelationsPanel />
+        <SkillRelationsPanel section={section} onSectionChange={setSection} />
       ) : loading ? (
         <div className="flex w-full flex-col items-center justify-center py-24">
           <Spinner size="lg" />

@@ -1,10 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 
 import * as relationsApi from "@/api/skillRelations";
 import type { SkillRelationRow, SkillRelationRun } from "@/api/skillRelations";
 import * as taxonomyApi from "@/api/taxonomy";
-import { SkillRelationsPanel } from "@/components/settings/SkillRelationsPanel";
+import {
+  SkillRelationsPanel,
+  type RelationSection,
+} from "@/components/settings/SkillRelationsPanel";
 
 vi.mock("@/api/skillRelations", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/skillRelations")>();
@@ -231,9 +235,18 @@ beforeEach(() => {
   mocked.fetchSkillRelationRuns.mockResolvedValue([RUN]);
 });
 
+function PanelHarness({ initialSection }: { initialSection: RelationSection }) {
+  const [section, setSection] = useState(initialSection);
+  return <SkillRelationsPanel section={section} onSectionChange={setSection} />;
+}
+
+function renderPanel(section: RelationSection = "queue") {
+  render(<PanelHarness initialSection={section} />);
+}
+
 describe("SkillRelationsPanel", () => {
   it("lists the queue with pair context and per-row actions", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     expect(await screen.findByTestId("relation-row-r-proposed")).toBeTruthy();
     expect(screen.getByTestId("relation-row-r-alias")).toBeTruthy();
     expect(screen.getByTestId("relation-accept-r-proposed")).toBeTruthy();
@@ -243,7 +256,7 @@ describe("SkillRelationsPanel", () => {
   });
 
   it("shows the alias hint only for alias-shaped labels and the promotion hint for distinct concepts", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     const aliasRow = await screen.findByTestId("relation-row-r-alias");
     expect(within(aliasRow).getByText(/raw label/i)).toBeTruthy();
 
@@ -260,7 +273,7 @@ describe("SkillRelationsPanel", () => {
   });
 
   it("accept calls the API and reloads the queue", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-accept-r-proposed"));
     await waitFor(() =>
       expect(mocked.acceptSkillRelation).toHaveBeenCalledWith("r-proposed"),
@@ -276,21 +289,21 @@ describe("SkillRelationsPanel", () => {
         response: { data: { detail: "is_a edge would create a cycle" } },
       }),
     );
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-accept-r-proposed"));
     expect(await screen.findByText(/would create a cycle/i)).toBeTruthy();
     expect(screen.getByTestId("relation-row-r-proposed")).toBeTruthy();
   });
 
   it("save as alias merges the label row and reports the target", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-alias-r-alias"));
     await waitFor(() => expect(mocked.saveSkillRelationAlias).toHaveBeenCalledWith("r-alias"));
     expect(await screen.findByText(/alias of JavaScript/i)).toBeTruthy();
   });
 
   it("the editor adds a manual relation from the pickers", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByRole("tab", { name: /all relations/i }));
     const pickers = await screen.findAllByTestId("fake-picker");
     fireEvent.click(pickers[0]);
@@ -313,7 +326,7 @@ describe("SkillRelationsPanel", () => {
   });
 
   it("thresholds save the edited knobs", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByRole("tab", { name: /thresholds/i }));
     fireEvent.change(await screen.findByTestId("threshold-min_support"), {
       target: { value: "5" },
@@ -331,7 +344,7 @@ describe("SkillRelationsPanel", () => {
   });
 
   it("runs render the ledger and a held watermark", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByRole("tab", { name: /runs/i }));
     expect(await screen.findByTestId("run-row-run-1")).toBeTruthy();
     expect(screen.getByTestId("run-watermark-run-1").textContent).toMatch(/held/i);
@@ -344,7 +357,7 @@ describe("SkillRelationsPanel", () => {
       affected: ["r-proposed", "r-alias"],
       failed: [],
     });
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-select-toggle"));
     fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /select js/i }));
@@ -367,7 +380,7 @@ describe("SkillRelationsPanel", () => {
       affected: ["r-proposed"],
       failed: [{ id: "r-alias", key: "Js → JavaScript", reason: "is_a edge would create a cycle" }],
     });
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-select-toggle"));
     fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
     fireEvent.click(screen.getByRole("checkbox", { name: /select js/i }));
@@ -386,7 +399,7 @@ describe("SkillRelationsPanel", () => {
   });
 
   it("exiting select mode clears the selection", async () => {
-    render(<SkillRelationsPanel />);
+    renderPanel();
     fireEvent.click(await screen.findByTestId("relation-select-toggle"));
     fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
     expect(screen.getByTestId("relation-bulk-bar")).toHaveTextContent("1 selected");
@@ -425,7 +438,7 @@ describe("SkillRelationsPanel", () => {
         origin: "import",
       },
     ]);
-    render(<SkillRelationsPanel />);
+    renderPanel();
 
     fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
 
@@ -443,7 +456,7 @@ describe("SkillRelationsPanel", () => {
   it("the graph tab shows the empty state before anything exists", async () => {
     mocked.fetchSkillRelations.mockResolvedValue([]);
     mockedTaxonomy.fetchSkillRows.mockResolvedValue([]);
-    render(<SkillRelationsPanel />);
+    renderPanel();
 
     fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
 

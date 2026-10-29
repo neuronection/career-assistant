@@ -81,6 +81,11 @@ taxonomy by stable `key` slugs, so changes here are what keep labels and
 translations from breaking data. Unknown skills introduced by users or the AI
 appear as `proposed` rows for review.
 
+Tabs and subtabs are URL-addressable: add `?tab=` (interests, skills, paths,
+enrichment, relations) and, for the Relations subtabs, `&section=` (queue,
+editor, graph, thresholds, runs) — refreshing or sharing a link reopens the
+exact view.
+
 The **Relations** tab curates the typed edges between skills ("java is a
 programming language"): a review queue for the discovery job's suggestions
 (accept, dismiss or save a raw label as an alias), a manual editor for

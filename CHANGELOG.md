@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (taxonomy — routable tabs, 2026-10-29)
+- **Every Taxonomy tab and subtab is now a URL you can keep.** Tabs sync to
+  the address bar (`/settings/taxonomy?tab=skills`, subtabs as
+  `?tab=relations&section=graph`) — refreshing or sharing a link lands on
+  the exact view instead of resetting to Interests. Unknown or stale
+  params fall back to the defaults and clean themselves up; the default
+  view keeps the bare `/settings/taxonomy` URL.
+
 ### Changed (taxonomy — smarter review queue, 2026-10-29)
 - **The review queue now tells you what kind of decision each row is.**
   The "save it as an alias instead of an edge" hint only appears when the

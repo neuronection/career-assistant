@@ -42,7 +42,23 @@ import {
 } from "@/features/cv/components/cv/formPrimitives";
 import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 
-type Tab = "queue" | "editor" | "graph" | "thresholds" | "runs";
+export type RelationSection = "queue" | "editor" | "graph" | "thresholds" | "runs";
+
+// Exported for the taxonomy-tabs conformance tests.
+export const RELATION_TABS: readonly RelationSection[] = [
+  "queue",
+  "editor",
+  "graph",
+  "thresholds",
+  "runs",
+];
+
+export function parseRelationSection(raw: string | null): RelationSection {
+  return (RELATION_TABS as readonly string[]).includes(raw ?? "")
+    ? (raw as RelationSection)
+    : "queue";
+}
+
 type RelationKind = SkillRelationRow["relation"];
 
 const RELATIONS: RelationKind[] = ["is_a", "synonym", "part_of", "related_to"];
@@ -222,9 +238,14 @@ function RelationRowCard({
   );
 }
 
-export function SkillRelationsPanel() {
+export function SkillRelationsPanel({
+  section,
+  onSectionChange,
+}: {
+  section: RelationSection;
+  onSectionChange: (next: RelationSection) => void;
+}) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Tab>("queue");
   const [rows, setRows] = useState<SkillRelationRow[]>([]);
   const [skills, setSkills] = useState<SkillRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -384,9 +405,9 @@ export function SkillRelationsPanel() {
   }, []);
 
   useEffect(() => {
-    if (tab === "thresholds" && thresholds === null) void loadThresholds();
-    if (tab === "runs") void loadRuns();
-  }, [tab, thresholds, loadThresholds, loadRuns]);
+    if (section === "thresholds" && thresholds === null) void loadThresholds();
+    if (section === "runs") void loadRuns();
+  }, [section, thresholds, loadThresholds, loadRuns]);
 
   const onThresholdsSave = async () => {
     if (!thresholds) return;
@@ -460,12 +481,12 @@ export function SkillRelationsPanel() {
       <SegmentedTabs
         ariaLabel={t("taxonomy.relations.tabsAria")}
         className="max-w-xl"
-        items={(["queue", "editor", "graph", "thresholds", "runs"] as const).map((k) => ({
+        items={RELATION_TABS.map((k) => ({
           value: k,
           label: t(`taxonomy.relations.tab.${k}`),
         }))}
-        value={tab}
-        onValueChange={(next) => setTab(next as Tab)}
+        value={section}
+        onValueChange={(next) => onSectionChange(next as RelationSection)}
       />
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {globalNote && <p className="text-sm text-emerald-700">{globalNote}</p>}
@@ -475,7 +496,7 @@ export function SkillRelationsPanel() {
           <Spinner size="lg" />
           <p className="mt-3 text-sm text-[var(--as-muted-fg)]">{t("common.loading")}</p>
         </div>
-      ) : tab === "queue" ? (
+      ) : section === "queue" ? (
         <>
           {groups.length > 0 && (
             <div className="flex items-center justify-end">
@@ -588,7 +609,7 @@ export function SkillRelationsPanel() {
             </div>
           )}
         </>
-      ) : tab === "editor" ? (
+      ) : section === "editor" ? (
         <div className="space-y-4" data-testid="skill-relations-editor">
           <div
             className="space-y-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
@@ -704,7 +725,7 @@ export function SkillRelationsPanel() {
             </div>
           )}
         </div>
-      ) : tab === "graph" ? (
+      ) : section === "graph" ? (
         <div
           data-testid="skill-relations-graph"
           className="h-[480px] overflow-hidden rounded-xl border border-[var(--as-border)]"
@@ -749,7 +770,7 @@ export function SkillRelationsPanel() {
             }}
           />
         </div>
-      ) : tab === "thresholds" ? (
+      ) : section === "thresholds" ? (
         thresholds === null ? (
           <div className="flex justify-center py-16">
             <Spinner size="lg" />
