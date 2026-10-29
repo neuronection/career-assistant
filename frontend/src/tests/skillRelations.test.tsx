@@ -131,6 +131,30 @@ const RUN: SkillRelationRun = {
   },
 };
 
+const APPROVED_RELATED: SkillRelationRow = {
+  ...BASE_ROW,
+  id: "r-approved",
+  relation: "related_to",
+  status: "approved",
+  decided_by: "u-admin",
+  decided_at: "2026-10-28T02:00:00Z",
+  from_skill: {
+    id: "s-java",
+    key: "java",
+    label: "Java",
+    status: "active",
+    evidence_quote: null,
+  },
+  to_skill: {
+    id: "s-javascript",
+    key: "javascript",
+    label: "JavaScript",
+    status: "active",
+    evidence_quote: null,
+  },
+  alias_candidate: false,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocked.fetchSkillRelations.mockResolvedValue([PROPOSED, ALIASABLE]);
@@ -331,5 +355,61 @@ describe("SkillRelationsPanel", () => {
 
     expect(screen.queryByTestId("relation-bulk-bar")).toBeNull();
     expect(screen.queryByRole("checkbox", { name: /select java/i })).toBeNull();
+  });
+
+  it("the graph tab renders nodes and the relation palette", async () => {
+    mocked.fetchSkillRelations.mockResolvedValue([APPROVED_RELATED]);
+    mockedTaxonomy.fetchSkillRows.mockResolvedValue([
+      {
+        id: "s-java",
+        key: "java",
+        label: "Java",
+        category: "tech",
+        description: "",
+        parent_id: "s-javascript",
+        level_anchors: [],
+        aliases: [],
+        status: "active",
+        origin: "import",
+      },
+      {
+        id: "s-javascript",
+        key: "javascript",
+        label: "JavaScript",
+        category: "tech",
+        description: "",
+        parent_id: null,
+        level_anchors: [],
+        aliases: [],
+        status: "active",
+        origin: "import",
+      },
+    ]);
+    render(<SkillRelationsPanel />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
+
+    expect(await screen.findByTestId("skill-relations-graph")).toBeTruthy();
+    expect(await screen.findByText("Java")).toBeTruthy();
+    expect(screen.getByText("JavaScript")).toBeTruthy();
+    // ReactFlow keeps edges hidden until nodes measure (ResizeObserver is a
+    // no-op stub in jsdom), so the edge palette is asserted through the
+    // legend rather than edge DOM.
+    fireEvent.click(screen.getByRole("button", { name: "Legend" }));
+    expect(await screen.findByText("is a")).toBeTruthy();
+    expect(screen.getByText("related to")).toBeTruthy();
+  });
+
+  it("the graph tab shows the empty state before anything exists", async () => {
+    mocked.fetchSkillRelations.mockResolvedValue([]);
+    mockedTaxonomy.fetchSkillRows.mockResolvedValue([]);
+    render(<SkillRelationsPanel />);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Graph" }));
+
+    expect(await screen.findByTestId("skill-relations-graph")).toBeTruthy();
+    expect(
+      await screen.findByText(/Nothing to visualize yet — approve relations/),
+    ).toBeTruthy();
   });
 });

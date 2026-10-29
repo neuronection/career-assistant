@@ -34,6 +34,7 @@ import {
   type PickerOption,
   type PickerSelection,
 } from "@/components/ui";
+import { ConceptGraphView } from "@/components/ui";
 import {
   FormRow,
   NumberField,
@@ -41,10 +42,27 @@ import {
 } from "@/features/cv/components/cv/formPrimitives";
 import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 
-type Tab = "queue" | "editor" | "thresholds" | "runs";
+type Tab = "queue" | "editor" | "graph" | "thresholds" | "runs";
 type RelationKind = SkillRelationRow["relation"];
 
 const RELATIONS: RelationKind[] = ["is_a", "synonym", "part_of", "related_to"];
+
+const NODE_COLORS: Record<string, string> = {
+  active: "#059669",
+  proposed: "#0284c7",
+  deprecated: "#d97706",
+};
+
+const EDGE_COLORS: Record<string, string> = {
+  is_a: "#2563eb",
+  synonym: "#059669",
+  part_of: "#7c3aed",
+  related_to: "#64748b",
+};
+
+/** Container-style relations: the parent/container ranks above in the
+ * hierarchy layout (an is_a child sits under its parent). */
+const REVERSED_RELATIONS = ["is_a", "part_of"];
 const LEDGER_KEYS: (keyof SkillRelationRun["ledger"])[] = [
   "candidates",
   "batches",
@@ -359,13 +377,50 @@ export function SkillRelationsPanel() {
     return [...map.entries()];
   }, [proposed]);
 
+  const [graphNodeId, setGraphNodeId] = useState<string | undefined>();
+
+  const graph = useMemo(() => {
+    const approved = rows.filter((row) => row.status === "approved");
+    const pair = (a: string, b: string) => [a, b].sort().join(":");
+    const isAPairs = new Set(
+      approved.filter((row) => row.relation === "is_a").map((row) => pair(row.from_skill.id, row.to_skill.id)),
+    );
+    const skillIds = new Set(skills.map((skill) => skill.id));
+    const parentEdges = skills
+      .filter((skill) => skill.parent_id && skillIds.has(skill.parent_id))
+      .filter((skill) => !isAPairs.has(pair(skill.id, skill.parent_id as string)))
+      .map((skill) => ({
+        id: `parent:${skill.id}`,
+        source: skill.id,
+        target: skill.parent_id as string,
+        relation: "is_a",
+      }));
+    return {
+      nodes: skills.map((skill) => ({
+        id: skill.id,
+        name: skill.label,
+        primary_kind: skill.status,
+        type: "skill",
+      })),
+      edges: [
+        ...approved.map((row) => ({
+          id: row.id,
+          source: row.from_skill.id,
+          target: row.to_skill.id,
+          relation: row.relation,
+        })),
+        ...parentEdges,
+      ],
+    };
+  }, [rows, skills]);
+
   return (
     <div className="space-y-4" data-testid="skill-relations-panel">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("taxonomy.relations.intro")}</p>
       <SegmentedTabs
         ariaLabel={t("taxonomy.relations.tabsAria")}
         className="max-w-xl"
-        items={(["queue", "editor", "thresholds", "runs"] as const).map((k) => ({
+        items={(["queue", "editor", "graph", "thresholds", "runs"] as const).map((k) => ({
           value: k,
           label: t(`taxonomy.relations.tab.${k}`),
         }))}
@@ -608,6 +663,51 @@ export function SkillRelationsPanel() {
               ))}
             </div>
           )}
+        </div>
+      ) : tab === "graph" ? (
+        <div
+          data-testid="skill-relations-graph"
+          className="h-[480px] overflow-hidden rounded-xl border border-[var(--as-border)]"
+        >
+          <ConceptGraphView
+            nodes={graph.nodes}
+            edges={graph.edges}
+            kindColors={NODE_COLORS}
+            relationColors={EDGE_COLORS}
+            hierarchyReversedRelations={REVERSED_RELATIONS}
+            selectedNodeId={graphNodeId}
+            onSelectNode={setGraphNodeId}
+            onClearSelection={() => setGraphNodeId(undefined)}
+            labels={{
+              empty: t("taxonomy.relations.graph.empty"),
+              findPlaceholder: t("taxonomy.relations.graph.find"),
+            }}
+            renderNodeDetail={({ node, degree, onClose, onFocus }) => {
+              const skill = skills.find((entry) => entry.id === node.id);
+              return (
+                <div className="w-52 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] p-3 text-left shadow-md">
+                  <p className="text-sm font-medium text-[var(--as-fg)]">{node.name}</p>
+                  <p className="font-mono text-[11px] text-[var(--as-muted-fg)]">{skill?.key}</p>
+                  {skill && (
+                    <p className="mt-1 text-xs capitalize text-[var(--as-muted-fg)]">
+                      {skill.category} · {t(`taxonomy.${skill.status}`)}
+                    </p>
+                  )}
+                  <p className="text-xs text-[var(--as-muted-fg)]">
+                    {t("taxonomy.relations.graph.degree", { count: degree })}
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <Button size="sm" variant="outline" onClick={onFocus}>
+                      {t("taxonomy.relations.graph.focus")}
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={onClose}>
+                      {t("common.close")}
+                    </Button>
+                  </div>
+                </div>
+              );
+            }}
+          />
         </div>
       ) : tab === "thresholds" ? (
         thresholds === null ? (

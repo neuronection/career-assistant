@@ -49,6 +49,24 @@ every AI-proposed skill at once. Bulk delete skips skills still
 referenced by jobs or profiles and lists them with the reason —
 deprecate those instead.
 
+### Graph
+
+The **Graph** tab draws the reviewed taxonomy: every skill is a node
+(colored by status) and every approved relation an edge (colored by
+relation type). Parent links set by hand that have no relation row yet
+count as `is a` edges, so the curated tree is always visible.
+
+- Switch between the **force** layout (organic clusters) and the
+  **hierarchy** layout (containers above their members — an `is a` child
+  sits under its parent).
+- **Find…** dims non-matching skills; Enter centers the first match.
+- Click a node for its detail card (key, category, status, relation
+  count); the card's *Center* button zooms to it.
+- **PNG** exports the whole graph, tightly cropped.
+
+Only approved relations render — proposals stay in the review queue
+until you accept them, and dismissed pairs never appear.
+
 ### All relations
 
 The same cards for every relation regardless of state, plus a manual

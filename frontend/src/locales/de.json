@@ -1159,7 +1159,8 @@
         "queue": "Prüfwarteschlange",
         "editor": "Alle Relationen",
         "thresholds": "Schwellenwerte",
-        "runs": "Läufe"
+        "runs": "Läufe",
+        "graph": "Graph"
       },
       "relation": {
         "is_a": "ist ein",
@@ -1235,6 +1236,13 @@
         "selectOne": "{{label}} auswählen",
         "done_one": "{{count}} Kante aktualisiert.",
         "done_other": "{{count}} Kanten aktualisiert."
+      },
+      "graph": {
+        "empty": "Noch nichts darzustellen — genehmigte Relationen erscheinen hier als geprüfter Graph.",
+        "find": "Fertigkeiten finden…",
+        "focus": "Zentrieren",
+        "degree_one": "{{count}} Relation",
+        "degree_other": "{{count}} Relationen"
       }
     },
     "bulk": {

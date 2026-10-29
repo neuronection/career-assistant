@@ -247,7 +247,7 @@
       "category": "analyze",
       "status": "shipped",
       "proofs": [
-        "Skill filters expand through the reviewed graph — Exact, Sub-skills or Related, 1–2 hops for learned edges",
+        "The reviewed graph both expands your filters (Exact, Sub-skills, Related) and renders as a diagram — force or hierarchy, PNG export",
         "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
         "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias, one or many",
         "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",

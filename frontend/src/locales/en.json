@@ -1159,7 +1159,8 @@
         "queue": "Review queue",
         "editor": "All relations",
         "thresholds": "Thresholds",
-        "runs": "Runs"
+        "runs": "Runs",
+        "graph": "Graph"
       },
       "relation": {
         "is_a": "is a",
@@ -1235,6 +1236,13 @@
         "selectOne": "Select {{label}}",
         "done_one": "{{count}} edge updated.",
         "done_other": "{{count}} edges updated."
+      },
+      "graph": {
+        "empty": "Nothing to visualize yet — approve relations and the reviewed graph appears here.",
+        "find": "Find skills…",
+        "focus": "Center",
+        "degree_one": "{{count}} relation",
+        "degree_other": "{{count}} relations"
       }
     },
     "bulk": {
