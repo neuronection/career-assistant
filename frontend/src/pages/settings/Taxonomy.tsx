@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Tags, Wrench } from "lucide-react";
+import { Route, Sparkles, Tags, Wrench } from "lucide-react";
 import {
   bulkSkillAction,
   createTag,
@@ -29,6 +29,14 @@ import {
   SkillDetailsDrawer,
 } from "@/components/settings/EntityDetailsDrawer";
 import { TaxonomyList, type TaxonomyGroup } from "@/components/settings/TaxonomyList";
+import {
+  TaxonomyPathCards,
+  type PathRow,
+} from "@/components/settings/TaxonomyPathCards";
+import {
+  TaxonomyEnrichmentCards,
+  type EnrichmentRow,
+} from "@/components/settings/TaxonomyEnrichmentCards";
 import { categoryIcon, STATUS_GROUP_ICONS } from "@/components/settings/taxonomyIcons";
 import {
   parseRelationSection,
@@ -37,25 +45,6 @@ import {
 } from "@/components/settings/SkillRelationsPanel";
 import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
 import { BulkBar } from "@/features/profile/components/profile/BulkTools";
-
-interface PathRow {
-  id: string;
-  title: string;
-  description: string;
-  source: string;
-  status: string;
-  job_code: string | null;
-  job_title: string | null;
-  steps: { position: number; label: string; kind: string }[];
-}
-
-interface EnrichmentRow {
-  id: string;
-  code: string;
-  title: string;
-  proposal: Record<string, unknown> | null;
-  proposed_at: string | null;
-}
 
 export type TaxonomyTab = "interests" | "skills" | "paths" | "enrichment" | "relations";
 
@@ -472,95 +461,25 @@ export function Taxonomy() {
       ) : kind === "enrichment" ? (
         enrichment.length === 0 ? (
           <EmptyState
+            icon={Sparkles}
             title={t("taxonomy.noEnrichment", { defaultValue: "No enrichment proposals" })}
             description={t("taxonomy.noEnrichmentBody", { defaultValue: "AI-generated job enrichment proposals appear here for review." })}
           />
         ) : (
-          <div className="space-y-3" data-testid="enrichment-queue">
-            {enrichment.map((row) => (
-              <div
-                key={row.id}
-                className="bg-white border border-slate-200 rounded-xl p-4"
-                data-testid={`enrichment-row-${row.id}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">
-                      {row.title} <span className="text-xs text-slate-400">({row.code})</span>
-                    </p>
-                    <pre className="mt-2 max-h-40 overflow-auto rounded bg-slate-50 p-2 text-[11px] text-slate-700">
-                      {JSON.stringify(row.proposal, null, 2)}
-                    </pre>
-                  </div>
-                  <div className="flex shrink-0 gap-2">
-                    <button
-                      onClick={() => void moderateEnrichment(row.id, "apply")}
-                      className="rounded-lg bg-primary-600 px-3 py-1.5 text-xs text-white"
-                      data-testid={`enrichment-apply-${row.id}`}
-                    >
-                      {t("taxonomy.enrichmentApply", { defaultValue: "Apply" })}
-                    </button>
-                    <button
-                      onClick={() => void moderateEnrichment(row.id, "reject")}
-                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs text-slate-600"
-                      data-testid={`enrichment-reject-${row.id}`}
-                    >
-                      {t("taxonomy.enrichmentReject", { defaultValue: "Discard" })}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <TaxonomyEnrichmentCards
+            rows={enrichment}
+            onModerate={moderateEnrichment}
+          />
         )
       ) : kind === "paths" ? (
         paths.length === 0 ? (
           <EmptyState
+            icon={Route}
             title={t("taxonomy.noDraftPaths")}
             description={t("taxonomy.noDraftPathsBody")}
           />
         ) : (
-          <div className="space-y-3">
-            {paths.map((path) => (
-              <div key={path.id} className="bg-white border border-slate-200 rounded-xl p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-sm">
-                      {path.title}{" "}
-                      <span className="text-slate-400">→ {path.job_title ?? path.job_code}</span>
-                    </p>
-                    <p className="text-xs text-slate-500">
-                      {t("taxonomy.stepsCount", {
-                        count: path.steps.length,
-                        source: path.source,
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => void moderatePath(path.id, "publish")}
-                      className="text-xs bg-emerald-600 text-white rounded-lg px-3 py-1.5"
-                    >
-                      {t("taxonomy.publish")}
-                    </button>
-                    <button
-                      onClick={() => void moderatePath(path.id, "reject")}
-                      className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:text-rose-600"
-                    >
-                      {t("taxonomy.reject")}
-                    </button>
-                  </div>
-                </div>
-                <ol className="mt-2 space-y-0.5">
-                  {path.steps.map((step) => (
-                    <li key={step.position} className="text-xs text-slate-500">
-                      {step.position + 1}. {step.label || step.kind}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-            ))}
-          </div>
+          <TaxonomyPathCards paths={paths} onModerate={moderatePath} />
         )
       ) : kind === "skills" ? (
         <>

@@ -20,6 +20,19 @@ All notable changes to **Career Assistant** are documented here.
   confirmed delete. The inline Deprecate/Delete text buttons are gone
   from the rows; bulk select mode (bulk bar, select-all, *Select
   proposed*, per-item failure report) is unchanged.
+- **Paths and enrichment review cards are structured and typed**
+  (plan 150, phase 3). Draft path cards match the listing language —
+  route icon, status badge, mono target-job code, description, source
+  chip — with the steps as compact numbered chips (kind icon, resolved
+  skill / family label, optional badge) and the full step list (edge
+  labels, education levels, keys) collapsed behind *Show all steps*;
+  Publish is a proper button and Reject confirms first. Enrichment
+  proposals drop the raw JSON dump for typed rows — contract type,
+  working hours, schedule cues, travel and benefits render as
+  translated chips (lists as chip rows) and the model's note as text,
+  while any unknown proposal keys collapse into a *Raw proposal*
+  disclosure so nothing is hidden; Apply is immediate, Discard
+  confirms first, and each card shows when the proposal was made.
 
 ### Changed (settings overhaul phase 0, 2026-10-29)
 - **Settings navigation is grouped.** The rail now renders display

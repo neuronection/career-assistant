@@ -1,0 +1,314 @@
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+
+import { api } from "@/api/client";
+import type { EnrichmentRow } from "@/components/settings/TaxonomyEnrichmentCards";
+import type { PathRow } from "@/components/settings/TaxonomyPathCards";
+import { Taxonomy } from "@/pages/settings/Taxonomy";
+
+vi.mock("@/api/client", () => ({
+  api: {
+    get: vi.fn().mockResolvedValue({ data: [] }),
+    post: vi.fn().mockResolvedValue({}),
+  },
+  apiDetail: vi.fn(() => "request failed"),
+}));
+
+vi.mock("@/components/settings/TranslationsPanel", () => ({
+  TranslationsPanel: () => null,
+}));
+
+vi.mock("@/api/skillRelations", () => ({
+  fetchSkillRelations: vi.fn().mockResolvedValue([]),
+  fetchSkillRelationThresholds: vi.fn().mockResolvedValue(null),
+  fetchSkillRelationRuns: vi.fn().mockResolvedValue([]),
+  saveSkillRelationThresholds: vi.fn(),
+  acceptSkillRelation: vi.fn(),
+  dismissSkillRelation: vi.fn(),
+  removeSkillRelation: vi.fn(),
+  saveSkillRelationAlias: vi.fn(),
+  createSkillRelation: vi.fn(),
+  bulkSkillRelationAction: vi.fn(),
+}));
+
+const mockedApi = vi.mocked(api);
+
+function step(partial: Partial<PathRow["steps"][number]> & { id: string; position: number }) {
+  return {
+    kind: "job",
+    label: "",
+    optional: false,
+    family_key: null,
+    family_label: null,
+    skill_key: null,
+    skill_label: null,
+    education_level: null,
+    edge_label: "",
+    ...partial,
+  };
+}
+
+const PATHS: PathRow[] = [
+  {
+    id: "p1",
+    title: "Data analyst track",
+    description: "From spreadsheets to dashboards.",
+    source: "user",
+    status: "draft",
+    job_code: "data-analyst",
+    job_title: "Data Analyst",
+    steps: [
+      step({
+        id: "ps1",
+        position: 0,
+        kind: "education",
+        label: "Bachelor in statistics",
+        education_level: "bachelor",
+        edge_label: "starts with",
+      }),
+      step({
+        id: "ps2",
+        position: 1,
+        kind: "skill",
+        skill_key: "sql",
+        skill_label: "SQL",
+        family_key: "technology",
+        family_label: "Technology",
+      }),
+      step({ id: "ps3", position: 2, kind: "certification", label: "Tableau cert", optional: true }),
+    ],
+  },
+];
+
+const THREE_DAYS_AGO = new Date(Date.now() - 3 * 86_400_000).toISOString();
+
+const ENRICHMENT: EnrichmentRow[] = [
+  {
+    id: "j1",
+    code: "software-developer",
+    title: "Software Developer",
+    proposal: {
+      contract_type: "permanent",
+      work_hours: { pattern: "full_time", hours_per_week_min: 35, hours_per_week_max: 40 },
+      schedule_cues: ["flexible", "shift_work"],
+      travel_required: { level: "occasional", days_per_month: 3 },
+      benefits_kinds: ["healthcare", "learning"],
+      note: "Based on the listed benefits and full-time hours.",
+      brand_new_field: { deep: true },
+    },
+    proposed_at: THREE_DAYS_AGO,
+  },
+];
+
+function renderPage(initialEntry: string) {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/settings/taxonomy" element={<Taxonomy />} />
+        <Route path="/skills/:key" element={<div data-testid="skill-page-stub" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function mockQueue(url: string, data: unknown) {
+  mockedApi.get.mockImplementation(async (requested: string) =>
+    requested === url ? { data } : { data: [] },
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  mockedApi.get.mockResolvedValue({ data: [] });
+  mockedApi.post.mockResolvedValue({});
+});
+
+describe("Taxonomy paths tab", () => {
+  it("renders draft path cards with target job, status, source and step chips", async () => {
+    mockQueue("/admin/paths", PATHS);
+    renderPage("/settings/taxonomy?tab=paths");
+
+    const card = await screen.findByTestId("path-card-p1");
+    expect(within(card).getByText("Data analyst track")).toBeInTheDocument();
+    expect(within(card).getByText("Data Analyst")).toBeInTheDocument();
+    expect(within(card).getByText("data-analyst")).toBeInTheDocument();
+    expect(within(card).getByText("Draft")).toBeInTheDocument();
+    expect(within(card).getByText("From spreadsheets to dashboards.")).toBeInTheDocument();
+    expect(within(card).getByText("user")).toBeInTheDocument();
+    expect(within(card).getByText("3 steps")).toBeInTheDocument();
+
+    // Compact chips carry position, resolved labels and the optional badge…
+    expect(within(card).getByTestId("path-step-chip-0")).toHaveTextContent(
+      "1Bachelor in statistics",
+    );
+    expect(within(card).getByTestId("path-step-chip-1")).toHaveTextContent("SQL");
+    expect(within(card).getByTestId("path-step-chip-2")).toHaveTextContent("optional");
+    // …while the full step list stays collapsed by default.
+    expect(within(card).queryByTestId("path-steps-full-p1")).not.toBeInTheDocument();
+  });
+
+  it("expands and collapses the full step list", async () => {
+    const user = userEvent.setup();
+    mockQueue("/admin/paths", PATHS);
+    renderPage("/settings/taxonomy?tab=paths");
+
+    const card = await screen.findByTestId("path-card-p1");
+    expect(within(card).queryByTestId("path-steps-full-p1")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("path-steps-toggle-p1"));
+    const list = within(card).getByTestId("path-steps-full-p1");
+    expect(within(list).getByTestId("path-step-0")).toHaveTextContent(
+      "1.Bachelor in statistics · Education · starts with · bachelor",
+    );
+    expect(within(list).getByTestId("path-step-1")).toHaveTextContent("sql");
+    expect(within(list).getByTestId("path-step-2")).toHaveTextContent("optional");
+
+    await user.click(screen.getByTestId("path-steps-toggle-p1"));
+    await waitFor(() =>
+      expect(within(card).queryByTestId("path-steps-full-p1")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("publishes a path straight from the card", async () => {
+    const user = userEvent.setup();
+    mockQueue("/admin/paths", PATHS);
+    renderPage("/settings/taxonomy?tab=paths");
+
+    await user.click(await screen.findByTestId("path-publish-p1"));
+
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith("/admin/paths/p1/publish"),
+    );
+  });
+
+  it("confirms before rejecting a path", async () => {
+    const user = userEvent.setup();
+    mockQueue("/admin/paths", PATHS);
+    renderPage("/settings/taxonomy?tab=paths");
+
+    await screen.findByTestId("path-card-p1");
+    await user.click(screen.getByTestId("path-reject-p1"));
+    expect(mockedApi.post).not.toHaveBeenCalled();
+    expect(screen.getByText("Reject this draft path?")).toBeInTheDocument();
+
+    // Cancel keeps the draft.
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Reject this draft path?")).not.toBeInTheDocument(),
+    );
+    expect(mockedApi.post).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId("path-reject-p1"));
+    const confirm = await screen.findAllByRole("button", { name: "Reject" });
+    await user.click(confirm[confirm.length - 1]);
+
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith("/admin/paths/p1/reject"),
+    );
+  });
+
+  it("shows the empty state without drafts", async () => {
+    mockQueue("/admin/paths", []);
+    renderPage("/settings/taxonomy?tab=paths");
+
+    expect(await screen.findByText("No draft paths")).toBeInTheDocument();
+  });
+});
+
+describe("Taxonomy enrichment tab", () => {
+  it("renders known proposal keys as labeled rows with chips", async () => {
+    mockQueue("/admin/jobs/enrichment", ENRICHMENT);
+    renderPage("/settings/taxonomy?tab=enrichment");
+
+    const card = await screen.findByTestId("enrichment-row-j1");
+    expect(within(card).getByText("Software Developer")).toBeInTheDocument();
+    expect(within(card).getByText("software-developer")).toBeInTheDocument();
+
+    const contract = within(card).getByTestId("enrichment-field-j1-contract_type");
+    expect(within(contract).getByText("Contract type")).toBeInTheDocument();
+    expect(within(contract).getByText("Permanent")).toBeInTheDocument();
+
+    const hours = within(card).getByTestId("enrichment-field-j1-work_hours");
+    expect(within(hours).getByText("Full time")).toBeInTheDocument();
+    expect(within(hours).getByText("35–40 h / week")).toBeInTheDocument();
+
+    const schedule = within(card).getByTestId("enrichment-field-j1-schedule_cues");
+    expect(within(schedule).getByText("Flexible")).toBeInTheDocument();
+    expect(within(schedule).getByText("Shift work")).toBeInTheDocument();
+
+    const travel = within(card).getByTestId("enrichment-field-j1-travel_required");
+    expect(within(travel).getByText("Occasional")).toBeInTheDocument();
+    expect(within(travel).getByText("~3 d / month")).toBeInTheDocument();
+
+    const benefits = within(card).getByTestId("enrichment-field-j1-benefits_kinds");
+    expect(within(benefits).getByText("Healthcare")).toBeInTheDocument();
+    expect(within(benefits).getByText("Learning")).toBeInTheDocument();
+
+    const note = within(card).getByTestId("enrichment-field-j1-note");
+    expect(within(note).getByText("Based on the listed benefits and full-time hours.")).toBeInTheDocument();
+  });
+
+  it("collapses unknown proposal keys into the raw disclosure", async () => {
+    const user = userEvent.setup();
+    mockQueue("/admin/jobs/enrichment", ENRICHMENT);
+    renderPage("/settings/taxonomy?tab=enrichment");
+
+    const card = await screen.findByTestId("enrichment-row-j1");
+    expect(within(card).queryByText("brand_new_field")).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId("enrichment-raw-toggle-j1"));
+    const raw = within(card).getByTestId("enrichment-raw-j1");
+    expect(raw).toHaveTextContent("brand_new_field");
+    expect(raw).not.toHaveTextContent("contract_type");
+
+    await user.click(screen.getByTestId("enrichment-raw-toggle-j1"));
+    await waitFor(() =>
+      expect(within(card).queryByTestId("enrichment-raw-j1")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows when the proposal was made", async () => {
+    mockQueue("/admin/jobs/enrichment", ENRICHMENT);
+    renderPage("/settings/taxonomy?tab=enrichment");
+
+    const chip = await screen.findByTestId("enrichment-proposed-j1");
+    expect(chip).toHaveTextContent("days ago");
+    expect(chip).toHaveAttribute("title");
+  });
+
+  it("applies directly and confirms before discarding", async () => {
+    const user = userEvent.setup();
+    mockQueue("/admin/jobs/enrichment", ENRICHMENT);
+    renderPage("/settings/taxonomy?tab=enrichment");
+
+    await screen.findByTestId("enrichment-row-j1");
+    await user.click(screen.getByTestId("enrichment-apply-j1"));
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith("/admin/jobs/j1/enrichment/apply"),
+    );
+
+    await user.click(screen.getByTestId("enrichment-reject-j1"));
+    expect(mockedApi.post).not.toHaveBeenCalledWith("/admin/jobs/j1/enrichment/reject");
+    expect(screen.getByText("Discard this proposal?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() =>
+      expect(screen.queryByText("Discard this proposal?")).not.toBeInTheDocument(),
+    );
+
+    await user.click(screen.getByTestId("enrichment-reject-j1"));
+    const confirm = await screen.findAllByRole("button", { name: "Discard" });
+    await user.click(confirm[confirm.length - 1]);
+    await waitFor(() =>
+      expect(mockedApi.post).toHaveBeenCalledWith("/admin/jobs/j1/enrichment/reject"),
+    );
+  });
+
+  it("shows the empty state without proposals", async () => {
+    mockQueue("/admin/jobs/enrichment", []);
+    renderPage("/settings/taxonomy?tab=enrichment");
+
+    expect(await screen.findByText("No enrichment proposals")).toBeInTheDocument();
+  });
+});

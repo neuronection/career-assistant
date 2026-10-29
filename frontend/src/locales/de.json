@@ -1128,7 +1128,6 @@
     "referencedNote": "Verweisende Tags können nicht gelöscht werden — stattdessen deaktiven Sie sie.",
     "noDraftPaths": "Keine Entwurfspfade",
     "noDraftPathsBody": "KI-generierte Karrierepfade werden hier zur Überprüfung in die Warteschlange gestellt.",
-    "stepsCount": "{{count}} Schritte · Quelle {{source}}",
     "publish": "Veröffentlichen",
     "reject": "Ablehnen",
     "noSkills": "Keine Fähigkeiten",
@@ -1286,6 +1285,35 @@
       "descriptionLabel": "Beschreibung",
       "deleteTitle": "„{{label}}“ löschen?",
       "deleteBody": "Entfernt den Tag dauerhaft aus dem Katalog. Noch von Jobs oder Profilen referenzierte Tags können nicht gelöscht werden — markieren Sie sie stattdessen als veraltet."
+    },
+    "draft": "Entwurf",
+    "stepsTotal": "{{count}} Schritte",
+    "stepsShow": "Alle Schritte anzeigen",
+    "stepsHide": "Schritte ausblenden",
+    "targetJob": "Zielberuf",
+    "rejectTitle": "Diesen Entwurf ablehnen?",
+    "rejectBody": "Der Weg bleibt unveröffentlicht und verschwindet aus der Prüfliste.",
+    "step": {
+      "optional": "optional",
+      "kind": {
+        "job": "Beruf",
+        "skill": "Kompetenz",
+        "education": "Ausbildung",
+        "certification": "Zertifizierung",
+        "experience": "Erfahrung",
+        "milestone": "Meilenstein"
+      }
+    },
+    "enrich": {
+      "contractType": "Vertragsart",
+      "workHours": "Arbeitsumfang",
+      "schedule": "Arbeitszeiten",
+      "travel": "Reisen",
+      "benefits": "Vorteile",
+      "note": "KI-Hinweis",
+      "rawProposal": "Rohvorschlag",
+      "discardTitle": "Diesen Vorschlag verwerfen?",
+      "discardBody": "Der KI-Vorschlag wird gelöscht und kann nicht wiederhergestellt werden."
     }
   },
   "aiSettings": {

@@ -1128,7 +1128,6 @@
     "referencedNote": "Referenced tags cannot be deleted — deprecate instead.",
     "noDraftPaths": "No draft paths",
     "noDraftPathsBody": "AI-drafted career paths will queue here for review.",
-    "stepsCount": "{{count}} steps · source {{source}}",
     "publish": "Publish",
     "reject": "Reject",
     "noSkills": "No skills",
@@ -1286,6 +1285,35 @@
       "descriptionLabel": "Description",
       "deleteTitle": "Delete “{{label}}”?",
       "deleteBody": "This permanently removes the tag from the catalog. Tags still referenced by jobs or profiles cannot be deleted — deprecate them instead."
+    },
+    "draft": "Draft",
+    "stepsTotal": "{{count}} steps",
+    "stepsShow": "Show all steps",
+    "stepsHide": "Hide steps",
+    "targetJob": "Target job",
+    "rejectTitle": "Reject this draft path?",
+    "rejectBody": "The path stays unpublished and leaves the review list.",
+    "step": {
+      "optional": "optional",
+      "kind": {
+        "job": "Job",
+        "skill": "Skill",
+        "education": "Education",
+        "certification": "Certification",
+        "experience": "Experience",
+        "milestone": "Milestone"
+      }
+    },
+    "enrich": {
+      "contractType": "Contract type",
+      "workHours": "Working hours",
+      "schedule": "Schedule",
+      "travel": "Travel",
+      "benefits": "Benefits",
+      "note": "AI note",
+      "rawProposal": "Raw proposal",
+      "discardTitle": "Discard this proposal?",
+      "discardBody": "The AI proposal is deleted and cannot be restored."
     }
   },
   "aiSettings": {

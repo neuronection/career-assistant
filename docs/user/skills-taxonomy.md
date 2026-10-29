@@ -147,6 +147,31 @@ watermark. A run that capped out, failed or ran without an AI provider
 shows its watermark as **held**: its unfinished pairs are re-examined
 next run instead of being lost.
 
+## Paths & enrichment review
+
+Two further tabs on the same page moderate AI- and user-authored
+catalog content:
+
+- **Paths** lists career paths that are still **drafts**. Each card
+  shows the route icon, status, the target job (title plus its stable
+  code), the description and the **source** the path came from, with
+  the steps as compact numbered chips — a kind icon (job, skill,
+  education, certification, experience, milestone), the skill or
+  family label the step resolves to, and an **optional** badge where
+  it applies. The full step list — edge labels, education levels and
+  the stable keys — stays available behind **Show all steps**.
+  **Publish** moves the path into the catalog; **Reject** asks for
+  confirmation first and drops it from the review list.
+- **Enrichment** lists AI proposals for job attributes that wait for a
+  human decision. Known proposal fields render as labeled rows —
+  contract type, working hours, schedule cues, travel and benefits as
+  translated chips (lists as chip rows), the model's note as plain
+  text — and anything the interface does not know yet collapses into a
+  **Raw proposal** disclosure, so a proposal is never reduced to debug
+  JSON. **Apply** merges the proposed fields into the job,
+  **Discard** (behind a confirmation) drops the proposal, and each
+  card shows when it was proposed.
+
 ## How relations affect posting filters
 
 The Skills section of the posting filter rail carries the match mode:
