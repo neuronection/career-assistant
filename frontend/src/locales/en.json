@@ -652,7 +652,8 @@
       "inMonths_other": "in {{count}} months",
       "inYears_one": "in {{count}} year",
       "inYears_other": "in {{count}} years"
-    }
+    },
+    "clear": "Clear"
   },
   "validation": {
     "required": "{{field}} is required.",
@@ -1131,10 +1132,8 @@
     "publish": "Publish",
     "reject": "Reject",
     "noSkills": "No skills",
-    "key": "Key",
     "label": "Label",
     "category": "Category",
-    "status": "Status",
     "proposed": "proposed",
     "deprecated": "deprecated",
     "active": "active",
@@ -1260,9 +1259,34 @@
       "deleteTitle_one": "Delete {{count}} skill?",
       "deleteTitle_other": "Delete {{count}} skills?"
     },
-    "details": "Details",
     "aliasesLabel": "Also known as",
-    "drawerOpen": "Open skill page"
+    "drawerOpen": "Open skill page",
+    "searchPlaceholder": "Search by name, key or alias…",
+    "noMatch": "No matches",
+    "noMatchBody": "Nothing matches the current search or filter.",
+    "filter": {
+      "all": "All",
+      "active": "Active",
+      "proposed": "Proposed",
+      "deprecated": "Deprecated"
+    },
+    "group": {
+      "arts": "Arts",
+      "business": "Business",
+      "hands-on": "Hands-on",
+      "people": "People",
+      "science": "Science",
+      "society": "Society",
+      "sports": "Sports",
+      "technology": "Technology",
+      "other": "Other"
+    },
+    "drawer": {
+      "edit": "Edit",
+      "descriptionLabel": "Description",
+      "deleteTitle": "Delete “{{label}}”?",
+      "deleteBody": "This permanently removes the tag from the catalog. Tags still referenced by jobs or profiles cannot be deleted — deprecate them instead."
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",

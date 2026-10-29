@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Tags, Wrench } from "lucide-react";
 import {
   bulkSkillAction,
   createTag,
@@ -15,33 +16,27 @@ import {
   type SkillRow,
   type Tag,
 } from "@/api/taxonomy";
-import { fetchSkill, fetchSkillHistory } from "@/api/skills";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
 import {
-  Badge,
-  Button,
+  ConfirmationModal,
   EmptyState,
-  Modal,
-  ModalContent,
-  ModalDescription,
-  ModalFooter,
-  ModalHeader,
-  ModalTitle,
-  ModalBody,
   SegmentedTabs,
   Spinner,
-  ConfirmationModal,
 } from "@/components/ui";
-import { StatTiles } from "@/components/stats/StatTiles";
-import type { SkillChange, SkillDetail } from "@/types/wire";
+import {
+  InterestDetailsDrawer,
+  SkillDetailsDrawer,
+} from "@/components/settings/EntityDetailsDrawer";
+import { TaxonomyList, type TaxonomyGroup } from "@/components/settings/TaxonomyList";
+import { categoryIcon, STATUS_GROUP_ICONS } from "@/components/settings/taxonomyIcons";
 import {
   parseRelationSection,
   SkillRelationsPanel,
   type RelationSection,
 } from "@/components/settings/SkillRelationsPanel";
 import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
-import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
+import { BulkBar } from "@/features/profile/components/profile/BulkTools";
 
 interface PathRow {
   id: string;
@@ -79,6 +74,47 @@ export function parseTaxonomyTab(raw: string | null): TaxonomyTab {
     : "interests";
 }
 
+/** Interest category groups (plan 150) — seed order, unknown categories
+ * fall into the catch-all group at the end. */
+const INTEREST_GROUPS: TaxonomyGroup[] = [
+  "arts",
+  "business",
+  "hands-on",
+  "people",
+  "science",
+  "society",
+  "sports",
+  "technology",
+].map((key) => ({
+  key,
+  labelKey: `taxonomy.group.${key}`,
+  icon: categoryIcon(key),
+}));
+INTEREST_GROUPS.push({ key: "other", labelKey: "taxonomy.group.other", icon: categoryIcon("") });
+
+/** Skills group by STATUS (triage: proposed first — 605 proposed vs 32
+ * curated; the rows keep their category icons). */
+const SKILL_GROUPS: TaxonomyGroup[] = (["proposed", "active", "deprecated"] as const).map(
+  (key) => ({
+    key,
+    labelKey: `taxonomy.filter.${key}`,
+    icon: STATUS_GROUP_ICONS[key],
+  }),
+);
+
+const INTEREST_FILTERS = [
+  { value: "all", labelKey: "taxonomy.filter.all" },
+  { value: "active", labelKey: "taxonomy.filter.active" },
+  { value: "deprecated", labelKey: "taxonomy.filter.deprecated" },
+];
+
+const SKILL_FILTERS = [
+  { value: "all", labelKey: "taxonomy.filter.all" },
+  { value: "proposed", labelKey: "taxonomy.filter.proposed" },
+  { value: "active", labelKey: "taxonomy.filter.active" },
+  { value: "deprecated", labelKey: "taxonomy.filter.deprecated" },
+];
+
 /** Admin taxonomy management: create, edit, promote/deprecate, merge, delete. */
 export function Taxonomy() {
   const { t } = useTranslation();
@@ -95,15 +131,18 @@ export function Taxonomy() {
   const [note, setNote] = useState("");
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState({ key: "", label: "", category: "", description: "" });
-  const [merging, setMerging] = useState<string | null>(null);
-  const [mergeTarget, setMergeTarget] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkTarget, setBulkTarget] = useState("");
   const [bulkNote, setBulkNote] = useState("");
   const [bulkFailures, setBulkFailures] = useState<SkillBulkFailure[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [detailsKey, setDetailsKey] = useState<string | null>(null);
+  const [details, setDetails] = useState<{
+    kind: "interests" | "skills";
+    id: string;
+  } | null>(null);
+  const [interestFilter, setInterestFilter] = useState("all");
+  const [skillFilter, setSkillFilter] = useState("all");
 
   useEffect(() => {
     const expectedTab = kind === "interests" ? null : kind;
@@ -170,47 +209,52 @@ export function Taxonomy() {
     }
   };
 
-  const promote = async (skill: SkillRow) => {
+  /** Drawer-action plumbing: every mutation reports success so the
+   * drawer can react (close on delete, close its edit/merge form). */
+  const runAction = async (action: () => Promise<unknown>): Promise<boolean> => {
     setError("");
     try {
-      await promoteSkill(skill.id);
+      await action();
       await load();
+      return true;
     } catch (err) {
       setError(apiDetail(err));
+      return false;
     }
   };
 
-  const setStatus = async (tag: Tag | SkillRow, status: string) => {
-    setError("");
-    try {
-      await updateTag(kind === "skills" ? "skills" : "interests", tag.id, { status } as never);
-      await load();
-    } catch (err) {
-      setError(apiDetail(err));
-    }
-  };
+  /** Interests toggle the `deprecated` flag (the old row buttons' exact
+   * payload); skills go through the status field. */
+  const toggleInterestDeprecated = (tag: Tag) =>
+    runAction(() => updateTag("interests", tag.id, { deprecated: !tag.deprecated }));
 
-  const doMerge = async (skill: SkillRow) => {
-    setError("");
-    try {
-      await mergeSkill(skill.id, mergeTarget);
-      setMerging(null);
-      setMergeTarget("");
-      await load();
-    } catch (err) {
-      setError(apiDetail(err));
-    }
-  };
+  const editInterest = (
+    tag: Tag,
+    patch: { label: string; category: string; description: string },
+  ) => runAction(() => updateTag("interests", tag.id, patch));
 
-  const remove = async (tag: Tag | SkillRow) => {
+  const setSkillStatus = (skill: SkillRow, status: "active" | "deprecated") =>
+    runAction(() => updateTag("skills", skill.id, { status }));
+
+  const promoteById = (id: string) => runAction(() => promoteSkill(id));
+
+  const mergeById = (id: string, targetId: string) =>
+    runAction(() => mergeSkill(id, targetId));
+
+  const removeById = async (
+    taxonomyKind: "interests" | "skills",
+    id: string,
+  ): Promise<boolean> => {
     setError("");
     setNote("");
     try {
-      await deleteTag(kind === "skills" ? "skills" : "interests", tag.id);
+      await deleteTag(taxonomyKind, id);
       await load();
+      return true;
     } catch (err) {
       setError(apiDetail(err));
       setNote(t("taxonomy.referencedNote"));
+      return false;
     }
   };
 
@@ -296,6 +340,24 @@ export function Taxonomy() {
   const mergeableIds = selectedSkills.filter((s) => s.status !== "active").map((s) => s.id);
   const mergeTargets = activeSkills.filter((s) => !selected.has(s.id));
 
+  const newTagButton = (
+    <button
+      onClick={() => setCreating((v) => !v)}
+      className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
+    >
+      {creating ? t("common.cancel") : t("taxonomy.newTag")}
+    </button>
+  );
+
+  const detailsTag =
+    details?.kind === "interests"
+      ? (tags.find((item) => item.id === details.id) ?? null)
+      : null;
+  const detailsSkill =
+    details?.kind === "skills"
+      ? (skills.find((item) => item.id === details.id) ?? null)
+      : null;
+
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
       <TranslationsPanel />
@@ -338,12 +400,6 @@ export function Taxonomy() {
                 {selectMode ? t("taxonomy.bulk.exit") : t("taxonomy.bulk.select")}
               </button>
             )}
-            <button
-              onClick={() => setCreating((v) => !v)}
-              className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
-            >
-              {creating ? t("common.cancel") : t("taxonomy.newTag")}
-            </button>
           </div>
         )}
       </div>
@@ -576,192 +632,64 @@ export function Taxonomy() {
               </button>
             </BulkBar>
           )}
-          {skills.length === 0 ? (
-            <EmptyState title={t("taxonomy.noSkills")} />
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-slate-500">
-                <tr>
-                  {selectMode && <th className="px-4 py-2 w-10"></th>}
-                  <th className="px-4 py-2">{t("taxonomy.key")}</th>
-                  <th className="px-4 py-2">{t("taxonomy.label")}</th>
-                  <th className="px-4 py-2">{t("taxonomy.category")}</th>
-                  <th className="px-4 py-2">{t("taxonomy.status")}</th>
-                  {!selectMode && <th className="px-4 py-2"></th>}
-                </tr>
-              </thead>
-              <tbody>
-                {[...proposed, ...skills.filter((s) => s.status !== "proposed")].map((skill) => (
-                  <tr key={skill.id} className="border-t border-slate-100">
-                    {selectMode && (
-                      <td className="px-4 py-2">
-                        <SelectionToggle
-                          selected={selected.has(skill.id)}
-                          label={t("taxonomy.bulk.selectOne", { label: skill.label })}
-                          onToggle={() => toggleSelected(skill.id)}
-                        />
-                      </td>
-                    )}
-                    <td className="px-4 py-2 font-mono text-xs">{skill.key}</td>
-                    <td className="px-4 py-2">
-                      {skill.label}
-                      {skill.aliases.length > 0 && (
-                        <span className="text-xs text-slate-400"> · {skill.aliases.join(", ")}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-slate-500">{skill.category}</td>
-                    <td className="px-4 py-2">
-                      {skill.status === "proposed" ? (
-                        <span className="text-sky-600">{t("taxonomy.proposed")}</span>
-                      ) : skill.status === "deprecated" ? (
-                        <span className="text-amber-600">{t("taxonomy.deprecated")}</span>
-                      ) : (
-                        <span className="text-emerald-600">{t("taxonomy.active")}</span>
-                      )}
-                    </td>
-                    {!selectMode && (
-                      <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
-                        {skill.status === "proposed" && (
-                          <button
-                            onClick={() => void promote(skill)}
-                            className="text-xs text-emerald-700 hover:text-emerald-600"
-                          >
-                            {t("taxonomy.promote")}
-                          </button>
-                        )}
-                      {skill.status === "active" ? (
-                        <button
-                          onClick={() => void setStatus(skill, "deprecated")}
-                          className="text-xs text-slate-500 hover:text-primary-700"
-                        >
-                          {t("taxonomy.deprecate")}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => void setStatus(skill, "active")}
-                          className="text-xs text-slate-500 hover:text-primary-700"
-                        >
-                          {t("taxonomy.restore")}
-                        </button>
-                      )}
-                      {skill.status !== "active" && activeSkills.length > 0 && (
-                        <button
-                          onClick={() => setMerging(merging === skill.id ? null : skill.id)}
-                          className="text-xs text-slate-500 hover:text-primary-700"
-                        >
-                          {t("taxonomy.merge")}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => setDetailsKey(skill.key)}
-                        className="text-xs text-slate-500 hover:text-primary-700"
-                        data-testid="skill-details"
-                      >
-                        {t("taxonomy.details")}
-                      </button>
-                      <button
-                        onClick={() => void remove(skill)}
-                        className="text-xs text-slate-400 hover:text-rose-600"
-                      >
-                        {t("taxonomy.delete")}
-                      </button>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {merging && (
-              <div className="border-t border-slate-100 bg-slate-50 p-3 flex items-center gap-2">
-                <span className="text-xs text-slate-500">
-                  {t("taxonomy.mergeInto", {
-                    key: skills.find((s) => s.id === merging)?.key ?? "",
-                  })}
-                </span>
-                <select
-                  value={mergeTarget}
-                  onChange={(e) => setMergeTarget(e.target.value)}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1"
-                >
-                  <option value="">{t("taxonomy.chooseActive")}</option>
-                  {activeSkills.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.key}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => {
-                    const skill = skills.find((s) => s.id === merging);
-                    if (skill && mergeTarget) void doMerge(skill);
-                  }}
-                  disabled={!mergeTarget}
-                  className="text-xs bg-primary-600 text-white rounded-lg px-3 py-1 disabled:opacity-50"
-                >
-                  {t("taxonomy.mergeConfirm")}
-                </button>
-                <button
-                  onClick={() => setMerging(null)}
-                  className="text-xs text-slate-400"
-                >
-                  {t("common.cancel")}
-                </button>
-              </div>
-            )}
-            </div>
-          )}
+          <TaxonomyList
+            key="skills"
+            rows={skills}
+            toView={(skill) => ({
+              id: skill.id,
+              key: skill.key,
+              label: skill.label,
+              category: skill.category,
+              hint:
+                skill.aliases.length > 0
+                  ? skill.aliases.join(", ")
+                  : skill.description || undefined,
+              status: skill.status,
+            })}
+            groups={SKILL_GROUPS}
+            groupOf={(skill) => skill.status}
+            iconOf={(skill) => categoryIcon(skill.category)}
+            filters={SKILL_FILTERS}
+            filter={skillFilter}
+            onFilterChange={setSkillFilter}
+            selectMode={selectMode}
+            selected={selected}
+            onToggleSelect={toggleSelected}
+            onOpen={(skill) => setDetails({ kind: "skills", id: skill.id })}
+            searchPlaceholder={t("taxonomy.searchPlaceholder")}
+            toolbarSlot={newTagButton}
+            emptyIcon={Wrench}
+            emptyTitle={t("taxonomy.noSkills")}
+          />
         </>
-      ) : tags.length === 0 ? (
-        <EmptyState title={t("taxonomy.noTags")} />
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-slate-500">
-              <tr>
-                <th className="px-4 py-2">{t("taxonomy.key")}</th>
-                <th className="px-4 py-2">{t("taxonomy.label")}</th>
-                <th className="px-4 py-2">{t("taxonomy.category")}</th>
-                <th className="px-4 py-2">{t("taxonomy.status")}</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {tags.map((tag) => (
-                <tr key={tag.id} className="border-t border-slate-100">
-                  <td className="px-4 py-2 font-mono text-xs">{tag.key}</td>
-                  <td className="px-4 py-2">{tag.label}</td>
-                  <td className="px-4 py-2 text-slate-500">{tag.category}</td>
-                  <td className="px-4 py-2">
-                    {tag.deprecated ? (
-                      <span className="text-amber-600">{t("taxonomy.deprecated")}</span>
-                    ) : (
-                      <span className="text-emerald-600">{t("taxonomy.active")}</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
-                    <button
-                      onClick={() => {
-                        void updateTag("interests", tag.id, {
-                          deprecated: !tag.deprecated,
-                        }).then(load);
-                      }}
-                      className="text-xs text-slate-500 hover:text-primary-700"
-                    >
-                      {tag.deprecated ? t("taxonomy.restore") : t("taxonomy.deprecate")}
-                    </button>
-                    <button
-                      onClick={() => void remove(tag)}
-                      className="text-xs text-slate-400 hover:text-rose-600"
-                    >
-                      {t("taxonomy.delete")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <TaxonomyList
+          key="interests"
+          rows={tags}
+          toView={(tag) => ({
+            id: tag.id,
+            key: tag.key,
+            label: tag.label,
+            category: tag.category,
+            hint: tag.description || undefined,
+            status: tag.deprecated ? "deprecated" : "active",
+          })}
+          groups={INTEREST_GROUPS}
+          groupOf={(tag) =>
+            INTEREST_GROUPS.some((group) => group.key === tag.category)
+              ? tag.category
+              : "other"
+          }
+          iconOf={(tag) => categoryIcon(tag.category)}
+          filters={INTEREST_FILTERS}
+          filter={interestFilter}
+          onFilterChange={setInterestFilter}
+          onOpen={(tag) => setDetails({ kind: "interests", id: tag.id })}
+          searchPlaceholder={t("taxonomy.searchPlaceholder")}
+          toolbarSlot={newTagButton}
+          emptyIcon={Tags}
+          emptyTitle={t("taxonomy.noTags")}
+        />
       )}
 
       <ConfirmationModal
@@ -777,119 +705,25 @@ export function Taxonomy() {
         destructive
       />
 
-      {detailsKey ? <SkillDetailsDrawer skillKey={detailsKey} onClose={() => setDetailsKey(null)} /> : null}
+      {detailsTag ? (
+        <InterestDetailsDrawer
+          tag={detailsTag}
+          onClose={() => setDetails(null)}
+          onToggleDeprecated={(tag) => toggleInterestDeprecated(tag)}
+          onDelete={(tag) => removeById("interests", tag.id)}
+          onEdit={(tag, patch) => editInterest(tag, patch)}
+        />
+      ) : detailsSkill ? (
+        <SkillDetailsDrawer
+          skillKey={detailsSkill.key}
+          mergeTargets={activeSkills}
+          onClose={() => setDetails(null)}
+          onPromote={() => promoteById(detailsSkill.id)}
+          onSetStatus={(status) => setSkillStatus(detailsSkill, status)}
+          onDelete={() => removeById("skills", detailsSkill.id)}
+          onMerge={(targetId) => mergeById(detailsSkill.id, targetId)}
+        />
+      ) : null}
     </div>
-  );
-}
-
-/** The skill-table row's preview drawer (plan 148): identity, stats and
- * the newest history events, with the full skill page one link away. */
-export function SkillDetailsDrawer({
-  skillKey,
-  onClose,
-}: {
-  skillKey: string;
-  onClose: () => void;
-}) {
-  const { t } = useTranslation();
-  const [detail, setDetail] = useState<SkillDetail | null>(null);
-  const [history, setHistory] = useState<SkillChange[] | null>(null);
-
-  useEffect(() => {
-    void fetchSkill(skillKey)
-      .then(setDetail)
-      .catch(() => setDetail(null));
-    void fetchSkillHistory(skillKey, { limit: 5 })
-      .then((page) => setHistory(page.items ?? []))
-      .catch(() => setHistory([]));
-  }, [skillKey]);
-
-  return (
-    <Modal open onOpenChange={(open) => (!open ? onClose() : undefined)}>
-      <ModalContent className="max-w-2xl" data-testid="skill-details-drawer">
-        <ModalHeader>
-          <ModalTitle className="flex items-center gap-2">
-            {detail?.label ?? skillKey}
-            {detail ? (
-              <Badge variant="outline" data-testid="drawer-status">
-                {t(`taxonomy.${detail.status}`)}
-              </Badge>
-            ) : null}
-          </ModalTitle>
-          <ModalDescription className="font-mono text-xs">{skillKey}</ModalDescription>
-        </ModalHeader>
-        <ModalBody className="space-y-4">
-          {detail === null ? (
-            <div className="flex justify-center py-8">
-              <Spinner size="lg" />
-            </div>
-          ) : (
-            <>
-              {detail.stats ? (
-                <StatTiles
-                  testId="drawer-stat-tiles"
-                  columns={3}
-                  tiles={[
-                    {
-                      label: t("skillPage.stats.demand"),
-                      value: detail.stats.demand_count ?? 0,
-                    },
-                    {
-                      label: t("skillPage.stats.avgLevel"),
-                      value:
-                        detail.stats.avg_required_level != null
-                          ? `${detail.stats.avg_required_level}/10`
-                          : "—",
-                    },
-                    { label: t("skillPage.stats.users"), value: detail.stats.user_count ?? 0 },
-                  ]}
-                />
-              ) : null}
-              {detail.aliases && detail.aliases.length > 0 ? (
-                <p className="text-sm text-[var(--as-muted-fg)]">
-                  {t("skillPage.aliasesLabel")}: {detail.aliases.join(", ")}
-                </p>
-              ) : null}
-              <div data-testid="drawer-history">
-                <h3 className="mb-2 text-sm font-medium text-[var(--as-fg)]">
-                  {t("skillPage.historyCount", { count: history?.length ?? 0 })}
-                </h3>
-                {history === null ? (
-                  <Spinner />
-                ) : history.length === 0 ? (
-                  <p className="text-sm text-[var(--as-muted-fg)]">
-                    {t("skillPage.historyEmpty")}
-                  </p>
-                ) : (
-                  <ul className="space-y-1">
-                    {history.map((entry) => (
-                      <li key={entry.id} className="text-xs text-[var(--as-muted-fg)]">
-                        <span className="font-medium text-[var(--as-fg)]">
-                          {t(`skillPage.event.${entry.event}`, { defaultValue: entry.event })}
-                        </span>{" "}
-                        · {t(`skillPage.actor.${entry.actor_kind}`, { defaultValue: entry.actor_kind })}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Link
-            to={`/skills/${skillKey}`}
-            className="text-sm text-[var(--as-accent)] underline"
-            data-testid="drawer-open-page"
-            onClick={onClose}
-          >
-            {t("skillPage.drawerOpen")}
-          </Link>
-          <Button variant="outline" size="sm" onClick={onClose}>
-            {t("common.close")}
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
   );
 }

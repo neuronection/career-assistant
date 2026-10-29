@@ -131,7 +131,7 @@ function renderPage() {
   );
 }
 
-describe("Taxonomy skills-table Details drawer", () => {
+describe("Taxonomy skills rows → Details drawer", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockedSkill.fetchSkill.mockResolvedValue(DETAIL);
@@ -142,11 +142,11 @@ describe("Taxonomy skills-table Details drawer", () => {
     renderPage();
 
     const user = userEvent.setup();
-    const detailsButtons = await screen.findAllByTestId("skill-details");
-    await user.click(detailsButtons[0]);
+    await user.click(await screen.findByTestId("taxonomy-row-sql"));
 
     const drawer = await screen.findByTestId("skill-details-drawer");
-    expect(drawer).toHaveTextContent("SQL");
+    expect(drawer).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /SQL/ })).toBeInTheDocument();
     await waitFor(() =>
       expect(screen.getByTestId("drawer-stat-tiles")).toBeInTheDocument(),
     );

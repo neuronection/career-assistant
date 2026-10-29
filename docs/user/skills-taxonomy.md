@@ -70,6 +70,30 @@ every AI-proposed skill at once. Bulk delete skips skills still
 referenced by jobs or profiles and lists them with the reason —
 deprecate those instead.
 
+## The skills & interests listing
+
+Both tabs are searchable, filterable listings rather than plain tables:
+
+- **Search** matches a tag's label, its stable key and — for skills —
+  its aliases (for interests, the description).
+- **Status chips** narrow the list (all / active / proposed /
+  deprecated on Skills; all / active / deprecated on Interests), each
+  chip showing how many entries it holds.
+- **Collapsible groups** order the list: Skills group by status with
+  **proposed first** (the review pile is the work), Interests group by
+  their eight categories, each with an icon and a count.
+- **Rows are clickable** — a row (or Enter on a focused row) opens a
+  **details drawer** instead of cluttering the list with buttons. For
+  a skill it shows the same numbers as the skill page — demand,
+  average level, users, aliases and the newest history events — plus
+  the admin actions: **Promote** on proposed rows, **Deprecate /
+  Restore**, **Merge** into a chosen active skill, **Delete** behind a
+  confirm, and a link to the full `/skills/:key` page. For an interest
+  the drawer edits label, category and description, and carries the
+  **Deprecate / Restore** and confirmed **Delete** actions.
+- Select mode keeps the bulk bar working exactly as before — the
+  checkbox column appears next to the rows only while it is on.
+
 ### Graph
 
 The **Graph** tab draws the reviewed taxonomy: every reviewed skill
@@ -135,6 +159,6 @@ tree fills up, reach grows at the default setting.
 
 Every skill also has a first-class page at [`/skills/:key`](skills.md) —
 stats, positions, the approved subgraph and the lifecycle history in one
-place, with the admin actions in the header. The skills table here gains
-a **Details** preview with the same numbers and the newest events, and
-graph nodes open the page from their right-click menu.
+place, with the admin actions in the header. The Skills tab's rows open
+a preview drawer with the same numbers and the newest events, and graph
+nodes open the page from their right-click menu.

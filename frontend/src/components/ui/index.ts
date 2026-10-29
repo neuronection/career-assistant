@@ -62,6 +62,7 @@ export { default as Card } from "@/components/ui/Card";
 export { ConfirmationModal } from "@/components/ui/ConfirmationModal";
 export { EmptyState } from "@/components/ui/EmptyState";
 export { Spinner } from "@neuronection/assistant-ui";
+export { SearchInput } from "@neuronection/assistant-ui";
 export { SegmentedTabs, type SegmentedTabsItem } from "@neuronection/assistant-ui";
 export { default as Table } from "@/components/ui/Table";
 export { RangeBar } from "@/components/ui/RangeBar";

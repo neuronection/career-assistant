@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (taxonomy settings UX, 2026-10-29)
+- **The taxonomy listings are searchable, grouped and clickable**
+  (plan 150, phases 1–2). The Interests and Skills tabs drop their raw
+  tables for a shared listing: debounced search (label, key, skill
+  aliases / interest descriptions), status filter chips with counts,
+  and collapsible icon groups — interests by their eight categories,
+  skills by status with **proposed first**. Clicking a row (or Enter
+  on a focused row) opens a generalized details drawer (full-screen on
+  mobile): the skill drawer keeps the plan-148 stats + history preview
+  and gains the admin actions — promote on proposed rows, deprecate /
+  restore, merge with an in-drawer target select, a confirmed delete
+  and the open-skill-page link; the interest drawer edits label,
+  category and description and carries deprecate / restore plus a
+  confirmed delete. The inline Deprecate/Delete text buttons are gone
+  from the rows; bulk select mode (bulk bar, select-all, *Select
+  proposed*, per-item failure report) is unchanged.
+
 ### Changed (settings overhaul phase 0, 2026-10-29)
 - **Settings navigation is grouped.** The rail now renders display
   sections — Personal (Account, Job radar, Notifications), AI & tools,

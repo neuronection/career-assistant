@@ -652,7 +652,8 @@
       "inMonths_other": "in {{count}} Monaten",
       "inYears_one": "in {{count}} Jahr",
       "inYears_other": "in {{count}} Jahren"
-    }
+    },
+    "clear": "Leeren"
   },
   "validation": {
     "required": "{{field}} ist erforderlich.",
@@ -1131,10 +1132,8 @@
     "publish": "Veröffentlichen",
     "reject": "Ablehnen",
     "noSkills": "Keine Fähigkeiten",
-    "key": "Schlüssel",
     "label": "Beschriftung",
     "category": "Kategorie",
-    "status": "Status",
     "proposed": "entworfen",
     "deprecated": "veraltet",
     "active": "aktiv",
@@ -1260,9 +1259,34 @@
       "deleteTitle_one": "{{count}} Skill löschen?",
       "deleteTitle_other": "{{count}} Skills löschen?"
     },
-    "details": "Details",
     "aliasesLabel": "Auch bekannt als",
-    "drawerOpen": "Skill-Seite öffnen"
+    "drawerOpen": "Skill-Seite öffnen",
+    "searchPlaceholder": "Nach Name, Schlüssel oder Alias suchen…",
+    "noMatch": "Keine Treffer",
+    "noMatchBody": "Nichts entspricht der aktuellen Suche oder dem Filter.",
+    "filter": {
+      "all": "Alle",
+      "active": "Aktiv",
+      "proposed": "Vorgeschlagen",
+      "deprecated": "Veraltet"
+    },
+    "group": {
+      "arts": "Kunst",
+      "business": "Business",
+      "hands-on": "Praktisch",
+      "people": "Menschen",
+      "science": "Wissenschaft",
+      "society": "Gesellschaft",
+      "sports": "Sport",
+      "technology": "Technologie",
+      "other": "Sonstige"
+    },
+    "drawer": {
+      "edit": "Bearbeiten",
+      "descriptionLabel": "Beschreibung",
+      "deleteTitle": "„{{label}}“ löschen?",
+      "deleteBody": "Entfernt den Tag dauerhaft aus dem Katalog. Noch von Jobs oder Profilen referenzierte Tags können nicht gelöscht werden — markieren Sie sie stattdessen als veraltet."
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
