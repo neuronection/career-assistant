@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as relationsApi from "@/api/skillRelations";
@@ -107,6 +107,29 @@ const ALIASABLE: SkillRelationRow = {
   alias_candidate: true,
 };
 
+const DISTINCT_CONCEPT: SkillRelationRow = {
+  ...BASE_ROW,
+  id: "r-distinct",
+  relation: "related_to",
+  status: "proposed",
+  confidence: 0.93,
+  from_skill: {
+    id: "s-frontier",
+    key: "frontier-models",
+    label: "Frontier Models",
+    status: "proposed",
+    evidence_quote: "Frontier models commonly power AI agents.",
+  },
+  to_skill: {
+    id: "s-agents",
+    key: "ai-agents",
+    label: "AI Agents",
+    status: "active",
+    evidence_quote: null,
+  },
+  alias_candidate: true,
+};
+
 const RUN: SkillRelationRun = {
   id: "run-1",
   status: "succeeded",
@@ -157,7 +180,7 @@ const APPROVED_RELATED: SkillRelationRow = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocked.fetchSkillRelations.mockResolvedValue([PROPOSED, ALIASABLE]);
+  mocked.fetchSkillRelations.mockResolvedValue([PROPOSED, ALIASABLE, DISTINCT_CONCEPT]);
   mockedTaxonomy.fetchSkillRows.mockResolvedValue([
     {
       id: "s-java",
@@ -217,6 +240,23 @@ describe("SkillRelationsPanel", () => {
     expect(screen.queryByTestId("relation-alias-r-proposed")).toBeNull();
     expect(screen.getByTestId("relation-alias-r-alias")).toBeTruthy();
     expect(screen.getByText(/raw label/i)).toBeTruthy();
+  });
+
+  it("shows the alias hint only for alias-shaped labels and the promotion hint for distinct concepts", async () => {
+    render(<SkillRelationsPanel />);
+    const aliasRow = await screen.findByTestId("relation-row-r-alias");
+    expect(within(aliasRow).getByText(/raw label/i)).toBeTruthy();
+
+    const distinctRow = await screen.findByTestId("relation-row-r-distinct");
+    expect(
+      within(distinctRow).queryByText(/raw label/i),
+    ).toBeNull();
+    expect(
+      within(distinctRow).getByText(/awaiting promotion/i),
+    ).toBeTruthy();
+
+    const proposedRow = await screen.findByTestId("relation-row-r-proposed");
+    expect(within(proposedRow).queryByText(/awaiting promotion/i)).toBeNull();
   });
 
   it("accept calls the API and reloads the queue", async () => {

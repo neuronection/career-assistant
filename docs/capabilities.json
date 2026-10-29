@@ -12,7 +12,7 @@
       "proofs": [
         "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
         "Rich structured attributes per job: skills, salary bands, demand outlook, education",
-        "AI-generated jobs map onto the existing taxonomy — no free-text orphans"
+        "AI-generated jobs map onto the existing taxonomy — labels two postings corroborate promote themselves, the rest queue for review"
       ],
       "links": [
         {

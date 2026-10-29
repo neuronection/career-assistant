@@ -83,6 +83,33 @@ function pairKey(row: SkillRelationRow): string {
   return [row.from_skill.id, row.to_skill.id].sort().join(":");
 }
 
+const normalizeLabel = (label: string) =>
+  label
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/[^a-z0-9+ ]/g, " ")
+    .trim();
+
+/** Could the proposed label plausibly be a raw-label duplicate of the other
+ *  skill (alias-shaped)? Equal, prefix, initialism, or token subset —
+ *  precision over recall: the queue noise was the problem, not missed
+ *  hints. ("frontier models" vs "AI agents" → distinct concepts.) */
+function isAliasishLabel(a: string, b: string): boolean {
+  const na = normalizeLabel(a);
+  const nb = normalizeLabel(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const [short, long] = na.length <= nb.length ? [na, nb] : [nb, na];
+  if (short.length >= 2 && long.startsWith(short)) return true;
+  const shortTokens = short.split(/\s+/);
+  const longTokens = long.split(/\s+/);
+  if (shortTokens.length > 1 && shortTokens.every((token) => longTokens.includes(token))) {
+    return true;
+  }
+  const initials = longTokens.map((token) => token[0]).join("");
+  return shortTokens.length === 1 && short === initials && initials.length >= 2;
+}
+
 function RelationRowCard({
   row,
   note,
@@ -138,9 +165,15 @@ function RelationRowCard({
           {t("taxonomy.relations.evidence")}: {rationale}
         </p>
       )}
-      {row.alias_candidate && (
+      {row.alias_candidate && isAliasishLabel(row.from_skill.label, row.to_skill.label) && (
         <p className="mt-1 text-xs text-amber-700">{t("taxonomy.relations.aliasHint")}</p>
       )}
+      {(row.from_skill.status === "proposed" || row.to_skill.status === "proposed") &&
+        !isAliasishLabel(row.from_skill.label, row.to_skill.label) && (
+          <p className="mt-1 text-xs text-amber-700">
+            {t("taxonomy.relations.promotionHint")}
+          </p>
+        )}
       <div className="mt-2 flex flex-wrap gap-2">
         {row.status === "proposed" && (
           <Button

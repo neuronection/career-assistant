@@ -41,6 +41,27 @@ rows that actually change state are counted; a row the backend refuses
 (for example an `is a` that would close a cycle) is reported back instead
 of failing the batch.
 
+**Select mode** adds bulk review: pick any number of cards (or all at
+once), then one **Accept** or **Dismiss** applies to the whole batch. Only
+rows that actually change state are counted; a row the backend refuses
+(for example an `is a` that would close a cycle) is reported back instead
+of failing the batch.
+
+**Reading the hints.** The save-as-alias hint appears only when the
+proposed label actually looks like a raw-label duplicate of the other
+skill — a prefix, an initialism (JS/JavaScript), or contained words. For
+rows where the proposed side is a genuinely new skill, the card instead
+reminds you that **accepting the edge won't activate it** — promote the
+skill too (Skills tab → Select proposed → Promote).
+
+### Corroboration
+
+Unresolved extraction labels enter the queue as proposed skills. A label
+that **two different postings** extract corroborates itself and promotes
+to the active catalog automatically — the decision is stamped into its
+provenance. Everything else (single-posting labels, user-reported or
+CV-parsed skills) waits for your promotion, as before.
+
 The Skills tab has the same Select mode for the skill list itself —
 **Promote**, **Deprecate**, **Restore**, **Merge** into a chosen active
 skill, and **Delete** (behind a confirm). Each button shows how many of

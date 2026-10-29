@@ -4,6 +4,26 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (taxonomy — smarter review queue, 2026-10-29)
+- **The review queue now tells you what kind of decision each row is.**
+  The "save it as an alias instead of an edge" hint only appears when the
+  proposed label actually looks like a raw-label duplicate of the other
+  skill (prefix, initialism like JS/JavaScript, or contained words) —
+  distinct concepts no longer suggest an alias merge. Rows with a
+  proposed side that isn't alias-shaped say so instead: **"the proposed
+  side is a new skill awaiting promotion — accepting this edge won't
+  activate it"** (en/de/el).
+
+### Added (taxonomy — corroborated labels promote themselves, 2026-10-29)
+- **Extraction labels that keep showing up join the catalog on their
+  own.** When the same normalized label is extracted from **two distinct
+  postings**, the proposed skill auto-promotes to the active catalog —
+  the orgs corroboration rule applied to skills — with the decision
+  stamped into its provenance (`auto_promoted: {at, postings}`) and the
+  corroborating posting ids accumulated as evidence. Single-posting
+  labels and every non-extraction origin (user, CV, import) still wait
+  for admin promotion, exactly as before.
+
 ### Added (taxonomy — graph view, 2026-10-29)
 - **The reviewed skill graph is now a picture, not a list.** Settings →
   Taxonomy → Relations gains a **Graph** tab rendering every reviewed

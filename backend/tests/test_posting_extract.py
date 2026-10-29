@@ -527,3 +527,57 @@ async def test_admin_needs_review_listing_and_reextract(
 async def test_search_endpoints_require_auth(client, search_fixtures):
     response = await client.get("/api/v1/postings/search", params={"skills": "programming"})
     assert response.status_code in (401, 403)
+
+
+async def test_corroborated_label_auto_promotes_after_two_postings(
+    db, client, auth_headers, seeded_catalog, source, kinds
+):
+    """plan 147 — the same normalized extraction label from two distinct
+    postings is corroboration: the proposed skill promotes itself."""
+    first = await _make_posting(
+        db, source, external_id="corr-1", title="Mainframe Dev",
+        skills_raw=["cobol"], raw={"description": "Maintain cobol systems."},
+    )
+    await extract_posting_now(db, first)
+    proposed = (
+        (await db.execute(select(Skill).where(Skill.key == "cobol")))
+        .scalars().first()
+    )
+    assert proposed.status == "proposed", "one posting is not corroboration yet"
+
+    second = await _make_posting(
+        db, source, external_id="corr-2", title="COBOL Engineer",
+        skills_raw=["cobol"], raw={"description": "Write new cobol modules."},
+    )
+    await extract_posting_now(db, second)
+
+    await db.refresh(proposed)
+    assert proposed.status == "active", "two distinct postings promote the label"
+    assert proposed.provenance["auto_promoted"]["postings"] == 2
+    assert proposed.provenance["corroborated_postings"] == [str(second.id)]
+
+    # the promoted label is part of the public catalog now
+    keys = (await client.get("/api/v1/skills", headers=auth_headers)).json()
+    assert "cobol" in {row["key"] for row in keys}
+
+
+async def test_single_posting_never_promotes_and_reextract_is_not_self_corroboration(
+    db, client, auth_headers, seeded_catalog, source, kinds
+):
+    posting = await _make_posting(
+        db, source, external_id="corr-solo", title="Mainframe Dev",
+        skills_raw=["fortran"], raw={"description": "Maintain fortran systems."},
+    )
+    await extract_posting_now(db, posting)
+    proposed = (
+        (await db.execute(select(Skill).where(Skill.key == "fortran")))
+        .scalars().first()
+    )
+    assert proposed.status == "proposed"
+    assert proposed.provenance.get("corroborated_postings") is None
+
+    # the re-extract wave runs the same posting again — never self-corroboration
+    await extract_posting_now(db, posting, trigger="bulk")
+    await db.refresh(proposed)
+    assert proposed.status == "proposed", "a posting cannot corroborate itself"
+    assert proposed.provenance.get("corroborated_postings") is None

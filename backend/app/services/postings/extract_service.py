@@ -11,10 +11,12 @@ Confidence below the threshold means a field is suppressed and the
 posting flagged `needs_review` — never guessed silently."""
 
 import logging
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.errors import ValidationError
 from app.models.background_job_model import BackgroundJob
@@ -31,6 +33,12 @@ logger = logging.getLogger(__name__)
 
 EXTRACT_VERSION = 4
 CONFIDENCE_THRESHOLD = 0.6
+
+# A proposed extraction label seen again from a different posting is
+# corroborated; this many distinct postings auto-promote it (plan 147 —
+# the orgs decision-8 corroboration pattern applied to skills).
+CORROBORATION_MIN_POSTINGS = 2
+CORROBORATION_CAP = 20
 
 FIELD_NAMES = (
     "title_norm",
@@ -336,6 +344,7 @@ async def _apply_extract_skills(
         from app.services.catalog.skills_service import SkillService
 
         service = SkillService(db)
+        corroborated: list[tuple[Skill, int]] = []
         for entry in unresolved_labels:
             label = str(entry.get("raw_label") or "").strip()
             if not label:
@@ -343,7 +352,7 @@ async def _apply_extract_skills(
             key = _norm(label).replace(" ", "-")[:80]
             if not key:
                 continue
-            _, created = await service.propose(
+            skill, created = await service.propose(
                 key,
                 label=label[:120],
                 origin=SkillOrigin.AI,
@@ -357,6 +366,66 @@ async def _apply_extract_skills(
             )
             if created:
                 await db.flush()
+                continue
+            count = _record_corroboration(skill, posting)
+            if count:
+                await db.flush()
+            if count >= CORROBORATION_MIN_POSTINGS:
+                corroborated.append((skill, count))
+        for skill, postings_count in corroborated:
+            await _auto_promote(db, skill, postings_count)
+
+
+def _record_corroboration(skill: Skill, posting: JobPosting) -> int:
+    """Count the distinct postings behind a proposed extraction label
+    (origin posting + `corroborated_postings`), accumulating this posting
+    when new. 0 for everything the gate does not apply to (not ai-origin,
+    not proposed, same posting re-extracting)."""
+    from app.models.enums import SkillOrigin
+
+    if skill.origin != SkillOrigin.AI.value or skill.status != "proposed":
+        return 0
+    provenance = dict(skill.provenance or {})
+    origin_pid = provenance.get("posting_id")
+    pid = str(posting.id)
+    if pid == origin_pid:
+        return 0
+    seen = list(provenance.get("corroborated_postings") or [])
+    if pid not in seen:
+        seen.append(pid)
+        provenance["corroborated_postings"] = seen[:CORROBORATION_CAP]
+        skill.provenance = provenance
+        flag_modified(skill, "provenance")
+    distinct = len({origin_pid, *seen}) if origin_pid else len(seen)
+    return distinct
+
+
+async def _auto_promote(db: AsyncSession, skill: Skill, postings_count: int) -> None:
+    """plan 147 — the corroboration gate tripped: promote the label to the
+    active catalog (the orgs decision-8 pattern; promotion still rides the
+    `promote()` seam) and stamp the decision into provenance for audit."""
+    from app.services.catalog.taxonomy_service import TaxonomyService
+
+    try:
+        promoted = await TaxonomyService(db).promote(skill.id)
+    except ValidationError:
+        logger.warning("corroboration promotion skipped for %s (status moved)", skill.key)
+        return
+    provenance = {
+        **(promoted.provenance or {}),
+        "auto_promoted": {
+            "at": datetime.now(UTC).isoformat(),
+            "postings": postings_count,
+        },
+    }
+    promoted.provenance = provenance
+    flag_modified(promoted, "provenance")
+    await db.commit()
+    logger.info(
+        "skill %s auto-promoted — corroborated by %s distinct postings",
+        promoted.key,
+        postings_count,
+    )
 
 
 # -------------------------------------------------------------------- run

@@ -1243,7 +1243,8 @@
         "focus": "Zentrieren",
         "degree_one": "{{count}} Relation",
         "degree_other": "{{count}} Relationen"
-      }
+      },
+      "promotionHint": "Die vorgeschlagene Seite ist eine neue Fertigkeit, die noch befördert werden muss — das Akzeptieren dieser Kante aktiviert sie nicht."
     },
     "bulk": {
       "select": "Auswählen",
