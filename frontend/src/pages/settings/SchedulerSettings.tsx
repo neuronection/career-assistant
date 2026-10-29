@@ -1,13 +1,20 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
-import { Clock, Pause, Play, Zap } from "lucide-react";
+import { CalendarClock, Play, Zap } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { Badge, Button } from "@/components/ui";
+import { SwitchRow } from "@/components/ui/switch-row";
+import { SelectField } from "@/features/cv/components/cv/formPrimitives";
+import { SettingsPage } from "@/components/settings/SettingsPage";
+import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import {
   fetchMySchedules,
   fetchSavedSearches,
   fetchSystemSchedules,
+  runMyScheduleNow,
   runScheduleNow,
+  setMyScheduleEnabled,
   setSavedSearchSchedule,
   setSystemScheduleEnabled,
 } from "@/api/scheduler";
@@ -61,6 +68,23 @@ function statusBadge(status?: string | null): string {
   return status.replace(/_/g, " ");
 }
 
+function kindLabel(kind: string): string {
+  return i18next.t(`scheduler.kind.${kind}`, {
+    defaultValue: kind.replace(/_/g, " "),
+  });
+}
+
+function scheduleStatusVariant(status?: string | null) {
+  if (status === "ok" || status === "succeeded") return "success" as const;
+  if (status === "failed") return "danger" as const;
+  if (status && status !== "—") return "warning" as const;
+  return "outline" as const;
+}
+
+/** Settings → Automations (plan 148 phase 5): saved-search rhythms with
+ * the preset picker, the user schedule rows with last-run/outcome/next
+ * plus pause and run-now (B2 user-schedule endpoints), and the system
+ * schedule table for admins. */
 export function SchedulerSettings() {
   const { t } = useTranslation();
   const { user } = useAuthStore();
@@ -70,16 +94,32 @@ export function SchedulerSettings() {
   >([]);
   const [system, setSystem] = useState<ScheduleItem[]>([]);
   const [error, setError] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     void fetchMySchedules().then(setMine).catch(() => setMine([]));
     void fetchSavedSearches().then(setSavedSearches).catch(() => setSavedSearches([]));
     if (user?.is_admin) {
       void fetchSystemSchedules().then(setSystem).catch(() => setSystem([]));
     }
-  };
+  }, [user?.is_admin]);
 
-  useEffect(load, []);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const runUser = async (schedule: ScheduleItem, action: () => Promise<unknown>) => {
+    setBusyId(schedule.id);
+    setError("");
+    try {
+      await action();
+      load();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const savedScheduleFor = (searchId: string): ScheduleItem | undefined =>
     mine.find(
@@ -97,160 +137,243 @@ export function SchedulerSettings() {
     );
   };
 
+  const rhythm = mine.filter((s) => s.kind !== "user_saved_search");
+
   return (
-    <div className="space-y-8 max-w-3xl" data-testid="scheduler-settings">
-      <section>
-        <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-          <Clock className="w-4 h-4 text-primary-600" /> {t("scheduler.searchesTitle")}
-        </h2>
-        <p className="text-xs text-slate-400 mb-3">
-          {t("scheduler.searchesBody")}
+    <SettingsPage
+      icon={CalendarClock}
+      title={t("settingsNav.automations.label")}
+      description={t("settingsNav.automations.description")}
+      sections={[
+        { id: "s-searches", label: t("scheduler.searchesTitle") },
+        { id: "s-rhythm", label: t("scheduler.rhythmTitle") },
+        ...(user?.is_admin
+          ? [{ id: "s-system", label: t("scheduler.systemTitle") }]
+          : []),
+      ]}
+    >
+      {error ? (
+        <p className="mb-3 text-xs text-[var(--as-danger)]" role="alert">
+          {error}
         </p>
-        {savedSearches.length === 0 ? (
-          <p className="text-sm text-slate-400">
-            {t("scheduler.noSavedSearches")}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {savedSearches.map((search) => {
-              const schedule = savedScheduleFor(search.id);
-              const current = presetFor(schedule);
-              return (
+      ) : null}
+
+      <section id="s-searches" className="scroll-mt-4">
+        <SettingsSectionCard
+          name="searches"
+          title={t("scheduler.searchesTitle")}
+          description={t("scheduler.searchesBody")}
+        >
+          {savedSearches.length === 0 ? (
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("scheduler.noSavedSearches")}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--as-border)]">
+              {savedSearches.map((search) => {
+                const schedule = savedScheduleFor(search.id);
+                const current = presetFor(schedule);
+                return (
+                  <li
+                    key={search.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+                    data-testid="saved-search-schedule"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--as-fg)]">
+                        {search.query || t("scheduler.filtersOnly")}
+                      </p>
+                      <p className="text-xs text-[var(--as-muted-fg)]">
+                        {schedule
+                          ? `${describeTrigger(schedule.trigger)} · ${statusBadge(schedule.last_status)}`
+                          : t("scheduler.notScheduled")}
+                        {schedule && schedule.consecutive_failures
+                          ? ` · ${t("scheduler.failures", { count: schedule.consecutive_failures })}`
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0">
+                      <SelectField
+                        label={t("scheduler.searchesTitle")}
+                        value={String(current >= 0 ? current : 0)}
+                        onChange={(value) => {
+                          const preset = SCHEDULE_PRESETS[Number(value)];
+                          void setSavedSearchSchedule(search.id, preset.trigger)
+                            .then(load)
+                            .catch((err) => setError(String(err)));
+                        }}
+                        options={SCHEDULE_PRESETS.map((preset, index) => ({
+                          value: String(index),
+                          label: t(preset.labelKey),
+                        }))}
+                        testId={`saved-search-preset-${search.id}`}
+                      />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </SettingsSectionCard>
+      </section>
+
+      <section id="s-rhythm" className="mt-4 scroll-mt-4">
+        <SettingsSectionCard
+          name="rhythm"
+          title={t("scheduler.rhythmTitle")}
+          description={t("scheduler.rhythmBody")}
+        >
+          {rhythm.length === 0 ? (
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("scheduler.noSavedSearches")}
+            </p>
+          ) : (
+            <ul className="divide-y divide-[var(--as-border)]">
+              {rhythm.map((schedule) => (
                 <li
-                  key={search.id}
-                  className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3"
-                  data-testid="saved-search-schedule"
+                  key={schedule.id}
+                  className="flex flex-wrap items-center gap-3 py-2.5"
+                  data-testid={`rhythm-${schedule.kind}`}
                 >
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">
-                      {search.query || t("scheduler.filtersOnly")}
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--as-fg)]">
+                      {kindLabel(schedule.kind)}
+                      <Badge variant={scheduleStatusVariant(schedule.last_status)}>
+                        {statusBadge(schedule.last_status)}
+                      </Badge>
+                      {!schedule.enabled ? (
+                        <Badge variant="outline">{t("scheduler.paused")}</Badge>
+                      ) : null}
                     </p>
-                    <p className="text-xs text-slate-400">
-                      {schedule
-                        ? `${describeTrigger(schedule.trigger)} · ${statusBadge(schedule.last_status)}`
-                        : t("scheduler.notScheduled")}
-                      {schedule && schedule.consecutive_failures
+                    <p className="text-xs text-[var(--as-muted-fg)]">
+                      {t("scheduler.last")}{" "}
+                      {schedule.last_run_at
+                        ? new Date(schedule.last_run_at).toLocaleString()
+                        : "—"}
+                      {" · "}
+                      {schedule.next_run_at
+                        ? t("scheduler.nextDate", {
+                            date: new Date(schedule.next_run_at).toLocaleString(),
+                          })
+                        : "—"}
+                      {schedule.consecutive_failures
                         ? ` · ${t("scheduler.failures", { count: schedule.consecutive_failures })}`
                         : ""}
                     </p>
+                    {schedule.error ? (
+                      <p className="truncate text-xs text-[var(--as-danger)]">
+                        {schedule.error}
+                      </p>
+                    ) : null}
                   </div>
-                  <select
-                    value={current >= 0 ? current : 0}
-                    onChange={(e) => {
-                      const preset = SCHEDULE_PRESETS[Number(e.target.value)];
-                      void setSavedSearchSchedule(search.id, preset.trigger)
-                        .then(load)
-                        .catch((err) => setError(String(err)));
-                    }}
-                    className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 shrink-0"
-                  >
-                    {SCHEDULE_PRESETS.map((preset, index) => (
-                      <option key={preset.labelKey} value={index}>
-                        {t(preset.labelKey)}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {schedule.task ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={busyId === schedule.id}
+                        onClick={() =>
+                          void runUser(schedule, () => runMyScheduleNow(schedule.id))
+                        }
+                        data-testid={`rhythm-run-${schedule.kind}`}
+                      >
+                        <Zap className="h-3.5 w-3.5" /> {t("scheduler.runNow")}
+                      </Button>
+                    ) : null}
+                    <SwitchRow
+                      label={t("scheduler.pauseToggle", { kind: kindLabel(schedule.kind) })}
+                      checked={schedule.enabled}
+                      disabled={busyId === schedule.id}
+                      hideLabel
+                      onCheckedChange={(enabled) =>
+                        void runUser(schedule, () =>
+                          setMyScheduleEnabled(schedule.id, enabled)
+                        )
+                      }
+                      className="w-auto border-none bg-transparent px-1 py-0 hover:bg-transparent"
+                      data-testid={`rhythm-enabled-${schedule.kind}`}
+                    />
+                  </div>
                 </li>
-              );
-            })}
-          </ul>
-        )}
+              ))}
+            </ul>
+          )}
+        </SettingsSectionCard>
       </section>
 
-      <section>
-        <h2 className="font-semibold text-slate-900 mb-3">{t("scheduler.rhythmTitle")}</h2>
-        <ul className="space-y-2">
-          {mine
-            .filter((s) => s.kind !== "user_saved_search")
-            .map((schedule) => (
-              <li
-                key={schedule.id}
-                className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between text-sm"
-              >
-                <span className="font-medium text-slate-800">
-                  {schedule.kind === "user_checkin"
-                    ? t("scheduler.checkin")
-                    : t(`scheduler.kind.${schedule.kind}`, {
-                        defaultValue: schedule.kind.replace(/_/g, " "),
-                      })}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {schedule.next_run_at
-                    ? t("scheduler.nextDate", {
-                        date: new Date(schedule.next_run_at).toLocaleDateString(),
-                      })
-                    : "—"}
-                </span>
-              </li>
-            ))}
-        </ul>
-      </section>
-
-      {user?.is_admin && (
-        <section>
-          <h2 className="font-semibold text-slate-900 mb-3">{t("scheduler.systemTitle")}</h2>
-          <ul className="space-y-2">
-            {system.map((schedule) => (
-              <li
-                key={schedule.id}
-                className="bg-white border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-3"
-                data-testid="system-schedule"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-800">
-                    {t(`scheduler.kind.${schedule.kind}`, {
-                      defaultValue: schedule.kind.replace(/_/g, " "),
-                    })}{" "}
-                    {!schedule.enabled && (
-                      <span className="text-xs text-amber-600">({t("scheduler.paused")})</span>
-                    )}
-                  </p>
-                  <p className="text-xs text-slate-400 truncate">
-                    {describeTrigger(schedule.trigger)} ·{" "}
-                    {schedule.next_run_at
-                      ? `${t("scheduler.next")} ${new Date(schedule.next_run_at).toLocaleString()}`
-                      : "—"}{" "}
-                    · {t("scheduler.last")} {statusBadge(schedule.last_status)}
-                    {schedule.consecutive_failures
-                      ? ` · ${t("scheduler.failures", { count: schedule.consecutive_failures })}`
-                      : ""}
-                  </p>
-                  {schedule.error && (
-                    <p className="text-xs text-rose-500 truncate">{schedule.error}</p>
-                  )}
-                </div>
-                <div className="flex gap-1.5 shrink-0">
-                  <button
-                    onClick={() => void runScheduleNow(schedule.id).then(load)}
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1"
-                    title={t("scheduler.runNextTick")}
-                  >
-                    <Zap className="w-3 h-3" /> {t("scheduler.runNow")}
-                  </button>
-                  <button
-                    onClick={() =>
-                      void setSystemScheduleEnabled(schedule.id, !schedule.enabled).then(load)
-                    }
-                    className="text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 flex items-center gap-1"
-                  >
-                    {schedule.enabled ? (
-                      <>
-                        <Pause className="w-3 h-3" /> {t("scheduler.pause")}
-                      </>
-                    ) : (
-                      <>
-                        <Play className="w-3 h-3" /> {t("scheduler.resume")}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
+      {user?.is_admin ? (
+        <section id="s-system" className="mt-4 scroll-mt-4">
+          <SettingsSectionCard
+            name="system"
+            title={t("scheduler.systemTitle")}
+            description={t("scheduler.systemBody")}
+            adminOnly
+          >
+            <ul className="divide-y divide-[var(--as-border)]">
+              {system.map((schedule) => (
+                <li
+                  key={schedule.id}
+                  className="flex flex-wrap items-center gap-3 py-2.5"
+                  data-testid="system-schedule"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2 text-sm font-medium text-[var(--as-fg)]">
+                      {kindLabel(schedule.kind)}
+                      <Badge variant={scheduleStatusVariant(schedule.last_status)}>
+                        {statusBadge(schedule.last_status)}
+                      </Badge>
+                      {!schedule.enabled ? (
+                        <Badge variant="outline">{t("scheduler.paused")}</Badge>
+                      ) : null}
+                    </p>
+                    <p className="truncate text-xs text-[var(--as-muted-fg)]">
+                      {describeTrigger(schedule.trigger)} ·{" "}
+                      {schedule.next_run_at
+                        ? `${t("scheduler.next")} ${new Date(schedule.next_run_at).toLocaleString()}`
+                        : "—"}
+                      {schedule.consecutive_failures
+                        ? ` · ${t("scheduler.failures", { count: schedule.consecutive_failures })}`
+                        : ""}
+                    </p>
+                    {schedule.error ? (
+                      <p className="truncate text-xs text-[var(--as-danger)]">
+                        {schedule.error}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 gap-1.5">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void runScheduleNow(schedule.id).then(load)}
+                      title={t("scheduler.runNextTick")}
+                    >
+                      <Zap className="h-3.5 w-3.5" /> {t("scheduler.runNow")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => void setSystemScheduleEnabled(schedule.id, !schedule.enabled).then(
+                          load
+                        )
+                      }
+                    >
+                      {schedule.enabled ? (
+                        t("scheduler.pause")
+                      ) : (
+                        <>
+                          <Play className="h-3.5 w-3.5" />
+                          {t("scheduler.resume")}
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </SettingsSectionCard>
         </section>
-      )}
-
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-    </div>
+      ) : null}
+    </SettingsPage>
   );
 }

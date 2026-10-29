@@ -970,7 +970,10 @@
     },
     "kind": {
       "user_checkin": "Benutzer-Check-in"
-    }
+    },
+    "rhythmBody": "Die eigenen Läufe des Assistant — Check-ins, Digests und Radar-Scans. Hier pausieren oder auslösen.",
+    "systemBody": "Instanzweite Zeitpläne (Stellen-Sync, Sweeps). Jetzt ausführen oder pausieren; Fehler alarmieren die Admins.",
+    "pauseToggle": "{{kind}} pausieren"
   },
   "notifications": {
     "channelsTitle": "Kanäle",
@@ -1140,7 +1143,8 @@
     "errorGeneric": "Etwas ist schief gelaufen — bitte erneut versuchen.",
     "errorForbidden": "Nicht erlaubt.",
     "errorSelf": "Du kannst deine eigene Rolle oder deinen Status nicht ändern.",
-    "errorLastAdmin": "Der letzte Administrator kann nicht abgewertet oder deaktiviert werden."
+    "errorLastAdmin": "Der letzte Administrator kann nicht abgewertet oder deaktiviert werden.",
+    "title": "Nutzer"
   },
   "account": {
     "sessionsTitle": "Anmeldegeräte",

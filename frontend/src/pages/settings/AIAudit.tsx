@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import { fetchAIGenerations, type AIGenerationRow } from "@/api/admin";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
+import { ScrollText } from "lucide-react";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 
 const TASKS = [
   "",
@@ -48,12 +50,21 @@ export function AIAudit() {
   }, [load]);
 
   return (
-    <div className="space-y-4" data-testid="settings-ai-audit">
+    <SettingsPage
+      icon={ScrollText}
+      title={t("settingsNav.audit.label")}
+      description={t("settingsNav.audit.description")}
+      sections={[
+        { id: "s-filters", label: t("aiSettings.allTasks") },
+        { id: "s-rows", label: t("aiSettings.allStatuses") },
+      ]}
+    >
+      <section id="s-filters" className="scroll-mt-4">
       <div className="flex gap-2 flex-wrap">
         <select
           value={task}
           onChange={(e) => setTask(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+          className="border border-[var(--as-border)] rounded-lg px-3 py-2 text-sm bg-[var(--as-surface-raised)] text-[var(--as-fg)]"
         >
           {TASKS.map((task) => (
             <option key={task} value={task}>
@@ -79,6 +90,9 @@ export function AIAudit() {
         </span>
       </div>
 
+      </section>
+
+      <section id="s-rows" className="mt-4 scroll-mt-4">
       {error && <p className="text-sm text-rose-600">{error}</p>}
 
       {loading ? (
@@ -144,6 +158,7 @@ export function AIAudit() {
           ))}
         </div>
       )}
-    </div>
+      </section>
+    </SettingsPage>
   );
 }

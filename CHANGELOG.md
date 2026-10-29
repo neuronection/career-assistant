@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings overhaul phase 5 — automations + admin pages, 2026-10-29)
+- **The automations page is rebuilt on the settings kit**: saved-search
+  rhythms keep the preset picker; your own runs (check-ins, digests,
+  radar scans) now show last run, outcome and failure counts with a
+  pause switch and run-now over the user-schedule endpoints; the
+  system schedule table for admins keeps run-now/pause. The AI Audit
+  and Users pages adopt the settings page scaffold (visual; all
+  testids preserved). Taxonomy and Companies adoption deferred — those
+  files are owner-active.
+
 ### Changed (settings overhaul phase 4 — account, 2026-10-29)
 - **The account page is rebuilt on the settings kit**: an identity
   header (name, email, admin badge) with the profile surface (create

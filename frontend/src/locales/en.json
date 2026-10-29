@@ -970,7 +970,10 @@
     },
     "kind": {
       "user_checkin": "user checkin"
-    }
+    },
+    "rhythmBody": "The assistant's own runs — check-ins, digests and radar scans. Pause or trigger them here.",
+    "systemBody": "Instance-wide schedules (posting sync, sweeps). Run now or pause; failures alert the admins.",
+    "pauseToggle": "Pause {{kind}}"
   },
   "notifications": {
     "channelsTitle": "Channels",
@@ -1140,7 +1143,8 @@
     "errorGeneric": "Something went wrong — try again.",
     "errorForbidden": "Not allowed.",
     "errorSelf": "You cannot change your own role or status.",
-    "errorLastAdmin": "The last admin cannot be demoted or deactivated."
+    "errorLastAdmin": "The last admin cannot be demoted or deactivated.",
+    "title": "Users"
   },
   "account": {
     "sessionsTitle": "Signed-in devices",

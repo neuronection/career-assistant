@@ -19,6 +19,8 @@ import {
   type InstanceModeControlLabels,
 } from "@/components/ui/instance-mode-control";
 import { useAuthStore } from "@/stores/authStore";
+import { Users as UsersIcon } from "lucide-react";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 
 /** Admin user management (identity-auth §12): the shared
  * `AdminUserTable` (`@neuronection/assistant-ui`) fed by the kit's
@@ -119,7 +121,16 @@ export function Users() {
   };
 
   return (
-    <div data-testid="settings-users" className="space-y-6">
+    <SettingsPage
+      icon={UsersIcon}
+      title={t("settingsNav.users.label")}
+      description={t("settingsNav.users.description")}
+      sections={[
+        { id: "s-mode", label: t("instance.modeAuthenticated") },
+        { id: "s-users", label: t("users.title", { defaultValue: "Users" }) },
+      ]}
+    >
+      <section id="s-mode" className="scroll-mt-4" data-testid="settings-users">
       <InstanceModeControl
         mode={authMode === "open" ? "open" : "authenticated"}
         serverIdentity={serverIdentity}
@@ -155,6 +166,7 @@ export function Users() {
         }}
         labels={labels}
       />
-    </div>
+      </section>
+    </SettingsPage>
   );
 }

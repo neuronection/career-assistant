@@ -150,8 +150,12 @@ switch — see
 
 Configure the one periodic engine: saved-search schedules (interval, daily,
 weekly or cron), the digest and check-in rhythm, source syncs and re-fit
-sweeps, each with its next run and last status, plus run-now, pause and
-resume. The legacy scheduler deep link redirects here. See
+sweeps, each with its next run, last outcome and failure count. Your own
+runs (check-ins, digests, radar scans) can be paused or triggered from the
+row — **Scan now / run now** makes them due immediately, the row switch
+pauses without deleting. Admins also see the instance-wide system
+schedules with run-now and pause; their failures alert the admins
+automatically. The legacy scheduler deep link redirects here. See
 [Notifications and scheduler](notifications-and-scheduler.md).
 
 ## Notifications (`/settings/notifications`)
