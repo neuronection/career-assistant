@@ -91,7 +91,7 @@
         {
           "id": "security-gotchas-dev",
           "title": "Security & gotchas (authoring)",
-          "description": "Trust tiers, the secrets law, politeness and SSRF, the sandbox residual disclosures, the destructive-confirm funnel.",
+          "description": "Trust tiers, the secrets law, the authenticated-source credential patterns, politeness and SSRF, the sandbox residual disclosures, the destructive-confirm funnel.",
           "audience": "dev",
           "file": "security-and-gotchas.md"
         }
@@ -100,7 +100,7 @@
     {
       "id": "reference",
       "title": "Reference",
-      "description": "The 15 error codes, the capability-RPC protocol, the CLI, audit and status vocabularies, API endpoints and host knobs.",
+      "description": "The 15 error codes, the capability-RPC protocol, the CLI, audit and status vocabularies, API endpoints, host knobs, dynamic queries, detail enrichment, the run summary, probe semantics.",
       "audience": "dev",
       "file": "reference.md"
     },
