@@ -42,13 +42,14 @@ Personio, JOIN, Recruitee and Teamtailor carry no credentials; the
 StepStone/Xing alert URL often embeds a per-user token, so it is declared
 as an `x-secret` slot and never written into stored config.
 
-**The Remotive robots caveat, honestly.** Remotive's site-level
-`robots.txt` disallows its API path, and Career Assistant respects
-robots policies by default — so Remotive syncs can surface a clear,
-typed *network denied* error instead of fetching silently. Remotive's
-own API terms welcome API consumers; if you run the instance and agree,
-an admin can lift the check for that deployment (the
-`CAREER_CONNECTOR_RESPECT_ROBOTS` setting). It is deliberately an
+### The Remotive robots caveat, honestly
+
+Remotive's site-level `robots.txt` disallows its API path, and Career
+Assistant respects robots policies by default — so Remotive syncs can
+surface a clear, typed *network denied* error instead of fetching
+silently. Remotive's own API terms welcome API consumers; if you run
+the instance and agree, an admin can lift the check for that deployment
+(the `CAREER_CONNECTOR_RESPECT_ROBOTS` setting). It is deliberately an
 admin's explicit decision, never a quiet bypass baked into the app.
 
 ## The other bundled engines

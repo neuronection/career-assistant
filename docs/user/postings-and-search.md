@@ -30,9 +30,11 @@ fetching silently.
 | **CSV** | Exported spreadsheets of postings |
 | **Paste-a-URL** | A single posting you point at |
 
-Anyone can add more as plugins, opt-in by an admin through the entry-point
-registry. Configure sources in **Settings → Scheduler** (source sync) or on
-the Postings page.
+More sources can be added as **extensions** — connectors imported from
+git or registered as MCP script sources by an admin in
+**Settings → Tools → Connectors**. External code never runs inside the
+app: imported connectors are sandboxed or external processes, and each
+source gets its own management page for configuration and syncs.
 
 ### How postings map to the catalog
 

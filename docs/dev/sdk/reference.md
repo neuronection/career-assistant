@@ -190,8 +190,9 @@ overrides on presence (an empty string clears). Connectors without the
 capability never see the overlay. The rotation cursor advances by the
 batch size. T3 scripts receive it inside the tool's `config`
 argument alongside `config.options` (the tool-level settings
-passthrough — a JSON-object string, since the manifest configSchema has
-no object type). The `mcp` connector itself declares the capability —
+passthrough — stored on the source as a JSON-object string, since the
+manifest configSchema has no object type, but handed to the tool as a
+**parsed object**). The `mcp` connector itself declares the capability —
 **every `mcp` source, including managed imports, can *Follow my
 radar***; no manifest field is needed, the source form offers the
 switch and the overlay arrives inside the tool's `config`. The merged-query artifact (role groups, term→radar

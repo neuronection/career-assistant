@@ -308,4 +308,24 @@ def test_rawposting_cap_facts_agree_across_repos() -> None:
     for label, text in (("sdk", sdk_text), ("template", template_text)):
         if "300" not in text or "8 KB" not in text:
             failures.append(f"{label}: envelope caps (300 items / 8 KB) not stated")
+
+    # Field-set equality: the template claims to be "the whole contract",
+    # so its row table must cover every field the SDK chapter's table
+    # covers (and claim nothing the SDK does not define).
+    def _row_fields(text: str, heading: str) -> set[str]:
+        section = text.split(heading, 1)[1].split("\n## ", 1)[0]
+        fields: set[str] = set()
+        for line in section.splitlines():
+            if line.startswith("| `"):
+                fields.update(re.findall(r"`([a-z_]+)`", line.split("|")[1]))
+        return fields
+
+    sdk_fields = _row_fields(sdk_text, "## `RawPosting` — the only output type")
+    template_fields = _row_fields(template_text, "## The row contract (RawPosting) and its caps")
+    if sdk_fields != template_fields:
+        failures.append(
+            f"row-contract field sets drifted between repos: "
+            f"only-sdk={sorted(sdk_fields - template_fields)} "
+            f"only-template={sorted(template_fields - sdk_fields)}"
+        )
     assert not failures, "RawPosting cap facts drifted between repos:\n" + "\n".join(failures)

@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (docs — confirmation-audit follow-ups, 2026-10-30)
+- **Three doc truths corrected** (docs-parity confirmation audit): the
+  postings guide no longer claims "anyone can add more as plugins
+  through the entry-point registry" (external code is extensions-only
+  — imported or external-process, never in-process; the surface is
+  Settings → Tools → Connectors); the SDK reference now says
+  `config.options` reaches the tool as a **parsed object** (it is
+  stored as a string, handed over parsed — a literal reader's
+  `json.loads` would crash); and the Remotive robots caveat became a
+  real heading so the troubleshooting anchor resolves. The template
+  guide's row table gained the five missing optional fields, so its
+  "whole contract" claim is true again — and the docs-truth pin now
+  asserts the two repos' row-contract **field sets** are equal, not
+  just the cap numbers.
+
 ### Changed (shared infinite scroll, 2026-10-30)
 - **Auto-load is a reusable mechanism.** `hooks/useInfiniteScroll.ts`
   (sentinel + IntersectionObserver, 480px early-start, in-flight guard)
