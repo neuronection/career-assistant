@@ -4,6 +4,35 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings overhaul phase 2 — tools/connectors, 2026-10-29)
+- **The connectors tab follows the family provider-card grammar**: each
+  posting-source row keeps its status + enable toggle and a primary
+  Test probe, while Sync / Docs / Query plan / Manage / Remove move
+  into a ⋯ overflow menu; a health strip shows active, failing and
+  degraded counts with the last sync. **Add source** is now a two-step
+  wizard in a modal (catalog tiles → config form) instead of an inline
+  raw form. The MCP server surface becomes section cards — endpoint
+  hero with the write switch, token lifecycle, client-setup
+  disclosure, the live tool catalog collapsed behind a searchable
+  disclosure, and the recent-call audit — with the chat-tools GitHub
+  credential folded into the same card. Extension sources get their
+  own card and a distinct "Install from Git" label (no more two
+  "Add source" buttons on one page).
+
+### Changed (settings overhaul phase 1 — notifications, 2026-10-29)
+- **The notifications page is rebuilt on the settings kit**: channel
+  cards with live delivery health (the new per-channel dispatch log,
+  `GET /api/v1/notifications/deliveries`), a grouped kind-routing matrix
+  with real switches (desktop/browser per-kind routing now reachable),
+  reset-to-default per kind (`DELETE /api/v1/notifications/preferences/{kind}`),
+  debounced quiet hours (no more a PUT per keystroke), alert rules
+  editing (fit threshold, family targeting, per-day caps), the admin
+  zone (full SMTP transport form + announcements to every active user)
+  and an in-page section rail. Notices now render inside the card that
+  caused them; switches save instantly with rollback, forms keep
+  explicit Save buttons. Also fixes the raw `notifications.webhook.generic`
+  key that leaked into the payload-preset select.
+
 ### Changed (taxonomy settings UX, 2026-10-29)
 - **The taxonomy listings are searchable, grouped and clickable**
   (plan 150, phases 1–2). The Interests and Skills tabs drop their raw

@@ -1182,6 +1182,7 @@
       "skills": "Fähigkeiten",
       "paths": "Pfade",
       "enrichment": "Ergänzung",
+      "translations": "Übersetzungen",
       "relations": "Relationen"
     },
     "newTag": "Neuer Tag",
@@ -1671,13 +1672,11 @@
       "tokenSet": "einstellen",
       "tokenOptional": "optional",
       "saveToken": "Token speichern",
-      "saved": "Gespeichert",
       "sources": {
         "title": "Job-Quellen-Verbindungen",
         "hint": "Eingabe von Job-Quellen über den sicheren Runtime — SSRF-geschützte Abfragen, robots.txt und pro-Host-Rate-Limits werden durchgesetzt. Anmeldeinformationen werden im Ruhezustand verschlüsselt und nur als Hinweise angezeigt.",
         "empty": "Noch keine Job-Quellen konfiguriert.",
         "add": "Quelle hinzufügen",
-        "connector": "Verbindung",
         "key": "Quell-Schlüssel (eindeutig)",
         "queryMode": "Suchquelle",
         "queryModeStatic": "Statische Konfiguration (Einstellungen dieser Quelle)",
@@ -1685,7 +1684,6 @@
         "queryModeRadarHint": "Pro Sync eine fokussierte Rollengruppe, rotierend — das Aufkommen bleibt konstant, egal wie viele Stichwörter Ihr Radar hat.",
         "queryNext": "Suche {{rotation}}: {{keywords}}",
         "queryBatch": "Abfragen pro Sync",
-        "queryBatchHint": "1 ist der sichere Standard — jede zusätzliche Abfrage läuft sequenziell, mit jitteriger Pause dazwischen.",
         "needsSecret": "benötigt Geheimnis",
         "enabledAria": "Diese Quelle aktivieren oder pausieren (läuft bei Aktivierung im Takt)",
         "test": "Test",
@@ -1740,13 +1738,27 @@
         "planNextAt": "nächste ≈ {{time}}",
         "planInSynces": "in {{count}} Sync(s)",
         "planFullPass": "Vollständiger Durchlauf ≈ {{hours}} h · {{groups}} Gruppen · {{batch}}/Sync · Takt alle {{cadence}} Min.",
-        "planSlowHint": "Ein vollständiger Durchlauf dauert über einen Tag — erhöhen Sie die Abfragen pro Sync oder verkürzen Sie den Takt (Einstellungen → Automatisierungen)."
+        "planSlowHint": "Ein vollständiger Durchlauf dauert über einen Tag — erhöhen Sie die Abfragen pro Sync oder verkürzen Sie den Takt (Einstellungen → Automatisierungen).",
+        "healthFailing": "{{count}} fehlerhaft",
+        "healthDegraded": "{{count}} eingeschränkt",
+        "healthActive": "{{count}} aktiv",
+        "lastSync": "Letzter Sync {{date}}",
+        "actions": "Aktionen",
+        "addTitle": "Job-Quelle hinzufügen",
+        "editTitle": "{{key}} bearbeiten",
+        "backToConnectors": "Alle Konnektoren",
+        "builtin": "Eingebaut",
+        "needsSecretTile": "Braucht einen Schlüssel",
+        "radarCapable": "Radar-fähig",
+        "sealedNote": "Geheimnisse werden versiegelt gespeichert und nie zurückgespielt.",
+        "keyPlaceholder": "z. B. acme-board",
+        "keyTaken": "Dieser Schlüssel ist bereits vergeben."
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
         "hint": "Verbindungen aus git-Quellen importieren — jede Installation ist digest-pinned und zustimmungsbasiert; Updates werden nie automatisch angewendet. Lokale Dateipfad-Quellen sind nur für Dev/Test (genehmigte Root-Verzeichnisse).",
         "empty": "Noch keine erweiterten Quellen hinzugefügt.",
-        "add": "Quelle hinzufügen",
+        "add": "Aus Git installieren",
         "url": "https git URL",
         "localPath": "Lokaler Repositorium-Pfad (nur für Dev/Test)",
         "needUrlOrPath": "Geben Sie eine https-Git-URL oder einen lokalen Pfad an.",
@@ -1847,7 +1859,12 @@
       "origin": "von {{token}} · Anfrage {{request}}",
       "originUnknown": "Ursprungsquelle nicht verfügbar",
       "approve": "Genehmigen",
-      "reject": "Ablehnen"
+      "reject": "Ablehnen",
+      "tokensHint": "Tokens authentifizieren externe MCP-Clients — Schreib-Tools brauchen das Write-Scope.",
+      "toolsHint": "Der Live-Tool-Katalog, den der Assistant über MCP aufrufen kann.",
+      "searchTools": "Tools suchen…",
+      "noToolsMatch": "Keine Tools passen zu diesem Filter.",
+      "auditHint": "Letzte MCP-Tool-Aufrufe mit Ergebnis und Latenz."
     }
   },
   "onboarding": {
@@ -4113,6 +4130,22 @@
       "metric_dimension": "Metrikdimension",
       "assessment_template": "BewertungsVorlage",
       "cv_template": "CV-Vorlage"
+    },
+    "searchPlaceholder": "Basis oder Übersetzung suchen…",
+    "loadMore": "Weitere laden ({{count}})",
+    "truncated": "Die Liste ist lang — die ersten {{limit}} Zeilen werden angezeigt. Engere Filter erreichen den Rest.",
+    "batch": {
+      "approve_one": "{{count}} Übersetzung genehmigt.",
+      "approve_other": "{{count}} Übersetzungen genehmigt.",
+      "reject_one": "{{count}} Übersetzung abgelehnt.",
+      "reject_other": "{{count}} Übersetzungen abgelehnt.",
+      "rejectTitle": "{{count}} Übersetzungen ablehnen?",
+      "rejectBody": "Abgelehnte Übersetzungen werden nie gerendert und verlassen die Review-Liste. „Entwurf mit KI“ holt sie als neue Entwürfe zurück."
+    },
+    "field": {
+      "label": "Bezeichnung",
+      "description": "Beschreibung",
+      "short_description": "Kurzbeschreibung"
     }
   },
   "settingsKit": {

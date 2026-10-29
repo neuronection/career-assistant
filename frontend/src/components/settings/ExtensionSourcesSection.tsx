@@ -8,6 +8,7 @@ import type {
   ExtensionSourceView,
 } from "@/api/extensionSources";
 import { apiDetail } from "@/api/client";
+import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import {
   AddIntegrationSourceDialog,
   ConsentDialog,
@@ -270,14 +271,13 @@ export function ExtensionSourcesSection() {
   const mapped = useMemo(() => sources.map(mapSource), [sources]);
 
   return (
-    <div className="space-y-3" data-testid="extension-sources-block">
-      <h3 className="text-sm font-semibold">
-        {t("toolsSettings.connectors.extSources.title")}
-      </h3>
-      <p className="text-sm text-slate-500">
-        {t("toolsSettings.connectors.extSources.hint")}
-      </p>
-
+    <SettingsSectionCard
+      name="extension-sources"
+      title={t("toolsSettings.connectors.extSources.title")}
+      description={t("toolsSettings.connectors.extSources.hint")}
+      adminOnly
+    >
+      <div className="space-y-3" data-testid="extension-sources-block">
       <IntegrationSourcesList
         sources={mapped}
         busy={busy}
@@ -363,7 +363,7 @@ export function ExtensionSourcesSection() {
       <div className="flex flex-wrap gap-2">
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-1.5 text-sm font-medium text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
           onClick={() => setAddOpen(true)}
           data-testid="add-extension-source"
         >
@@ -371,7 +371,7 @@ export function ExtensionSourcesSection() {
         </button>
         <button
           type="button"
-          className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium hover:bg-slate-50"
+          className="inline-flex items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-1.5 text-sm font-medium text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
           onClick={() => bundleInputRef.current?.click()}
           data-testid="import-bundle"
         >
@@ -455,6 +455,7 @@ export function ExtensionSourcesSection() {
           closeLabel: t("toolsSettings.connectors.extSources.close"),
         }}
       />
-    </div>
+      </div>
+    </SettingsSectionCard>
   );
 }

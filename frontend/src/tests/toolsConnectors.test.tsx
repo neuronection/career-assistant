@@ -90,7 +90,7 @@ const catalog = [
       },
       required: ["provider", "org"],
     },
-    manifest: { id: "career-ats-api", capabilities: ["net", "sync"], supportsIncremental: true },
+    manifest: { id: "career-ats-api", capabilities: ["net", "sync"], supportsIncremental: true, docs: "connectors/ats" },
   },
 ];
 
@@ -204,6 +204,8 @@ describe("ConnectorsSection job sources", () => {
 
     const add = await screen.findByTestId("add-job-source");
     await userEvent.click(add);
+    await screen.findByTestId("source-tiles");
+    await userEvent.click(await screen.findByTestId("source-tile-ats_api"));
     const form = await screen.findByTestId("integration-config-form");
     expect(form).toBeTruthy();
     const secretInput = form.querySelector("input[type='password']");
@@ -220,6 +222,7 @@ describe("ConnectorsSection job sources", () => {
     renderSection();
 
     await userEvent.click(await screen.findByTestId("add-job-source"));
+    await userEvent.click(await screen.findByTestId("source-tile-ats_api"));
     const form = await screen.findByTestId("integration-config-form");
     await userEvent.type(form.querySelector("input[type='password']")!, "tok");
     await userEvent.click(screen.getByRole("button", { name: "Save source" }));
@@ -227,5 +230,43 @@ describe("ConnectorsSection job sources", () => {
     const payload = vi.mocked(sourcesApi.createSource).mock.calls[0]![0];
     expect(payload.secrets).toEqual({ api_token: "tok" });
     expect(JSON.stringify(payload.config)).not.toContain("tok");
+  });
+
+  it("shows a health strip (active count + failing badge) over the rows", async () => {
+    const withHealth = [
+      { ...sources[0], kind: "posting", last_status: "ok", paused_at: null },
+      {
+        ...sources[1],
+        id: "src-3",
+        key: "broken",
+        kind: "posting",
+        last_status: "failed",
+        paused_at: null,
+      },
+    ];
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(withHealth as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    renderSection();
+
+    expect(await screen.findByTestId("job-sources-count")).toBeInTheDocument();
+    expect(await screen.findByTestId("job-sources-failing")).toBeInTheDocument();
+  });
+
+  it("moves Sync/Docs/Query plan/Manage/Remove into the row overflow menu", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(
+      [{ ...sources[0], kind: "posting", last_status: "ok", paused_at: null }] as never
+    );
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await screen.findByTestId("integration-instance-src-1");
+    expect(screen.queryByTestId("manage-source-acme-board")).toBeNull();
+    await userEvent.click(await screen.findByTestId("source-actions-acme-board"));
+    expect(await screen.findByTestId("sync-source-acme-board")).toBeInTheDocument();
+    expect(screen.getByTestId("connector-docs-ats_api")).toBeInTheDocument();
+    expect(screen.getByTestId("query-plan-acme-board")).toBeInTheDocument();
+    expect(screen.getByTestId("manage-source-acme-board")).toBeInTheDocument();
+    expect(screen.getByTestId("remove-source-acme-board")).toBeInTheDocument();
   });
 });

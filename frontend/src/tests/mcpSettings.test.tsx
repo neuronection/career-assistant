@@ -16,6 +16,11 @@ const api = vi.hoisted(() => ({
   setMcpWriteEnabled: vi.fn(),
 }));
 
+const ai = vi.hoisted(() => ({
+  fetchWebSettings: vi.fn().mockResolvedValue({ github_token_set: false }),
+  updateWebSettings: vi.fn().mockResolvedValue({ github_token_set: false }),
+}));
+
 const proposalsApi = vi.hoisted(() => ({
   fetchProfileProposals: vi.fn(),
   approveProfileProposal: vi.fn(),
@@ -23,6 +28,7 @@ const proposalsApi = vi.hoisted(() => ({
 }));
 
 vi.mock("@/api/mcp", () => api);
+vi.mock("@/api/ai", () => ai);
 vi.mock("@/api/profileProposals", () => proposalsApi);
 
 const STATUS: McpStatus = {
@@ -121,15 +127,24 @@ beforeEach(() => {
 });
 
 describe("MCP server settings (plan 119.2/119.4)", () => {
-  it("renders the endpoint, live tools with scopes and recent calls", async () => {
+  it("renders the endpoint, live tools behind a searchable disclosure and recent calls", async () => {
+    const user = userEvent.setup();
     render(<McpServerSection />);
     expect(await screen.findByTestId("mcp-endpoint")).toHaveTextContent(
       "https://career.example/mcp"
     );
+    const toolsToggle = screen.getByTestId("settings-section-mcp-tools-toggle");
+    await user.click(toolsToggle);
     const tools = await screen.findByTestId("mcp-tool-list");
     expect(tools).toHaveTextContent("My applications");
     expect(tools).toHaveTextContent("read");
-    expect(screen.getByText("my_applications")).toBeInTheDocument();
+
+    await user.type(screen.getByTestId("mcp-tool-filter"), "applications");
+    expect(screen.getByTestId("mcp-tool-my_applications")).toBeInTheDocument();
+    expect(screen.queryByTestId("mcp-tool-search_postings")).toBeNull();
+
+    await user.click(screen.getByTestId("settings-section-mcp-audit-toggle"));
+    expect(await screen.findByText("my_applications")).toBeInTheDocument();
     expect(screen.getByText("ok")).toBeInTheDocument();
   });
 
@@ -189,11 +204,27 @@ describe("MCP server settings (plan 119.2/119.4)", () => {
     const user = userEvent.setup();
     render(<McpServerSection />);
     await screen.findByTestId("mcp-endpoint");
+    await user.click(screen.getByText("Client setup"));
     expect(await screen.findByTestId("mcp-snippet")).toHaveTextContent("mcp-remote");
     await user.click(screen.getByText("Generic HTTP"));
     await waitFor(() =>
       expect(screen.getByTestId("mcp-snippet")).toHaveTextContent("streamable-http")
     );
     expect(screen.getByTestId("mcp-snippet")).toHaveTextContent("YOUR_MCP_TOKEN");
+  });
+
+  it("folds the chat-tools GitHub credential into a disclosure and saves it", async () => {
+    const user = userEvent.setup();
+    render(<McpServerSection />);
+    await screen.findByTestId("mcp-endpoint");
+    await user.click(screen.getByText("MCP connectors"));
+    const input = await screen.findByTestId("github-token-input");
+    await user.type(input, "gh_pat_123");
+    await user.click(screen.getByTestId("save-github-token"));
+    await waitFor(() =>
+      expect(ai.updateWebSettings).toHaveBeenCalledWith({
+        github_token: "gh_pat_123",
+      })
+    );
   });
 });

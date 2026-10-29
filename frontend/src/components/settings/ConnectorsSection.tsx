@@ -1,126 +1,45 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Loader2, RefreshCw, Save, Trash2 } from "lucide-react";
+import { BookOpen, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import * as aiApi from "@/api/ai";
-import type { WebSettings } from "@/api/ai";
-import * as sourcesApi from "@/api/sources";
-import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
-import { apiDetail } from "@/api/client";
-import { Button } from "@/components/ui";
 import {
-  IntegrationConfigForm,
-  IntegrationInstancesList,
-  parseIntegrationConfigSchema,
-} from "@/components/ui/integrations";
-import { ConfirmationModal } from "@/components/ui";
-import type {
-  IntegrationConfigSchema,
-  IntegrationConfigValues,
-  IntegrationExtensionGroupView,
-} from "@/components/ui/integrations";
+  Badge,
+  Button,
+  ConfirmationModal,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
+} from "@/components/ui";import { IntegrationInstancesList } from "@/components/ui/integrations";
+import type { IntegrationExtensionGroupView } from "@/components/ui/integrations";
 import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { McpServerSection } from "@/components/settings/McpServerSection";
+import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
+import * as sourcesApi from "@/api/sources";
+import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
+import { apiDetail } from "@/api/client";
 
 /**
- * Tools → connectors (ADR-0033, domain tools.connectors — broadened by
- * plan 32 Phase 1 to job-source connectors): external-service credentials
- * for the chat tools (MCP GitHub token) AND posting-source connector
- * instances. Plan 33 Phase B: the rows render through the family kit
- * (IntegrationInstancesList — probe/sync stay app-owned domain actions)
- * and the catalog-driven form is IntegrationConfigForm (sealed x-secret
- * slots, never echoed; values out, the host validates at save).
+ * Tools → connectors (ADR-0033 domain tools.connectors): MCP server +
+ * chat-tools credentials, posting-source connector instances and Git
+ * extension sources (plan 148 phase 2). Source rows follow the family
+ * provider-card grammar — status + enable toggle on the row, Test as the
+ * primary action, everything else in the ⋯ overflow; add-source is a
+ * catalog-tiles wizard in a modal.
  */
 
-type SourceDraft = {
-  id: string | null;
-  key: string;
-  connector_key: string;
-  config: IntegrationConfigValues;
-  query_mode: string;
-  query_batch_size: number;
-};
+function sourceStatus(source: PostingSource) {
+  if (source.last_status === "failed") return "failing" as const;
+  if (source.last_status === "degraded") return "degraded" as const;
+  if (source.error) return "failing" as const;
+  return "ok" as const;
+}
 
 export function ConnectorsSection() {
-  const { t } = useTranslation();
-  const [settings, setSettings] = useState<WebSettings | null>(null);
-  const [githubToken, setGithubToken] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [savedNote, setSavedNote] = useState("");
-
-  useEffect(() => {
-    aiApi
-      .fetchWebSettings()
-      .then(setSettings)
-      .catch((err) => setError(apiDetail(err)));
-  }, []);
-
-  const save = async (payload: { github_token?: string }) => {
-    setBusy(true);
-    setError("");
-    setSavedNote("");
-    try {
-      const data = await aiApi.updateWebSettings(payload);
-      setSettings(data);
-      setGithubToken("");
-      setSavedNote(t("toolsSettings.connectors.saved"));
-    } catch (err) {
-      setError(apiDetail(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!settings && !error) return null;
-
   return (
-    <div className="space-y-8" data-testid="connectors-section">
-      <div className="space-y-3" data-testid="github-token-field">
-        <h3 className="text-sm font-semibold">{t("toolsSettings.connectors.mcpTitle")}</h3>
-        <p className="text-sm text-slate-500">{t("toolsSettings.connectors.mcpHint")}</p>
-        <div className="space-y-1">
-          <label className="text-sm font-medium" htmlFor="github-token">
-            {t("toolsSettings.connectors.githubToken")}{" "}
-            {settings?.github_token_set
-              ? `(${t("toolsSettings.connectors.tokenSet")})`
-              : `(${t("toolsSettings.connectors.tokenOptional")})`}
-          </label>
-          <input
-            id="github-token"
-            data-testid="github-token-input"
-            type="password"
-            value={githubToken}
-            onChange={(e) => setGithubToken(e.target.value)}
-            placeholder={t("toolsSettings.connectors.sources.githubTokenPlaceholder")}
-            autoComplete="off"
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-          />
-        </div>
-        <Button
-          size="sm"
-          disabled={busy || githubToken.length === 0}
-          data-testid="save-github-token"
-          onClick={() => void save({ github_token: githubToken })}
-        >
-          <Save className="w-4 h-4" />
-          {t("toolsSettings.connectors.saveToken")}
-        </Button>
-      </div>
-
-      {savedNote ? (
-        <p className="text-xs text-emerald-600" data-testid="connectors-saved-note">
-          {savedNote}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="text-xs text-red-600" data-testid="connectors-error">
-          {error}
-        </p>
-      ) : null}
-
+    <div className="space-y-5" data-testid="connectors-section">
       <McpServerSection />
       <JobSourceConnectors />
       <ExtensionSourcesSection />
@@ -132,17 +51,9 @@ function JobSourceConnectors() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
-  useEffect(() => {
-    const onChange = () => {
-      void refresh();
-    };
-    window.addEventListener("ca:job-sources-changed", onChange);
-    return () => window.removeEventListener("ca:job-sources-changed", onChange);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
-  const [draft, setDraft] = useState<SourceDraft | null>(null);
+  const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<string | null>(null);
@@ -160,23 +71,35 @@ function JobSourceConnectors() {
   }, []);
 
   useEffect(() => {
+    const onChange = () => {
+      void refresh();
+    };
+    window.addEventListener("ca:job-sources-changed", onChange);
+    return () => window.removeEventListener("ca:job-sources-changed", onChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     void refresh();
     sourcesApi.fetchConnectorCatalog().then(setCatalog).catch(() => setCatalog([]));
   }, [refresh]);
 
   const catalogByKey = useMemo(
     () => Object.fromEntries(catalog.map((entry) => [entry.key, entry])),
-    [catalog],
+    [catalog]
   );
 
-  const save = async (form: SourceDraft, secrets: Record<string, string>) => {
+  const save = async (form: SourceWizardDraft, secrets: Record<string, string>) => {
     setBusy(true);
     setNotice("");
     try {
       const values = Object.fromEntries(
         Object.entries(form.config)
           .filter(([, value]) => value !== null && value !== undefined && value !== "")
-          .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+          .map(([key, value]) => [
+            key,
+            Array.isArray(value) ? value.join(",") : value,
+          ])
       ) as Record<string, string | number | boolean>;
       const managedSource = form.id
         ? sources.find((row) => row.id === form.id && row.managed)
@@ -192,23 +115,22 @@ function JobSourceConnectors() {
             options: JSON.stringify(values),
           }
         : values;
-      const payload = {
-        key: form.key.trim(),
-        connector_key: form.connector_key,
-        config,
-        query_mode: form.query_mode,
-        query_batch_size: form.query_batch_size,
-        secrets,
-      };
       if (form.id) {
         await sourcesApi.updateSource(form.id, {
-          config: payload.config,
+          config,
           query_mode: form.query_mode,
           query_batch_size: form.query_batch_size,
           secrets,
         });
       } else {
-        await sourcesApi.createSource(payload);
+        await sourcesApi.createSource({
+          key: form.key.trim(),
+          connector_key: form.connector_key,
+          config,
+          query_mode: form.query_mode,
+          query_batch_size: form.query_batch_size,
+          secrets,
+        });
       }
       setDraft(null);
       await refresh();
@@ -263,13 +185,6 @@ function JobSourceConnectors() {
     }
   };
 
-  const sourceStatus = (source: PostingSource) => {
-    if (source.last_status === "failed") return "failing" as const;
-    if (source.last_status === "degraded") return "degraded" as const;
-    if (source.error) return "failing" as const;
-    return "ok" as const;
-  };
-
   const groups = useMemo<IntegrationExtensionGroupView[]>(() => {
     const kinds = ["posting", "market", "university", "search", "webhook_in"];
     return kinds
@@ -287,7 +202,8 @@ function JobSourceConnectors() {
             .map((source) => {
               const connector = catalogByKey[source.connector_key];
               const needsSecret = Object.entries(source.secret_hints).some(
-                ([slot, hint]) => connector?.secret_fields.includes(slot) && !hint.set,
+                ([slot, hint]) =>
+                  connector?.secret_fields.includes(slot) && !hint.set
               );
               return {
                 id: source.id,
@@ -304,7 +220,7 @@ function JobSourceConnectors() {
                 update: null,
               };
             }),
-        }),
+        })
       )
       .filter((group) => group.instances.length > 0);
   }, [sources, catalogByKey, t]);
@@ -312,20 +228,10 @@ function JobSourceConnectors() {
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
   const managedSchema = draftSource?.managed ? draftSource.tool_config_schema : null;
-  const draftFields = useMemo(() => {
-    const fields = managedSchema
-      ? parseIntegrationConfigSchema(managedSchema as IntegrationConfigSchema)
-      : draftEntry
-        ? parseIntegrationConfigSchema(draftEntry.config_schema as IntegrationConfigSchema)
-        : [];
-    if (draft?.query_mode !== "radar") return fields;
-    return fields.map((field) =>
-      field.name === "keywords" || field.name === "location"
-        ? { ...field, required: false }
-        : field,
-    );
-  }, [draft, draftEntry, managedSchema]);
-
+  const radarCapable =
+    draftEntry?.capabilities?.dynamic_queries === true ||
+    draft?.query_mode === "radar" ||
+    Boolean(draftSource?.query_mode === "radar");
   const draftSecretSlots = useMemo(() => {
     if (!draft?.id) return {};
     const source = sources.find((row) => row.id === draft.id);
@@ -334,298 +240,293 @@ function JobSourceConnectors() {
       Object.entries(source.secret_hints).map(([slot, hint]) => [
         slot,
         { set: hint.set, hint: hint.hint ?? null },
-      ]),
+      ])
     );
   }, [draft, sources]);
+  const queryInfoNote = useMemo(() => {
+    const existing = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
+    const info = existing?.query_info;
+    if (!info?.keywords) return "";
+    return `${t("toolsSettings.connectors.sources.queryModeRadarHint")} ${t(
+      "toolsSettings.connectors.sources.queryNext",
+      { rotation: info.rotation, keywords: info.keywords }
+    )}`;
+  }, [draft?.id, sources, t]);
+
+  const failing = sources.filter((s) => sourceStatus(s) === "failing").length;
+  const degraded = sources.filter((s) => sourceStatus(s) === "degraded").length;
+  const active = sources.filter((s) => s.enabled && !s.paused_at).length;
+  const lastSync = sources
+    .map((s) => s.last_run_at)
+    .filter((run): run is string => Boolean(run))
+    .sort()
+    .slice(-1)[0];
 
   return (
-    <div className="space-y-3" data-testid="job-sources-block">
-      <h3 className="text-sm font-semibold">{t("toolsSettings.connectors.sources.title")}</h3>
-      <p className="text-sm text-slate-500">{t("toolsSettings.connectors.sources.hint")}</p>
-
-      <IntegrationInstancesList
-        groups={groups}
-        busy={busy || probingId !== null}
-        labels={{
-          emptyLabel: t("toolsSettings.connectors.sources.empty"),
-          enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
-          configureLabel: t("toolsSettings.connectors.sources.edit"),
-          lastSuccessLabel: t("toolsSettings.connectors.sources.lastSuccess"),
-          statusLabels: {
-            ok: t("toolsSettings.connectors.sources.statusOk"),
-            degraded: t("toolsSettings.connectors.sources.statusDegraded"),
-            failing: t("toolsSettings.connectors.sources.statusFailing"),
-          },
-          conditionLabels: {
-            "needs-config": t("toolsSettings.connectors.sources.needsConfig"),
-            "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
-          },
-        }}
-        onToggleEnabled={(instance, next) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (source) {
-            void (async () => {
-              setBusy(true);
-              try {
-                await sourcesApi.updateSource(
-                  source.id,
-                  next ? { enabled: true, paused: false } : { paused: true },
-                );
-                await refresh();
-              } catch (err) {
-                setNotice(apiDetail(err));
-              } finally {
-                setBusy(false);
-              }
-            })();
-          }
-        }}
-        renderInstanceActions={(instance) => {
-          const source = sources.find((row) => row.id === instance.id);
-          if (!source) return null;
-          const result = probes[source.id];
-          return (
-            <span className="flex flex-wrap items-center gap-2">
-              {result ? (
-                <span
-                  className={
-                    result.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"
-                  }
-                  data-testid={`job-source-probe-${source.key}`}
-                >
-                  {result.ok
-                    ? t("toolsSettings.connectors.sources.probeOk", {
-                        items: result.items ?? 0,
-                        latency: result.latency_ms ?? 0,
-                      })
-                    : t("toolsSettings.connectors.sources.probeError", {
-                        code: result.error?.code ?? "error",
-                        detail: result.error?.detail ?? "",
-                      })}
-                </span>
+    <div className="space-y-4" data-testid="job-sources-block">
+      <section
+        className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4 sm:p-5"
+        data-testid="settings-section-job-sources"
+        aria-labelledby="settings-section-job-sources-title"
+      >
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2
+                id="settings-section-job-sources-title"
+                className="text-sm font-semibold text-[var(--as-fg)]"
+              >
+                {t("toolsSettings.connectors.sources.title")}
+              </h2>
+              {failing > 0 ? (
+                <Badge variant="danger" data-testid="job-sources-failing">
+                  {t("toolsSettings.connectors.sources.healthFailing", { count: failing })}
+                </Badge>
               ) : null}
-              {(source.kind || "posting") === "posting" ? (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={probingId === source.id}
-                    onClick={() => void probe(source)}
-                  >
-                    {probingId === source.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : null}
-                    {t("toolsSettings.connectors.sources.test")}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={busy}
-                    onClick={() => void sync(source)}
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    {t("toolsSettings.connectors.sources.sync")}
-                  </Button>
-                </>
-              ) : null}
-              {catalogByKey[source.connector_key]?.manifest?.docs ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  data-testid={`connector-docs-${source.connector_key}`}
-                  onClick={() => setDocsKey(source.connector_key)}
-                >
-                  <BookOpen className="w-4 h-4" />
-                  {t("toolsSettings.connectors.docs.open", "Docs")}
-                </Button>
-              ) : null}
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid={`query-plan-${source.key}`}
-                onClick={() => setPlanTarget(source.id)}
-              >
-                {t("toolsSettings.connectors.sources.plan")}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                data-testid={`manage-source-${source.key}`}
-                onClick={() =>
-                  navigate(`/sources/${source.id}`, {
-                    state: { from: `${location.pathname}${location.search}` },
-                  })
-                }
-              >
-                {t("toolsSettings.connectors.sources.manage")}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                disabled={busy}
-                aria-label={`${t("toolsSettings.connectors.sources.remove")}: ${source.key}`}
-                data-testid={`remove-source-${source.key}`}
-                onClick={() => setRemoveTarget(source)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </span>
-          );
-        }}
-      />
-
-      <ConfirmationModal
-        open={removeTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setRemoveTarget(null);
-        }}
-        title={t("toolsSettings.connectors.sources.removeTitle", {
-          key: removeTarget?.key ?? "",
-        })}
-        description={t("toolsSettings.connectors.sources.removeBody", {
-          count: removeTarget?.posting_count ?? 0,
-        })}
-        confirmLabel={t("toolsSettings.connectors.sources.removeConfirm")}
-        destructive
-        busy={busy}
-        onConfirm={() => {
-          if (removeTarget) void removeSource(removeTarget);
-        }}
-      />
-
-      {docsKey !== null ? (
-        <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
-      ) : null}
-      {planTarget !== null ? (
-        <QueryPlanDialog sourceId={planTarget} onClose={() => setPlanTarget(null)} />
-      ) : null}
-
-      {draft === null ? (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setDraft({
-              id: null,
-              key: "",
-              connector_key: catalog[0]?.key ?? "",
-              config: {},
-              query_mode: "static",
-              query_batch_size: 1,
-            })
-          }
-          data-testid="add-job-source"
-        >
-          {t("toolsSettings.connectors.sources.add")}
-        </Button>
-      ) : (
-        <div
-          className="space-y-2 rounded-md border border-slate-300 p-3"
-          data-testid="job-source-form"
-        >
-          <div className="flex flex-wrap gap-2">
-            <select
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm sm:w-auto"
-              value={draft.connector_key}
-              disabled={draft.id !== null}
-              aria-label={t("toolsSettings.connectors.sources.connector")}
-              onChange={(event) =>
-                setDraft({ ...draft, connector_key: event.target.value, config: {} })
-              }
-            >
-              {catalog.map((connector) => (
-                <option key={connector.key} value={connector.key}>
-                  {connector.title}
-                </option>
-              ))}
-            </select>
-            <input
-              className="w-full flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-              placeholder={t("toolsSettings.connectors.sources.key")}
-              value={draft.key}
-              disabled={draft.id !== null}
-              onChange={(event) => setDraft({ ...draft, key: event.target.value })}
-            />
-          </div>
-          {catalogByKey[draft.connector_key]?.capabilities?.dynamic_queries ||
-          draft.query_mode === "radar" ? (
-            <div className="space-y-1">
-              <label className="block text-sm" htmlFor="job-source-query-mode">
-                {t("toolsSettings.connectors.sources.queryMode")}
-              </label>
-              <select
-                id="job-source-query-mode"
-                className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
-                value={draft.query_mode}
-                onChange={(event) => setDraft({ ...draft, query_mode: event.target.value })}
-              >
-                <option value="static">
-                  {t("toolsSettings.connectors.sources.queryModeStatic")}
-                </option>
-                <option value="radar">
-                  {t("toolsSettings.connectors.sources.queryModeRadar")}
-                </option>
-              </select>
-              {draft.query_mode === "radar" ? (
-                <>
-                  <p className="text-xs text-slate-600" data-testid="job-source-query-info">
-                    {t("toolsSettings.connectors.sources.queryModeRadarHint")}
-                    {(() => {
-                      const existing = sources.find((row) => row.id === draft.id);
-                      const info = existing?.query_info;
-                      return info?.keywords
-                        ? ` ${t("toolsSettings.connectors.sources.queryNext", {
-                            rotation: info.rotation,
-                            keywords: info.keywords,
-                          })}`
-                        : "";
-                    })()}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <label className="text-sm" htmlFor="job-source-batch">
-                      {t("toolsSettings.connectors.sources.queryBatch")}
-                    </label>
-                    <select
-                      id="job-source-batch"
-                      className="rounded-md border border-slate-300 px-2 py-1 text-sm"
-                      value={draft.query_batch_size}
-                      aria-label={t("toolsSettings.connectors.sources.queryBatch")}
-                      onChange={(event) =>
-                        setDraft({ ...draft, query_batch_size: Number(event.target.value) })
-                      }
-                    >
-                      <option value={1}>1</option>
-                      <option value={2}>2</option>
-                      <option value={3}>3</option>
-                    </select>
-                    <span className="text-xs text-slate-600">
-                      {t("toolsSettings.connectors.sources.queryBatchHint")}
-                    </span>
-                  </div>
-                </>
+              {degraded > 0 ? (
+                <Badge variant="warning">
+                  {t("toolsSettings.connectors.sources.healthDegraded", { count: degraded })}
+                </Badge>
               ) : null}
             </div>
-          ) : null}
-          <IntegrationConfigForm
-            fields={draftFields}
-            values={draft.config}
-            onValuesChange={(values) => setDraft({ ...draft, config: values })}
-            onSave={({ secrets }) => void save(draft, secrets)}
-            busy={busy}
-            error={notice || null}
-            secretSlots={draftSecretSlots}
-            conditions={[]}
+            <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+              {t("toolsSettings.connectors.sources.hint")}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="flex items-center gap-1.5 text-xs text-[var(--as-muted-fg)]">
+              <Badge variant="secondary" data-testid="job-sources-count">
+                {t("toolsSettings.connectors.sources.healthActive", { count: active })}
+              </Badge>
+              {lastSync
+                ? t("toolsSettings.connectors.sources.lastSync", {
+                    date: new Date(lastSync).toLocaleString(),
+                  })
+                : null}
+            </span>
+            <Button
+              size="sm"
+              onClick={() =>
+                setDraft({
+                  id: null,
+                  key: "",
+                  connector_key: "",
+                  config: {},
+                  query_mode: "static",
+                  query_batch_size: 1,
+                })
+              }
+              data-testid="add-job-source"
+            >
+              <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.sources.add")}
+            </Button>
+          </div>
+        </div>
+
+        <div className="mt-3">
+          <IntegrationInstancesList
+            groups={groups}
+            busy={busy || probingId !== null}
             labels={{
-              submitLabel: t("toolsSettings.connectors.sources.save"),
-              cancelLabel: t("toolsSettings.connectors.sources.cancel"),
-              secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),
-              secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
-              enumPlaceholder: t("toolsSettings.connectors.sources.select"),
+              emptyLabel: t("toolsSettings.connectors.sources.empty"),
+              enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
+              configureLabel: t("toolsSettings.connectors.sources.edit"),
+              lastSuccessLabel: t("toolsSettings.connectors.sources.lastSuccess"),
+              statusLabels: {
+                ok: t("toolsSettings.connectors.sources.statusOk"),
+                degraded: t("toolsSettings.connectors.sources.statusDegraded"),
+                failing: t("toolsSettings.connectors.sources.statusFailing"),
+              },
+              conditionLabels: {
+                "needs-config": t("toolsSettings.connectors.sources.needsConfig"),
+                "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
+              },
             }}
-            onCancel={() => setDraft(null)}
+            onToggleEnabled={(instance, next) => {
+              const source = sources.find((row) => row.id === instance.id);
+              if (source) {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    await sourcesApi.updateSource(
+                      source.id,
+                      next ? { enabled: true, paused: false } : { paused: true }
+                    );
+                    await refresh();
+                  } catch (err) {
+                    setNotice(apiDetail(err));
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }
+            }}
+            renderInstanceActions={(instance) => {
+              const source = sources.find((row) => row.id === instance.id);
+              if (!source) return null;
+              const result = probes[source.id];
+              const connector = catalogByKey[source.connector_key];
+              const isPosting = (source.kind || "posting") === "posting";
+              return (
+                <span className="flex flex-wrap items-center justify-end gap-1.5">
+                  {result ? (
+                    <span
+                      className={
+                        result.ok
+                          ? "text-xs text-emerald-600"
+                          : "text-xs text-amber-600"
+                      }
+                      data-testid={`job-source-probe-${source.key}`}
+                    >
+                      {result.ok
+                        ? t("toolsSettings.connectors.sources.probeOk", {
+                            items: result.items ?? 0,
+                            latency: result.latency_ms ?? 0,
+                          })
+                        : t("toolsSettings.connectors.sources.probeError", {
+                            code: result.error?.code ?? "error",
+                            detail: result.error?.detail ?? "",
+                          })}
+                    </span>
+                  ) : null}
+                  {isPosting ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={probingId === source.id}
+                      onClick={() => void probe(source)}
+                    >
+                      {probingId === source.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Radar className="h-3.5 w-3.5" />
+                      )}
+                      {t("toolsSettings.connectors.sources.test")}
+                    </Button>
+                  ) : null}
+                  <Menu>
+                    <MenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`${t("toolsSettings.connectors.sources.actions")}: ${source.key}`}
+                        data-testid={`source-actions-${source.key}`}
+                      >
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </MenuTrigger>
+                    <MenuContent align="end">
+                      {isPosting ? (
+                        <MenuItem
+                          data-testid={`sync-source-${source.key}`}
+                          disabled={busy}
+                          onSelect={() => void sync(source)}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5" />
+                          {t("toolsSettings.connectors.sources.sync")}
+                        </MenuItem>
+                      ) : null}
+                      {connector?.manifest?.docs ? (
+                        <MenuItem
+                          data-testid={`connector-docs-${source.connector_key}`}
+                          onSelect={() => setDocsKey(source.connector_key)}
+                        >
+                          <BookOpen className="h-3.5 w-3.5" />
+                          {t("toolsSettings.connectors.docs.open", "Docs")}
+                        </MenuItem>
+                      ) : null}
+                      <MenuItem
+                        data-testid={`query-plan-${source.key}`}
+                        onSelect={() => setPlanTarget(source.id)}
+                      >
+                        {t("toolsSettings.connectors.sources.plan")}
+                      </MenuItem>
+                      <MenuItem
+                        data-testid={`manage-source-${source.key}`}
+                        onSelect={() =>
+                          navigate(`/sources/${source.id}`, {
+                            state: {
+                              from: `${location.pathname}${location.search}`,
+                            },
+                          })
+                        }
+                      >
+                        {t("toolsSettings.connectors.sources.manage")}
+                      </MenuItem>
+                      <MenuItem
+                        data-testid={`remove-source-${source.key}`}
+                        disabled={busy}
+                        onSelect={() => setRemoveTarget(source)}
+                      >
+                        {t("toolsSettings.connectors.sources.remove")}
+                      </MenuItem>
+                    </MenuContent>
+                  </Menu>
+                </span>
+              );
+            }}
           />
         </div>
-      )}
+
+        {notice ? (
+          <p
+            className="mt-2 rounded-lg bg-[var(--as-muted)] px-2.5 py-1.5 text-xs text-[var(--as-fg)]"
+            data-testid="job-sources-notice"
+          >
+            {notice}
+          </p>
+        ) : null}
+
+        <ConfirmationModal
+          open={removeTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setRemoveTarget(null);
+          }}
+          title={t("toolsSettings.connectors.sources.removeTitle", {
+            key: removeTarget?.key ?? "",
+          })}
+          description={t("toolsSettings.connectors.sources.removeBody", {
+            count: removeTarget?.posting_count ?? 0,
+          })}
+          confirmLabel={t("toolsSettings.connectors.sources.removeConfirm")}
+          destructive
+          busy={busy}
+          onConfirm={() => {
+            if (removeTarget) void removeSource(removeTarget);
+          }}
+        />
+
+        {docsKey !== null ? (
+          <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
+        ) : null}
+        {planTarget !== null ? (
+          <QueryPlanDialog sourceId={planTarget} onClose={() => setPlanTarget(null)} />
+        ) : null}
+
+        {draft !== null ? (
+          <div className="mt-3">
+            <AddSourceWizard
+              catalog={catalog}
+              existingKeys={sources.map((row) => row.key)}
+              busy={busy}
+              error={notice || null}
+              secretSlots={draftSecretSlots}
+              managedSchema={managedSchema as never}
+              radarCapable={radarCapable}
+              queryInfoNote={queryInfoNote}
+              draft={draft}
+              onPick={(connector) =>
+                setDraft({ ...draft, connector_key: connector.key, config: {} })
+              }
+              onBack={() => setDraft({ ...draft, connector_key: "", config: {} })}
+              onDraftChange={setDraft}
+              onSave={(secrets) => void save(draft, secrets)}
+              onCancel={() => setDraft(null)}
+              onDocs={(key) => setDocsKey(key)}
+            />
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

@@ -264,7 +264,7 @@ describe("ExtensionSourcesSection (kit surfaces)", () => {
       screen.getByLabelText("Tag pattern / branch / commit sha"),
       "v*",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Install from Git" }));
     await waitFor(() => expect(mocked.addExtensionSource).toHaveBeenCalled());
     const payload = mocked.addExtensionSource.mock.calls[0]![0];
     expect(payload.descriptor).toEqual({

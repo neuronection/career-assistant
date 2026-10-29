@@ -150,11 +150,19 @@ function renderSection() {
 }
 
 describe("connector docs affordance", () => {
+  const openMenu = async (key: string) => {
+    const { userEvent } = await import("@testing-library/user-event");
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId(`source-actions-${key}`));
+    return user;
+  };
+
   it("shows the Docs action only for connectors whose manifest carries the pointer", async () => {
     vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
     renderSection();
 
+    await openMenu("board");
     expect(await screen.findByTestId("connector-docs-arbeitnow")).toBeTruthy();
     expect(screen.queryByTestId("connector-docs-csv")).toBeNull();
   });
@@ -172,16 +180,16 @@ describe("connector docs affordance", () => {
         return { markdown: "# Overview\n\nLanding body.", tree: TREE };
       },
     );
-    const { userEvent } = await import("@testing-library/user-event");
     renderSection();
+    const user = await openMenu("board");
 
-    await userEvent.click(await screen.findByTestId("connector-docs-arbeitnow"));
+    await user.click(await screen.findByTestId("connector-docs-arbeitnow"));
     await waitFor(() => {
       expect(screen.getAllByText("Landing body.").length).toBeGreaterThan(0);
     });
     expect(sourcesApi.fetchConnectorDocs).toHaveBeenCalledWith("arbeitnow");
 
-    await userEvent.click(screen.getAllByText("Running it")[0]);
+    await user.click(screen.getAllByText("Running it")[0]);
     await waitFor(() => {
       expect(sourcesApi.fetchConnectorDocs).toHaveBeenCalledWith("arbeitnow", "usage.md");
     });
@@ -199,10 +207,10 @@ describe("connector docs affordance", () => {
       markdown: "# Overview\n\nLanding body.",
       tree: TREE,
     });
-    const { userEvent } = await import("@testing-library/user-event");
     renderSection();
+    const user = await openMenu("board");
 
-    await userEvent.click(await screen.findByTestId("connector-docs-arbeitnow"));
+    await user.click(await screen.findByTestId("connector-docs-arbeitnow"));
     await waitFor(() => {
       expect(screen.getByTestId("connector-docs-audience").textContent).toBe(
         "For users",

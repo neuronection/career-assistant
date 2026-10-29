@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Check, Copy, KeyRound, Loader2, Plus, RefreshCw, RotateCw, Trash2 } from "lucide-react";
+import {
+  Bot,
+  Check,
+  Copy,
+  KeyRound,
+  Loader2,
+  Plus,
+  RefreshCw,
+  RotateCw,
+  Save,
+  ScrollText,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 import * as mcpApi from "@/api/mcp";
+import * as aiApi from "@/api/ai";
 import type { McpAuditRow, McpStatus, McpTokenMinted, McpTokenView } from "@/api/mcp";
 import { apiDetail } from "@/api/client";
 import {
@@ -10,9 +24,11 @@ import {
   fetchProfileProposals,
   rejectProfileProposal,
 } from "@/api/profileProposals";
-import { Button } from "@/components/ui";
+import { Badge, Button } from "@/components/ui";
+import { Input } from "@neuronection/assistant-ui";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { SegmentedTabs } from "@/components/ui";
+import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import { copyText } from "@/lib/clipboard";
 import type { ProfileProposalCardData } from "@/types";
 
@@ -55,12 +71,11 @@ function errorText(error: unknown, fallback: string): string {
   return apiDetail(error) || fallback;
 }
 
-/** Settings → Tools → Connectors → MCP server (plan 119.2).
- *
- * The instance MCP endpoint, its token lifecycle (mint shown once,
- * rotate, revoke), copy-ready client snippets, the live registry
- * projection with scopes, the admin write switch and the recent-call
- * audit. MCP-originated approval cards render here with their origin. */
+/** Settings → Tools → connectors → MCP server (plan 119.2, plan 148
+ * phase 2). Section cards: the endpoint hero with the write switch and
+ * the chat-tools credentials + client-setup disclosures, the token
+ * lifecycle, the live tool catalog collapsed behind a searchable
+ * disclosure, MCP-originated approval cards and the recent-call audit. */
 export function McpServerSection() {
   const { t } = useTranslation();
   const [status, setStatus] = useState<McpStatus | null>(null);
@@ -74,6 +89,9 @@ export function McpServerSection() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
+  const [toolFilter, setToolFilter] = useState("");
+  const [githubToken, setGithubToken] = useState("");
+  const [githubSet, setGithubSet] = useState<boolean | null>(null);
   // i18n `t` is not referentially stable in every host (test harnesses and
   // locale switches recreate it) — read it through a ref so `reload` stays
   // stable and the mount effect cannot loop.
@@ -104,6 +122,10 @@ export function McpServerSection() {
 
   useEffect(() => {
     void reload();
+    aiApi
+      .fetchWebSettings()
+      .then((settings) => setGithubSet(settings.github_token_set))
+      .catch(() => setGithubSet(null));
   }, [reload]);
 
   const secretShown = useMemo(() => minted?.token ?? TOKEN_PLACEHOLDER, [minted]);
@@ -172,100 +194,224 @@ export function McpServerSection() {
       await reload();
     });
 
+  const saveGithubToken = async () => {
+    await run("github", async () => {
+      const data = await aiApi.updateWebSettings({ github_token: githubToken });
+      setGithubSet(data.github_token_set);
+      setGithubToken("");
+    });
+  };
+
+  const filteredTools = useMemo(() => {
+    const needle = toolFilter.trim().toLowerCase();
+    const tools = status?.tools ?? [];
+    if (!needle) return tools;
+    return tools.filter(
+      (tool) =>
+        tool.title.toLowerCase().includes(needle) ||
+        tool.key.toLowerCase().includes(needle) ||
+        tool.description.toLowerCase().includes(needle)
+    );
+  }, [status?.tools, toolFilter]);
+
   if (!status) {
     return error ? (
-      <p className="text-xs text-red-600" data-testid="mcp-error">
+      <p className="text-xs text-[var(--as-danger)]" data-testid="mcp-error">
         {error}
       </p>
     ) : null;
   }
 
   return (
-    <div className="space-y-6" data-testid="mcp-server-section">
-      <div>
-        <h3 className="text-sm font-semibold">{t("toolsSettings.mcp.title")}</h3>
-        <p className="text-sm text-slate-500">{t("toolsSettings.mcp.hint")}</p>
-      </div>
-
-      <div className="space-y-2 rounded-md border border-slate-200 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-medium">{t("toolsSettings.mcp.endpoint")}</span>
-          <span className="text-[11px] text-slate-500">{status.transport}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <code
-            className="min-w-0 flex-1 truncate rounded bg-slate-50 px-2 py-1 text-xs"
-            data-testid="mcp-endpoint"
-          >
-            {status.endpoint}
-          </code>
-          <Button
-            size="sm"
-            variant="outline"
-            data-testid="mcp-copy-endpoint"
-            onClick={() => void copy("endpoint", status.endpoint)}
-          >
-            {copied === "endpoint" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {t("toolsSettings.mcp.copy")}
-          </Button>
-        </div>
-        <SwitchRow
-          label={t("toolsSettings.mcp.writeTitle")}
-          checked={status.write_enabled}
-          disabled={busy === "write"}
-          currentValue={t(
-            status.write_enabled
-              ? "toolsSettings.mcp.writeOn"
-              : "toolsSettings.mcp.writeOff"
-          )}
-          onCheckedChange={(next) => void toggleWrite(next)}
-          data-testid="mcp-write-toggle"
-        />
-      </div>
-
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {t("toolsSettings.mcp.tokensTitle")}
-        </h4>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="flex-1 space-y-1 text-xs">
-            <span className="font-medium">{t("toolsSettings.mcp.tokenLabel")}</span>
-            <input
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder={t("toolsSettings.mcp.tokenLabelPlaceholder")}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              data-testid="mcp-token-label"
+    <div className="space-y-4" data-testid="mcp-server-section">
+      <SettingsSectionCard
+        name="mcp"
+        title={t("toolsSettings.mcp.title")}
+        description={t("toolsSettings.mcp.hint")}
+        icon={Bot}
+        adminOnly
+      >
+        <div className="space-y-3">
+          <div className="space-y-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-muted)] p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-[var(--as-fg)]">
+                {t("toolsSettings.mcp.endpoint")}
+              </span>
+              <Badge variant="secondary">{status.transport}</Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <code
+                className="min-w-0 flex-1 truncate rounded bg-[var(--as-surface-raised)] px-2 py-1 text-xs text-[var(--as-fg)]"
+                data-testid="mcp-endpoint"
+              >
+                {status.endpoint}
+              </code>
+              <Button
+                size="sm"
+                variant="outline"
+                data-testid="mcp-copy-endpoint"
+                onClick={() => void copy("endpoint", status.endpoint)}
+              >
+                {copied === "endpoint" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {t("toolsSettings.mcp.copy")}
+              </Button>
+            </div>
+            <SwitchRow
+              label={t("toolsSettings.mcp.writeTitle")}
+              checked={status.write_enabled}
+              disabled={busy === "write"}
+              currentValue={t(
+                status.write_enabled
+                  ? "toolsSettings.mcp.writeOn"
+                  : "toolsSettings.mcp.writeOff"
+              )}
+              onCheckedChange={(next) => void toggleWrite(next)}
+              data-testid="mcp-write-toggle"
             />
-          </label>
-          <label className="flex items-center gap-2 pb-2 text-xs">
-            <input
-              type="checkbox"
+          </div>
+
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]">
+              {t("toolsSettings.connectors.mcpTitle")}
+            </summary>
+            <div className="mt-2 space-y-2" data-testid="github-token-field">
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.mcpHint")}
+              </p>
+              <label className="block text-xs text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.githubToken")}{" "}
+                {githubSet
+                  ? `(${t("toolsSettings.connectors.tokenSet")})`
+                  : `(${t("toolsSettings.connectors.tokenOptional")})`}
+                <Input
+                  value={githubToken}
+                  data-testid="github-token-input"
+                  type="password"
+                  placeholder={t("toolsSettings.connectors.sources.githubTokenPlaceholder")}
+                  autoComplete="off"
+                  onChange={(e) => setGithubToken(e.target.value)}
+                  className="mt-1 w-full"
+                />
+              </label>
+              <Button
+                size="sm"
+                disabled={busy === "github" || githubToken.length === 0}
+                data-testid="save-github-token"
+                onClick={() => void saveGithubToken()}
+              >
+                {busy === "github" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                {t("toolsSettings.connectors.saveToken")}
+              </Button>
+            </div>
+          </details>
+
+          <details className="group">
+            <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]">
+              {t("toolsSettings.mcp.snippetsTitle")}
+            </summary>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center justify-end gap-2">
+                <SegmentedTabs
+                  ariaLabel={t("toolsSettings.mcp.snippetsTitle")}
+                  className="max-w-xs"
+                  items={[
+                    { value: "claude", label: t("toolsSettings.mcp.snippetClaude") },
+                    { value: "http", label: t("toolsSettings.mcp.snippetHttp") },
+                  ]}
+                  value={snippet}
+                  onValueChange={(next) => setSnippet(next as "claude" | "http")}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void copy("snippet", snippetText)}
+                  data-testid="mcp-copy-snippet"
+                >
+                  {copied === "snippet" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  {t("toolsSettings.mcp.copy")}
+                </Button>
+              </div>
+              <p className="text-[11px] text-[var(--as-muted-fg)]">
+                {t("toolsSettings.mcp.snippetHint")}
+              </p>
+              <pre className="overflow-x-auto rounded-lg bg-[var(--as-muted)] p-3 text-[11px] text-[var(--as-fg)]" data-testid="mcp-snippet">
+                {snippetText}
+              </pre>
+            </div>
+          </details>
+
+          {error ? (
+            <p className="text-xs text-[var(--as-danger)]" data-testid="mcp-error">
+              {error}
+            </p>
+          ) : null}
+        </div>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        name="mcp-tokens"
+        title={t("toolsSettings.mcp.tokensTitle")}
+        description={t("toolsSettings.mcp.tokensHint")}
+        icon={KeyRound}
+        adminOnly
+        badges={
+          status.active_tokens > 0 ? (
+            <Badge variant="secondary">{status.active_tokens}</Badge>
+          ) : null
+        }
+        footer={
+          <div className="flex w-full flex-wrap items-end gap-2">
+            <label className="min-w-0 flex-1 space-y-1 text-xs text-[var(--as-muted-fg)]">
+              <span className="font-medium">{t("toolsSettings.mcp.tokenLabel")}</span>
+              <input
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder={t("toolsSettings.mcp.tokenLabelPlaceholder")}
+                className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-2 text-sm text-[var(--as-fg)]"
+                data-testid="mcp-token-label"
+              />
+            </label>
+            <SwitchRow
+              label={t("toolsSettings.mcp.writeScope")}
               checked={writeScope}
               disabled={!status.write_enabled}
-              onChange={(event) => setWriteScope(event.target.checked)}
+              onCheckedChange={setWriteScope}
               data-testid="mcp-token-write-scope"
+              className="w-auto shrink-0 border-none bg-transparent px-0 hover:bg-transparent"
             />
-            {t("toolsSettings.mcp.writeScope")}
-          </label>
-          <Button
-            size="sm"
-            disabled={busy === "mint"}
-            data-testid="mcp-mint-token"
-            onClick={() => void mint()}
-          >
-            {busy === "mint" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-            {t("toolsSettings.mcp.mint")}
-          </Button>
-        </div>
+            <Button
+              size="sm"
+              disabled={busy === "mint"}
+              data-testid="mcp-mint-token"
+              onClick={() => void mint()}
+            >
+              {busy === "mint" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              {t("toolsSettings.mcp.mint")}
+            </Button>
+          </div>
+        }
+      >
         {!status.write_enabled ? (
-          <p className="text-[11px] text-slate-500">{t("toolsSettings.mcp.writeScopeHint")}</p>
+          <p className="text-[11px] text-[var(--as-muted-fg)]">
+            {t("toolsSettings.mcp.writeScopeHint")}
+          </p>
         ) : null}
 
         {minted ? (
-          <div className="space-y-1 rounded-md border border-amber-300 bg-amber-50 p-3" data-testid="mcp-minted-token">
-            <p className="text-xs font-medium text-amber-900">{t("toolsSettings.mcp.shownOnce")}</p>
-            <code className="block break-all rounded bg-white/70 px-2 py-1 text-xs">{minted.token}</code>
+          <div
+            className="mb-3 space-y-1 rounded-lg border border-[color-mix(in_srgb,var(--as-warning)_45%,var(--as-border))] bg-[color-mix(in_srgb,var(--as-warning)_14%,var(--as-surface-raised))] p-3"
+            data-testid="mcp-minted-token"
+          >
+            <p className="text-xs font-medium text-[var(--as-fg)]">
+              {t("toolsSettings.mcp.shownOnce")}
+            </p>
+            <code className="block break-all rounded bg-[var(--as-surface-raised)] px-2 py-1 text-xs text-[var(--as-fg)]">
+              {minted.token}
+            </code>
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -284,120 +430,126 @@ export function McpServerSection() {
         ) : null}
 
         {tokens.length === 0 ? (
-          <p className="text-xs text-slate-500" data-testid="mcp-tokens-empty">
+          <p className="text-xs text-[var(--as-muted-fg)]" data-testid="mcp-tokens-empty">
             {t("toolsSettings.mcp.noTokens")}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200">
+          <ul className="divide-y divide-[var(--as-border)] rounded-lg border border-[var(--as-border)]">
             {tokens.map((token) => (
-              <li key={token.id} className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs" data-testid={`mcp-token-${token.id}`}>
-                <KeyRound className="h-4 w-4 text-slate-400" />
-                <span className="font-medium">{token.label || t("toolsSettings.mcp.untitled")}</span>
-                <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px]">{token.scopes.join(" + ")}</span>
-                <span className="text-slate-500">
+              <li
+                key={token.id}
+                className="flex flex-wrap items-center gap-2 px-3 py-2 text-xs"
+                data-testid={`mcp-token-${token.id}`}
+              >
+                <KeyRound className="h-4 w-4 text-[var(--as-muted-fg)]" />
+                <span className="font-medium text-[var(--as-fg)]">
+                  {token.label || t("toolsSettings.mcp.untitled")}
+                </span>
+                <span className="rounded bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]">
+                  {token.scopes.join(" + ")}
+                </span>
+                <Badge variant={token.active ? "success" : "outline"}>
                   {token.active
                     ? t("toolsSettings.mcp.active")
                     : t("toolsSettings.mcp.revoked")}
-                </span>
+                </Badge>
                 <span className="ml-auto flex items-center gap-1">
                   {token.active ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy === `rotate-${token.id}`}
-                      data-testid={`mcp-rotate-${token.id}`}
-                      onClick={() => void rotate(token.id)}
-                    >
-                      <RotateCw className="h-4 w-4" />
-                      {t("toolsSettings.mcp.rotate")}
-                    </Button>
-                  ) : null}
-                  {token.active ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={busy === `revoke-${token.id}`}
-                      data-testid={`mcp-revoke-${token.id}`}
-                      onClick={() => void revoke(token.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      {t("toolsSettings.mcp.revoke")}
-                    </Button>
+                    <>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy === `rotate-${token.id}`}
+                        data-testid={`mcp-rotate-${token.id}`}
+                        onClick={() => void rotate(token.id)}
+                      >
+                        <RotateCw className="h-4 w-4" />
+                        {t("toolsSettings.mcp.rotate")}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busy === `revoke-${token.id}`}
+                        data-testid={`mcp-revoke-${token.id}`}
+                        onClick={() => void revoke(token.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {t("toolsSettings.mcp.revoke")}
+                      </Button>
+                    </>
                   ) : null}
                 </span>
               </li>
             ))}
           </ul>
         )}
-      </div>
+      </SettingsSectionCard>
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("toolsSettings.mcp.snippetsTitle")}
-          </h4>
-          <Button size="sm" variant="outline" onClick={() => void copy("snippet", snippetText)} data-testid="mcp-copy-snippet">
-            {copied === "snippet" ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-            {t("toolsSettings.mcp.copy")}
-          </Button>
-        </div>
-        <SegmentedTabs
-          ariaLabel={t("toolsSettings.mcp.snippetsTitle")}
-          className="max-w-xs"
-          items={[
-            { value: "claude", label: t("toolsSettings.mcp.snippetClaude") },
-            { value: "http", label: t("toolsSettings.mcp.snippetHttp") },
-          ]}
-          value={snippet}
-          onValueChange={(next) => setSnippet(next as "claude" | "http")}
-        />
-        <p className="text-[11px] text-slate-500">{t("toolsSettings.mcp.snippetHint")}</p>
-        <pre className="overflow-x-auto rounded-md bg-slate-50 p-3 text-[11px]" data-testid="mcp-snippet">
-          {snippetText}
-        </pre>
-      </div>
-
-      <div className="space-y-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {t("toolsSettings.mcp.toolsTitle", { count: status.tools.length })}
-        </h4>
-        <ul className="grid gap-1 sm:grid-cols-2" data-testid="mcp-tool-list">
-          {status.tools.map((tool) => (
-            <li key={tool.key} className="rounded border border-slate-200 px-2 py-1 text-[11px]">
-              <span className="font-medium">{tool.title}</span>
-              <span
-                className={
-                  tool.scope === "write"
-                    ? "ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-800"
-                    : "ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600"
-                }
+      <SettingsSectionCard
+        name="mcp-tools"
+        title={t("toolsSettings.mcp.toolsTitle", { count: status.tools.length })}
+        description={t("toolsSettings.mcp.toolsHint")}
+        icon={ScrollText}
+        adminOnly
+        collapsible
+        defaultOpen={false}
+      >
+        <div className="space-y-2">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--as-muted-fg)]" aria-hidden />
+            <input
+              className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] py-1.5 pl-8 pr-3 text-sm text-[var(--as-fg)] placeholder:text-[var(--as-muted-fg)] focus:border-[var(--as-primary)] focus:outline-none"
+              placeholder={t("toolsSettings.mcp.searchTools")}
+              value={toolFilter}
+              onChange={(event) => setToolFilter(event.target.value)}
+              data-testid="mcp-tool-filter"
+            />
+          </div>
+          <ul className="grid gap-1 sm:grid-cols-2" data-testid="mcp-tool-list">
+            {filteredTools.map((tool) => (
+              <li
+                key={tool.key}
+                className="rounded border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2 py-1.5 text-[11px]"
+                data-testid={`mcp-tool-${tool.key}`}
               >
-                {tool.scope}
-              </span>
-              <p className="mt-0.5 text-slate-500">{tool.description}</p>
-            </li>
-          ))}
-        </ul>
-        {status.write_tools.length > 0 ? (
-          <p className="text-[11px] text-amber-700">{t("toolsSettings.mcp.writeToolsNote")}</p>
-        ) : null}
-      </div>
+                <span className="flex items-center gap-1.5">
+                  <span className="truncate font-medium text-[var(--as-fg)]">{tool.title}</span>
+                  <Badge variant={tool.scope === "write" ? "warning" : "secondary"}>
+                    {tool.scope}
+                  </Badge>
+                </span>
+                <p className="mt-0.5 line-clamp-2 text-[var(--as-muted-fg)]">{tool.description}</p>
+              </li>
+            ))}
+            {filteredTools.length === 0 ? (
+              <li className="text-xs text-[var(--as-muted-fg)]">
+                {t("toolsSettings.mcp.noToolsMatch")}
+              </li>
+            ) : null}
+          </ul>
+          {status.write_tools.length > 0 ? (
+            <p className="text-[11px] text-[var(--as-warning)]">{t("toolsSettings.mcp.writeToolsNote")}</p>
+          ) : null}
+        </div>
+      </SettingsSectionCard>
 
       {proposals.length > 0 ? (
-        <div className="space-y-2" data-testid="mcp-pending-proposals">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("toolsSettings.mcp.pendingTitle", { count: proposals.length })}
-          </h4>
-          <ul className="space-y-1">
+        <SettingsSectionCard
+          name="mcp-proposals"
+          title={t("toolsSettings.mcp.pendingTitle", { count: proposals.length })}
+          icon={Bot}
+          adminOnly
+        >
+          <ul className="space-y-1" data-testid="mcp-pending-proposals">
             {proposals.map((proposal) => (
               <li
                 key={proposal.id}
-                className="rounded border border-slate-200 px-3 py-2 text-xs"
+                className="rounded border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-2 text-xs"
                 data-testid={`mcp-proposal-${proposal.id}`}
               >
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{proposal.title}</span>
-                  <span className="ml-auto text-[10px] text-slate-500">
+                  <span className="font-medium text-[var(--as-fg)]">{proposal.title}</span>
+                  <span className="ml-auto text-[10px] text-[var(--as-muted-fg)]">
                     {proposal.origin?.token_label
                       ? t("toolsSettings.mcp.origin", {
                           token: proposal.origin.token_label,
@@ -425,45 +577,48 @@ export function McpServerSection() {
               </li>
             ))}
           </ul>
-        </div>
+        </SettingsSectionCard>
       ) : null}
 
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {t("toolsSettings.mcp.auditTitle")}
-          </h4>
+      <SettingsSectionCard
+        name="mcp-audit"
+        title={t("toolsSettings.mcp.auditTitle")}
+        description={t("toolsSettings.mcp.auditHint")}
+        icon={ScrollText}
+        adminOnly
+        collapsible
+        defaultOpen={false}
+        footer={
           <Button size="sm" variant="ghost" onClick={() => void reload()} data-testid="mcp-audit-refresh">
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw className="h-3.5 w-3.5" />
             {t("toolsSettings.mcp.refresh")}
           </Button>
-        </div>
+        }
+      >
         {audit.length === 0 ? (
-          <p className="text-xs text-slate-500" data-testid="mcp-audit-empty">
+          <p className="text-xs text-[var(--as-muted-fg)]" data-testid="mcp-audit-empty">
             {t("toolsSettings.mcp.noCalls")}
           </p>
         ) : (
-          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200 text-[11px]">
+          <ul className="divide-y divide-[var(--as-border)] rounded-lg border border-[var(--as-border)] text-[11px]">
             {audit.map((row) => (
               <li key={row.id} className="flex flex-wrap items-center gap-2 px-3 py-1.5">
-                <code className="font-medium">{row.tool ?? "—"}</code>
-                <span className="text-slate-500">{row.label}</span>
-                <span className={row.status === "ok" ? "text-emerald-600" : "text-red-600"}>
+                <code className="font-medium text-[var(--as-fg)]">{row.tool ?? "—"}</code>
+                <span className="text-[var(--as-muted-fg)]">{row.label}</span>
+                <span className={row.status === "ok" ? "text-emerald-600" : "text-[var(--as-danger)]"}>
                   {row.status}
                 </span>
-                <span className="ml-auto text-slate-500">{Math.round(row.latency_ms)} ms</span>
-                <span className="text-slate-400">{row.created_at.slice(0, 19).replace("T", " ")}</span>
+                <span className="ml-auto text-[var(--as-muted-fg)]">
+                  {Math.round(row.latency_ms)} ms
+                </span>
+                <span className="text-[var(--as-muted-fg)]">
+                  {row.created_at.slice(0, 19).replace("T", " ")}
+                </span>
               </li>
             ))}
           </ul>
         )}
-      </div>
-
-      {error ? (
-        <p className="text-xs text-red-600" data-testid="mcp-error">
-          {error}
-        </p>
-      ) : null}
+      </SettingsSectionCard>
     </div>
   );
 }

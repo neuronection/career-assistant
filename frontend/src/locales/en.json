@@ -1182,6 +1182,7 @@
       "skills": "Skills",
       "paths": "Paths",
       "enrichment": "Enrichment",
+      "translations": "Translations",
       "relations": "Relations"
     },
     "newTag": "New tag",
@@ -1671,13 +1672,11 @@
       "tokenSet": "set",
       "tokenOptional": "optional",
       "saveToken": "Save token",
-      "saved": "Saved",
       "sources": {
         "title": "Job source connectors",
         "hint": "Posting ingestion sources through the polite runtime — SSRF-guarded fetches, robots.txt and per-host rate caps enforced. Credentials are sealed at rest and shown as hints only.",
         "empty": "No job sources configured yet.",
         "add": "Add source",
-        "connector": "Connector",
         "key": "Source key (unique)",
         "queryMode": "Search source",
         "queryModeStatic": "Static config (this source's own settings)",
@@ -1685,7 +1684,6 @@
         "queryModeRadarHint": "One focused role group per sync, rotating — traffic stays constant however many keywords your radar has.",
         "queryNext": "Searching {{rotation}}: {{keywords}}",
         "queryBatch": "Queries per sync",
-        "queryBatchHint": "1 is the safe default — each extra query runs sequentially, with a jittered pause in between.",
         "needsSecret": "needs secret",
         "enabledAria": "Enable or pause this source (runs on the schedule when enabled)",
         "test": "Test",
@@ -1740,13 +1738,27 @@
         "planNextAt": "next ≈ {{time}}",
         "planInSynces": "in {{count}} sync(es)",
         "planFullPass": "Full pass ≈ {{hours}}h · {{groups}} groups · {{batch}}/sync · cadence every {{cadence}}min",
-        "planSlowHint": "A full pass takes over a day — raise Queries per sync or shorten the cadence (Settings → Automations)."
+        "planSlowHint": "A full pass takes over a day — raise Queries per sync or shorten the cadence (Settings → Automations).",
+        "healthFailing": "{{count}} failing",
+        "healthDegraded": "{{count}} degraded",
+        "healthActive": "{{count}} active",
+        "lastSync": "Last sync {{date}}",
+        "actions": "Actions",
+        "addTitle": "Add job source",
+        "editTitle": "Edit {{key}}",
+        "backToConnectors": "All connectors",
+        "builtin": "Built-in",
+        "needsSecretTile": "Needs a key",
+        "radarCapable": "Radar-capable",
+        "sealedNote": "Secrets are sealed at rest and never echoed back.",
+        "keyPlaceholder": "e.g. acme-board",
+        "keyTaken": "This key is already in use."
       },
       "extSources": {
         "title": "Extension sources (git import)",
         "hint": "Import connectors from git sources — every install is digest-pinned and consent-gated; updates never auto-apply. Local file-path sources are dev/test only (allowlisted roots).",
         "empty": "No extension sources added yet.",
-        "add": "Add source",
+        "add": "Install from Git",
         "url": "https git URL",
         "localPath": "Local repo path (dev/test only)",
         "needUrlOrPath": "Provide an https git URL or a local repo path.",
@@ -1847,7 +1859,12 @@
       "origin": "from {{token}} · request {{request}}",
       "originUnknown": "origin unavailable",
       "approve": "Approve",
-      "reject": "Reject"
+      "reject": "Reject",
+      "tokensHint": "Tokens authenticate external MCP clients — write tools need the write scope.",
+      "toolsHint": "The live tool catalog the assistant can call through MCP.",
+      "searchTools": "Search tools…",
+      "noToolsMatch": "No tools match this filter.",
+      "auditHint": "Recent MCP tool calls with outcome and latency."
     }
   },
   "onboarding": {
@@ -4114,6 +4131,22 @@
       "metric_dimension": "Metric dimension",
       "assessment_template": "Assessment template",
       "cv_template": "CV template"
+    },
+    "searchPlaceholder": "Search base or translation…",
+    "loadMore": "Load more ({{count}})",
+    "truncated": "The queue is long — showing the first {{limit}} rows. Narrow the filters to reach the rest.",
+    "batch": {
+      "approve_one": "Approved {{count}} translation.",
+      "approve_other": "Approved {{count}} translations.",
+      "reject_one": "Rejected {{count}} translation.",
+      "reject_other": "Rejected {{count}} translations.",
+      "rejectTitle": "Reject {{count}} translations?",
+      "rejectBody": "Rejected translations never render and leave the review list. Draft with AI brings them back as new drafts."
+    },
+    "field": {
+      "label": "Label",
+      "description": "Description",
+      "short_description": "Short description"
     }
   },
   "settingsKit": {

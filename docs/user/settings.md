@@ -44,34 +44,39 @@ until an admin adds a provider.
 
 ## Tools (`/settings/tools`)
 
-Admin-only integration switches, scoped to the `tools.*` settings domain:
-**Web search** (the ordered providers and keys the AI's web tools use) and
-**Connectors** (the bundled posting sources, their credentials and sync
-state, plus the extension sources imported from git). Web search ships
-SearXNG plus five keyed providers — Tavily, Brave, Exa, Serper and Google
-Programmable Search; the first enabled provider that answers wins. Each
-provider renders as a card with its priority badge and connection status;
-the card's **⋮/⋯ menu** carries enable/disable, reorder, test, edit and
-delete, and **Add provider** opens a choose-then-configure wizard. See
+Admin-only, two tabs. **Web search** ships SearXNG plus five keyed
+providers — Tavily, Brave, Exa, Serper and Google Programmable Search;
+the first enabled provider that answers wins. Each provider renders as a
+card with its priority badge and connection status; the card's **⋯ menu**
+carries enable/disable, reorder, test, edit and delete, and **Add
+provider** opens a choose-then-configure wizard. See
 [Add a job source](add-a-job-source.md) and
 [Import extensions from git](import-extensions-from-git.md).
 
-Connectors are grouped by what they feed — **Job boards**, **Market data**,
-**Universities**, **Search** and **Inbound webhooks** — and each row shows a
-health badge (healthy / degraded / failing) with its last successful run.
-Each row carries one **slider toggle** — the row's name is the toggle's
-label, so clicking the name pauses or resumes the source. Pause is folded
-into it: off parks the schedule without deleting the configuration, on
-puts it back. The separate pause button and checkbox are gone. Market-data sources feed
-the demand import (salary and outlook provenance on catalog jobs) rather
-than the posting feed, so they run on the daily demand schedule.
+**Connectors** hosts the job-source instances: grouped by what they feed —
+**Job boards**, **Market data**, **Universities**, **Search** and
+**Inbound webhooks** — with a health strip (active count, failing /
+degraded badges, last sync) over the rows. Each row shows a health badge
+(healthy / degraded / failing) with its last successful run and one
+**slider toggle** — the row's name is the toggle's label, so clicking the
+name pauses or resumes the source (off parks the schedule without
+deleting the configuration). **Test** runs a typed probe inline; **Sync
+now, Docs, Query plan, Manage and Remove** live in the row's **⋯ menu**.
+**Add source** opens a two-step wizard: pick the connector from catalog
+tiles, then configure it — secret slots are sealed at rest and never
+echoed back. Market-data sources feed the demand import (salary and
+outlook provenance on catalog jobs) rather than the posting feed, so they
+run on the daily demand schedule. Extension sources (git import) render
+as their own card — **Install from Git** — digest-pinned and
+consent-gated.
 
-Connectors also hosts the **MCP server** surface: the endpoint URL,
-token lifecycle (mint shown once, rotate, revoke), copy-ready client
-snippets, the live tool list with its scopes, and the recent-call
-audit. Write access is a separate admin switch — while it is off, MCP
-clients see read tools only. See
-[MCP access](assistant-chat.md#mcp-access).
+Connectors also hosts the **MCP server** surface as section cards: the
+endpoint URL with the write-access switch, the token lifecycle (mint
+shown once, rotate, revoke), copy-ready client setup snippets, the live
+tool catalog collapsed behind a searchable disclosure, and the
+recent-call audit. The chat-tools GitHub credential sits in the same
+card as a disclosure. While the write switch is off, MCP clients see
+read tools only. See [MCP access](assistant-chat.md#mcp-access).
 
 ## Taxonomy (`/settings/taxonomy`)
 
