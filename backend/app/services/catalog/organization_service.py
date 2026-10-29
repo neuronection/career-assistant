@@ -903,12 +903,13 @@ class OrganizationService:
         self._thresholds = dict(values)
         return dict(values)
 
-    async def merge(self, org_id: UUID, target_id: UUID) -> Organization:
+    async def merge(self, org_id: UUID, target_id: UUID, *, actor_user_id=None) -> Organization:
         """Re-point references to the target and deprecate the duplicate.
 
         A 1:1 company profile rides along (re-pointed, flagged for
         review) unless the target has one too — two reviewed profiles
         never merge silently. The refusal fires before any mutation.
+        Each re-pointed posting journals as `company_match`.
         """
         if org_id == target_id:
             raise ValidationError("Cannot merge an organization into itself")
@@ -942,10 +943,12 @@ class OrganizationService:
         for posting in postings:
             before = snapshot(posting, ORG_MATCH_FIELDS)
             posting.org_id = target.id
+            actor_ref = {"user_id": str(actor_user_id)} if actor_user_id is not None else None
             PostingChangeJournal.record(
                 self.db,
                 posting.id,
                 "company_match",
+                actor_ref=actor_ref,
                 operation={"merged_org": str(source.id), "into_org": str(target.id)},
                 before=before,
                 after=snapshot(posting, ORG_MATCH_FIELDS),

@@ -496,6 +496,7 @@ async def merge_organization(
     org_id: uuid.UUID,
     payload: dict,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
 ) -> dict:
     """Re-point all references to the target; the duplicate is deprecated."""
     from app.services.catalog.organization_service import OrganizationService
@@ -503,7 +504,7 @@ async def merge_organization(
     try:
         service = OrganizationService(db)
         target_id = uuid.UUID(str(payload.get("target_id")))
-        org = await service.merge(org_id, target_id)
+        org = await service.merge(org_id, target_id, actor_user_id=user.id)
     except (ValueError, DomainError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return {

@@ -4,6 +4,7 @@ test per routed writer and the inverted AST writer gate."""
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
@@ -411,11 +412,21 @@ async def test_company_match_writer_merge_journals_repoint(db, source, seeded_ca
     posting.org_match_state = "linked"
     await db.commit()
 
-    await service.merge(dup.id, target.id)
+    await service.merge(dup.id, target.id, actor_user_id=None)
     rows = [row for row in await _journal(db, posting.id) if row.actor_kind == "company_match"]
     move = rows[-1]
     assert move.diff == {"org_id": {"from": str(dup.id), "to": str(target.id)}}
     assert move.operation == {"merged_org": str(dup.id), "into_org": str(target.id)}
+
+    other = await service.create_org("MergeCo Two", provenance={"source": "test"})
+    posting2 = await _make_posting(db, source, org="MergeCo Two", external_id="ex-merge-2")
+    posting2.org_id = other.id
+    posting2.org_match_state = "linked"
+    await db.commit()
+    moderator = uuid4()
+    await service.merge(other.id, target.id, actor_user_id=moderator)
+    rows2 = [row for row in await _journal(db, posting2.id) if row.actor_kind == "company_match"]
+    assert rows2[-1].actor_ref == {"user_id": str(moderator)}, "the moderator is recorded"
 
 
 # -------------------------------------------------------------- the read API
