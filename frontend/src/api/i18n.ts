@@ -24,13 +24,24 @@ export async function setInstanceLocale(locale: string): Promise<LocaleState> {
   return data;
 }
 
-/** Catalog-label overlays awaiting (or having completed) review. */
+/** Overlay queue status; `""` omits the status filter (the backend
+ * treats an empty status as "all"). */
+export type OverlayQueueStatus = "draft" | "approved" | "rejected" | "";
+
+/**
+ * Catalog-label overlays for (or after) review. The review board calls
+ * this with NO filters: one bounded fetch at the endpoint's max page
+ * (500 rows, all locales, all statuses) and the locale/status pill
+ * counts, kind groups and search are derived client-side — pill counts
+ * stay exact within that page and every refresh costs a single request
+ * (plan 150 phase 4). A locale may be passed to scope the page.
+ */
 export async function fetchOverlayQueue(
-  locale: string,
-  status: "draft" | "approved" | "rejected" = "draft",
+  locale = "",
+  status: OverlayQueueStatus = "",
 ): Promise<LabelOverlay[]> {
   const { data } = await api.get<LabelOverlay[]>("/admin/i18n/overlays", {
-    params: { locale, status, limit: 200 },
+    params: { locale, status, limit: 500 },
   });
   return data;
 }

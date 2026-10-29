@@ -34,6 +34,18 @@ All notable changes to **Career Assistant** are documented here.
   key that leaked into the payload-preset select.
 
 ### Changed (taxonomy settings UX, 2026-10-29)
+- **Catalog translations is the taxonomy page's own Translations
+  segment** (plan 150, phase 4). The review panel that sat above every
+  tab moves into its own sixth tab and becomes a proper review board:
+  locale and status pills carry live counts (derived from one bounded
+  fetch), search runs across the base label and the drafted value,
+  cards group by entity kind with icons (jobs/skills/families first),
+  and each card keeps base → draft with edit, approve and reject.
+  Select mode gains batch approve/reject over the per-id endpoints
+  with per-item outcomes — successes summarized, failures listed by
+  base label — with the batch reject confirmed first, and *Load more*
+  pages long queues past the old 200-row cap. The Draft-with-AI flow
+  and its result note are unchanged.
 - **The taxonomy listings are searchable, grouped and clickable**
   (plan 150, phases 1–2). The Interests and Skills tabs drop their raw
   tables for a shared listing: debounced search (label, key, skill

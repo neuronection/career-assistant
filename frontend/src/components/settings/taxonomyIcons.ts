@@ -3,17 +3,25 @@ import {
   Archive,
   Brain,
   Briefcase,
+  Building2,
   CircleCheck,
+  ClipboardCheck,
   Cpu,
+  FileText,
   FlaskConical,
+  Gauge,
   Globe,
+  GraduationCap,
   Hammer,
+  Languages,
+  Layers,
   MessagesSquare,
   Palette,
   Sparkles,
   Tag,
   Trophy,
   Users,
+  Wrench,
 } from "lucide-react";
 
 /** Category → icon registry for the taxonomy listing (plan 150): rows and
@@ -48,3 +56,22 @@ export const STATUS_GROUP_ICONS: Record<string, LucideIcon> = {
   active: CircleCheck,
   deprecated: Archive,
 };
+
+/** Label-overlay entity kinds in review-board group order (plan 150
+ * phase 4: the translation queue reads as job/skill/family work first,
+ * then the institution/template kinds); unknown kinds fall back to the
+ * generic languages icon. */
+export const OVERLAY_KIND_ICONS: Record<string, LucideIcon> = {
+  job: Briefcase,
+  skill: Wrench,
+  family: Layers,
+  university: GraduationCap,
+  department: Building2,
+  metric_dimension: Gauge,
+  assessment_template: ClipboardCheck,
+  cv_template: FileText,
+};
+
+export function overlayKindIcon(kind: string): LucideIcon {
+  return OVERLAY_KIND_ICONS[kind] ?? Languages;
+}

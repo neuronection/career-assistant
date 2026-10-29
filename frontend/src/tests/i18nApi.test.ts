@@ -56,13 +56,19 @@ describe("i18n api client", () => {
   });
 
   test("overlay calls hit the review endpoints", async () => {
+    await fetchOverlayQueue();
     await fetchOverlayQueue("de");
     await draftOverlays("de");
     await updateOverlay("x", "value");
     await approveOverlay("x");
     await rejectOverlay("x");
+    // The review board's single bounded page: locale/status filters
+    // omitted (empty = all) and the endpoint's max page size.
     expect(api.get).toHaveBeenCalledWith("/admin/i18n/overlays", {
-      params: { locale: "de", status: "draft", limit: 200 },
+      params: { locale: "de", status: "", limit: 500 },
+    });
+    expect(api.get).toHaveBeenCalledWith("/admin/i18n/overlays", {
+      params: { locale: "", status: "", limit: 500 },
     });
     expect(api.post).toHaveBeenCalledWith("/admin/i18n/overlays/draft", {
       locale: "de",

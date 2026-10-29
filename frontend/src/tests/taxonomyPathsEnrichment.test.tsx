@@ -16,8 +16,8 @@ vi.mock("@/api/client", () => ({
   apiDetail: vi.fn(() => "request failed"),
 }));
 
-vi.mock("@/components/settings/TranslationsPanel", () => ({
-  TranslationsPanel: () => null,
+vi.mock("@/components/settings/TranslationsBoard", () => ({
+  TranslationsBoard: () => null,
 }));
 
 vi.mock("@/api/skillRelations", () => ({

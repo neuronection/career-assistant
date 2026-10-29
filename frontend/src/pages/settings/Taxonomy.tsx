@@ -43,10 +43,16 @@ import {
   SkillRelationsPanel,
   type RelationSection,
 } from "@/components/settings/SkillRelationsPanel";
-import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
+import { TranslationsBoard } from "@/components/settings/TranslationsBoard";
 import { BulkBar } from "@/features/profile/components/profile/BulkTools";
 
-export type TaxonomyTab = "interests" | "skills" | "paths" | "enrichment" | "relations";
+export type TaxonomyTab =
+  | "interests"
+  | "skills"
+  | "paths"
+  | "enrichment"
+  | "translations"
+  | "relations";
 
 // Exported for the taxonomy-tabs conformance tests.
 export const TAXONOMY_TABS: readonly TaxonomyTab[] = [
@@ -54,6 +60,7 @@ export const TAXONOMY_TABS: readonly TaxonomyTab[] = [
   "skills",
   "paths",
   "enrichment",
+  "translations",
   "relations",
 ];
 
@@ -349,7 +356,6 @@ export function Taxonomy() {
 
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
-      <TranslationsPanel />
       <div className="flex items-center justify-between">
         <SegmentedTabs
           ariaLabel={t("taxonomy.tabsAria")}
@@ -367,67 +373,76 @@ export function Taxonomy() {
             setSearchParams(nextParams, { replace: true });
           }}
         />
-        {kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
-          <div className="flex items-center gap-2">
-            {kind === "skills" && selectMode && proposed.length > 0 && (
-              <button
-                onClick={() =>
-                  setSelected(new Set(skills.filter((s) => s.status === "proposed").map((s) => s.id)))
-                }
-                className="text-sm text-primary-700 rounded-lg px-3 py-1.5 border border-primary-200"
-                data-testid="taxonomy-select-proposed"
-              >
-                {t("taxonomy.bulk.selectProposed", { count: proposed.length })}
-              </button>
-            )}
-            {kind === "skills" && (
-              <button
-                onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
-                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 text-slate-600"
-                data-testid="taxonomy-select-toggle"
-              >
-                {selectMode ? t("taxonomy.bulk.exit") : t("taxonomy.bulk.select")}
-              </button>
-            )}
-          </div>
-        )}
+        {kind !== "paths" &&
+          kind !== "enrichment" &&
+          kind !== "translations" &&
+          kind !== "relations" && (
+            <div className="flex items-center gap-2">
+              {kind === "skills" && selectMode && proposed.length > 0 && (
+                <button
+                  onClick={() =>
+                    setSelected(
+                      new Set(skills.filter((s) => s.status === "proposed").map((s) => s.id)),
+                    )
+                  }
+                  className="text-sm text-primary-700 rounded-lg px-3 py-1.5 border border-primary-200"
+                  data-testid="taxonomy-select-proposed"
+                >
+                  {t("taxonomy.bulk.selectProposed", { count: proposed.length })}
+                </button>
+              )}
+              {kind === "skills" && (
+                <button
+                  onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+                  className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 text-slate-600"
+                  data-testid="taxonomy-select-toggle"
+                >
+                  {selectMode ? t("taxonomy.bulk.exit") : t("taxonomy.bulk.select")}
+                </button>
+              )}
+            </div>
+          )}
       </div>
 
-      {creating && kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
-        <div className="bg-white border border-slate-200 rounded-xl p-4 grid md:grid-cols-2 gap-2">
-          <input
-            placeholder={t("taxonomy.keyPlaceholder")}
-            value={draft.key}
-            onChange={(e) => setDraft({ ...draft, key: e.target.value })}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          />
-          <input
-            placeholder={t("taxonomy.labelPlaceholder")}
-            value={draft.label}
-            onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          />
-          <input
-            placeholder={t("taxonomy.categoryPlaceholder")}
-            value={draft.category}
-            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          />
-          <input
-            placeholder={t("taxonomy.descriptionPlaceholder")}
-            value={draft.description}
-            onChange={(e) => setDraft({ ...draft, description: e.target.value })}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          />
-          <button
-            onClick={() => void onCreate()}
-            disabled={!draft.key || !draft.label || !draft.category}
-            className="md:col-span-2 bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm disabled:opacity-50"
-          >
-            {t("taxonomy.createTag")}
-          </button>
-        </div>
-      )}
+      {creating &&
+        kind !== "paths" &&
+        kind !== "enrichment" &&
+        kind !== "translations" &&
+        kind !== "relations" && (
+          <div className="bg-white border border-slate-200 rounded-xl p-4 grid md:grid-cols-2 gap-2">
+            <input
+              placeholder={t("taxonomy.keyPlaceholder")}
+              value={draft.key}
+              onChange={(e) => setDraft({ ...draft, key: e.target.value })}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              placeholder={t("taxonomy.labelPlaceholder")}
+              value={draft.label}
+              onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              placeholder={t("taxonomy.categoryPlaceholder")}
+              value={draft.category}
+              onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <input
+              placeholder={t("taxonomy.descriptionPlaceholder")}
+              value={draft.description}
+              onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+            <button
+              onClick={() => void onCreate()}
+              disabled={!draft.key || !draft.label || !draft.category}
+              className="md:col-span-2 bg-emerald-600 text-white rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+            >
+              {t("taxonomy.createTag")}
+            </button>
+          </div>
+        )}
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {note && <p className="text-xs text-amber-600">{note}</p>}
@@ -453,6 +468,8 @@ export function Taxonomy() {
           onSectionChange={setSection}
           onOpenSkillPage={(key) => navigate(`/skills/${key}`)}
         />
+      ) : kind === "translations" ? (
+        <TranslationsBoard />
       ) : loading ? (
         <div className="flex w-full flex-col items-center justify-center py-24">
           <Spinner size="lg" />

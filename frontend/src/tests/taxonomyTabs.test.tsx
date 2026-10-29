@@ -86,6 +86,7 @@ describe("taxonomy tab params (pure helpers)", () => {
       "skills",
       "paths",
       "enrichment",
+      "translations",
       "relations",
     ]);
   });
@@ -132,6 +133,24 @@ describe("taxonomy tabs (URL-synced)", () => {
       ),
     );
     expect(probe()).toBe("/settings/taxonomy?tab=skills");
+  });
+
+  it("lands ?tab=translations on the review board and keeps the panel off other tabs", async () => {
+    const page = renderPage("/settings/taxonomy?tab=translations");
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Translations" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(screen.getByTestId("translations-board")).toBeInTheDocument();
+    expect(probe()).toBe("/settings/taxonomy?tab=translations");
+
+    // The board renders ONLY inside its segment: the default tab never
+    // mounts it (the old global above-the-tabs placement is gone).
+    page.unmount();
+    renderPage("/settings/taxonomy");
+    expect(screen.queryByTestId("translations-board")).not.toBeInTheDocument();
   });
 
   it("strips an unknown tab param back to the canonical URL", async () => {

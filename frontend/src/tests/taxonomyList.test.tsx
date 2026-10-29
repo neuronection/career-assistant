@@ -32,8 +32,8 @@ vi.mock("@/api/skills", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/settings/TranslationsPanel", () => ({
-  TranslationsPanel: () => null,
+vi.mock("@/components/settings/TranslationsBoard", () => ({
+  TranslationsBoard: () => null,
 }));
 
 vi.mock("@/api/skillRelations", () => ({
