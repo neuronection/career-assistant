@@ -11,6 +11,7 @@ import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
 import { EmptyState, Spinner } from "@/components/ui";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
@@ -128,8 +129,6 @@ export function Explore() {
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const loadingRef = useRef(false);
   const filtersRef = useRef(filters);
 
   const paramsFrom = useCallback((current: Filters, nextCursor?: string | null): ExploreParams => {
@@ -210,12 +209,11 @@ export function Explore() {
   }, [filters]);
 
   const loadMore = useCallback(() => {
-    if (!cursor || loadingRef.current || radarActive) return;
+    if (!cursor || radarActive) return undefined;
     const requestFilters = filters;
-    loadingRef.current = true;
     setLoadingMore(true);
     setError("");
-    void explorePostings(paramsFrom(requestFilters, cursor))
+    return explorePostings(paramsFrom(requestFilters, cursor))
       .then((response) => {
         // a filter change that landed mid-flight re-owns the list —
         // the stale page is dropped, never appended to it
@@ -226,25 +224,10 @@ export function Explore() {
         setCursor(response.next_cursor ?? null);
       })
       .catch((err) => setError(String(err)))
-      .finally(() => {
-        loadingRef.current = false;
-        setLoadingMore(false);
-      });
+      .finally(() => setLoadingMore(false));
   }, [cursor, filters, paramsFrom, radarActive]);
 
-  useEffect(() => {
-    const el = sentinelRef.current;
-    if (!el || !cursor || radarActive) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) loadMore();
-      },
-      // start fetching just before the user reaches the end
-      { rootMargin: "480px 0px" }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [cursor, radarActive, loadMore]);
+  const sentinelRef = useInfiniteScroll(loadMore, !!cursor && !radarActive);
 
   const addSkillFilter = (key: string) => {
     if (!key || filters.skills.some((s) => s.key === key)) return;

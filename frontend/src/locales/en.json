@@ -1202,7 +1202,11 @@
     "exportDownload": "Download archive",
     "exportNote": "The archive contains your profile, applications, documents and settings as JSON files.",
     "deleteArmedNote": "Enter your password to arm the delete button — a second click confirms.",
-    "deleteConfirm": "Confirm delete"
+    "deleteConfirm": "Confirm delete",
+    "deleteProfile": "Delete profile",
+    "deleteProfileConfirmTitle": "Delete the {{name}} profile?",
+    "deleteProfileConfirmBody": "Everything scoped to this profile — applications, documents, radar, settings — is deleted with it. This cannot be undone.",
+    "profileDeleteFailed": "Could not delete the profile."
   },
   "taxonomy": {
     "kind": {
@@ -1780,7 +1784,8 @@
         "radarCapable": "Radar-capable",
         "sealedNote": "Secrets are sealed at rest and never echoed back.",
         "keyPlaceholder": "e.g. acme-board",
-        "keyTaken": "This key is already in use."
+        "keyTaken": "This key is already in use.",
+        "planSources": "{{count}} radar(s)"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -4746,7 +4751,6 @@
     "openInExplore": "Open in Explore",
     "positionsEmpty": "No postings demand this skill",
     "positionsEmptyBody": "Closed and hidden postings stay out; new matches appear as connectors sync.",
-    "loadMore": "Load more",
     "graphEmpty": "No approved relations yet",
     "graphEmptyBody": "Approved edges from the review queue appear here.",
     "openFullGraph": "Open full graph",

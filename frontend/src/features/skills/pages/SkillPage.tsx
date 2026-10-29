@@ -30,6 +30,7 @@ import { Badge, Button, ConfirmationModal, EmptyState, SegmentedTabs, Spinner } 
 import { ConceptGraphView, type ConceptGraphNode } from "@/components/ui/conceptGraph";
 import { PostingCard } from "@/features/postings/components/PostingCard";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
+import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { NODE_COLORS, REVERSED_RELATIONS, EDGE_COLORS } from "@/features/skills/graphColors";
 import { formatAbsolute } from "@/lib/time";
 import type {
@@ -174,6 +175,7 @@ export function SkillPage() {
   const [relations, setRelations] = useState<SkillRelationsView | null>(null);
   const [positions, setPositions] = useState<SkillPositionsView | null>(null);
   const [positionsLimit, setPositionsLimit] = useState(POSITIONS_PAGE);
+  const [positionsLoading, setPositionsLoading] = useState(false);
   const [history, setHistory] = useState<SkillHistoryResponse | null>(null);
   const [mySkills, setMySkills] = useState<Awaited<ReturnType<typeof fetchMySkills>>>([]);
   const [myLevel, setMyLevel] = useState(5);
@@ -238,16 +240,15 @@ export function SkillPage() {
   }, [load]);
 
   const loadPositions = useCallback(
-    (limit: number) => {
-      void fetchSkillPositions(key, { limit })
+    (limit: number) =>
+      fetchSkillPositions(key, { limit })
         .then((response) =>
           setPositions({
             items: response.items ?? [],
             total: response.total ?? 0,
           }),
         )
-        .catch(() => setPositions({ items: [], total: 0 }));
-    },
+        .catch(() => setPositions({ items: [], total: 0 })),
     [key],
   );
 
@@ -257,9 +258,19 @@ export function SkillPage() {
       .catch(() => setHistory(null));
   }, [key]);
 
+  const loadMorePositions = useCallback(() => {
+    if (positions === null || positions.items.length >= positions.total) return undefined;
+    const next = positionsLimit + POSITIONS_PAGE;
+    setPositionsLimit(next);
+    setPositionsLoading(true);
+    return loadPositions(next).finally(() => setPositionsLoading(false));
+  }, [positions, positionsLimit, loadPositions]);
+
+  const positionsSentinelRef = useInfiniteScroll(loadMorePositions, tab === "positions");
+
   useEffect(() => {
     if (!detail) return;
-    if (tab === "positions" && positions === null) loadPositions(positionsLimit);
+    if (tab === "positions" && positions === null) void loadPositions(positionsLimit);
     if (tab === "history" && history === null) loadHistory();
   }, [tab, detail, positions, history, loadPositions, loadHistory]);
 
@@ -784,24 +795,16 @@ export function SkillPage() {
                     key={posting.id}
                     posting={posting}
                     onOpen={() => navigate(`/postings/${posting.ref}`)}
-                    onChanged={() => loadPositions(positionsLimit)}
+                    onChanged={() => void loadPositions(positionsLimit)}
                   />
                 ))}
               </div>
               {positions.items.length < positions.total ? (
-                <div className="flex justify-center">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    data-testid="positions-load-more"
-                    onClick={() => {
-                      const next = positionsLimit + POSITIONS_PAGE;
-                      setPositionsLimit(next);
-                      loadPositions(next);
-                    }}
-                  >
-                    {t("skillPage.loadMore")}
-                  </Button>
+                <div ref={positionsSentinelRef} className="h-px" data-testid="positions-load-more" />
+              ) : null}
+              {positionsLoading ? (
+                <div className="flex justify-center py-4" data-testid="positions-loading">
+                  <Spinner size="lg" />
                 </div>
               ) : null}
             </>

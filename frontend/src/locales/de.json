@@ -1202,7 +1202,11 @@
     "exportDownload": "Archiv herunterladen",
     "exportNote": "Das Archiv enthält Profil, Bewerbungen, Dokumente und Einstellungen als JSON-Dateien.",
     "deleteArmedNote": "Gib dein Passwort ein, um den Löschen-Button zu scharf schalten — ein zweiter Klick bestätigt.",
-    "deleteConfirm": "Löschen bestätigen"
+    "deleteConfirm": "Löschen bestätigen",
+    "deleteProfile": "Profil löschen",
+    "deleteProfileConfirmTitle": "Das {{name}}-Profil löschen?",
+    "deleteProfileConfirmBody": "Alles, was diesem Profil zugeordnet ist — Bewerbungen, Dokumente, Radar, Einstellungen — wird mitgelöscht. Das kann nicht rückgängig gemacht werden.",
+    "profileDeleteFailed": "Profil konnte nicht gelöscht werden."
   },
   "taxonomy": {
     "kind": {
@@ -1780,7 +1784,8 @@
         "radarCapable": "Radar-fähig",
         "sealedNote": "Geheimnisse werden versiegelt gespeichert und nie zurückgespielt.",
         "keyPlaceholder": "z. B. acme-board",
-        "keyTaken": "Dieser Schlüssel ist bereits vergeben."
+        "keyTaken": "Dieser Schlüssel ist bereits vergeben.",
+        "planSources": "{{count}} Radar(e)"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -4745,7 +4750,6 @@
     "openInExplore": "In Explore öffnen",
     "positionsEmpty": "Keine Stelle fordert diesen Skill",
     "positionsEmptyBody": "Geschlossene und ausgeblendete bleiben außen; neue Treffer erscheinen mit dem Connector-Sync.",
-    "loadMore": "Mehr laden",
     "graphEmpty": "Noch keine freigegebenen Beziehungen",
     "graphEmptyBody": "Freigegebene Kanten aus der Review-Warteschlange erscheinen hier.",
     "openFullGraph": "Gesamten Graph öffnen",

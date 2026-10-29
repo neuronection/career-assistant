@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (shared infinite scroll, 2026-10-30)
+- **Auto-load is a reusable mechanism.** `hooks/useInfiniteScroll.ts`
+  (sentinel + IntersectionObserver, 480px early-start, in-flight guard)
+  now drives both the Explore results and the skill page's Positions tab —
+  the positions "Load more" button is gone (auto-loads with a spinner
+  instead), and the explore page rides the shared hook.
+
+### Changed (settings overhaul follow-ups, 2026-10-30)
+- **Taxonomy and Companies adopt the settings page scaffold** — both
+  keep their own tab strips; the shell header and width handling come
+  from the kit now (visual; testids preserved).
+- **Query plan provenance**: each rotation group shows which radar
+  terms contributed it and how many radar configurations back each
+  term.
+- **Profile deletion** on the account page: non-active profiles can be
+  deleted behind a cascade confirm (last-profile deletion
+  re-provisions Default server-side).
+
 ### Changed (connector SDK — audit follow-ups, 2026-10-30)
 - **The authenticated-source credential patterns are public law now.**
   The SDK security chapter gains "Authenticated sources at T3": why

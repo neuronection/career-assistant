@@ -38,6 +38,25 @@ import {
   fetchSkillRelations,
 } from "@/api/skills";
 
+class MockIntersectionObserver {
+  static latest: MockIntersectionObserver | null = null;
+  private callback: IntersectionObserverCallback;
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.latest = this;
+  }
+  static triggerIntersecting() {
+    MockIntersectionObserver.latest?.callback(
+      [{ isIntersecting: true } as unknown as IntersectionObserverEntry],
+      MockIntersectionObserver.latest as unknown as IntersectionObserver
+    );
+  }
+}
+vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+
 const mocked = {
   fetchSkill: vi.mocked(fetchSkill),
   fetchSkillPositions: vi.mocked(fetchSkillPositions),
@@ -248,6 +267,44 @@ describe("SkillPage", () => {
     expect(screen.getByTestId("positions-explore-link")).toHaveAttribute(
       "href",
       "/postings/search?skills=sql",
+    );
+  });
+
+  it("auto-loads more positions when the sentinel scrolls into view", async () => {
+    const items = POSITIONS.items ?? [];
+    const extra = (id: string, ref: string, title: string) => ({
+      ...items[0],
+      id,
+      ref,
+      title,
+    });
+    const full = [
+      ...items,
+      extra("p3", "DE000003", "Analytics Engineer"),
+      extra("p4", "DE000004", "BI Developer"),
+      extra("p5", "DE000005", "Data Engineer"),
+    ];
+    mocked.fetchSkillPositions.mockImplementation(async (_key, params) => ({
+      items: (params?.limit ?? 20) >= 40 ? full : POSITIONS.items,
+      total: full.length,
+      limit: params?.limit ?? 20,
+      offset: 0,
+    }));
+
+    renderPage();
+    expect(await screen.findByTestId("skill-page")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Positions" }));
+    expect(await screen.findAllByTestId("posting-card")).toHaveLength(2);
+    expect(screen.getByTestId("positions-count")).toHaveTextContent("5");
+
+    // reaching the sentinel auto-loads the next page — no button anymore
+    expect(screen.queryByRole("button", { name: /load more/i })).not.toBeInTheDocument();
+    MockIntersectionObserver.triggerIntersecting();
+    await waitFor(() => expect(mocked.fetchSkillPositions.mock.calls.length).toBe(2));
+    expect(await screen.findAllByTestId("posting-card")).toHaveLength(5);
+    expect(mocked.fetchSkillPositions).toHaveBeenLastCalledWith(
+      "sql",
+      expect.objectContaining({ limit: 40 })
     );
   });
 
