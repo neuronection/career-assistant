@@ -177,6 +177,12 @@ regenerating a baseline, drop+recreate instead).
   frozen app with `careerassistant enginecheck`.
 - Update `CHANGELOG.md` under `## [Unreleased]` for user-visible changes
   (CI-enforced on PRs via `scripts/check-changelog.sh`).
+- **No private-integration mentions in tracked files**: ids, dependency
+  names or repository names of unpublished integrations never appear in
+  code, docs, changelog, tests or fixtures —
+  `backend/tests/test_no_private_integration_mentions.py` fails the
+  suite on them (legal separation; the full law lives in the private
+  family dev repo).
 - **Gates block and only tighten** (plan 124): coverage floors, the mypy
   per-package peg (`[tool.career-mypy-ratchet]`), the dependency-audit
   allowlist and the skip allowlist (`tests/skip_allowlist.json`) move in one

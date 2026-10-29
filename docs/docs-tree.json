@@ -418,13 +418,13 @@
               "id": "sdk-security",
               "file": "dev/sdk/security-and-gotchas.md",
               "title": "Connector SDK: security & gotchas",
-              "description": "Trust tiers, the secrets law, politeness and SSRF, the sandbox residuals, the destructive-confirm funnel, the consent disclosures verbatim."
+              "description": "Trust tiers, the secrets law, the authenticated-source credential patterns, politeness and SSRF, the sandbox residuals, the destructive-confirm funnel, the consent disclosures verbatim."
             },
             {
               "id": "sdk-reference",
               "file": "dev/sdk/reference.md",
               "title": "Connector SDK: reference",
-              "description": "The 15 error codes, capability-RPC methods, the CLI, admin API, audit and status vocabularies, sandbox and transport knobs, content caps."
+              "description": "The 15 error codes, capability-RPC methods, the CLI, admin API, audit and status vocabularies, sandbox and transport knobs, content caps, dynamic queries, detail enrichment, the run summary, probe semantics."
             },
             {
               "id": "sdk-versioning",
