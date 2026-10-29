@@ -103,6 +103,26 @@ untouched.
   `get_default_environment()` through fastmcp, so spawned scripts do
   resolve their interpreters inside PyInstaller bundles.
 
+### The managed spawn's interpreter
+
+A managed T3 stdio install mints a source whose command runs the
+content dir's `server.py` — but the *interpreter* is chosen at mint
+time (`lifecycle._bundle_interpreter`):
+
+- **local sources** — the bundle checkout's own
+  `.venv/bin/python` when it exists (one `uv sync` in the checkout
+  gives the bundle its dependencies), re-minted identically on
+  re-import;
+- otherwise — the host's `sys.executable` (frozen desktop builds ship
+  their own interpreter, so this is the working default there).
+
+A bundle whose fetcher needs dependencies the host does not carry (a
+browser engine, heavy parsers) therefore works from a local checkout
+without any host change. Two hard rules keep the digest fence intact:
+never run `uv sync` inside the **managed content dir** (the install's
+digest covers that tree — drift refuses to spawn), and never swap the
+managed entry file — edit the checkout and re-import instead.
+
 ## Dual-mode notes (web vs desktop)
 
 Both product modes share the whole subsystem — one pipeline, one schema

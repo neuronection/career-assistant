@@ -8,7 +8,7 @@ import type { PostingSource, SourceRun } from "@/api/sources";
 
 const SOURCE: PostingSource = {
   id: "src-1",
-  key: "linkedin-postings",
+  key: "board-postings",
   connector_key: "mcp",
   kind: "posting",
   schedule_kind: null,
@@ -33,7 +33,7 @@ const SOURCE: PostingSource = {
   last_status: "degraded",
   last_run_at: "2026-10-27T09:00:00+00:00",
   sync_state: {},
-  error: "not-ready: patchright is not installed",
+  error: "not-ready: bundle dependencies are not installed",
   posting_count: 12,
 };
 
@@ -46,7 +46,7 @@ const RUNS: SourceRun[] = [
     finished_at: "2026-10-27T09:00:02+00:00",
     duration_ms: 2100,
     items_synced: 0,
-    error: "not-ready: patchright is not installed",
+    error: "not-ready: bundle dependencies are not installed",
   },
   {
     id: "run-2",
@@ -108,7 +108,7 @@ describe("SourceDetailPage", () => {
     const failed = await screen.findByTestId("run-run-1");
     expect(failed.textContent).toContain("Failed");
     expect(failed.textContent).toContain("2s");
-    expect(failed.textContent).toContain("patchright");
+    expect(failed.textContent).toContain("not-ready");
     const ok = await screen.findByTestId("run-run-2");
     expect(ok.textContent).toContain("Completed");
     expect(ok.textContent).toContain("25");
@@ -131,14 +131,14 @@ describe("SourceDetailPage", () => {
     expect(errorCell.className).toContain("line-clamp-3");
     await user.click(await screen.findByTestId("run-details-run-1"));
     const dialog = await screen.findByTestId("run-details");
-    expect(dialog.textContent).toContain("patchright is not installed");
+    expect(dialog.textContent).toContain("bundle dependencies are not installed");
     expect(screen.getByRole("button", { name: "Copy" })).toBeTruthy();
   });
 
   it("shows the overview status and error", async () => {
     const user = userEvent.setup();
     renderPage();
-    expect(await screen.findByText("not-ready: patchright is not installed")).toBeTruthy();
+    expect(await screen.findByText("not-ready: bundle dependencies are not installed")).toBeTruthy();
     await user.click(screen.getByRole("tab", { name: "Query plan" }));
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
   });

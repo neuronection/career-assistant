@@ -81,7 +81,7 @@ Every source row has a **Manage** button opening its management page
   plus the search-source switch and queries-per-sync. **Fetch detail
   pages** controls how much of each posting is captured: off (the
   default) keeps the list-card fields only — title, company, location,
-  workplace type, salary when LinkedIn shows one, and the apply link.
+  workplace type, salary when the source shows one, and the apply link.
   The other modes capture the full job description ("About the job"),
   which is what the AI needs to judge what the role actually is — it
   costs one detail-page load per posting, so the modes decide *which*

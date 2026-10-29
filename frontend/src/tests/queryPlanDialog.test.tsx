@@ -17,7 +17,7 @@ vi.mock("@/api/scheduler", () => ({
 
 const SOURCE: PostingSource = {
   id: "src-1",
-  key: "linkedin-postings",
+  key: "board-postings",
   connector_key: "mcp",
   kind: "posting",
   schedule_kind: null,

@@ -179,6 +179,26 @@ MCP_CONFIG_SCHEMA = {
 }
 ```
 
+### Form hints (`x-choices`, `x-csv`, `x-presets`, `x-section`)
+
+Beside `x-secret`, the configSchema admits four rendering hints the
+host's settings form understands (schema law:
+`contracts/extension-manifest.schema.json` → `configField`; they change
+how a field renders, never what is stored beyond what their
+`$comment`s say):
+
+| Hint | On | Shape / constraint | Renders as |
+|---|---|---|---|
+| `x-choices` | field | array ≤ 24 of `{value ≤ 64, label ≤ 80}` | toggle chips (multi-select) |
+| `x-csv` | field | `true` | the stored value is the comma-joined string of the selected `x-choices` values, in choices order |
+| `x-section` | field | string ≤ 40 (e.g. `"advanced"`) | the field groups under a collapsed section |
+| `x-presets` | configSchema | array ≤ 8 of `{label ≤ 80, values: ≤ 16 string props}` | one-click starting points above the fields; the form merges the values |
+
+The worked example is the `mcp` passthrough in action on any managed
+import: a bundle's `configSchema` with `x-choices` + `x-csv` renders
+chips whose selection is stored as one CSV string — which is exactly
+the shape the tool then receives in `config`.
+
 ### The declared-domains honesty rule
 
 `net` requires `domains`, and the polite runtime checks **every hop** —
@@ -243,8 +263,9 @@ The tree is the per-extension form (`extensionDocsTree`):
 - **No per-extension changelog file and no `docs/v2/`** — the docs'
   versioning rides the manifest `version`, always.
 
-Skeleton: `templates/extension-docs/` in the family dev repo (all seven
-categories as honest stubs). The filled-in precedent is the template
+Skeleton: `templates/extension-docs/` in the `career-connector-template`
+sibling repo (all seven categories as honest stubs, with a fill
+procedure). The filled-in precedent is the template
 repo's two reference extensions (`example-posting-fetcher`,
 `cv-gallery`) — and note that every manifest printed in this doc set is
 checked against this contract by the

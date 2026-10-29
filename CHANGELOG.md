@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (connector SDK — public contracts + privacy guard, 2026-10-29)
+- **The T3 contracts a bundle needs are now public law.** The connector
+  SDK reference documents the `detail_ids` enrichment contract (the
+  reserved `detail_mode`/`detail_limit` config names, the host's
+  ranking/batching semantics), the optional `run_summary` envelope
+  block (≤2 KB, persisted verbatim, the keys the run drawer renders)
+  and probe semantics (any partial ⇒ probe not-ok); the authoring
+  chapter documents the `x-choices`/`x-csv`/`x-presets`/`x-section`
+  form hints, and the installation chapter the managed-spawn
+  interpreter rule. The `career-connector-template` sibling repo gains
+  a zip packager (`scripts/package.py`) and the per-extension docs
+  skeleton the SDK set points authors to. A new guard test keeps the
+  product repo free of private-integration mentions (their ids,
+  third-party dependencies or repo name) — standing rule, now
+  mechanical.
+
 ### Changed (tooling — gates and version tooling, 2026-10-29)
 - **version-manager gains a `check` subcommand** verifying every
   propagated version target matches the repo version. Ruff now excludes
@@ -114,8 +130,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Added (source runs — structured run summary, 2026-10-28)
 - **Every connector run can now tell you what it did.** Sources whose
-  connector emits the new `run_summary` envelope block (the LinkedIn
-  bundle ships it from 0.10.0) persist it on the run ledger, and the run
+  connector emits the new `run_summary` envelope block (a reference T3
+  bundle ships it from its 0.10.0) persist it on the run ledger, and the run
   drawer renders a summary strip: the detail-fetch session
   (guest/authenticated), browser launches per profile, pages loaded by
   kind (search vs detail), the time-budget split as a bar, and the count
@@ -522,7 +538,8 @@ All notable changes to **Career Assistant** are documented here.
   re-imported connector now mints its command with the bundle checkout's
   own `.venv/bin/python` (the interpreter that has the bundle's deps),
   instead of the app's Python; a checkout without a venv falls back to
-  the host. No more "patchright is not installed" after an update.
+  the host. No more missing-dependency `not-ready` errors after an
+  update.
 - **Run now on the source management page updates the run history on
   its own** — the queued run's row appears (and the header refreshes)
   when it lands, without a manual reload.

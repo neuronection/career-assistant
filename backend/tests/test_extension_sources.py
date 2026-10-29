@@ -1397,8 +1397,9 @@ async def test_install_mints_the_bundle_venv_interpreter(
     db, seeded_catalog, local_roots, mcp_allowlist
 ):
     """The managed-spawn command runs an interpreter that HAS the bundle
-    deps — the bundle checkout's own .venv python (docs/setup §4b), never
-    the host's, which usually lacks them (patchright). Re-imports re-mint
+    deps — the bundle checkout's own .venv python (the managed spawn's
+    interpreter rule in docs/dev/sdk/installation-and-modes.md), never
+    the host's, which usually lacks them. Re-imports re-mint
     the same interpreter; a checkout without a venv falls back to the
     host's."""
     import sys as _sys

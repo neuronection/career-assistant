@@ -197,6 +197,82 @@ rebuilt on radar change by the `query_curator` background job (Layer 2:
 an AI-curator task that clusters keywords; the deterministic Layer 1
 partition is the fallback whenever AI is unconfigured).
 
+## Detail enrichment (the `detail_ids` contract)
+
+A connector whose source has a per-posting detail page (the full job
+description behind the list row) can let the host schedule those
+fetches. The host reads exactly two config names — everything else
+about the mode stays connector-owned:
+
+| Config name | Read by the host as |
+|---|---|
+| `detail_mode` | `off` (default) · `sample` · `smart` · `all` — the source's enrichment mode |
+| `detail_limit` | 1–10 (default 5) — detail pages per run |
+
+Both are read from the top-level config **and** the `options`
+passthrough layer (managed-spawn sources keep bundle knobs in
+`config.options`). A connector that declares these fields in its
+`configSchema` gets the whole pipeline:
+
+- **`sample`** — the connector's own business: enrich the newest
+  `detail_limit` rows inline, inside the same sync call.
+- **`smart` / `all`** — the sync stays list-only. The host ranks the
+  not-yet-detailed postings (`all`: every new posting; `smart`: a
+  deterministic Layer 1 score of radar-keyword match, seniority/onsite
+  agreement, a stated salary and recency — plus an optional AI re-rank
+  in the background job when AI is configured) and calls `fetch` again
+  with a **call-time overlay**: `config.detail_ids` — a comma-joined
+  list of at most 10 `external_id`s — with `detail_mode` forced to
+  `"off"`. On such a call the connector fetches exactly those ids'
+  pages, returns those rows (with `raw.description` plus any typed
+  fields the page states), round-trips `state` untouched, and runs no
+  search.
+- Batching is paced: one batch (≤ `detail_limit` ids) per enrichment
+  run, one enrichment run queued per sync. A posting's detail fetch is
+  retried across runs and gives up after 3 attempts
+  (`detail_fetched_at` / `detail_attempts` on the posting row).
+- Merge semantics: only fields the detail page actually states are
+  merged — list-derived fields are never wiped; typed fields fill gaps.
+  A fetched description resets the posting's earlier AI extraction so
+  the deep pass (`POSTING_EXTRACT`) re-runs on the full text.
+
+The enrichment call rides the same connector seam (`registry.resolve_connector`
+→ `fetch`), the same audit funnel and the same validation caps as any
+other call — there is no privileged path.
+
+## Run summary (`run_summary`)
+
+A fetch envelope may carry `run_summary` beside
+`items`/`next_state`/`partial_errors`: **any JSON object, ≤ 2 KB
+serialized**, validated shape-agnostically and persisted verbatim on
+the run ledger (`source_runs.report.run_summary`). The source's run
+drawer renders the keys it knows (version the block with a `schema`
+int; `schema: 1` is current):
+
+| Key | Renders as |
+|---|---|
+| `mode` | the run's session posture — `"authenticated"` renders as authenticated, any other string as guest |
+| `launches` | process/browser launches by kind (`{"guest": 1, "authenticated": 0}`) |
+| `navigations` | page loads by kind (`{"search_pages": 2, "detail_pages": 5}`) |
+| `budget` | `{"limit_s", "search_used_s", "detail_used_s"}` — a split bar plus a used/limit line |
+| `walled_skips` | ids the run could not fetch behind an auth wall (expandable list — the emitter keeps it small; the host caps only the block size) |
+
+Unknown keys persist but render nothing; a summary asserting none of
+the known keys renders nothing at all. An oversize or non-object
+summary is dropped with a typed `invalid` partial error. Envelopes
+without the block (and bundles on older versions) look exactly as
+before — the block is optional on every tier that speaks the envelope.
+
+## Probe semantics
+
+The admin **Test** (probe) endpoint treats **any** partial error as
+not-ok, even when the fetch itself succeeded — a run over a feed with
+known skippable items (say, items walled behind a sign-in) reports the
+typed partials and reads as a failed test while the source is healthy.
+Check the partial detail before diagnosing: an expected-condition
+partial is not a fault. Syncs are unaffected (partials degrade, they
+never fail a sync).
+
 ## Registry API (`app/extensions/registry.py`)
 
 `register_connector(connector, *, allow=True)`, `get_connector(key)`,
@@ -213,6 +289,7 @@ routes through the sandbox runner), `iter_connectors()`,
 | tree files / bytes | 4096 / 128 MiB |
 | T3 items per fetch | 300 |
 | T3 `raw` / `next_state` JSON | 8 KiB each |
+| T3 `run_summary` JSON | 2 KiB |
 | extension state per instance | 256 KiB |
 | capability-RPC line | 1 MiB |
 | consent detail / error detail | 500 chars |

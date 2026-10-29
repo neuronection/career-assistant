@@ -1531,12 +1531,13 @@ def _pin_ref(source: ExtensionSource, digest: str) -> str:
 
 
 def _bundle_interpreter(source: ExtensionSource, subpath: str) -> str:
-    """An interpreter that has the bundle's deps (docs/setup §4b): the
+    """An interpreter that has the bundle's deps (the managed spawn's
+    interpreter rule, ``docs/dev/sdk/installation-and-modes.md``): the
     bundle checkout's own ``.venv/bin/python`` when the source is a local
     checkout (one ``uv sync`` there). ``sys.executable`` — the host's own
-    interpreter — usually lacks them (e.g. patchright), and a uv sync
-    INSIDE the managed content dir is forbidden. Falls back to the host
-    (frozen apps ship their own deps)."""
+    interpreter — usually lacks them (bundles may carry their own heavy
+    dependencies), and a uv sync INSIDE the managed content dir is
+    forbidden. Falls back to the host (frozen apps ship their own deps)."""
     import os as _os
 
     if source.kind != "local":
