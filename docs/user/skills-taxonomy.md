@@ -130,3 +130,11 @@ The Skills section of the posting filter rail carries the match mode:
 limit for learned edges. Accepted relations widen those matches; the
 curated sub-skill tree and synonyms always count for free, and as the
 tree fills up, reach grows at the default setting.
+
+## Skill pages
+
+Every skill also has a first-class page at [`/skills/:key`](skills.md) —
+stats, positions, the approved subgraph and the lifecycle history in one
+place, with the admin actions in the header. The skills table here gains
+a **Details** preview with the same numbers and the newest events, and
+graph nodes open the page from their right-click menu.

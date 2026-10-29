@@ -21,6 +21,7 @@ the tour below. For the exhaustive list of everything the app does, see the
 | [Onboarding and your profile](onboarding-and-profile.md) | The wizard and start paths, every profile section, importing an existing CV |
 | [Feature catalog](features.md) | Everything, as built — the reference tour |
 | [Explore the job catalog](explore-the-catalog.md) | Job family tree, typed relation graph, rich job detail, AI-generated jobs |
+| [Skill pages](skills.md) | The per-skill page: stats, positions, the approved subgraph and the lifecycle history |
 | [Matching and rankings](matching-and-rankings.md) | AI scores with rationale, your own scores, the fit engine, rankings and compare |
 | [Universities and pathways](universities.md) | Admission-PDF intake, reviewable drafts, degree-to-job pathways |
 | [Assessment and metrics](assessment.md) | The JobTypeMatch assessment, the metric model, career stages |

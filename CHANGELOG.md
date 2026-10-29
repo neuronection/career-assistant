@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill pages — /skills/:key, 2026-10-29)
+- **Every skill now has a page.** Open `/skills/:key` from the taxonomy
+  table's new **Details** preview, a graph node's right-click menu or a
+  related-skills chip: stats (postings demanding it, level distribution,
+  profile adoption, first/last seen), its positions on the familiar
+  posting cards, the approved relation subgraph and the skill's full
+  lifecycle history — created, promoted, auto-promoted, deprecated,
+  merged, deleted — with admin actions (promote/deprecate/restore/
+  merge/delete/edit) in the header. A history row also lands in the
+  drawer, and merged skills keep their page with a banner to the
+  survivor. Documented in [user/skills.md](docs/user/skills.md).
+
 ### Changed (settings — every settings tab is now URL-addressable, 2026-10-29)
 - **Companies rules joins the club.** Settings → Companies tabs sync to the
   address bar (`/settings/companies?tab=aliases|exclusions|queue|thresholds`)
