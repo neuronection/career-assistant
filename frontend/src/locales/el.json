@@ -4366,11 +4366,10 @@
     "noPostingsBody": "Καμία ανοιχτή αγγελία αυτή τη στιγμή — δες τη ζωντανή ροή για νέες αφίξεις."
   },
   "jobRadar": {
-    "subtitle": "Μία ρύθμιση, παντού: το Explore ταιριάζει ζωντανά, και (στον ρυθμό που επιλέγετε) οι ειδοποιήσεις σας λένε όταν νέες θέσεις ταιριάζουν.",
     "enabled": "Ραντάρ ενεργό",
     "enabledHint": "Όταν είναι ανενεργό, τίποτα δεν ταιριάζει και δεν στέλνονται digests — η ρύθμιση παραμένει.",
     "keywordsHeading": "Λέξεις-κλειδιά",
-    "keywordsHint": "Κάθε λέξη-κλειδί που πέφτει σε τίτλο ή εργοδότη μετράει.",
+    "keywordsHint": "Το Enter προσθέτει λέξη · έως {{max}}",
     "keywordPlaceholder": "π.χ. data engineer",
     "removeKeyword": "Αφαίρεση λέξης-κλειδιού",
     "locationsHeading": "Τοποθεσίες",
@@ -4395,7 +4394,6 @@
     "save": "Αποθήκευση ραντάρ",
     "test": "Δοκιμή ταιριασμάτων",
     "testing": "Ταίριασμα…",
-    "saved": "Το ραντάρ αποθηκεύτηκε.",
     "previewTitle": "{{count}} θέσεις ταιριάζουν τώρα:",
     "previewEmpty": "Καμία θέση δεν ταιριάζει αυτή τη στιγμή.",
     "openExplore": "Άνοιγμα ταιριασμάτων στο Explore",
@@ -4407,7 +4405,34 @@
       "weekly": "Εβδομαδιαία"
     },
     "cadenceLabel": "Digest ταιριασμάτων",
-    "currencyPlaceholder": "π.χ. EUR"
+    "currencyPlaceholder": "π.χ. EUR",
+    "statusTitle": "Κατάσταση radar",
+    "statusOn": "Ενεργό · {{cadence}}",
+    "statusOff": "Ανενεργό",
+    "lastScan": "Τελευταία σάρωση {{date}}",
+    "lastScanShort": "Τελευταία σάρωση {{date}}",
+    "nextScanShort": "Επόμενη σάρωση {{date}}",
+    "scanNow": "Σάρωση τώρα",
+    "scanPaused": "Παύση σαρώσεων",
+    "noScheduleYet": "Οι σαρώσεις ξεκινούν όταν το radar αποθηκευτεί με ρυθμό.",
+    "savedAt": "Αποθηκεύτηκε {{date}}",
+    "criteriaTitle": "Τι να παρακολουθεί",
+    "criteriaBody": "Λέξεις-κλειδιά και τοποθεσίες περιορίζουν το feed που παρακολουθεί το radar.",
+    "locationsHint": "Προσθέστε πόλεις ή χώρες — η πρώτη γραμμή με τοποθεσία κερδίζει, και το remote οποιασδήποτε γραμμής ισχύει.",
+    "sourcesTitle": "Συνδεόμενοι connectors",
+    "sourcesHint": "Περιορίστε το radar σε συγκεκριμένους connectors.",
+    "sourcesHintAll": "Χωρίς επιλογή = κάθε συνδεδεμένη πηγή.",
+    "previewHint": "Εκτελεί το radar σε ζωντανές θέσεις χωρίς αποθήκευση.",
+    "previewIdle": "Εκτελέστε Test για να δείτε τι θα ταίριαζε τώρα.",
+    "previewEmptyHint": "Χαλαρώστε τις λέξεις-κλειδιά ή τα φίλτρα.",
+    "unsavedNote": "Μη αποθηκευμένες αλλαγές — αποθηκεύστε για εφαρμογή.",
+    "scanStatus": {
+      "ok": "οκ",
+      "failed": "απέτυχε",
+      "degraded": "μειωμένη",
+      "claimed": "τρέχει"
+    },
+    "addKeyword": "Προσθήκη λέξης-κλειδί"
   },
   "sourceDetail": {
     "back": "Πηγές αγγελιών",

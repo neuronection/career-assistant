@@ -4366,11 +4366,10 @@
     "noPostingsBody": "Aktuell keine offenen Stellen — wirf einen Blick in den Live-Feed."
   },
   "jobRadar": {
-    "subtitle": "Eine Konfiguration, überall genutzt: Explore matcht live, und (im gewählten Takt) meldet sich der Benachrichtigungs-Digest, wenn frische Stellen passen.",
     "enabled": "Radar aktiv",
     "enabledHint": "Ausgeschaltet matcht nichts und es gehen keine Digests raus — die Konfiguration bleibt erhalten.",
     "keywordsHeading": "Stichwörter",
-    "keywordsHint": "Jedes Stichwort zählt, das Titel oder Arbeitgeber trifft.",
+    "keywordsHint": "Enter fügt ein Keyword hinzu · bis zu {{max}}",
     "keywordPlaceholder": "z. B. Data Engineer",
     "removeKeyword": "Stichwort entfernen",
     "locationsHeading": "Orte",
@@ -4395,7 +4394,6 @@
     "save": "Radar speichern",
     "test": "Treffer testen",
     "testing": "Matching…",
-    "saved": "Radar gespeichert.",
     "previewTitle": "{{count}} Stellen passen gerade:",
     "previewEmpty": "Aktuell passt keine Stelle zu dieser Konfiguration.",
     "openExplore": "Treffer in Explore öffnen",
@@ -4407,7 +4405,34 @@
       "weekly": "Wöchentlich"
     },
     "cadenceLabel": "Match-Digest",
-    "currencyPlaceholder": "z. B. EUR"
+    "currencyPlaceholder": "z. B. EUR",
+    "statusTitle": "Radar-Status",
+    "statusOn": "Ein · {{cadence}}",
+    "statusOff": "Aus",
+    "lastScan": "Letzter Scan {{date}}",
+    "lastScanShort": "Letzter Scan {{date}}",
+    "nextScanShort": "Nächster Scan {{date}}",
+    "scanNow": "Jetzt scannen",
+    "scanPaused": "Scans pausieren",
+    "noScheduleYet": "Scans starten, sobald das Radar mit einem Takt gespeichert wird.",
+    "savedAt": "Gespeichert {{date}}",
+    "criteriaTitle": "Wonach gesucht wird",
+    "criteriaBody": "Keywords und Orte grenzen den Feed ein, den das Radar beobachtet.",
+    "locationsHint": "Städte oder Länder hinzufügen — die erste Zeile mit Ort gewinnt, der Remote-Schalter einer Zeile gilt immer.",
+    "sourcesTitle": "Beobachtete Konnektoren",
+    "sourcesHint": "Das Radar auf bestimmte Konnektoren beschränken.",
+    "sourcesHintAll": "Keine Auswahl = alle verbundenen Quellen.",
+    "previewHint": "Testet das Radar gegen Live-Stellen, ohne zu speichern.",
+    "previewIdle": "Test starten, um die aktuellen Treffer zu sehen.",
+    "previewEmptyHint": "Keywords oder Filter lockern.",
+    "unsavedNote": "Ungespeicherte Änderungen — zum Anwenden speichern.",
+    "scanStatus": {
+      "ok": "ok",
+      "failed": "fehlgeschlagen",
+      "degraded": "eingeschränkt",
+      "claimed": "läuft"
+    },
+    "addKeyword": "Keyword hinzufügen"
   },
   "sourceDetail": {
     "back": "Quellen für Stellenanzeigen",

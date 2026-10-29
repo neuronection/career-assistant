@@ -4367,11 +4367,10 @@
     "noPostingsBody": "No open postings right now — check the live feed for new arrivals."
   },
   "jobRadar": {
-    "subtitle": "One configuration, used everywhere: Explore matches it live, and (at the cadence you pick) notifications tell you when fresh postings fit.",
     "enabled": "Radar enabled",
     "enabledHint": "When off, nothing matches and no digests are sent — your configuration is kept.",
     "keywordsHeading": "Keywords",
-    "keywordsHint": "Any keyword hitting a posting's title or employer counts.",
+    "keywordsHint": "Enter adds a keyword · up to {{max}}",
     "keywordPlaceholder": "e.g. data engineer",
     "removeKeyword": "Remove keyword",
     "locationsHeading": "Locations",
@@ -4396,7 +4395,6 @@
     "save": "Save radar",
     "test": "Preview matches",
     "testing": "Matching…",
-    "saved": "Radar saved.",
     "previewTitle": "{{count}} postings match right now:",
     "previewEmpty": "Nothing matches this configuration right now.",
     "openExplore": "Open these matches in Explore",
@@ -4408,7 +4406,34 @@
       "weekly": "Weekly"
     },
     "cadenceLabel": "Match digest",
-    "currencyPlaceholder": "e.g. EUR"
+    "currencyPlaceholder": "e.g. EUR",
+    "statusTitle": "Radar status",
+    "statusOn": "On · {{cadence}}",
+    "statusOff": "Off",
+    "lastScan": "Last scan {{date}}",
+    "lastScanShort": "Last scan {{date}}",
+    "nextScanShort": "Next scan {{date}}",
+    "scanNow": "Scan now",
+    "scanPaused": "Pause scans",
+    "noScheduleYet": "Scans start once the radar is saved with a cadence.",
+    "savedAt": "Saved {{date}}",
+    "criteriaTitle": "What to look for",
+    "criteriaBody": "Keywords and locations narrow the feed the radar watches.",
+    "locationsHint": "Add cities or countries — the first row with a location wins, and any row's remote flag applies.",
+    "sourcesTitle": "Connectors to watch",
+    "sourcesHint": "Restrict the radar to specific connectors.",
+    "sourcesHintAll": "No selection = every connected source.",
+    "previewHint": "Runs the radar against live postings without saving.",
+    "previewIdle": "Run Test to see what the radar would match right now.",
+    "previewEmptyHint": "Loosen the keywords or filters.",
+    "unsavedNote": "Unsaved changes — save to apply.",
+    "scanStatus": {
+      "ok": "ok",
+      "failed": "failed",
+      "degraded": "degraded",
+      "claimed": "running"
+    },
+    "addKeyword": "Add keyword"
   },
   "sourceDetail": {
     "back": "Job source connectors",

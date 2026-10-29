@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings overhaul phase 3 — job radar, 2026-10-29)
+- **The job radar page is rebuilt on the settings kit**: a status hero
+  with the scan cadence chips and the composed scan schedule (last scan
+  + outcome, next scan, **Scan now**, and a pause switch over the new
+  user-schedule endpoints `PUT/POST /api/v1/me/schedules/{id}` and
+  `/run-now`); keyword chips (library ChipInput); location rows with a
+  flag country combobox, city and per-row remote; seniority chips and
+  salary floor with a currency combobox; a **Connectors to watch**
+  source picker (`source_keys` — previously always empty); and a live
+  preview card. Explicit Save with a dirty guard and beforeunload
+  warning; Test previews the unsaved draft. docs/user/job-radar.md
+  rewritten.
+
 ### Changed (settings overhaul phase 2 — tools/connectors, 2026-10-29)
 - **The connectors tab follows the family provider-card grammar**: each
   posting-source row keeps its status + enable toggle and a primary

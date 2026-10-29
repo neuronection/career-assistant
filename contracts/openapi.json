@@ -17735,6 +17735,19 @@
         "title": "SavedSearchScheduleIn",
         "type": "object"
       },
+      "ScheduleEnabledIn": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "ScheduleEnabledIn",
+        "type": "object"
+      },
       "ScheduleItemOut": {
         "description": "One system schedule row (owner null) for the admin scheduler UI.",
         "properties": {
@@ -38764,6 +38777,108 @@
           }
         },
         "summary": "My Schedules",
+        "tags": [
+          "scheduler"
+        ]
+      }
+    },
+    "/api/v1/me/schedules/{schedule_id}": {
+      "put": {
+        "description": "Pause or resume one of the caller's schedules (plan 148 B2).",
+        "operationId": "set_my_schedule_api_v1_me_schedules__schedule_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleEnabledIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Set My Schedule Api V1 Me Schedules  Schedule Id  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set My Schedule",
+        "tags": [
+          "scheduler"
+        ]
+      }
+    },
+    "/api/v1/me/schedules/{schedule_id}/run-now": {
+      "post": {
+        "description": "Make one of the caller's schedules due immediately (plan 148 B2).",
+        "operationId": "run_my_schedule_now_api_v1_me_schedules__schedule_id__run_now_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "schedule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Schedule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run My Schedule Now Api V1 Me Schedules  Schedule Id  Run Now Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run My Schedule Now",
         "tags": [
           "scheduler"
         ]

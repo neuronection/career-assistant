@@ -9,7 +9,26 @@ once what you are looking for, and use it everywhere. It lives under
 > [Postings and search](postings-and-search.md)), so a monthly and a
 > yearly posting compete equally; an unknown salary never matches a
 > floor. An empty radar filters nothing — configure at least one thing
-> and use **Preview matches** to see what it catches before saving.
+> and use **Test** to see what it catches before saving.
+
+## The page
+
+- **Radar status** — the on/off switch and the scan cadence (off,
+  instant, daily, weekly). Saving with a cadence provisions your scan
+  schedule: the card shows the **last scan** with its outcome, the
+  **next scan**, **Scan now** (due immediately on the next tick) and a
+  pause switch — pausing stops the runs without deleting the
+  configuration (saving the radar again re-arms it).
+- **What to look for** — keyword chips and location rows. Locations
+  pick a country from a flag combobox plus an optional city, with a
+  per-row remote flag.
+- **Filters** — work mode, seniority bands and a salary floor
+  (annual figure + currency).
+- **Connectors to watch** — restrict the radar to specific sources;
+  nothing selected means every connected source.
+- **Preview** — **Test** runs the current draft against live postings
+  without saving; **Save** applies it (the page warns about unsaved
+  changes).
 
 ## What to configure
 
@@ -22,8 +41,8 @@ once what you are looking for, and use it everywhere. It lives under
 - **Match digest** — off, instant, daily or weekly (digest delivery
   arrives with the notifications wave).
 
-Save it once; **Preview matches** shows what the radar would match
-right now without saving.
+Save it once; **Test** shows what the radar would match right now
+without saving.
 
 ## Where it is used
 

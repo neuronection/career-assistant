@@ -123,6 +123,15 @@ export type SourceRun = {
   } | null;
 };
 
+export async function fetchUserSources(): Promise<
+  { key: string; connector_key: string; open_postings: number }[]
+> {
+  const response = await api.get<
+    { key: string; connector_key: string; open_postings: number }[]
+  >("/postings/sources");
+  return response.data;
+}
+
 export async function fetchAdminSources(): Promise<PostingSource[]> {
   const response = await api.get<PostingSource[]>("/admin/postings/sources");
   return response.data;

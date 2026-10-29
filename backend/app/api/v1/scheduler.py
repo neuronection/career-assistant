@@ -49,6 +49,56 @@ async def my_schedules(
     return [_schedule_out(s) for s in rows]
 
 
+class ScheduleEnabledIn(BaseModel):
+    enabled: bool
+
+
+async def _owned_schedule(
+    schedule_id: UUID, user_id: UUID, db: AsyncSession
+) -> Schedule:
+    rows = await db.execute(
+        select(Schedule).where(
+            Schedule.id == schedule_id,
+            Schedule.owner_user_id == user_id,
+        )
+    )
+    schedule = rows.scalars().first()
+    if schedule is None:
+        from fastapi import HTTPException
+        from starlette import status
+
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Schedule not found")
+    return schedule
+
+
+@router.put("/me/schedules/{schedule_id}")
+async def set_my_schedule(
+    schedule_id: UUID,
+    data: ScheduleEnabledIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pause or resume one of the caller's schedules (plan 148 B2)."""
+    await _owned_schedule(schedule_id, user.id, db)
+    schedule = await SchedulerService(db).set_enabled(schedule_id, data.enabled)
+    return _schedule_out(schedule)
+
+
+@router.post("/me/schedules/{schedule_id}/run-now")
+async def run_my_schedule_now(
+    schedule_id: UUID,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Make one of the caller's schedules due immediately (plan 148 B2)."""
+    await _owned_schedule(schedule_id, user.id, db)
+    schedule = await SchedulerService(db).run_now(schedule_id)
+    return {
+        "id": str(schedule.id),
+        "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+    }
+
+
 @router.put("/me/searches/{search_id}/schedule")
 async def schedule_saved_search(
     search_id: UUID,

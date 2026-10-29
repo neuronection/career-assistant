@@ -17,7 +17,7 @@ from app.services.postings.fit.dimensions import FIT_VERSION, FitResult
 from app.services.postings.fit.service import FitService
 from app.services.scheduler import triggers as trigger_registry
 from app.services.scheduler.runner import SchedulerService
-from tests.conftest import decode_session_token
+from tests.conftest import decode_session_token, register_user
 
 
 def _uid(auth_headers) -> uuid_mod.UUID:
@@ -489,3 +489,76 @@ async def test_stale_refit_sweep(client, auth_headers, profile_ready, seeded_cat
 
     await db.refresh(insight)
     assert insight.fit_version == FIT_VERSION
+
+
+async def test_user_schedule_pause_and_run_now(client, auth_headers, seeded_catalog):
+    put = await client.put(
+        "/api/v1/me/job-radar",
+        json={
+            "keywords": ["data"],
+            "locations": [],
+            "seniority": [],
+            "cadence": "daily",
+            "enabled": True,
+        },
+        headers=auth_headers,
+    )
+    assert put.status_code == 200
+
+    schedules = (await client.get("/api/v1/me/schedules", headers=auth_headers)).json()
+    radar = next(s for s in schedules if s["kind"] == "user_radar_digest")
+    assert radar["enabled"] is True
+    assert radar["task"] == "radar_digest"
+
+    paused = await client.put(
+        f"/api/v1/me/schedules/{radar['id']}", json={"enabled": False}, headers=auth_headers
+    )
+    assert paused.status_code == 200
+    assert paused.json()["enabled"] is False
+
+    runnow = await client.post(f"/api/v1/me/schedules/{radar['id']}/run-now", headers=auth_headers)
+    assert runnow.status_code == 200
+    assert runnow.json()["next_run_at"] is not None
+    after = (await client.get("/api/v1/me/schedules", headers=auth_headers)).json()
+    row = next(s for s in after if s["id"] == radar["id"])
+    assert row["enabled"] is True
+
+
+async def test_user_schedule_endpoints_are_owner_scoped(client, auth_headers, seeded_catalog):
+    other = await register_user(client, "radar-other@example.com")
+    put = await client.put(
+        "/api/v1/me/job-radar",
+        json={
+            "keywords": [],
+            "locations": [],
+            "seniority": [],
+            "cadence": "daily",
+            "enabled": True,
+        },
+        headers=auth_headers,
+    )
+    assert put.status_code == 200
+    schedules = (await client.get("/api/v1/me/schedules", headers=auth_headers)).json()
+    radar = next(s for s in schedules if s["kind"] == "user_radar_digest")
+
+    foreign_pause = await client.put(
+        f"/api/v1/me/schedules/{radar['id']}", json={"enabled": False}, headers=other
+    )
+    assert foreign_pause.status_code == 404
+    foreign_run = await client.post(f"/api/v1/me/schedules/{radar['id']}/run-now", headers=other)
+    assert foreign_run.status_code == 404
+
+    missing = await client.post(
+        f"/api/v1/me/schedules/{uuid_mod.uuid4()}/run-now", headers=auth_headers
+    )
+    assert missing.status_code == 404
+
+
+async def test_run_now_rejects_taskless_schedules(client, auth_headers):
+    schedules = (await client.get("/api/v1/me/schedules", headers=auth_headers)).json()
+    checkin = next(s for s in schedules if s["kind"] == "user_checkin")
+    assert checkin["task"] is None
+    rejected = await client.post(
+        f"/api/v1/me/schedules/{checkin['id']}/run-now", headers=auth_headers
+    )
+    assert rejected.status_code == 400

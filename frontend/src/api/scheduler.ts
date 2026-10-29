@@ -6,6 +6,25 @@ export async function fetchMySchedules(): Promise<ScheduleItem[]> {
   return data;
 }
 
+export async function setMyScheduleEnabled(
+  scheduleId: string,
+  enabled: boolean
+): Promise<ScheduleItem> {
+  const { data } = await api.put<ScheduleItem>(`/me/schedules/${scheduleId}`, {
+    enabled,
+  });
+  return data;
+}
+
+export async function runMyScheduleNow(
+  scheduleId: string
+): Promise<{ id: string; next_run_at: string | null }> {
+  const { data } = await api.post<{ id: string; next_run_at: string | null }>(
+    `/me/schedules/${scheduleId}/run-now`
+  );
+  return data;
+}
+
 export async function setSavedSearchSchedule(
   searchId: string,
   trigger: { type: string; params: Record<string, unknown> } | null
