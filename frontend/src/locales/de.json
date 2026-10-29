@@ -973,7 +973,8 @@
     },
     "rhythmBody": "Die eigenen Läufe des Assistant — Check-ins, Digests und Radar-Scans. Hier pausieren oder auslösen.",
     "systemBody": "Instanzweite Zeitpläne (Stellen-Sync, Sweeps). Jetzt ausführen oder pausieren; Fehler alarmieren die Admins.",
-    "pauseToggle": "{{kind}} pausieren"
+    "pauseToggle": "{{kind}} pausieren",
+    "rhythmEmpty": "Noch nichts im Rhythmus — Radar-Scans und Digests erscheinen hier, sobald konfiguriert."
   },
   "notifications": {
     "channelsTitle": "Kanäle",

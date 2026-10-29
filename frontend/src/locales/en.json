@@ -973,7 +973,8 @@
     },
     "rhythmBody": "The assistant's own runs — check-ins, digests and radar scans. Pause or trigger them here.",
     "systemBody": "Instance-wide schedules (posting sync, sweeps). Run now or pause; failures alert the admins.",
-    "pauseToggle": "Pause {{kind}}"
+    "pauseToggle": "Pause {{kind}}",
+    "rhythmEmpty": "Nothing on your rhythm yet — radar scans and digests appear here once configured."
   },
   "notifications": {
     "channelsTitle": "Channels",

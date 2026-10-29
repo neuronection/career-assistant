@@ -225,7 +225,7 @@ export function SchedulerSettings() {
         >
           {rhythm.length === 0 ? (
             <p className="text-xs text-[var(--as-muted-fg)]">
-              {t("scheduler.noSavedSearches")}
+              {t("scheduler.rhythmEmpty")}
             </p>
           ) : (
             <ul className="divide-y divide-[var(--as-border)]">
