@@ -1066,7 +1066,7 @@
     "kindColumn": "Art",
     "onColumn": "An",
     "filterKinds": "Arten filtern…",
-    "matrixSummary": "{count} Arten in {groups} Gruppen · Schalter speichern sofort",
+    "matrixSummary": "{{count}} Arten in {{groups}} Gruppen · Schalter speichern sofort",
     "noKindsMatch": "Keine Art passt zu diesem Filter.",
     "custom": "Angepasst",
     "resetShort": "Zurücksetzen",

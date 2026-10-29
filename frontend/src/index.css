@@ -249,22 +249,31 @@ body {
 
 @container (min-width: 62rem) {
   .ca-settings-layout {
-    grid-template-columns: 180px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 180px;
   }
 
+  /* The in-page rail reads on the RIGHT of the content (docs
+     convention); the DOM keeps rail-first for the landmark order. */
   .ca-settings-rail {
     display: block;
     position: sticky;
     top: 0;
     align-self: start;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .ca-settings-content {
+    grid-column: 1;
+    grid-row: 1;
   }
 }
 
 /* Very wide columns: keep the reading measure at 52rem (rail grows a
-   little; the leftover stays whitespace to the right). */
+   little; the leftover stays whitespace at the far edge). */
 @container (min-width: 68rem) {
   .ca-settings-layout {
-    grid-template-columns: 200px minmax(0, 52rem);
+    grid-template-columns: minmax(0, 52rem) 200px;
   }
 }
 

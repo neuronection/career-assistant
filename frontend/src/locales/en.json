@@ -1066,7 +1066,7 @@
     "kindColumn": "Kind",
     "onColumn": "On",
     "filterKinds": "Filter kinds…",
-    "matrixSummary": "{count} kinds in {groups} groups · switches save instantly",
+    "matrixSummary": "{{count}} kinds in {{groups}} groups · switches save instantly",
     "noKindsMatch": "No kinds match this filter.",
     "custom": "Custom",
     "resetShort": "Reset",

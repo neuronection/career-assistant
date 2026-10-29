@@ -68,7 +68,7 @@ export function KindMatrix({
           {t("notifications.matrixSummary", { count: shown, groups: groups.length })}
         </span>
       </div>
-      <div className="overflow-hidden rounded-lg border border-[var(--as-border)]">
+      <div className="overflow-x-auto rounded-lg border border-[var(--as-border)]">
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b border-[var(--as-border)] bg-[var(--as-muted)]">
@@ -232,6 +232,7 @@ function KindRow({
                 label={t("notifications.routeChannel", { channel, name: kind.label })}
                 checked={channelOn(channel)}
                 disabled={locked}
+                hideLabel
                 onCheckedChange={(next) => void setChannel(channel, next)}
                 className="w-auto border-none bg-transparent px-1 py-0 hover:bg-transparent data-[state=unchecked]:opacity-60"
                 data-testid={`kind-${kind.key}-${channel}`}
@@ -246,6 +247,7 @@ function KindRow({
             <SwitchRow
               label={t("notifications.enableKind", { name: kind.label })}
               checked={valueOf(`${kind.key}:on`, kind.enabled)}
+              hideLabel
               onCheckedChange={(next) => void toggle(`${kind.key}:on`, next, () => onSetEnabled(kind, next))}
               className="w-auto border-none bg-transparent px-1 py-0 hover:bg-transparent data-[state=unchecked]:opacity-60"
               data-testid={`kind-${kind.key}`}
