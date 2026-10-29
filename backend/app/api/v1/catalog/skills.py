@@ -3,12 +3,16 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
+from app.models.taxonomy_model import SkillChange
 from app.schemas.skills import (
+    SkillChangeOut,
     SkillGapReport,
+    SkillHistoryOut,
     SkillJobsOut,
     UserSkillOut,
     UserSkillPatchIn,
@@ -116,6 +120,50 @@ async def get_skill(
         status=skill.status,
         children_keys=children,
         jobs=[JobSkillOut.model_validate(row) for row in jobs],
+    )
+
+
+@router.get("/skills/{key}/history", response_model=SkillHistoryOut)
+async def skill_history(
+    key: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> SkillHistoryOut:
+    """One skill's lifecycle journal, newest first (plan 148) — event
+    kind, actor role and the capped detail per row. User-visible for
+    every signed-in user, exactly like the postings journal read."""
+    service = SkillService(db)
+    try:
+        skill = await service.require_skill(key)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    total = (
+        await db.execute(
+            select(func.count()).select_from(SkillChange).where(SkillChange.skill_id == skill.id)
+        )
+    ).scalar_one()
+    rows = await db.execute(
+        select(SkillChange)
+        .where(SkillChange.skill_id == skill.id)
+        .order_by(SkillChange.occurred_at.desc(), SkillChange.id.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    items = [
+        SkillChangeOut(
+            id=row.id,
+            occurred_at=row.occurred_at,
+            event=row.event,
+            actor_kind=row.actor_kind,
+            actor_ref=row.actor_ref or {},
+            detail=row.detail or {},
+        )
+        for row in rows.scalars().all()
+    ]
+    return SkillHistoryOut(
+        items=items, total=total, limit=limit, offset=offset, skill_id=skill.id, skill_key=skill.key
     )
 
 

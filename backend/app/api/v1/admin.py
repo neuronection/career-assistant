@@ -159,13 +159,14 @@ async def skill_proposals(
 @router.post("/skills/{skill_id}/promote")
 async def promote_skill(
     skill_id: uuid.UUID,
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """proposed → active; the vocabulary stays clean via admin review."""
     from app.schemas.taxonomy import SkillOut
 
     try:
-        skill = await TaxonomyService(db).promote(skill_id)
+        skill = await TaxonomyService(db).promote(skill_id, actor_ref={"user_id": str(admin.id)})
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
@@ -175,6 +176,7 @@ async def promote_skill(
 async def merge_skill(
     skill_id: uuid.UUID,
     body: dict,
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Merge a duplicate into `target_id` (aliases redirect, joins rewritten)."""
@@ -184,7 +186,11 @@ async def merge_skill(
     if not target_id:
         raise ValidationError("target_id is required")
     try:
-        skill = await TaxonomyService(db).merge(skill_id, uuid.UUID(str(target_id)))
+        skill = await TaxonomyService(db).merge(
+            skill_id,
+            uuid.UUID(str(target_id)),
+            actor_ref={"user_id": str(admin.id)},
+        )
     except ValueError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "target_id must be a UUID") from exc
     except DomainError as exc:
@@ -195,6 +201,7 @@ async def merge_skill(
 @router.post("/skills/bulk", response_model=SkillBulkOut)
 async def bulk_skill_action(
     body: SkillBulkIn,
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SkillBulkOut:
     """One lifecycle action over many skills (promote/deprecate/restore/
@@ -203,7 +210,9 @@ async def bulk_skill_action(
     Best-effort with a per-item report: ids the seams refuse (wrong status,
     still referenced, unknown) come back as failure rows, never a 4xx.
     """
-    result = await TaxonomyService(db).bulk_skills(body.ids, body.action, body.target_id)
+    result = await TaxonomyService(db).bulk_skills(
+        body.ids, body.action, body.target_id, actor_ref={"user_id": str(admin.id)}
+    )
     return SkillBulkOut.model_validate(result)
 
 

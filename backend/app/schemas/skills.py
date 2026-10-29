@@ -1,5 +1,6 @@
 """Schemas for the skill ontology user surface (Phase 21)."""
 
+from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -75,3 +76,26 @@ class SkillJobsOut(BaseModel):
     status: str
     children_keys: list[str] = Field(default_factory=list)
     jobs: list[JobSkillOut] = Field(default_factory=list)
+
+
+class SkillChangeOut(BaseModel):
+    """One skill journal row (plan 148): event kind, actor role and the
+    ids-only actor ref + capped detail."""
+
+    id: UUID
+    occurred_at: datetime
+    event: str
+    actor_kind: str
+    actor_ref: dict = Field(default_factory=dict)
+    detail: dict = Field(default_factory=dict)
+
+
+class SkillHistoryOut(BaseModel):
+    """The skill history read: newest-first journal page."""
+
+    items: list[SkillChangeOut]
+    total: int
+    limit: int
+    offset: int
+    skill_id: UUID
+    skill_key: str

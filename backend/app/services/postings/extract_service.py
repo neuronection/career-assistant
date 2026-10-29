@@ -407,7 +407,9 @@ async def _auto_promote(db: AsyncSession, skill: Skill, postings_count: int) -> 
     from app.services.catalog.taxonomy_service import TaxonomyService
 
     try:
-        promoted = await TaxonomyService(db).promote(skill.id)
+        promoted = await TaxonomyService(db).promote(
+            skill.id, auto=True, detail={"postings": postings_count}
+        )
     except ValidationError:
         logger.warning("corroboration promotion skipped for %s (status moved)", skill.key)
         return

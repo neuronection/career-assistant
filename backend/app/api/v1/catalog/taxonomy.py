@@ -75,12 +75,14 @@ async def create_interest(
 @router.post("/skills", response_model=SkillOut, status_code=201)
 async def create_skill(
     data: TagCreateIn,
-    _admin=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SkillOut:
     """Create a skill (admin; key becomes the stable slug, active on create)."""
     try:
-        tag = await TaxonomyService(db).create_skill(data.model_dump())
+        tag = await TaxonomyService(db).create_skill(
+            data.model_dump(), actor_ref={"user_id": str(admin.id)}
+        )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(tag)
@@ -105,13 +107,15 @@ async def update_interest(
 async def update_skill(
     skill_id: uuid.UUID,
     data: SkillUpdateIn,
-    _admin=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> SkillOut:
     """Edit a skill (admin; key immutable, lifecycle via status)."""
     try:
         skill = await TaxonomyService(db).update_skill(
-            skill_id, data.model_dump(exclude_unset=True)
+            skill_id,
+            data.model_dump(exclude_unset=True),
+            actor_ref={"user_id": str(admin.id)},
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -143,12 +147,14 @@ async def delete_interest(
 @router.delete("/skills/{skill_id}")
 async def delete_skill(
     skill_id: uuid.UUID,
-    _admin=Depends(require_admin),
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Delete an unreferenced skill (admin); 409 when referenced."""
     try:
-        return await TaxonomyService(db).delete_skill(skill_id)
+        return await TaxonomyService(db).delete_skill(
+            skill_id, actor_ref={"user_id": str(admin.id)}
+        )
     except ReferenceCountError as exc:
         raise HTTPException(
             status.HTTP_409_CONFLICT,

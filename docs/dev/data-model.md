@@ -154,6 +154,22 @@ deletion).
 
 ### Migration notes
 
+- **0073** — plan 148: `skill_changes`, the append-only skill lifecycle
+  journal (`created | updated | promoted | auto_promoted | deprecated |
+  restored | merged | deleted` — `event_allowed` CHECK mirrors
+  `SkillEventKind`; actor `admin | system | sync | job | user` —
+  `actor_kind_allowed` mirrors `SkillChangeActor`). `skill_id` is
+  nullable with ON DELETE SET NULL and every row carries denormalized
+  `skill_key`/`skill_label` snapshots, so deleting a skill keeps its
+  audit trail (postings journal cascades because postings are the
+  aggregate root; skill deletion is an admin decision worth keeping
+  history for). `actor_ref`/`detail` are ids and capped diffs only.
+  Composite indexes (skill_id, occurred_at) for the FK + newest-first
+  read and (skill_key, occurred_at) for the after-deletion lookup.
+  Written only through the `SkillChangeJournal.record` seam in the
+  mutation's own transaction (admin taxonomy seams, the plan-147
+  auto-promotion, proposal creation, tree-maintenance writes);
+  downgrade drops the table (operational history).
 - **0072** — plan 142: `posting_changes`, the append-only posting
   mutation journal (actor `sync_run | extract_llm | detail_fetch |
   company_match | retag | manual | expiry` — `actor_kind_allowed` CHECK

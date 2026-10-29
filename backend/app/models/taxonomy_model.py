@@ -1,8 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, Float, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import (
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
@@ -168,3 +175,49 @@ class SkillRelation(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     decided_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+
+
+class SkillChange(UUIDPrimaryKeyMixin, Base):
+    """Append-only skill lifecycle journal (plan 148): one row per real
+    change with its event kind and actor.
+
+    Written ONLY through `SkillChangeJournal.record` in the SAME
+    transaction as the mutation; the empty-diff gate keeps no-op writes
+    out. `skill_id` is nullable with ON DELETE SET NULL and every row
+    carries denormalized `skill_key`/`skill_label` snapshots — deleting
+    a skill must not erase its audit trail (unlike postings, where the
+    journal cascades with the aggregate root). `actor_ref` carries ids
+    only; `detail` is the capped field diff / merge target /
+    corroboration counts — WHAT changed, never full content."""
+
+    __tablename__ = "skill_changes"
+    __table_args__ = (
+        CheckConstraint(
+            "event IN ("
+            "'created', 'updated', 'promoted', 'auto_promoted', "
+            "'deprecated', 'restored', 'merged', 'deleted')",
+            name="event_allowed",
+        ),
+        CheckConstraint(
+            "actor_kind IN ('admin', 'system', 'sync', 'job', 'user')",
+            name="actor_kind_allowed",
+        ),
+        Index("ix_skill_changes_skill_occurred", "skill_id", "occurred_at"),
+        Index("ix_skill_changes_key_occurred", "skill_key", "occurred_at"),
+    )
+
+    skill_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("skills.id", ondelete="SET NULL"), nullable=True
+    )
+    # Denormalized snapshots — events render after the skill row is gone.
+    skill_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    skill_label: Mapped[str] = mapped_column(String(120), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(
+        TZDateTime(), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    event: Mapped[str] = mapped_column(String(20), nullable=False)
+    actor_kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    # ids only: user_id, posting_id, extract/job refs — never content.
+    actor_ref: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    # capped field diff / merge target / corroboration counts.
+    detail: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)

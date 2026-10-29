@@ -146,6 +146,8 @@ from app.models.enums.taxonomy import JobSkillImportance as JobSkillImportance
 from app.models.enums.taxonomy import PathFlag as PathFlag
 from app.models.enums.taxonomy import PathSource as PathSource
 from app.models.enums.taxonomy import PathStatus as PathStatus
+from app.models.enums.taxonomy import SkillChangeActor as SkillChangeActor
+from app.models.enums.taxonomy import SkillEventKind as SkillEventKind
 from app.models.enums.taxonomy import SkillExpandMode as SkillExpandMode
 from app.models.enums.taxonomy import SkillOrigin as SkillOrigin
 from app.models.enums.taxonomy import SkillParentSource as SkillParentSource
@@ -262,6 +264,8 @@ __all__ = [
     "ScheduleKind",
     "ScheduleStatus",
     "SearchScope",
+    "SkillChangeActor",
+    "SkillEventKind",
     "SkillExpandMode",
     "SkillOrigin",
     "SkillStatus",

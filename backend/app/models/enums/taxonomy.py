@@ -39,6 +39,31 @@ class SkillStatus(StrEnum):
     DEPRECATED = "deprecated"
 
 
+class SkillEventKind(StrEnum):
+    """What happened to a skill — the `skill_changes` event vocabulary
+    (plan 148), mirrored in the `event_allowed` CHECK."""
+
+    CREATED = "created"
+    UPDATED = "updated"
+    PROMOTED = "promoted"
+    AUTO_PROMOTED = "auto_promoted"
+    DEPRECATED = "deprecated"
+    RESTORED = "restored"
+    MERGED = "merged"
+    DELETED = "deleted"
+
+
+class SkillChangeActor(StrEnum):
+    """Who mutated a skill — the `skill_changes` actor vocabulary
+    (plan 148), mirrored in the `actor_kind_allowed` CHECK."""
+
+    ADMIN = "admin"
+    SYSTEM = "system"
+    SYNC = "sync"
+    JOB = "job"
+    USER = "user"
+
+
 class SkillOrigin(StrEnum):
     BANK = "bank"
     AI = "ai"

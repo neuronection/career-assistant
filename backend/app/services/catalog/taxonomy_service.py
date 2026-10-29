@@ -7,6 +7,8 @@ from app.core.errors import DomainError, ValidationError
 from app.models.career_path_model import CareerPathStep
 from app.models.enums import (
     InterestTagKind,
+    SkillChangeActor,
+    SkillEventKind,
     SkillParentSource,
     SkillRelationStatus,
     SkillRelationType,
@@ -14,6 +16,8 @@ from app.models.enums import (
 from app.models.job_model import JobSkill, JobTag
 from app.models.taxonomy_model import InterestTag, Skill, SkillRelation
 from app.models.user_model import Profile, UserInterest, UserSkill
+from app.services.catalog.skill_change_journal import SkillChangeJournal
+from app.services.catalog.skill_change_journal import snapshot as journal_snapshot
 from app.services.catalog.skill_relations import assert_acyclic
 from app.services.catalog.skills_service import SkillService
 
@@ -53,7 +57,7 @@ class TaxonomyService:
     async def create_interest(self, data: dict) -> InterestTag:
         return await self._create(InterestTag, data)
 
-    async def create_skill(self, data: dict) -> Skill:
+    async def create_skill(self, data: dict, *, actor_ref: dict | None = None) -> Skill:
         key = (data.get("key") or "").strip()
         _require_slug(key)
         existing = await self.db.execute(select(Skill).where(Skill.key == key))
@@ -68,6 +72,14 @@ class TaxonomyService:
             origin="bank",
         )
         self.db.add(skill)
+        await self.db.flush()
+        SkillChangeJournal.record(
+            self.db,
+            skill,
+            SkillEventKind.CREATED,
+            SkillChangeActor.ADMIN,
+            actor_ref=actor_ref,
+        )
         await self.db.commit()
         await self.db.refresh(skill)
         return skill
@@ -100,6 +112,7 @@ class TaxonomyService:
         *,
         only_if_parent_empty: bool = False,
         parent_source: SkillParentSource | None = SkillParentSource.CURATED,
+        actor_ref: dict | None = None,
     ) -> Skill:
         """Edit a skill (key immutable); lifecycle transitions via status.
 
@@ -130,6 +143,7 @@ class TaxonomyService:
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
             raise ValidationError("Skill not found")
+        before = journal_snapshot(skill)
         if "key" in data and data["key"] != skill.key:
             raise ValidationError("Skill keys are immutable")
         if "status" in data and data["status"] is not None:
@@ -185,6 +199,15 @@ class TaxonomyService:
         for field in ("label", "category", "description"):
             if field in data and data[field] is not None:
                 setattr(skill, field, data[field])
+        SkillChangeJournal.record_snapshot_change(
+            self.db,
+            skill,
+            before,
+            journal_snapshot(skill),
+            _transition_event(before.get("status"), skill.status),
+            _update_actor(parent_source),
+            actor_ref=actor_ref,
+        )
         await self.db.commit()
         await self.db.refresh(skill)
         return skill
@@ -255,8 +278,13 @@ class TaxonomyService:
         await self.db.commit()
         return {"deleted": tag.key}
 
-    async def delete_skill(self, skill_id: UUID) -> dict:
-        """Delete an unreferenced skill; report counts otherwise."""
+    async def delete_skill(self, skill_id: UUID, *, actor_ref: dict | None = None) -> dict:
+        """Delete an unreferenced skill; report counts otherwise.
+
+        The ``deleted`` journal row lands (flushed) BEFORE the delete so
+        its FK insert sees the live row — ``ON DELETE SET NULL`` then
+        detaches it in the same transaction, key/label snapshots kept.
+        """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
             raise ValidationError("Skill not found")
@@ -281,6 +309,14 @@ class TaxonomyService:
         total = job_refs + user_refs + child_refs + step_refs
         if total > 0:
             raise ReferenceCountError(job_refs, user_refs + child_refs + step_refs)
+        SkillChangeJournal.record(
+            self.db,
+            skill,
+            SkillEventKind.DELETED,
+            SkillChangeActor.ADMIN,
+            actor_ref=actor_ref,
+        )
+        await self.db.flush()
         await self.db.delete(skill)
         await self.db.commit()
         return {"deleted": skill.key}
@@ -310,19 +346,41 @@ class TaxonomyService:
         )
         return list(rows.scalars().all())
 
-    async def promote(self, skill_id: UUID) -> Skill:
-        """proposed → active (admin decision; the only promotion path)."""
+    async def promote(
+        self,
+        skill_id: UUID,
+        *,
+        auto: bool = False,
+        detail: dict | None = None,
+        actor_ref: dict | None = None,
+    ) -> Skill:
+        """proposed → active (admin decision; the only promotion path).
+
+        ``auto=True`` is the plan-147 corroboration gate's ride: the same
+        seam journals ``auto_promoted`` (with the corroboration counts as
+        ``detail``) instead of ``promoted`` — one seam, no double rows.
+        """
         skill = await self.db.get(Skill, skill_id)
         if skill is None:
             raise ValidationError("Skill not found")
         if skill.status != "proposed":
             raise ValidationError("Only proposed skills can be promoted")
         skill.status = "active"
+        SkillChangeJournal.record(
+            self.db,
+            skill,
+            SkillEventKind.AUTO_PROMOTED if auto else SkillEventKind.PROMOTED,
+            SkillChangeActor.JOB if auto else SkillChangeActor.ADMIN,
+            actor_ref=actor_ref,
+            detail=detail,
+        )
         await self.db.commit()
         await self.db.refresh(skill)
         return skill
 
-    async def merge(self, skill_id: UUID, target_id: UUID) -> Skill:
+    async def merge(
+        self, skill_id: UUID, target_id: UUID, *, actor_ref: dict | None = None
+    ) -> Skill:
         """Merge a duplicate into the surviving skill (no orphan references).
 
         Alias redirect: the source key/label/aliases become target aliases;
@@ -388,6 +446,22 @@ class TaxonomyService:
             **(source.provenance or {}),
             "merged_into": str(target.id),
         }
+        SkillChangeJournal.record(
+            self.db,
+            source,
+            SkillEventKind.MERGED,
+            SkillChangeActor.ADMIN,
+            actor_ref=actor_ref,
+            detail={"merged_into": target.key, "target_id": str(target.id)},
+        )
+        SkillChangeJournal.record(
+            self.db,
+            target,
+            SkillEventKind.MERGED,
+            SkillChangeActor.ADMIN,
+            actor_ref=actor_ref,
+            detail={"absorbed": source.key},
+        )
         await self.db.commit()
         await self.db.refresh(target)
         return target
@@ -397,6 +471,8 @@ class TaxonomyService:
         ids: list[UUID],
         action: str,
         target_id: UUID | None = None,
+        *,
+        actor_ref: dict | None = None,
     ) -> dict:
         """One lifecycle action over many skills, per-item seams preserved.
 
@@ -413,17 +489,17 @@ class TaxonomyService:
             before = skill.status if skill is not None else None
             try:
                 if action == "promote":
-                    await self.promote(skill_id)
+                    await self.promote(skill_id, actor_ref=actor_ref)
                 elif action == "deprecate":
-                    await self.update_skill(skill_id, {"status": "deprecated"})
+                    await self.update_skill(skill_id, {"status": "deprecated"}, actor_ref=actor_ref)
                 elif action == "restore":
-                    await self.update_skill(skill_id, {"status": "active"})
+                    await self.update_skill(skill_id, {"status": "active"}, actor_ref=actor_ref)
                 elif action == "delete":
-                    await self.delete_skill(skill_id)
+                    await self.delete_skill(skill_id, actor_ref=actor_ref)
                 elif action == "merge":
                     if target_id is None:  # pragma: no cover - schema-enforced
                         raise ValidationError("target_id is required for merge")
-                    await self.merge(skill_id, target_id)
+                    await self.merge(skill_id, target_id, actor_ref=actor_ref)
                 else:
                     raise ValidationError(f"Unknown bulk action: {action}")
             except ReferenceCountError as exc:
@@ -445,6 +521,28 @@ class TaxonomyService:
                     continue
                 affected.append(skill_id)
         return {"affected": affected, "failed": failed}
+
+
+def _transition_event(before_status: str | None, after_status: str | None) -> SkillEventKind:
+    """The lifecycle event a status transition names; plain ``updated``
+    when the status did not move (the diff rides ``detail`` either way)."""
+    if before_status != after_status:
+        if after_status == "deprecated":
+            return SkillEventKind.DEPRECATED
+        if before_status == "deprecated" and after_status == "active":
+            return SkillEventKind.RESTORED
+        if before_status == "proposed" and after_status == "active":
+            return SkillEventKind.PROMOTED
+    return SkillEventKind.UPDATED
+
+
+def _update_actor(parent_source: SkillParentSource | None) -> SkillChangeActor:
+    """Machine tree-maintenance writes journal as ``system`` (the
+    catch-up's learned fill and the placement heal); every other
+    ``update_skill`` caller is the admin surface."""
+    if parent_source in (None, SkillParentSource.LEARNED):
+        return SkillChangeActor.SYSTEM
+    return SkillChangeActor.ADMIN
 
 
 class ReferenceCountError(ValidationError):

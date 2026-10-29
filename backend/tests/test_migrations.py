@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0072"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0073"], (
         "revision chain stays linear on one head"
     )
 
@@ -3220,3 +3220,58 @@ def test_0072_posting_changes_roundtrip():
 
     command.upgrade(config, "head")
     assert asyncio.run(_columns()) == columns, "re-upgrade restores the same shape"
+
+
+def test_0073_skill_changes_roundtrip():
+    """The skill journal table exists at head, drops on downgrade (CHECKs
+    and both indexes with it) and comes back on re-upgrade — on an empty
+    DB too, so the fresh-DB boot upgrade path stays green on both
+    dialects."""
+
+    async def _shape() -> tuple[list[str], list[str]]:
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+
+                def _read(sync_conn):
+                    inspector = inspect(sync_conn)
+                    cols = [c["name"] for c in inspector.get_columns("skill_changes")]
+                    checks = " ".join(
+                        f"{c.get('name', '')} {c.get('sqltext', '')}"
+                        for c in inspector.get_check_constraints("skill_changes")
+                    )
+                    return cols, checks
+
+                shape = await conn.run_sync(_read)
+        finally:
+            await engine.dispose()
+        return shape
+
+    config = _configured()
+    command.upgrade(config, "head")
+    columns, checks = asyncio.run(_shape())
+    assert columns == [
+        "id",
+        "skill_id",
+        "skill_key",
+        "skill_label",
+        "occurred_at",
+        "event",
+        "actor_kind",
+        "actor_ref",
+        "detail",
+    ], "plan 148 column set, order pinned by the model"
+    assert "event_allowed" in checks and "actor_kind_allowed" in checks, (
+        "both vocabulary CHECKs rode the table in"
+    )
+
+    command.downgrade(config, "0072")
+    assert not _table_present("skill_changes"), "downgrade drops the journal"
+
+    command.upgrade(config, "head")
+    assert asyncio.run(_shape())[0] == columns, "re-upgrade restores the same shape"

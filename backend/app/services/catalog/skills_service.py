@@ -18,6 +18,22 @@ def _norm(value: str) -> str:
     return (value or "").strip().lower()
 
 
+_PROPOSAL_ACTOR: dict[str, str] = {
+    "bank": "system",
+    "import": "sync",
+    "ai": "job",
+    "cv_parse": "job",
+    "user": "user",
+}
+
+
+def _proposal_actor(origin: SkillOrigin) -> str:
+    """Who a proposal creation is attributed to, by its origin (plan 148)."""
+    return _PROPOSAL_ACTOR.get(
+        origin.value if isinstance(origin, SkillOrigin) else str(origin), "system"
+    )
+
+
 class SkillService:
     """Read/browse of the ontology + the proposed→active lifecycle."""
 
@@ -108,6 +124,15 @@ class SkillService:
         )
         self.db.add(skill)
         await self.db.flush()
+        from app.models.enums import SkillEventKind
+        from app.services.catalog.skill_change_journal import SkillChangeJournal
+
+        SkillChangeJournal.record(
+            self.db,
+            skill,
+            SkillEventKind.CREATED,
+            _proposal_actor(origin),
+        )
         return skill, True
 
     async def jobs_for_skill(self, skill: Skill) -> list[JobSkill]:
