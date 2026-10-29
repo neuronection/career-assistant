@@ -123,6 +123,10 @@ async def get_skill(
     merged_ref = (skill.provenance or {}).get("merged_into")
     if merged_ref:
         merged_into = await _merged_target_key(db, merged_ref)
+    parent_key = None
+    if skill.parent_id is not None:
+        parent = await db.get(Skill, skill.parent_id)
+        parent_key = parent.key if parent is not None else None
     return SkillJobsOut(
         id=skill.id,
         key=skill.key,
@@ -137,6 +141,8 @@ async def get_skill(
         jobs=[JobSkillOut.model_validate(row) for row in jobs],
         stats=SkillStatsOut.model_validate(stats),
         merged_into=merged_into,
+        origin=skill.origin,
+        parent_key=parent_key,
     )
 
 

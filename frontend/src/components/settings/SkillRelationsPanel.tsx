@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Crosshair, ExternalLink } from "lucide-react";
 
 import { apiDetail } from "@/api/client";
 import {
@@ -35,12 +36,14 @@ import {
   type PickerSelection,
 } from "@/components/ui";
 import { ConceptGraphView } from "@/components/ui";
+import { ContextMenu } from "@neuronection/assistant-ui";
 import {
   FormRow,
   NumberField,
   SelectField,
 } from "@/features/cv/components/cv/formPrimitives";
 import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
+import { EDGE_COLORS, NODE_COLORS, REVERSED_RELATIONS } from "@/features/skills/graphColors";
 
 export type RelationSection = "queue" | "editor" | "graph" | "thresholds" | "runs";
 
@@ -63,21 +66,6 @@ type RelationKind = SkillRelationRow["relation"];
 
 const RELATIONS: RelationKind[] = ["is_a", "synonym", "part_of", "related_to"];
 
-const NODE_COLORS: Record<string, string> = {
-  active: "#059669",
-  deprecated: "#d97706",
-};
-
-const EDGE_COLORS: Record<string, string> = {
-  is_a: "#2563eb",
-  synonym: "#059669",
-  part_of: "#7c3aed",
-  related_to: "#64748b",
-};
-
-/** Container-style relations: the parent/container ranks above in the
- * hierarchy layout (an is_a child sits under its parent). */
-const REVERSED_RELATIONS = ["is_a", "part_of"];
 const LEDGER_KEYS: (keyof SkillRelationRun["ledger"])[] = [
   "candidates",
   "batches",
@@ -241,9 +229,12 @@ function RelationRowCard({
 export function SkillRelationsPanel({
   section,
   onSectionChange,
+  onOpenSkillPage,
 }: {
   section: RelationSection;
   onSectionChange: (next: RelationSection) => void;
+  /** Router-free panel contract: the host (Taxonomy) navigates. */
+  onOpenSkillPage?: (key: string) => void;
 }) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<SkillRelationRow[]>([]);
@@ -742,6 +733,28 @@ export function SkillRelationsPanel({
             labels={{
               empty: t("taxonomy.relations.graph.empty"),
               findPlaceholder: t("taxonomy.relations.graph.find"),
+            }}
+            renderContextMenu={({ x, y, node, onClose, onFocus }) => {
+              const skill = skills.find((entry) => entry.id === node.id);
+              const items = [
+                ...(skill && onOpenSkillPage
+                  ? [
+                      {
+                        key: "open-page",
+                        label: t("skillPage.context.open"),
+                        icon: ExternalLink,
+                        onSelect: () => onOpenSkillPage(skill.key),
+                      },
+                    ]
+                  : []),
+                {
+                  key: "center",
+                  label: t("skillPage.context.center"),
+                  icon: Crosshair,
+                  onSelect: onFocus,
+                },
+              ];
+              return <ContextMenu x={x} y={y} items={items} onClose={onClose} />;
             }}
             renderNodeDetail={({ node, degree, onClose, onFocus }) => {
               const skill = skills.find((entry) => entry.id === node.id);

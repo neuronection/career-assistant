@@ -118,6 +118,16 @@ export type PostingDetailSkill = Schemas["PostingExtractSkillOut"];
 export type PostingDetailOut = Schemas["PostingDetailOut"];
 export type PostingsResponse = Schemas["PostingsOut"];
 export type ExploreResponse = Schemas["ExploreOut"];
+
+// ---------------------------------------------------------------- skills
+export type SkillDetail = Schemas["SkillJobsOut"];
+export type SkillStats = Schemas["SkillStatsOut"];
+export type SkillChange = Schemas["SkillChangeOut"];
+export type SkillHistoryResponse = Schemas["SkillHistoryOut"];
+export type SkillPositionsResponse = Schemas["SkillPositionsOut"];
+export type SkillGraphNode = Schemas["SkillGraphNodeOut"];
+export type SkillGraphEdge = Schemas["SkillGraphEdgeOut"];
+export type SkillRelationsResponse = Schemas["SkillRelationsOut"];
 export type ResolveArchetype = Schemas["ArchetypeOut"];
 export type ResolveResponse = Schemas["ResolveOut"];
 export type ExpressStart = Schemas["ExpressIn"];

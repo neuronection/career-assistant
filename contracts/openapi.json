@@ -19133,6 +19133,11 @@
             ],
             "title": "Merged Into"
           },
+          "origin": {
+            "default": "bank",
+            "title": "Origin",
+            "type": "string"
+          },
           "parent_id": {
             "anyOf": [
               {
@@ -19144,6 +19149,17 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "parent_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Key"
           },
           "stats": {
             "anyOf": [

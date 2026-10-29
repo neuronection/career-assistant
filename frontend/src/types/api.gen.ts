@@ -15695,8 +15695,15 @@ export interface components {
             }[];
             /** Merged Into */
             merged_into?: string | null;
+            /**
+             * Origin
+             * @default bank
+             */
+            origin: string;
             /** Parent Id */
             parent_id?: string | null;
+            /** Parent Key */
+            parent_key?: string | null;
             stats?: components["schemas"]["SkillStatsOut"] | null;
             /** Status */
             status: string;

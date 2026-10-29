@@ -94,6 +94,8 @@ class SkillJobsOut(BaseModel):
     # banner target (survivor key, None when the row was never merged).
     stats: SkillStatsOut | None = None
     merged_into: str | None = None
+    origin: str = "bank"
+    parent_key: str | None = None
 
 
 class SkillChangeOut(BaseModel):

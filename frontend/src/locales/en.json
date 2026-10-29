@@ -1259,7 +1259,10 @@
       "deleted_other": "{{count}} skills deleted.",
       "deleteTitle_one": "Delete {{count}} skill?",
       "deleteTitle_other": "Delete {{count}} skills?"
-    }
+    },
+    "details": "Details",
+    "aliasesLabel": "Also known as",
+    "drawerOpen": "Open skill page"
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -4472,5 +4475,103 @@
     "keepSeparate": "Keep separate",
     "merge": "Merge",
     "save": "Save"
+  },
+  "skillPage": {
+    "back": "Back to taxonomy",
+    "notFound": "Skill not found",
+    "notFoundBody": "It may have been deleted — check the skills taxonomy or search the catalog.",
+    "mergedInto": "This key was merged into {{key}}.",
+    "openSurvivor": "Open the surviving skill",
+    "parent": "Parent",
+    "corroborated_one": "Corroborated by {{count}} posting",
+    "corroborated_other": "Corroborated by {{count}} postings",
+    "edit": "Edit",
+    "tabsAria": "Skill page sections",
+    "tab": {
+      "overview": "Overview",
+      "positions": "Positions",
+      "graph": "Graph",
+      "history": "History"
+    },
+    "stats": {
+      "demand": "Postings demanding this",
+      "demandHint": "hidden excluded",
+      "avgLevel": "Avg required level",
+      "users": "People with this skill",
+      "firstSeen": "First seen",
+      "lastSeen": "Last seen"
+    },
+    "histogramTitle": "Required level distribution",
+    "levelN": "Level {{level}}",
+    "anchorsTitle": "What the levels mean",
+    "yourSkillTitle": "Your skill",
+    "yourLevel": "Your level: {{level}}/10",
+    "notInProfile": "Not in your profile",
+    "demandAvg": "Postings ask for {{avg}}/10 on average",
+    "gap": "vs demand: {{delta}}",
+    "setLevelAria": "Your level for this skill",
+    "addLevel": "Add to profile",
+    "updateLevel": "Update level",
+    "jobsTitle": "Catalog jobs asking for this",
+    "noJobs": "No catalog job lists this skill yet.",
+    "jobLevel": "level {{level}}",
+    "importance": {
+      "core": "core",
+      "important": "important",
+      "bonus": "bonus"
+    },
+    "relatedTitle": "Related skills",
+    "positionsCount_one": "{{count}} posting",
+    "positionsCount_other": "{{count}} postings",
+    "openInExplore": "Open in Explore",
+    "positionsEmpty": "No postings demand this skill",
+    "positionsEmptyBody": "Closed and hidden postings stay out; new matches appear as connectors sync.",
+    "loadMore": "Load more",
+    "graphEmpty": "No approved relations yet",
+    "graphEmptyBody": "Approved edges from the review queue appear here.",
+    "openFullGraph": "Open full graph",
+    "historyCount_one": "{{count}} event",
+    "historyCount_other": "{{count}} events",
+    "historyEmpty": "No history yet",
+    "deleteTitle": "Delete {{key}}?",
+    "deleteBody": "Only unreferenced skills can be deleted; the history stays readable.",
+    "note": {
+      "promoted": "Promoted to the active catalog.",
+      "deprecated": "Deprecated — hidden from pickers, still resolvable.",
+      "restored": "Restored to active.",
+      "merged": "Merged into the survivor.",
+      "updated": "Saved.",
+      "levelSaved": "Your skill level was saved."
+    },
+    "event": {
+      "created": "Created",
+      "updated": "Updated",
+      "promoted": "Promoted",
+      "auto_promoted": "Auto-promoted",
+      "deprecated": "Deprecated",
+      "restored": "Restored",
+      "merged": "Merged",
+      "deleted": "Deleted"
+    },
+    "actor": {
+      "admin": "admin",
+      "system": "system",
+      "sync": "sync",
+      "job": "job",
+      "user": "you"
+    },
+    "origin": {
+      "bank": "Catalog",
+      "ai": "AI-proposed",
+      "user": "User-proposed",
+      "import": "Imported",
+      "cv_parse": "From CV"
+    },
+    "context": {
+      "open": "Open skill page",
+      "center": "Center"
+    },
+    "aliasesLabel": "Also known as",
+    "drawerOpen": "Open skill page"
   }
 }

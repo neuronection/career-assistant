@@ -1259,7 +1259,10 @@
       "deleted_other": "Διαγράφηκαν {{count}} δεξιότητες.",
       "deleteTitle_one": "Διαγραφή {{count}} δεξιότητας;",
       "deleteTitle_other": "Διαγραφή {{count}} δεξιοτήτων;"
-    }
+    },
+    "details": "Λεπτομέρειες",
+    "aliasesLabel": "Επίσης γνωστό ως",
+    "drawerOpen": "Άνοιγμα σελίδας skill"
   },
   "aiSettings": {
     "loading": "Φόρτωση ρυθμίσεων AI…",
@@ -4471,5 +4474,103 @@
     "keepSeparate": "Διατήρησε χωριστά",
     "merge": "Συγχώνευση",
     "save": "Αποθήκευση"
+  },
+  "skillPage": {
+    "back": "Πίσω στην ταξινομία",
+    "notFound": "Το skill δεν βρέθηκε",
+    "notFoundBody": "Ίσως διαγράφηκε — δες την ταξινομία skills ή ψάξε στον κατάλογο.",
+    "mergedInto": "Αυτό το κλειδί συγχωνεύτηκε στο {{key}}.",
+    "openSurvivor": "Άνοιγμα του επιζώντος skill",
+    "parent": "Γονέας",
+    "corroborated_one": "Επιβεβαιωμένο από {{count}} αγγελία",
+    "corroborated_other": "Επιβεβαιωμένο από {{count}} αγγελίες",
+    "edit": "Επεξεργασία",
+    "tabsAria": "Ενότητες σελίδας skill",
+    "tab": {
+      "overview": "Επισκόπηση",
+      "positions": "Θέσεις",
+      "graph": "Γράφημα",
+      "history": "Ιστορικό"
+    },
+    "stats": {
+      "demand": "Αγγελίες που το ζητούν",
+      "demandHint": "χωρίς τις κρυμμένες",
+      "avgLevel": "Μέσο απαιτούμενο επίπεδο",
+      "users": "Άνθρωποι με αυτό το skill",
+      "firstSeen": "Πρώτη εμφάνιση",
+      "lastSeen": "Τελευταία εμφάνιση"
+    },
+    "histogramTitle": "Κατανομή απαιτούμενων επιπέδων",
+    "levelN": "Επίπεδο {{level}}",
+    "anchorsTitle": "Τι σημαίνουν τα επίπεδα",
+    "yourSkillTitle": "Το skill σου",
+    "yourLevel": "Το επίπεδό σου: {{level}}/10",
+    "notInProfile": "Δεν είναι στο προφίλ σου",
+    "demandAvg": "Οι αγγελίες ζητούν κατά μέσο όρο {{avg}}/10",
+    "gap": "έναντι ζήτησης: {{delta}}",
+    "setLevelAria": "Το επίπεδό σου για αυτό το skill",
+    "addLevel": "Προσθήκη στο προφίλ",
+    "updateLevel": "Ενημέρωση επιπέδου",
+    "jobsTitle": "Επάγγελμα του καταλόγου που το ζητούν",
+    "noJobs": "Κανένα επάγγελμα του καταλόγου δεν το αναφέρει ακόμη.",
+    "jobLevel": "επίπεδο {{level}}",
+    "importance": {
+      "core": "βασικό",
+      "important": "σημαντικό",
+      "bonus": "επιπλέον"
+    },
+    "relatedTitle": "Σχετικά skills",
+    "positionsCount_one": "{{count}} αγγελία",
+    "positionsCount_other": "{{count}} αγγελίες",
+    "openInExplore": "Άνοιγμα στο Explore",
+    "positionsEmpty": "Καμία αγγελία δεν το ζητά",
+    "positionsEmptyBody": "Κλειστές και κρυμμένες εξαιρούνται· νέες αντιστοιχίσεις έρχονται με τον συγχρονισμό.",
+    "loadMore": "Φόρτωση περισσότερων",
+    "graphEmpty": "Δεν υπάρχουν εγκεκριμένες σχέσεις ακόμη",
+    "graphEmptyBody": "Εγκεκριμένες ακμές από την ουρά ελέγχου εμφανίζονται εδώ.",
+    "openFullGraph": "Άνοιγμα ολόκληρου γραφήματος",
+    "historyCount_one": "{{count}} γεγονός",
+    "historyCount_other": "{{count}} γεγονότα",
+    "historyEmpty": "Χωρίς ιστορικό ακόμη",
+    "deleteTitle": "Διαγραφή του {{key}};",
+    "deleteBody": "Μόνο skills χωρίς αναφορές διαγράφονται· το ιστορικό παραμένει αναγνώσιμο.",
+    "note": {
+      "promoted": "Προστέθηκε στον ενεργό κατάλογο.",
+      "deprecated": "Αποκρύφθηκε — παραμένει επιλύσιμο.",
+      "restored": "Ξανά ενεργό.",
+      "merged": "Συγχωνεύτηκε στον επιζώντα.",
+      "updated": "Αποθηκεύτηκε.",
+      "levelSaved": "Το επίπεδο του skill σου αποθηκεύτηκε."
+    },
+    "event": {
+      "created": "Δημιουργήθηκε",
+      "updated": "Ενημερώθηκε",
+      "promoted": "Προβιβάστηκε",
+      "auto_promoted": "Αυτόματη προβίβαση",
+      "deprecated": "Αποκρύφθηκε",
+      "restored": "Επαναφέρθηκε",
+      "merged": "Συγχωνεύτηκε",
+      "deleted": "Διαγράφηκε"
+    },
+    "actor": {
+      "admin": "διαχειριστής",
+      "system": "σύστημα",
+      "sync": "sync",
+      "job": "εργασία",
+      "user": "εσύ"
+    },
+    "origin": {
+      "bank": "Κατάλογος",
+      "ai": "Πρόταση AI",
+      "user": "Πρόταση χρήστη",
+      "import": "Εισήχθη",
+      "cv_parse": "Από βιογραφικό"
+    },
+    "context": {
+      "open": "Άνοιγμα σελίδας skill",
+      "center": "Κεντράρισμα"
+    },
+    "aliasesLabel": "Επίσης γνωστό ως",
+    "drawerOpen": "Άνοιγμα σελίδας skill"
   }
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   bulkSkillAction,
@@ -15,9 +15,26 @@ import {
   type SkillRow,
   type Tag,
 } from "@/api/taxonomy";
+import { fetchSkill, fetchSkillHistory } from "@/api/skills";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
-import { EmptyState, SegmentedTabs, Spinner, ConfirmationModal } from "@/components/ui";
+import {
+  Badge,
+  Button,
+  EmptyState,
+  Modal,
+  ModalContent,
+  ModalDescription,
+  ModalFooter,
+  ModalHeader,
+  ModalTitle,
+  ModalBody,
+  SegmentedTabs,
+  Spinner,
+  ConfirmationModal,
+} from "@/components/ui";
+import { StatTiles } from "@/components/stats/StatTiles";
+import type { SkillChange, SkillDetail } from "@/types/wire";
 import {
   parseRelationSection,
   SkillRelationsPanel,
@@ -66,6 +83,7 @@ export function parseTaxonomyTab(raw: string | null): TaxonomyTab {
 export function Taxonomy() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const kind = parseTaxonomyTab(searchParams.get("tab"));
   const section = parseRelationSection(searchParams.get("section"));
   const [tags, setTags] = useState<Tag[]>([]);
@@ -85,6 +103,7 @@ export function Taxonomy() {
   const [bulkNote, setBulkNote] = useState("");
   const [bulkFailures, setBulkFailures] = useState<SkillBulkFailure[]>([]);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [detailsKey, setDetailsKey] = useState<string | null>(null);
 
   useEffect(() => {
     const expectedTab = kind === "interests" ? null : kind;
@@ -384,7 +403,11 @@ export function Taxonomy() {
       )}
 
       {kind === "relations" ? (
-        <SkillRelationsPanel section={section} onSectionChange={setSection} />
+        <SkillRelationsPanel
+          section={section}
+          onSectionChange={setSection}
+          onOpenSkillPage={(key) => navigate(`/skills/${key}`)}
+        />
       ) : loading ? (
         <div className="flex w-full flex-col items-center justify-center py-24">
           <Spinner size="lg" />
@@ -631,6 +654,13 @@ export function Taxonomy() {
                         </button>
                       )}
                       <button
+                        onClick={() => setDetailsKey(skill.key)}
+                        className="text-xs text-slate-500 hover:text-primary-700"
+                        data-testid="skill-details"
+                      >
+                        {t("taxonomy.details")}
+                      </button>
+                      <button
                         onClick={() => void remove(skill)}
                         className="text-xs text-slate-400 hover:text-rose-600"
                       >
@@ -746,6 +776,120 @@ export function Taxonomy() {
         confirmLabel={t("taxonomy.delete")}
         destructive
       />
+
+      {detailsKey ? <SkillDetailsDrawer skillKey={detailsKey} onClose={() => setDetailsKey(null)} /> : null}
     </div>
+  );
+}
+
+/** The skill-table row's preview drawer (plan 148): identity, stats and
+ * the newest history events, with the full skill page one link away. */
+export function SkillDetailsDrawer({
+  skillKey,
+  onClose,
+}: {
+  skillKey: string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [detail, setDetail] = useState<SkillDetail | null>(null);
+  const [history, setHistory] = useState<SkillChange[] | null>(null);
+
+  useEffect(() => {
+    void fetchSkill(skillKey)
+      .then(setDetail)
+      .catch(() => setDetail(null));
+    void fetchSkillHistory(skillKey, { limit: 5 })
+      .then((page) => setHistory(page.items ?? []))
+      .catch(() => setHistory([]));
+  }, [skillKey]);
+
+  return (
+    <Modal open onOpenChange={(open) => (!open ? onClose() : undefined)}>
+      <ModalContent className="max-w-2xl" data-testid="skill-details-drawer">
+        <ModalHeader>
+          <ModalTitle className="flex items-center gap-2">
+            {detail?.label ?? skillKey}
+            {detail ? (
+              <Badge variant="outline" data-testid="drawer-status">
+                {t(`taxonomy.${detail.status}`)}
+              </Badge>
+            ) : null}
+          </ModalTitle>
+          <ModalDescription className="font-mono text-xs">{skillKey}</ModalDescription>
+        </ModalHeader>
+        <ModalBody className="space-y-4">
+          {detail === null ? (
+            <div className="flex justify-center py-8">
+              <Spinner size="lg" />
+            </div>
+          ) : (
+            <>
+              {detail.stats ? (
+                <StatTiles
+                  testId="drawer-stat-tiles"
+                  columns={3}
+                  tiles={[
+                    {
+                      label: t("skillPage.stats.demand"),
+                      value: detail.stats.demand_count ?? 0,
+                    },
+                    {
+                      label: t("skillPage.stats.avgLevel"),
+                      value:
+                        detail.stats.avg_required_level != null
+                          ? `${detail.stats.avg_required_level}/10`
+                          : "—",
+                    },
+                    { label: t("skillPage.stats.users"), value: detail.stats.user_count ?? 0 },
+                  ]}
+                />
+              ) : null}
+              {detail.aliases && detail.aliases.length > 0 ? (
+                <p className="text-sm text-[var(--as-muted-fg)]">
+                  {t("skillPage.aliasesLabel")}: {detail.aliases.join(", ")}
+                </p>
+              ) : null}
+              <div data-testid="drawer-history">
+                <h3 className="mb-2 text-sm font-medium text-[var(--as-fg)]">
+                  {t("skillPage.historyCount", { count: history?.length ?? 0 })}
+                </h3>
+                {history === null ? (
+                  <Spinner />
+                ) : history.length === 0 ? (
+                  <p className="text-sm text-[var(--as-muted-fg)]">
+                    {t("skillPage.historyEmpty")}
+                  </p>
+                ) : (
+                  <ul className="space-y-1">
+                    {history.map((entry) => (
+                      <li key={entry.id} className="text-xs text-[var(--as-muted-fg)]">
+                        <span className="font-medium text-[var(--as-fg)]">
+                          {t(`skillPage.event.${entry.event}`, { defaultValue: entry.event })}
+                        </span>{" "}
+                        · {t(`skillPage.actor.${entry.actor_kind}`, { defaultValue: entry.actor_kind })}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Link
+            to={`/skills/${skillKey}`}
+            className="text-sm text-[var(--as-accent)] underline"
+            data-testid="drawer-open-page"
+            onClick={onClose}
+          >
+            {t("skillPage.drawerOpen")}
+          </Link>
+          <Button variant="outline" size="sm" onClick={onClose}>
+            {t("common.close")}
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
   );
 }

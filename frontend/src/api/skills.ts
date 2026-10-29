@@ -1,5 +1,11 @@
 import { api } from "@/api/client";
-import type { SkillGapReport } from "@/types/wire";
+import type {
+  SkillDetail,
+  SkillGapReport,
+  SkillHistoryResponse,
+  SkillPositionsResponse,
+  SkillRelationsResponse,
+} from "@/types/wire";
 import type { Skill, UserSkill } from "@/types";
 
 export interface SkillSummary {
@@ -51,6 +57,42 @@ export async function fetchSkillGaps(jobRef: string): Promise<SkillGapReport> {
   const { data } = await api.get<SkillGapReport>("/me/skills/gaps", {
     params: { job_id: jobRef },
   });
+  return data;
+}
+
+// ------------------------------------------------------- skill page (148)
+
+export async function fetchSkill(key: string): Promise<SkillDetail> {
+  const { data } = await api.get<SkillDetail>(`/skills/${encodeURIComponent(key)}`);
+  return data;
+}
+
+export async function fetchSkillPositions(
+  key: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<SkillPositionsResponse> {
+  const { data } = await api.get<SkillPositionsResponse>(
+    `/skills/${encodeURIComponent(key)}/positions`,
+    { params },
+  );
+  return data;
+}
+
+export async function fetchSkillRelations(key: string): Promise<SkillRelationsResponse> {
+  const { data } = await api.get<SkillRelationsResponse>(
+    `/skills/${encodeURIComponent(key)}/relations`,
+  );
+  return data;
+}
+
+export async function fetchSkillHistory(
+  key: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<SkillHistoryResponse> {
+  const { data } = await api.get<SkillHistoryResponse>(
+    `/skills/${encodeURIComponent(key)}/history`,
+    { params },
+  );
   return data;
 }
 

@@ -1259,7 +1259,10 @@
       "deleted_other": "{{count}} Skills gelöscht.",
       "deleteTitle_one": "{{count}} Skill löschen?",
       "deleteTitle_other": "{{count}} Skills löschen?"
-    }
+    },
+    "details": "Details",
+    "aliasesLabel": "Auch bekannt als",
+    "drawerOpen": "Skill-Seite öffnen"
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
@@ -4471,5 +4474,103 @@
     "keepSeparate": "Getrennt lassen",
     "merge": "Zusammenführen",
     "save": "Speichern"
+  },
+  "skillPage": {
+    "back": "Zurück zur Taxonomie",
+    "notFound": "Skill nicht gefunden",
+    "notFoundBody": "Er wurde vielleicht gelöscht — siehe die Skill-Taxonomie oder durchsuche den Katalog.",
+    "mergedInto": "Dieser Schlüssel wurde in {{key}} zusammengeführt.",
+    "openSurvivor": "Übernehmenden Skill öffnen",
+    "parent": "Übergeordnet",
+    "corroborated_one": "Durch {{count}} Stellenanzeige bestätigt",
+    "corroborated_other": "Durch {{count}} Stellenanzeigen bestätigt",
+    "edit": "Bearbeiten",
+    "tabsAria": "Abschnitte der Skill-Seite",
+    "tab": {
+      "overview": "Überblick",
+      "positions": "Stellen",
+      "graph": "Graph",
+      "history": "Verlauf"
+    },
+    "stats": {
+      "demand": "Stellen mit dieser Anforderung",
+      "demandHint": "ausgeblendete ausgenommen",
+      "avgLevel": "Ø erforderliches Level",
+      "users": "Personen mit diesem Skill",
+      "firstSeen": "Erstmals gesehen",
+      "lastSeen": "Zuletzt gesehen"
+    },
+    "histogramTitle": "Verteilung der erforderlichen Level",
+    "levelN": "Level {{level}}",
+    "anchorsTitle": "Was die Level bedeuten",
+    "yourSkillTitle": "Dein Skill",
+    "yourLevel": "Dein Level: {{level}}/10",
+    "notInProfile": "Nicht in deinem Profil",
+    "demandAvg": "Stellen verlangen im Schnitt {{avg}}/10",
+    "gap": "gegenüber Nachfrage: {{delta}}",
+    "setLevelAria": "Dein Level für diesen Skill",
+    "addLevel": "Zum Profil hinzufügen",
+    "updateLevel": "Level aktualisieren",
+    "jobsTitle": "Katalog-Berufe mit diesem Skill",
+    "noJobs": "Noch kein Katalog-Beruf listet diesen Skill.",
+    "jobLevel": "Level {{level}}",
+    "importance": {
+      "core": "Kern",
+      "important": "wichtig",
+      "bonus": "Bonus"
+    },
+    "relatedTitle": "Verwandte Skills",
+    "positionsCount_one": "{{count}} Stelle",
+    "positionsCount_other": "{{count}} Stellen",
+    "openInExplore": "In Explore öffnen",
+    "positionsEmpty": "Keine Stelle fordert diesen Skill",
+    "positionsEmptyBody": "Geschlossene und ausgeblendete bleiben außen; neue Treffer erscheinen mit dem Connector-Sync.",
+    "loadMore": "Mehr laden",
+    "graphEmpty": "Noch keine freigegebenen Beziehungen",
+    "graphEmptyBody": "Freigegebene Kanten aus der Review-Warteschlange erscheinen hier.",
+    "openFullGraph": "Gesamten Graph öffnen",
+    "historyCount_one": "{{count}} Ereignis",
+    "historyCount_other": "{{count}} Ereignisse",
+    "historyEmpty": "Noch kein Verlauf",
+    "deleteTitle": "{{key}} löschen?",
+    "deleteBody": "Nur referenzfreie Skills lassen sich löschen; der Verlauf bleibt lesbar.",
+    "note": {
+      "promoted": "In den aktiven Katalog übernommen.",
+      "deprecated": "Ausgeblendet — auswählbar bleibt er trotzdem.",
+      "restored": "Wieder aktiv.",
+      "merged": "In den Übernehmer zusammengeführt.",
+      "updated": "Gespeichert.",
+      "levelSaved": "Dein Skill-Level wurde gespeichert."
+    },
+    "event": {
+      "created": "Erstellt",
+      "updated": "Aktualisiert",
+      "promoted": "Befördert",
+      "auto_promoted": "Selbst befördert",
+      "deprecated": "Ausgeblendet",
+      "restored": "Wiederhergestellt",
+      "merged": "Zusammengeführt",
+      "deleted": "Gelöscht"
+    },
+    "actor": {
+      "admin": "Admin",
+      "system": "System",
+      "sync": "Sync",
+      "job": "Job",
+      "user": "du"
+    },
+    "origin": {
+      "bank": "Katalog",
+      "ai": "KI-Vorschlag",
+      "user": "Nutzer-Vorschlag",
+      "import": "Importiert",
+      "cv_parse": "Aus Lebenslauf"
+    },
+    "context": {
+      "open": "Skill-Seite öffnen",
+      "center": "Zentrieren"
+    },
+    "aliasesLabel": "Auch bekannt als",
+    "drawerOpen": "Skill-Seite öffnen"
   }
 }
