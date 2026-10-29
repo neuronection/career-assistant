@@ -1108,7 +1108,9 @@
       "sent": "sent",
       "delivered": "delivered",
       "failed": "failed"
-    }
+    },
+    "quietHoursStart": "Quiet hours start",
+    "quietHoursEnd": "Quiet hours end"
   },
   "users": {
     "tableCaption": "Users",

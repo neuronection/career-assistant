@@ -1108,7 +1108,9 @@
       "sent": "απεστάλη",
       "delivered": "παραδόθηκε",
       "failed": "απέτυχε"
-    }
+    },
+    "quietHoursStart": "Αρχή ήσυχων ωρών",
+    "quietHoursEnd": "Τέλος ήσυχων ωρών"
   },
   "users": {
     "tableCaption": "Χρήστες",

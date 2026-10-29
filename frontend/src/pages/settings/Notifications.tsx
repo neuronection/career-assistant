@@ -795,6 +795,7 @@ function DeliveryWindowCard({
         <input
           type="time"
           data-testid="quiet-hours-start"
+          aria-label={t("notifications.quietHoursStart")}
           value={draft.draft.start}
           onChange={(e) => draft.setDraft((prev) => ({ ...prev, start: e.target.value }))}
           className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2 py-1 text-sm text-[var(--as-fg)]"
@@ -803,6 +804,7 @@ function DeliveryWindowCard({
         <input
           type="time"
           data-testid="quiet-hours-end"
+          aria-label={t("notifications.quietHoursEnd")}
           value={draft.draft.end}
           onChange={(e) => draft.setDraft((prev) => ({ ...prev, end: e.target.value }))}
           className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2 py-1 text-sm text-[var(--as-fg)]"

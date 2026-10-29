@@ -1108,7 +1108,9 @@
       "sent": "gesendet",
       "delivered": "zugestellt",
       "failed": "fehlgeschlagen"
-    }
+    },
+    "quietHoursStart": "Ruhezeiten Beginn",
+    "quietHoursEnd": "Ruhezeiten Ende"
   },
   "users": {
     "tableCaption": "Benutzer",
