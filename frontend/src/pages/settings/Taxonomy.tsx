@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { LucideIcon } from "lucide-react";
 import { Languages, Network, Route, Sparkles, Tags, Wrench } from "lucide-react";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import {
   bulkSkillAction,
   createTag,
@@ -366,7 +367,12 @@ export function Taxonomy() {
       : null;
 
   return (
-    <div className="space-y-4" data-testid="settings-taxonomy">
+    <SettingsPage
+      icon={Tags}
+      title={t("settingsNav.taxonomy.label")}
+      description={t("settingsNav.taxonomy.description")}
+    >
+      <div className="space-y-4" data-testid="settings-taxonomy">
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* Six labels don't fit a phone column: the strip keeps a
             phone-floor width and the wrapper scrolls it horizontally
@@ -678,6 +684,7 @@ export function Taxonomy() {
           onMerge={(targetId) => mergeById(detailsSkill.id, targetId)}
         />
       ) : null}
-    </div>
+      </div>
+    </SettingsPage>
   );
 }

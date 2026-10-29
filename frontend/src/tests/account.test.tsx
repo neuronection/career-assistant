@@ -7,6 +7,7 @@ import * as backgroundJobsApi from "@/api/backgroundJobs";
 import * as profilesApi from "@/api/profiles";
 import { Account } from "@/pages/settings/Account";
 import { useAuthStore } from "@/stores/authStore";
+import { useProfilesStore } from "@/stores/profilesStore";
 
 vi.mock("@/api/admin", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/admin")>();
@@ -99,6 +100,7 @@ describe("Account (§12 account self-service, plan 148)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAuthStore.setState({ user: ME, loading: false, status: "authenticated", error: null });
+    useProfilesStore.setState({ profiles: PROFILES, currentId: "p-1", epoch: 1 } as never);
     mocked.listMySessions.mockResolvedValue(SESSIONS);
     mocked.revokeMySession.mockResolvedValue(undefined);
     mocked.changeMyPassword.mockResolvedValue(ME);
@@ -139,6 +141,27 @@ describe("Account (§12 account self-service, plan 148)", () => {
     await waitFor(() =>
       expect(profilesApi.createProfile).toHaveBeenCalledWith("Research 2")
     );
+  });
+
+  it("deletes a non-active profile behind a cascade confirm", async () => {
+    const user = (await import("@testing-library/user-event")).userEvent.setup();
+    vi.mocked(profilesApi.deleteProfile).mockResolvedValue(undefined);
+    render(<Account />);
+    const row = await screen.findByTestId("account-profile-p-2");
+    await user.click(within(row).getByLabelText("Delete profile — Research"));
+    const modal = screen.getByRole("dialog", {
+      name: "Delete the Research profile?",
+    });
+    expect(within(modal).getByText(/Everything scoped to this profile/)).toBeInTheDocument();
+    await user.click(within(modal).getByRole("button", { name: "Delete profile" }));
+    await waitFor(() => expect(profilesApi.deleteProfile).toHaveBeenCalledWith("p-2"));
+    expect(mocked.listMySessions).not.toHaveBeenCalledTimes(0);
+  });
+
+  it("never offers delete for the active profile", async () => {
+    render(<Account />);
+    const activeRow = await screen.findByTestId("account-profile-p-1");
+    expect(within(activeRow).queryByLabelText(/Delete profile/)).toBeNull();
   });
 
   it("lists sessions with the current marker and revoked state", async () => {

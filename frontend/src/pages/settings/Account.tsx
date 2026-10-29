@@ -13,6 +13,7 @@ import {
   ShieldX,
   Smartphone,
   Tablet,
+  Trash2,
   UserPlus,
 } from "lucide-react";
 
@@ -36,7 +37,12 @@ import {
   setInstanceLocale,
   setMyLocale,
 } from "@/api/i18n";
-import { createProfile, listProfiles, patchProfile } from "@/api/profiles";
+import {
+  createProfile,
+  deleteProfile,
+  listProfiles,
+  patchProfile,
+} from "@/api/profiles";
 import { LOCALE_LABELS, SUPPORTED_LOCALES, setAppLocale } from "@/lib/i18n";
 import { formatDateTime } from "@/lib/format";
 import {
@@ -134,6 +140,9 @@ function IdentityCard() {
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(
+    null
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -179,6 +188,19 @@ function IdentityCard() {
       await refresh();
     } catch {
       setNotice(t("account.profileUpdateFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeProfile = async (id: string) => {
+    setBusy(true);
+    try {
+      await deleteProfile(id);
+      setPendingDelete(null);
+      await refresh();
+    } catch {
+      setNotice(t("account.profileDeleteFailed"));
     } finally {
       setBusy(false);
     }
@@ -249,9 +271,38 @@ function IdentityCard() {
                 {t("account.makeDefault")}
               </Button>
             ) : null}
+            {profile.id !== currentId ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                aria-label={`${t("account.deleteProfile")} — ${profile.name}`}
+                onClick={() =>
+                  setPendingDelete({ id: profile.id, name: profile.name })
+                }
+                data-testid={`delete-profile-${profile.id}`}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            ) : null}
           </li>
         ))}
       </ul>
+      <ConfirmationModal
+        open={pendingDelete !== null}
+        title={t("account.deleteProfileConfirmTitle", {
+          name: pendingDelete?.name ?? "",
+        })}
+        description={t("account.deleteProfileConfirmBody")}
+        confirmLabel={t("account.deleteProfile")}
+        cancelLabel={t("common.cancel")}
+        destructive
+        busy={busy}
+        onConfirm={() => {
+          if (pendingDelete) void removeProfile(pendingDelete.id);
+        }}
+        onOpenChange={(open) => (open ? undefined : setPendingDelete(null))}
+      />
     </SettingsSectionCard>
   );
 }

@@ -8,8 +8,10 @@ rail. This page explains each page and its purpose.
 Account self-service — every signed-in user, on any instance mode:
 
 - **Profile** — your name, email and admin badge, plus the profiles your
-  data is scoped to: create additional profiles and choose which one is
-  the default. Switching the active profile stays in the top bar.
+  data is scoped to: create additional profiles, choose which one is
+  the default, and delete ones you no longer need (deleting a profile
+  deletes everything scoped to it). Switching the active profile stays
+  in the top bar.
 - **Appearance** — pick the interface language (English, German or Greek).
   The choice is personal and applies immediately, including the catalog
   labels that have an approved translation. Admins also set the

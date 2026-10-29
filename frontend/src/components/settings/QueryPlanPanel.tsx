@@ -107,7 +107,14 @@ export function QueryPlanPanel({ source }: { source: PostingSource }) {
       ) : (
         <>
           <ol className="space-y-3">
-            {groups.map((group, index) => (
+            {groups.map((group, index) => {
+              const provenanceChips = group.terms
+                .map((term) => ({
+                  term,
+                  count: plan?.provenance?.[term]?.length ?? 0,
+                }))
+                .filter((chip) => chip.count > 0);
+              return (
               <li
                 key={`${group.keywords}-${index}`}
                 className="rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
@@ -127,13 +134,32 @@ export function QueryPlanPanel({ source }: { source: PostingSource }) {
                         terms: group.terms.join(", "),
                       })}
                     </p>
+                    {provenanceChips.length > 0 ? (
+                      <p
+                        className="flex flex-wrap gap-1"
+                        data-testid={`query-plan-provenance-${index}`}
+                      >
+                        {provenanceChips.map((chip) => (
+                          <span
+                            key={chip.term}
+                            className="rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)]"
+                          >
+                            {chip.term} ·{" "}
+                            {t("toolsSettings.connectors.sources.planSources", {
+                              count: chip.count,
+                            })}
+                          </span>
+                        ))}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="ml-auto shrink-0 text-xs text-[var(--as-muted-fg)]">
                     {timing.fmt(timing.syncsAway(index))}
                   </span>
                 </div>
               </li>
-            ))}
+              );
+            })}
           </ol>
           <p className="text-xs text-[var(--as-muted-fg)]" data-testid="query-plan-coverage">
             {t("toolsSettings.connectors.sources.planFullPass", {

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Building2, Plus, X } from "lucide-react";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 import {
   acceptSuggestion,
   addAlias,
@@ -73,11 +74,12 @@ export function CompanyRules() {
   );
 
   return (
-    <div className="space-y-6" data-testid="company-rules-page">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900">{t("companyRules.title")}</h2>
-        <p className="text-sm text-slate-500 mt-1">{t("companyRules.intro")}</p>
-      </div>
+    <SettingsPage
+      icon={Building2}
+      title={t("settingsNav.companies.label")}
+      description={t("companyRules.intro")}
+    >
+      <div className="space-y-6" data-testid="company-rules-page">
       <SegmentedTabs
         ariaLabel={t("companyRules.title")}
         items={tabs}
@@ -94,7 +96,8 @@ export function CompanyRules() {
       {tab === "exclusions" && <ExclusionsTab />}
       {tab === "queue" && <QueueTab />}
       {tab === "thresholds" && <ThresholdsTab />}
-    </div>
+      </div>
+    </SettingsPage>
   );
 }
 
