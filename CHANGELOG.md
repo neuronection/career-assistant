@@ -46,6 +46,13 @@ All notable changes to **Career Assistant** are documented here.
   base label — with the batch reject confirmed first, and *Load more*
   pages long queues past the old 200-row cap. The Draft-with-AI flow
   and its result note are unchanged.
+- **Every taxonomy segment carries its icon, and the tab strip is
+  phone-proof** (plan 150, phase 5). All six tabs render icons
+  (SegmentedTabs icon prop); on narrow screens the strip scrolls
+  horizontally at a fixed floor width instead of squeezing six labels,
+  and the header wraps under the tab strip. The relations review
+  queue, manual editor and runs empty states get the same icon
+  treatment as the rest of the page.
 - **The taxonomy listings are searchable, grouped and clickable**
   (plan 150, phases 1–2). The Interests and Skills tabs drop their raw
   tables for a shared listing: debounced search (label, key, skill

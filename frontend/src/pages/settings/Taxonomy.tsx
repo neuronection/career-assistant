@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Route, Sparkles, Tags, Wrench } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Languages, Network, Route, Sparkles, Tags, Wrench } from "lucide-react";
 import {
   bulkSkillAction,
   createTag,
@@ -69,6 +70,16 @@ export function parseTaxonomyTab(raw: string | null): TaxonomyTab {
     ? (raw as TaxonomyTab)
     : "interests";
 }
+
+/** Tab strip icons (plan 150 phase 5) — every segment carries one. */
+const TAB_ICONS: Record<TaxonomyTab, LucideIcon> = {
+  interests: Tags,
+  skills: Wrench,
+  paths: Route,
+  enrichment: Sparkles,
+  translations: Languages,
+  relations: Network,
+};
 
 /** Interest category groups (plan 150) — seed order, unknown categories
  * fall into the catch-all group at the end. */
@@ -356,23 +367,30 @@ export function Taxonomy() {
 
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
-      <div className="flex items-center justify-between">
-        <SegmentedTabs
-          ariaLabel={t("taxonomy.tabsAria")}
-          className="max-w-lg"
-          items={TAXONOMY_TABS.map((k) => ({
-            value: k,
-            label: t(`taxonomy.kind.${k}`),
-          }))}
-          value={kind}
-          onValueChange={(next) => {
-            const nextParams = new URLSearchParams(searchParams);
-            if (next === "interests") nextParams.delete("tab");
-            else nextParams.set("tab", next);
-            nextParams.delete("section");
-            setSearchParams(nextParams, { replace: true });
-          }}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {/* Six labels don't fit a phone column: the strip keeps a
+            phone-floor width and the wrapper scrolls it horizontally
+            (the thumb math stays exact because the tablist keeps its
+            width). */}
+        <div className="min-w-0 overflow-x-auto">
+          <SegmentedTabs
+            ariaLabel={t("taxonomy.tabsAria")}
+            className="min-w-[36rem] max-w-xl"
+            items={TAXONOMY_TABS.map((k) => ({
+              value: k,
+              label: t(`taxonomy.kind.${k}`),
+              icon: TAB_ICONS[k],
+            }))}
+            value={kind}
+            onValueChange={(next) => {
+              const nextParams = new URLSearchParams(searchParams);
+              if (next === "interests") nextParams.delete("tab");
+              else nextParams.set("tab", next);
+              nextParams.delete("section");
+              setSearchParams(nextParams, { replace: true });
+            }}
+          />
+        </div>
         {kind !== "paths" &&
           kind !== "enrichment" &&
           kind !== "translations" &&

@@ -431,6 +431,47 @@ Every settings page composes from the app kit in `components/settings/`
   pins both the derivation and the contiguous runs. The library
   `SettingsShell` renders the labels (chip mode hides them).
 
+## 2g. The taxonomy listing pattern (plan 150)
+
+Admin catalog listings (`/settings/taxonomy`, six URL-synced segments)
+share one shape — reuse it for any review surface instead of re-rolling
+raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
+`TaxonomyEnrichmentCards`):
+
+- **Toolbar first**: debounced library `SearchInput` (no internal
+  debounce — debounce app-side, 200 ms, reset the render window with
+  each settled query), single-select filter pills **with counts**
+  (rounded-full, `aria-pressed`, count in `tabular-nums`), and the
+  primary action as the toolbar slot.
+- **Groups are the review axis**: collapsible sections with a per-group
+  lucide icon + count pill (`taxonomy-*-group-*` testids); empty groups
+  hide. Interests group by category, skills by status (proposed first —
+  triage order), translations by entity kind. Rows/cards carry their own
+  category/kind icon.
+- **Rows and cards are the click target** (Enter works; row testids key
+  on the stable key). Destructive or rare actions live in the details
+  drawer or on the review card — never inline on the row, and hover
+  reveals nothing destructive.
+- **Details drawer**: ONE generalized `EntityDetailsDrawer` (PanelModal —
+  right sheet on desktop, full-screen on mobile) with per-kind adapters;
+  the skills adapter keeps the richer stats/history surface.
+- **Bulk**: `BulkBar`/`SelectionToggle` (per-id endpoints loop client-side
+  with per-item outcomes: successes summarized, failures listed — the
+  plan-144 report). The checkbox is a SIBLING of the row button (a
+  button never nests a button). Select-all keeps the plan-144
+  "all loaded" semantics, scoped to the pill-selected partition where
+  one exists (translations never batches across locales).
+- **Growth**: an incremental render window + *Load more* (50/step) — a
+  full fetched page never mounts as cards at once; a truncation hint
+  states the page cap. Counts derive from ONE bounded fetch where the
+  endpoint allows it (requests stay flat as filters grow).
+- **States**: `EmptyState(icon, compact)` for empty AND no-match; the
+  icon says what lives here (`Tags`, `Wrench`, `Route`, `Sparkles`,
+  `Languages`, `Network`). Tab strips carry icons (`SegmentedTabs`
+  icon prop) and keep a phone-floor width inside an `overflow-x-auto`
+  wrapper — six labels scroll instead of squeezing. Loading stays the
+  app's Spinner + label row (previews are the shimmer exception, §6).
+
 ## 2d. Feature state (beta affordance)
 
 `frontend/src/config/features.json` is the single feature-state table

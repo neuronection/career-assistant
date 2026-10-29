@@ -172,6 +172,38 @@ catalog content:
   **Discard** (behind a confirmation) drops the proposal, and each
   card shows when it was proposed.
 
+## Translations review
+
+The **Translations** tab is the catalog-translation queue — it used to
+sit above every taxonomy tab and now lives as the page's own sixth
+segment. AI drafting fills it with localized labels for jobs, skills,
+job families and the institution kinds (universities, departments,
+metric dimensions, assessment and CV templates) in **de** and **el**.
+A draft never renders: approval is the only route to the catalog,
+search, rankings, chat and CV surfaces.
+
+- **Locale and status pills carry live counts.** The queue opens on
+  the German drafts; statuses are draft (the work), approved
+  (rendering everywhere) and rejected (never renders).
+- **Search** matches the base label and the drafted translation, so
+  you can look up either side of a row.
+- **Cards group by entity kind** — jobs and skills first, then
+  families and the institution kinds — and every card shows the
+  **base label next to the draft**, so a translation is judged against
+  its source, never blind. Edit the wording inline, then **Approve**
+  or **Reject**.
+- **Select mode** batches the decision: **Approve** or **Reject**
+  applies to every selected draft of the current locale; batch reject
+  asks for confirmation, and rows the backend refuses are reported
+  individually instead of failing the batch.
+- Long queues **load more** in pages instead of rendering everything
+  at once, and **Draft with AI** fills the queue with new drafts (the
+  result note reports how many landed). Re-drafting brings rejected
+  rows back as fresh drafts.
+
+University names stay authoritative: an overlay may translate the
+display label, never rewrite the stored name.
+
 ## How relations affect posting filters
 
 The Skills section of the posting filter rail carries the match mode:

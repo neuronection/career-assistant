@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-28",
+  "updated": "2026-10-29",
   "capabilities": [
     {
       "id": "job-catalog",
@@ -269,6 +269,31 @@
         "desktop"
       ],
       "order": 57
+    },
+    {
+      "id": "taxonomy-translations",
+      "verb": "Review every catalog translation before it renders",
+      "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Locale and status pills carry live counts; search matches the base label and the draft",
+        "Cards group by entity kind and always show the base label next to the draft — no blind approvals",
+        "Batch approve/reject reports per-item outcomes instead of failing the batch",
+        "Draft with AI fills the queue; only approved rows ever render on catalog, search or chat surfaces"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/skills-taxonomy"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 56
     },
     {
       "id": "connector-sdk",

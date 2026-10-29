@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Crosshair, ExternalLink } from "lucide-react";
+import { Crosshair, ExternalLink, History, Link2, Network } from "lucide-react";
 
 import { apiDetail } from "@/api/client";
 import {
@@ -546,6 +546,7 @@ export function SkillRelationsPanel({
           )}
           {groups.length === 0 ? (
             <EmptyState
+              icon={Network}
               title={t("taxonomy.relations.queue.empty")}
               description={t("taxonomy.relations.queue.emptyBody")}
             />
@@ -684,6 +685,7 @@ export function SkillRelationsPanel({
           </div>
           {rows.length === 0 ? (
             <EmptyState
+              icon={Link2}
               title={t("taxonomy.relations.editor.empty")}
               description={t("taxonomy.relations.editor.emptyBody")}
             />
@@ -845,6 +847,7 @@ export function SkillRelationsPanel({
         )
       ) : runs.length === 0 ? (
         <EmptyState
+          icon={History}
           title={t("taxonomy.relations.runs.empty")}
           description={t("taxonomy.relations.runs.emptyBody")}
         />

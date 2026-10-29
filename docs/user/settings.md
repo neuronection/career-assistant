@@ -86,10 +86,10 @@ taxonomy by stable `key` slugs, so changes here are what keep labels and
 translations from breaking data. Unknown skills introduced by users or the AI
 appear as `proposed` rows for review.
 
-Tabs and subtabs are URL-addressable: add `?tab=` (interests, skills, paths,
-enrichment, relations) and, for the Relations subtabs, `&section=` (queue,
-editor, graph, thresholds, runs) — refreshing or sharing a link reopens the
-exact view.
+Tabs and subtabs are URL-addressable: add `?tab=` (interests, skills,
+paths, enrichment, translations, relations) and, for the Relations
+subtabs, `&section=` (queue, editor, graph, thresholds, runs) —
+refreshing or sharing a link reopens the exact view.
 
 The **Relations** tab curates the typed edges between skills ("java is a
 programming language"): a review queue for the discovery job's suggestions
@@ -97,12 +97,13 @@ programming language"): a review queue for the discovery job's suggestions
 existing relations, the discovery thresholds and each run's statistics.
 See [Skill taxonomy & relations](skills-taxonomy.md).
 
-The **Catalog translations** queue at the top drafts translations for jobs,
-skills and job families with the configured AI. Drafts never render: review
-each one against the base label, edit the wording if needed, then approve or
-reject. Approval is the only route to the catalog, search, rankings, chat and
-CV surfaces. University names stay authoritative (an overlay may translate
-the display label, never rewrite the stored name).
+The **Translations** tab drafts translations for jobs, skills and job
+families with the configured AI. Drafts never render: review each one
+against the base label, edit the wording if needed, then approve or
+reject — one card at a time or a whole batch. Approval is the only route
+to the catalog, search, rankings, chat and CV surfaces. University names
+stay authoritative (an overlay may translate the display label, never
+rewrite the stored name).
 
 ## Companies rules (`/settings/companies`)
 
