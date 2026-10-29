@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-29",
+  "updated": "2026-10-30",
   "capabilities": [
     {
       "id": "job-catalog",
@@ -331,6 +331,20 @@
         "desktop"
       ],
       "order": 60
+    },
+    {
+      "id": "account-data",
+      "verb": "Own and export your data",
+      "summary": "Everything the app holds about you — profile, applications, documents, settings — exports as a downloadable archive, and account self-service covers sessions, password and deletion.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "POST /api/v1/me/export builds the archive as a background job; the account page polls and offers the download",
+        "GDPR-style full export: profiles, applications, documents and settings as JSON inside a zip",
+        "Signed-in devices list with per-device sign-out, sign-out-everywhere and password change (identity-auth §12)",
+        "Account deletion cascades everything, confirmed by password with an armed two-step control"
+      ],
+      "order": 65
     }
   ],
   "useCases": [
