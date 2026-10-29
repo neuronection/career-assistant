@@ -1348,11 +1348,15 @@ async def reconcile_extensions(db: AsyncSession = Depends(get_db)) -> dict:
 
 @router.post("/postings/{posting_id}/map")
 async def manual_map_posting(
-    posting_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+    posting_id: uuid.UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
 ) -> dict:
     """Moderation fallback: human mapping wins (method=manual, never re-mapped)."""
     from app.models.enums import MappingMethod
     from app.models.posting_model import JobPosting
+    from app.services.postings.change_journal import RETAG_FIELDS, PostingChangeJournal, snapshot
 
     posting = (
         (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
@@ -1366,11 +1370,21 @@ async def manual_map_posting(
         job = await JobService(db).require_job(uuid.UUID(str(job_id)))
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    before = snapshot(posting, RETAG_FIELDS)
     posting.catalog_job_id = job.id
     posting.mapping_method = MappingMethod.MANUAL.value
     posting.mapping_confidence = 1.0
     posting.mapping_reason = "manually mapped by a moderator"
     posting.status = "mapped"
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "manual",
+        actor_ref={"user_id": str(user.id)},
+        operation={"catalog_job_id": str(job.id), "catalog_job_code": job.code},
+        before=before,
+        after=snapshot(posting, RETAG_FIELDS),
+    )
     await db.commit()
     return {
         "id": str(posting.id),

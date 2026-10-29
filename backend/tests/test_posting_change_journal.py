@@ -457,3 +457,32 @@ async def test_history_endpoint_scoped_and_404s(db, client, auth_headers, source
     assert resp.status_code == 401, "the read is user-scoped like the posting route"
     resp = await client.get("/api/v1/postings/ZZZZZZZZ/history", headers=auth_headers)
     assert resp.status_code == 404
+
+
+async def test_manual_writer_journals_moderator_mapping(
+    db, client, auth_headers, profile_ready, seeded_catalog, source
+):
+    from tests.conftest import _make_posting
+    from tests.test_postings import _admin
+
+    posting = await _make_posting(
+        db, source, skills_raw=["gardening"], raw={"description": "A gardening role."}
+    )
+    assert posting.status != "mapped", "start unmapped so the manual flip is visible"
+    await _admin(client, auth_headers, db)
+    from app.services.catalog.job_service import JobService
+
+    job = await JobService(db).get_by_code_or_id("nurse")
+    response = await client.post(
+        f"/api/v1/admin/postings/{posting.id}/map",
+        json={"catalog_job_id": str(job.id)},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+    rows = [row for row in await _journal(db, posting.id) if row.actor_kind == "manual"]
+    assert len(rows) == 1
+    assert rows[0].diff["mapping_method"]["to"] == "manual"
+    assert rows[0].diff["status"]["to"] == "mapped"
+    assert rows[0].actor_ref["user_id"], "the moderator is recorded"
+    assert rows[0].operation["catalog_job_code"] == "nurse"

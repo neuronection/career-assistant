@@ -50,14 +50,18 @@ MANIFEST: dict[str, dict[str, str]] = {
     "company_triage_service": {
         "_relink_pending": "company_match",
     },
+    "admin": {
+        "manual_map_posting": "manual",
+    },
 }
 
-#: Known-unrouted writers, asserted EXACT: `admin.manual_map_posting`
-#: is routed in `app/api/v1/admin.py`, which another session holds
-#: uncommitted — the moment that wave lands, move it into MANIFEST with
-#: its `PostingChangeJournal.record` call. Any OTHER function appearing
-#: here (or this set growing) fails the gate.
-BLOCKED_WRITERS: set[tuple[str, str]] = {("admin", "manual_map_posting")}
+#: Known-unrouted writers, asserted EXACT — normally empty. A writer lands
+#: here only while its module is held by another session's uncommitted
+#: wave (plan 142: `admin.manual_map_posting` sat here until the plan-144
+#: wave committed the file); the moment the wave lands, move it into
+#: MANIFEST with its `PostingChangeJournal.record` call. Any function
+#: appearing here, or this set growing, fails the gate.
+BLOCKED_WRITERS: set[tuple[str, str]] = set()
 
 
 @dataclass
@@ -201,8 +205,11 @@ def test_manifest_exactly_covers_every_mutator():
     )
 
 
-def test_blocked_set_is_exactly_the_owner_dirty_writer():
-    assert {("admin", "manual_map_posting")} == BLOCKED_WRITERS
+def test_blocked_set_is_empty():
+    """Every mutator is routed: no writer may linger unrouted (the set is
+    the escape hatch ONLY while a module is another session's uncommitted
+    work — assert it stays exactly empty)."""
+    assert not BLOCKED_WRITERS
 
 
 def test_gate_catches_a_new_unregistered_writer():
