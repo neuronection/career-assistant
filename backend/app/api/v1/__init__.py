@@ -5,6 +5,7 @@ from app.api.v1 import (
     ai,
     ai_admin,
     assessments,
+    audit,
     autopilot,
     background_jobs,
     cv_intake,
@@ -86,5 +87,6 @@ api_router.include_router(ai.router)
 api_router.include_router(ai_admin.router)
 api_router.include_router(mcp_admin.router)
 api_router.include_router(admin.router)
+api_router.include_router(audit.router)
 api_router.include_router(skill_relation_admin.router)
 api_router.include_router(extensions.router)

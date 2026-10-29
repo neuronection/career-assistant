@@ -24,7 +24,8 @@
     "sectionAccount": "Konto",
     "sectionExtensions": "Erweiterungen",
     "paths": "Karrierepfade",
-    "companies": "Unternehmen"
+    "companies": "Unternehmen",
+    "radar": "Job-Radar"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -1423,13 +1424,8 @@
       "models": "Modelle",
       "tasks": "Aufgaben"
     },
-    "allTasks": "alle Aufgaben",
     "allStatuses": "alle Status",
     "noGenerations": "Keine KI-Generierungen aufgezeichnet",
-    "generationCount_one": "{{count}} Generation",
-    "generationCount_other": "{{count}} Generationen",
-    "promptLabel": "Prompt:",
-    "tokens": "{{input}}→{{output}} Token",
     "task": {
       "job_generate": "Job generieren",
       "match_score": "Übereinstimmungs-Score",
@@ -4228,8 +4224,8 @@
       "description": "Rollen, Zugriff und gezwollter Abmeldung"
     },
     "audit": {
-      "label": "KI-Audit",
-      "description": "Jeder KI-Aufruf, mit Token und Latenz"
+      "label": "Audit & Überwachung",
+      "description": "KI-Protokoll, Sicherheitsverlauf und Systemzustand"
     },
     "radar": {
       "label": "Job-Radar",
@@ -4800,6 +4796,116 @@
       "pendingTitle": "Noch nicht im Katalog",
       "pendingBody": "„{{label}}“ ist bisher eine rohe Erwähnung — die Aufnahme in den Skill-Katalog steht noch aus.",
       "openPage": "Ganze Seite öffnen"
+    }
+  },
+  "audit": {
+    "tabsAria": "Audit-Tabs",
+    "windowAria": "Zeitfenster",
+    "empty": "Keine Aktivität in diesem Zeitraum",
+    "prev": "Zurück",
+    "next": "Weiter",
+    "tab": {
+      "overview": "Überblick",
+      "ai": "KI-Aktivität",
+      "security": "Sicherheit & Zugriff"
+    },
+    "window": {
+      "24h": "24h",
+      "7d": "7d",
+      "30d": "30d"
+    },
+    "kpi": {
+      "calls": "KI-Aufrufe",
+      "vsPrev": "{{delta}} zum vorherigen Zeitraum",
+      "errorRate": "Fehlerrate",
+      "errorCount": "{{count}} Fehler",
+      "tokens": "Tokens",
+      "tokensHint": "rein → raus",
+      "latency": "Ø Latenz",
+      "latencyMax": "max {{max}}",
+      "failedJobs": "Fehlgeschlagene Jobs",
+      "schedulesFailing": "{{count}} Zeitpläne fehlerhaft",
+      "schedulesOk": "Zeitpläne gesund",
+      "authDenied": "Abgewiesene Anmeldungen",
+      "authEvents": "{{count}} Ereignisse"
+    },
+    "chart": {
+      "volume": "Aufrufvolumen & Fehler",
+      "ok": "ok",
+      "errors": "Fehler",
+      "empty": "Keine Aufrufe in diesem Zeitraum",
+      "byCategory": "Nach Kategorie"
+    },
+    "category": {
+      "chat": "Chat & Assist",
+      "cv": "CV-Studio",
+      "catalog": "Katalog & Taxonomie",
+      "matching": "Matching & Orientierung",
+      "documents": "Dokumente & Medien",
+      "ops": "Abläufe & Entscheidungen"
+    },
+    "failures": {
+      "title": "Letzte Fehler",
+      "none": "Keine Fehler in diesem Zeitraum"
+    },
+    "stream": {
+      "ai": "KI",
+      "job": "Job",
+      "auth": "Anmeldung"
+    },
+    "ai": {
+      "taskFilter": "Aufgabe",
+      "allTasks": "Alle Aufgaben",
+      "providerFilter": "Anbieter",
+      "allProviders": "Alle Anbieter",
+      "statusFilter": "Status",
+      "tierFilter": "Stufe",
+      "anyTier": "Beliebige Stufe",
+      "tier": {
+        "fast": "schnell",
+        "strong": "stark"
+      },
+      "windowFilter": "Zeitfenster",
+      "allTime": "Gesamter Zeitraum",
+      "search": "Suche",
+      "searchPlaceholder": "Prompt oder Fehler suchen…",
+      "colStatus": "Status",
+      "colTask": "Aufgabe",
+      "colModel": "Modell",
+      "colTokens": "Tokens",
+      "colLatency": "Latenz",
+      "colTier": "Stufe",
+      "colWhen": "Zeitpunkt",
+      "promptLabel": "Prompt — ",
+      "simulated": "Simuliert",
+      "runChip": "Lauf #{{id}}",
+      "stageChip": "Phase {{stage}}",
+      "promptChip": "Prompt {{version}}",
+      "packChip": "Paket {{key}} v{{version}}",
+      "range": "{{from}}–{{to}} von {{total}} Zeilen"
+    },
+    "security": {
+      "groupFilter": "Aktionsgruppe",
+      "allGroups": "Alle Gruppen",
+      "group": {
+        "auth": "Authentifizierung",
+        "admin": "Administration"
+      },
+      "outcomeFilter": "Ergebnis",
+      "allOutcomes": "Alle Ergebnisse",
+      "outcome": {
+        "ok": "ok",
+        "denied": "abgewiesen",
+        "reuseDenied": "Wiederverwendung abgewiesen",
+        "coerced": "erzwungen"
+      },
+      "actorFilter": "Akteur",
+      "actorPlaceholder": "Akteur oder E-Mail suchen…",
+      "colAction": "Aktion",
+      "colActor": "Akteur",
+      "colOutcome": "Ergebnis",
+      "colResource": "Ressource",
+      "empty": "Keine Ereignisse in diesem Zeitraum"
     }
   }
 }

@@ -62,21 +62,6 @@ function toAdminApiError(error: unknown): unknown {
   return error;
 }
 
-export interface AIGenerationRow {
-  id: string;
-  task_type: string;
-  provider: string;
-  model: string;
-  prompt: string;
-  output: Record<string, unknown> | null;
-  tokens_in: number | null;
-  tokens_out: number | null;
-  latency_ms: number | null;
-  status: string;
-  error: string;
-  created_at: string;
-}
-
 export async function fetchModerationQueue(status = "draft"): Promise<Job[]> {
   const { data } = await api.get<Job[]>("/admin/jobs", { params: { status } });
   return data;
@@ -178,14 +163,4 @@ export async function changeMyPassword(
 
 export async function deleteMyAccount(password: string): Promise<void> {
   await api.delete("/me", { data: { password } });
-}
-
-export async function fetchAIGenerations(
-  params: Record<string, unknown> = {},
-): Promise<{ total: number; items: AIGenerationRow[] }> {
-  const { data } = await api.get<{ total: number; items: AIGenerationRow[] }>(
-    "/admin/ai/generations",
-    { params },
-  );
-  return data;
 }

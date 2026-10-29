@@ -16,7 +16,6 @@ from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.errors import DomainError, ValidationError, sanitize_error_detail
-from app.models.ai_model import AIGeneration
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
 from app.schemas.company import CompanyDetailOut, CompanyProfileIn
@@ -87,62 +86,6 @@ async def bulk_job_action(
             rejected += 1
     await db.commit()
     return {"published": published, "rejected": rejected}
-
-
-class AIGenerationOut(BaseModel):
-    id: uuid.UUID
-    task_type: str
-    provider: str
-    model: str
-    prompt: str
-    output: dict | None
-    tokens_in: int | None
-    tokens_out: int | None
-    latency_ms: float | None
-    status: str
-    error: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-@router.get("/ai/generations")
-async def audit_generations(
-    task: str | None = Query(default=None),
-    model: str | None = Query(default=None),
-    generation_status: str | None = Query(default=None, alias="status"),
-    limit: int = Query(default=50, le=200),
-    offset: int = Query(default=0, ge=0),
-    db: AsyncSession = Depends(get_db),
-) -> dict:
-    """Paginated AI audit trail with filters."""
-    conditions = []
-    if task:
-        conditions.append(AIGeneration.task_type == task)
-    if model:
-        conditions.append(AIGeneration.model == model)
-    if generation_status:
-        conditions.append(AIGeneration.status == generation_status)
-
-    base = select(AIGeneration)
-    count_query = select(func.count(AIGeneration.id))
-    if conditions:
-        base = base.where(*conditions)
-        count_query = count_query.where(*conditions)
-    total = (await db.execute(count_query)).scalar() or 0
-    rows = (
-        (
-            await db.execute(
-                base.order_by(AIGeneration.created_at.desc()).offset(offset).limit(limit)
-            )
-        )
-        .scalars()
-        .all()
-    )
-    return {
-        "total": total,
-        "items": [AIGenerationOut.model_validate(r) for r in rows],
-    }
 
 
 @router.get("/skills/proposals")
@@ -739,7 +682,6 @@ async def _source_view(db: AsyncSession, source) -> dict:
 
     managed, tool_config_schema = _managed_bundle_schema(source)
     config = dict(source.config or {})
-    from sqlalchemy import func
 
     from app.models.posting_model import JobPosting
 
@@ -933,7 +875,6 @@ async def delete_posting_source(source_id: uuid.UUID, db: AsyncSession = Depends
     cascade is deliberate — postings, applications and autopilot rows go
     with their source — so this is a DESTRUCTIVE act the UI confirms
     explicitly with counts before calling."""
-    from sqlalchemy import func
 
     from app.models.posting_model import JobPosting, JobSource
 

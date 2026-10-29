@@ -44,7 +44,7 @@ describe("resolveActiveId", () => {
   });
 
   it("registry keeps its shape", () => {
-    expect(NAV).toHaveLength(14);
+    expect(NAV).toHaveLength(15);
     expect(NAV.filter((item) => item.studentOnly).map((item) => item.to)).toEqual(
       []
     );
@@ -64,6 +64,7 @@ describe("resolveActiveId", () => {
       "/onboarding/setup",
       "/paths",
       "/postings",
+      "/settings/audit",
       "/settings/companies",
       "/settings/taxonomy",
     ]);

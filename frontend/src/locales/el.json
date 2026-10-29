@@ -24,7 +24,8 @@
     "sectionAccount": "Λογαριασμός",
     "sectionExtensions": "Πρόσθετα",
     "paths": "Επαγγελματικές διαδρομές",
-    "companies": "Εταιρείες"
+    "companies": "Εταιρείες",
+    "radar": "Job radar"
   },
   "shell": {
     "skipToContent": "Πηγαίνετε στο περιεχόμενο",
@@ -1423,13 +1424,8 @@
       "models": "Μοντέλα",
       "tasks": "Εργασίες"
     },
-    "allTasks": "Όλες οι εργασίες",
     "allStatuses": "Όλα τα status",
     "noGenerations": "Δεν έχουν καταγραφεί δημιουργίες AI",
-    "generationCount_one": "{{count}} δημιουργία",
-    "generationCount_other": "{{count}} δημιουργίες",
-    "promptLabel": "Ερώτηση:",
-    "tokens": "{{input}}→{{output}} token",
     "task": {
       "job_generate": "Δημιουργία θέσης εργασίας",
       "match_score": "Βαθμολογία ταιριάσματος",
@@ -4228,8 +4224,8 @@
       "description": "Ρόλοι, πρόσβαση και αναγκαστική έξοδο"
     },
     "audit": {
-      "label": "Έλεγχος AI",
-      "description": "Κάθε κλήση AI, με tokens και καθυστέρηση"
+      "label": "Έλεγχος & παρακολούθηση",
+      "description": "Μητρώο AI, ίχνος ασφαλείας και κατάσταση συστήματος"
     },
     "radar": {
       "label": "Ραντάρ εργασίας",
@@ -4800,6 +4796,116 @@
       "pendingTitle": "Δεν βρίσκεται ακόμη στον κατάλογο",
       "pendingBody": "Το «{{label}}» είναι ακόμη ακατέργαστη αναφορά — αναμένει έγκριση για τον κατάλογο δεξιοτήτων.",
       "openPage": "Άνοιγμα πλήρους σελίδας"
+    }
+  },
+  "audit": {
+    "tabsAria": "Καρτέλες ελέγχου",
+    "windowAria": "Χρονικό παράθυρο",
+    "empty": "Καμία δραστηριότητα στο διάστημα",
+    "prev": "Προηγ",
+    "next": "Επόμ",
+    "tab": {
+      "overview": "Επισκόπηση",
+      "ai": "Δραστηριότητα AI",
+      "security": "Ασφάλεια & πρόσβαση"
+    },
+    "window": {
+      "24h": "24ω",
+      "7d": "7η",
+      "30d": "30η"
+    },
+    "kpi": {
+      "calls": "Κλήσεις AI",
+      "vsPrev": "{{delta}} vs προηγούμενου",
+      "errorRate": "Ποσοστό σφαλμάτων",
+      "errorCount": "{{count}} σφάλματα",
+      "tokens": "Tokens",
+      "tokensHint": "εισ → εξ",
+      "latency": "Μέση καθυστέρηση",
+      "latencyMax": "μέγ {{max}}",
+      "failedJobs": "Αποτυχημένες εργασίες",
+      "schedulesFailing": "{{count}} προγράμματα αποτυγχάνουν",
+      "schedulesOk": "Προγράμματα υγιή",
+      "authDenied": "Απορριπτές συνδέσεις",
+      "authEvents": "{{count}} γεγονότα"
+    },
+    "chart": {
+      "volume": "Όγκος κλήσεων & σφάλματα",
+      "ok": "οκ",
+      "errors": "σφάλματα",
+      "empty": "Καμία κλήση στο διάστημα",
+      "byCategory": "Κατά κατηγορία"
+    },
+    "category": {
+      "chat": "Συνομιλία & βοηθός",
+      "cv": "Εργαστήριο CV",
+      "catalog": "Κατάλογος & ταξινομία",
+      "matching": "Ταίριασμα & καθοδήγηση",
+      "documents": "Έγγραφα & μέσα",
+      "ops": "Λειτουργίες & αποφάσεις"
+    },
+    "failures": {
+      "title": "Πρόσφατα σφάλματα",
+      "none": "Κανένα σφάλμα στο διάστημα"
+    },
+    "stream": {
+      "ai": "AI",
+      "job": "Εργασία",
+      "auth": "Σύνδεση"
+    },
+    "ai": {
+      "taskFilter": "Εργασία",
+      "allTasks": "Όλες οι εργασίες",
+      "providerFilter": "Πάροχος",
+      "allProviders": "Όλοι οι πάροχοι",
+      "statusFilter": "Κατάσταση",
+      "tierFilter": "Βαθμίδα",
+      "anyTier": "Οποιαδήποτε βαθμίδα",
+      "tier": {
+        "fast": "γρήγορη",
+        "strong": "ισχυρή"
+      },
+      "windowFilter": "Χρονικό παράθυρο",
+      "allTime": "Όλο το διάστημα",
+      "search": "Αναζήτηση",
+      "searchPlaceholder": "Αναζήτηση prompt ή σφάλματος…",
+      "colStatus": "Κατάσταση",
+      "colTask": "Εργασία",
+      "colModel": "Μοντέλο",
+      "colTokens": "Tokens",
+      "colLatency": "Καθυστέρηση",
+      "colTier": "Βαθμίδα",
+      "colWhen": "Πότε",
+      "promptLabel": "Prompt — ",
+      "simulated": "Προσομοίωση",
+      "runChip": "εκτέλεση #{{id}}",
+      "stageChip": "φάση {{stage}}",
+      "promptChip": "prompt {{version}}",
+      "packChip": "πακέτο {{key}} v{{version}}",
+      "range": "{{from}}–{{to}} από {{total}} γραμμές"
+    },
+    "security": {
+      "groupFilter": "Ομάδα ενεργειών",
+      "allGroups": "Όλες οι ομάδες",
+      "group": {
+        "auth": "Ταυτοποίηση",
+        "admin": "Διαχείριση"
+      },
+      "outcomeFilter": "Αποτέλεσμα",
+      "allOutcomes": "Όλα τα αποτελέσματα",
+      "outcome": {
+        "ok": "οκ",
+        "denied": "απορρίφθηκε",
+        "reuseDenied": "απόρριψη επανάχρησης",
+        "coerced": "εξαναγκάστηκε"
+      },
+      "actorFilter": "Δράστης",
+      "actorPlaceholder": "Αναζήτηση δράστη ή email…",
+      "colAction": "Ενέργεια",
+      "colActor": "Δράστης",
+      "colOutcome": "Αποτέλεσμα",
+      "colResource": "Πόρος",
+      "empty": "Κανένα γεγονός στο διάστημα"
     }
   }
 }

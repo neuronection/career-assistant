@@ -358,17 +358,19 @@ async def test_audit_viewer_filters(client, db, _admin_and_user, seeded_catalog)
     while await worker.run_once():
         pass
 
-    listing = (await client.get("/api/v1/admin/ai/generations", headers=admin)).json()
+    listing = (await client.get("/api/v1/admin/audit/ai/generations", headers=admin)).json()
     assert listing["total"] >= 1
     assert any(g["task_type"] == "job_generate" for g in listing["items"])
 
     by_task = (
-        await client.get("/api/v1/admin/ai/generations?task=job_generate", headers=admin)
+        await client.get("/api/v1/admin/audit/ai/generations?task=job_generate", headers=admin)
     ).json()
     assert all(g["task_type"] == "job_generate" for g in by_task["items"])
 
-    by_status = (await client.get("/api/v1/admin/ai/generations?status=ok", headers=admin)).json()
+    by_status = (
+        await client.get("/api/v1/admin/audit/ai/generations?status=ok", headers=admin)
+    ).json()
     assert by_status["total"] >= 1
 
-    forbidden = await client.get("/api/v1/admin/ai/generations", headers=user)
+    forbidden = await client.get("/api/v1/admin/audit/ai/generations", headers=user)
     assert forbidden.status_code == 403

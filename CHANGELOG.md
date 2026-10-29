@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (audit & monitoring surface, 2026-10-30)
+- **`/settings/audit` is now "Audit & monitoring"** — the page grows
+  from an AI-ledger viewer into the cross-stream observability surface
+  (plan 151, admin-only; the desktop owner is admin by default). An
+  **Overview** tab shows server-aggregated KPIs (AI calls with delta,
+  error rate, tokens, latency, failed jobs, denied sign-ins), a
+  volume-and-errors time chart, a per-category split and a recent
+  failures feed; **AI activity** upgrades the ledger with facet-driven
+  filters (task/provider/status/tier/window/search — options come from
+  live data, no more stale hard-coded task list), pagination and
+  expandable row detail with run/proposal-lineage chips; **Security &
+  access** exposes the identity `audit_events` trail (logins, denials,
+  admin acts) for the first time. Mock-provider rows now visibly carry
+  the `Simulated` badge the docs already promised. Backend:
+  `GET /admin/ai/generations` moved to
+  `GET /admin/audit/ai/generations` (extended filters and response
+  fields), plus new `GET /admin/audit/overview|timeseries|breakdown|events`
+  endpoints and an `ai_generations.created_at` index (migration `0074`).
+
 ### Fixed (docs — confirmation-audit follow-ups, 2026-10-30)
 - **Three doc truths corrected** (docs-parity confirmation audit): the
   postings guide no longer claims "anyone can add more as plugins

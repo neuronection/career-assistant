@@ -6,7 +6,7 @@ import { About } from "@/pages/About";
 import { Account } from "@/pages/settings/Account";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { JobRadarSettings } from "@/pages/settings/JobRadar";
-import { AIAudit } from "@/pages/settings/AIAudit";
+import { Audit } from "@/pages/settings/Audit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
 import { CompanyRules } from "@/pages/settings/CompanyRules";
 import { ToolsConfig } from "@/pages/settings/ToolsConfig";
@@ -89,6 +89,7 @@ export function App() {
           <Route path="/postings/:ref" element={<PostingDetailPage />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
+          <Route path="/radar" element={<JobRadarSettings />} />
           <Route path="/autopilot" element={<Autopilot />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
@@ -117,7 +118,7 @@ export function App() {
           <Route path="/settings" element={<SettingsShell />}>
             <Route index element={<Navigate to="/settings/account" replace />} />
             <Route path="account" element={<Account />} />
-            <Route path="radar" element={<JobRadarSettings />} />
+            <Route path="radar" element={<Navigate to="/radar" replace />} />
             <Route path="ai" element={<AIConfig />} />
             <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
@@ -127,7 +128,7 @@ export function App() {
             {/* Legacy deep links (ADR-0033 INV-6): scheduler → automations */}
             <Route path="scheduler" element={<Navigate to="/settings/automations" replace />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="audit" element={<AIAudit />} />
+            <Route path="audit" element={<Audit />} />
           </Route>
         </Route>
       </Routes>

@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Float, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, StructuredJSON, TimestampMixin, UUIDPrimaryKeyMixin
@@ -10,6 +10,7 @@ class AIGeneration(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Audit trail for every AI call made through the provider."""
 
     __tablename__ = "ai_generations"
+    __table_args__ = (Index("ix_ai_generations_created_at", "created_at"),)
 
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True

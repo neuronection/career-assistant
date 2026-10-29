@@ -263,7 +263,7 @@ describe("SettingsShell glue (app)", () => {
     );
     expect(
       container.querySelectorAll('[data-as="settings-shell-navitem"]').length
-    ).toBe(5);
+    ).toBe(4);
     expect(screen.getByText("account body")).toBeInTheDocument();
     await expectNoA11yViolations(container);
   });

@@ -2,7 +2,7 @@
 
 The job radar is your saved job-search configuration — tell the app
 once what you are looking for, and use it everywhere. It lives under
-**Settings → Job radar** (`/settings/radar`).
+**Job radar** (`/radar`) — the JOB HUNT section of the navigation.
 
 > The radar stores exactly what you enter — nothing is inferred. A
 > salary floor is compared on the **annualized basis** (see

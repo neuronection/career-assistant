@@ -24,7 +24,8 @@
     "sectionAccount": "Account",
     "sectionExtensions": "Extensions",
     "paths": "Career paths",
-    "companies": "Companies"
+    "companies": "Companies",
+    "radar": "Job radar"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -1423,13 +1424,8 @@
       "models": "Models",
       "tasks": "Tasks"
     },
-    "allTasks": "all tasks",
     "allStatuses": "all statuses",
     "noGenerations": "No AI generations recorded",
-    "generationCount_one": "{{count}} generation",
-    "generationCount_other": "{{count}} generations",
-    "promptLabel": "prompt:",
-    "tokens": "{{input}}→{{output}} tok",
     "task": {
       "job_generate": "job generate",
       "match_score": "match score",
@@ -4229,8 +4225,8 @@
       "description": "Roles, access and forced sign-out"
     },
     "audit": {
-      "label": "AI Audit",
-      "description": "Every AI call, with tokens and latency"
+      "label": "Audit & monitoring",
+      "description": "AI ledger, security trail and system health"
     },
     "radar": {
       "label": "Job radar",
@@ -4801,6 +4797,116 @@
       "pendingTitle": "Not in the catalog yet",
       "pendingBody": "“{{label}}” is still a raw mention — it's pending review for the skill catalog.",
       "openPage": "Open full page"
+    }
+  },
+  "audit": {
+    "tabsAria": "Audit tabs",
+    "windowAria": "Time window",
+    "empty": "No activity in this window",
+    "prev": "Prev",
+    "next": "Next",
+    "tab": {
+      "overview": "Overview",
+      "ai": "AI activity",
+      "security": "Security & access"
+    },
+    "window": {
+      "24h": "24h",
+      "7d": "7d",
+      "30d": "30d"
+    },
+    "kpi": {
+      "calls": "AI calls",
+      "vsPrev": "{{delta}} vs previous",
+      "errorRate": "Error rate",
+      "errorCount": "{{count}} errors",
+      "tokens": "Tokens",
+      "tokensHint": "in → out",
+      "latency": "Avg latency",
+      "latencyMax": "max {{max}}",
+      "failedJobs": "Failed jobs",
+      "schedulesFailing": "{{count}} schedules failing",
+      "schedulesOk": "Schedules healthy",
+      "authDenied": "Auth denied",
+      "authEvents": "{{count}} events"
+    },
+    "chart": {
+      "volume": "Call volume & errors",
+      "ok": "ok",
+      "errors": "errors",
+      "empty": "No calls in this window",
+      "byCategory": "By category"
+    },
+    "category": {
+      "chat": "Chat & assist",
+      "cv": "CV Studio",
+      "catalog": "Catalog & taxonomy",
+      "matching": "Matching & guidance",
+      "documents": "Documents & media",
+      "ops": "Ops & decisions"
+    },
+    "failures": {
+      "title": "Recent failures",
+      "none": "No failures in this window"
+    },
+    "stream": {
+      "ai": "AI",
+      "job": "Job",
+      "auth": "Auth"
+    },
+    "ai": {
+      "taskFilter": "Task",
+      "allTasks": "All tasks",
+      "providerFilter": "Provider",
+      "allProviders": "All providers",
+      "statusFilter": "Status",
+      "tierFilter": "Tier",
+      "anyTier": "Any tier",
+      "tier": {
+        "fast": "fast",
+        "strong": "strong"
+      },
+      "windowFilter": "Time window",
+      "allTime": "All time",
+      "search": "Search",
+      "searchPlaceholder": "Search prompt or error…",
+      "colStatus": "Status",
+      "colTask": "Task",
+      "colModel": "Model",
+      "colTokens": "Tokens",
+      "colLatency": "Latency",
+      "colTier": "Tier",
+      "colWhen": "When",
+      "promptLabel": "Prompt — ",
+      "simulated": "Simulated",
+      "runChip": "run #{{id}}",
+      "stageChip": "stage {{stage}}",
+      "promptChip": "prompt {{version}}",
+      "packChip": "pack {{key}} v{{version}}",
+      "range": "{{from}}–{{to}} of {{total}} rows"
+    },
+    "security": {
+      "groupFilter": "Action group",
+      "allGroups": "All groups",
+      "group": {
+        "auth": "Authentication",
+        "admin": "Administration"
+      },
+      "outcomeFilter": "Outcome",
+      "allOutcomes": "All outcomes",
+      "outcome": {
+        "ok": "ok",
+        "denied": "denied",
+        "reuseDenied": "reuse denied",
+        "coerced": "coerced"
+      },
+      "actorFilter": "Actor",
+      "actorPlaceholder": "Search actor or email…",
+      "colAction": "Action",
+      "colActor": "Actor",
+      "colOutcome": "Outcome",
+      "colResource": "Resource",
+      "empty": "No events in this window"
     }
   }
 }

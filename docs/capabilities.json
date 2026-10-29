@@ -345,6 +345,32 @@
         "Account deletion cascades everything, confirmed by password with an armed two-step control"
       ],
       "order": 65
+    },
+    {
+      "id": "audit-observability",
+      "verb": "See everything the system did, and why",
+      "summary": "One admin dashboard over the audit streams: every AI call with model, tokens, latency and run lineage; the identity trail of sign-ins, denials and admin acts; and windowed health metrics.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
+        "The identity audit trail (logins, denials, admin acts) has a first-class read surface",
+        "Overview KPIs, volume/error trends and category splits aggregate server-side",
+        "Facet-driven ledger filters, pagination and row detail with prompt, output and pack governance",
+        "Identical surface on PostgreSQL web/self-host and the SQLite desktop profile"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 70
     }
   ],
   "useCases": [

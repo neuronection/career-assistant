@@ -18,17 +18,25 @@ export function StatTiles({
   tiles,
   testId = "stat-tiles",
   columns = 5,
+  layout = "fixed",
 }: {
   tiles: StatTile[];
   testId?: string;
   columns?: number;
+  /** `auto` wraps tiles on narrow containers (audit dashboard, plan 151);
+   * `fixed` keeps the historic exact-grid behavior. */
+  layout?: "fixed" | "auto";
 }) {
   if (tiles.length === 0) return null;
   return (
     <div
       data-testid={testId}
-      className="grid gap-3"
-      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      className={`grid gap-3${layout === "auto" ? " grid-cols-[repeat(auto-fit,minmax(7rem,1fr))]" : ""}`}
+      style={
+        layout === "fixed"
+          ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }
+          : undefined
+      }
     >
       {tiles.map((tile) => (
         <div

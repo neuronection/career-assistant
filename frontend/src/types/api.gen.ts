@@ -4,7 +4,7 @@
  */
 
 export interface paths {
-    "/api/v1/admin/ai/generations": {
+    "/api/v1/admin/audit/ai/generations": {
         parameters: {
             query?: never;
             header?: never;
@@ -13,9 +13,90 @@ export interface paths {
         };
         /**
          * Audit Generations
-         * @description Paginated AI audit trail with filters.
+         * @description The AI ledger with the full filter matrix (moved from
+         *     /admin/ai/generations, extended — plan 151 D7).
          */
-        get: operations["audit_generations_api_v1_admin_ai_generations_get"];
+        get: operations["audit_generations_api_v1_admin_audit_ai_generations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Breakdown
+         * @description Per-key call/error/token splits — chart data AND filter facets.
+         */
+        get: operations["audit_breakdown_api_v1_admin_audit_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Events
+         * @description The identity ``audit_events`` trail — first read surface (plan 151).
+         */
+        get: operations["audit_events_api_v1_admin_audit_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Overview
+         * @description Dashboard KPIs + recent failures, aggregated server-side.
+         */
+        get: operations["audit_overview_api_v1_admin_audit_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/timeseries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Timeseries
+         * @description Time-bucketed call/error/token series (dialect-aware bucketing).
+         */
+        get: operations["audit_timeseries_api_v1_admin_audit_timeseries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -17025,14 +17106,158 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    audit_generations_api_v1_admin_ai_generations_get: {
+    audit_generations_api_v1_admin_audit_ai_generations_get: {
         parameters: {
             query?: {
                 task?: string | null;
+                provider?: string | null;
                 model?: string | null;
                 status?: string | null;
+                user_id?: string | null;
+                run_id?: string | null;
+                tier?: string | null;
+                window?: string | null;
+                q?: string | null;
                 limit?: number;
                 offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_breakdown_api_v1_admin_audit_breakdown_get: {
+        parameters: {
+            query?: {
+                dimension?: string;
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_events_api_v1_admin_audit_events_get: {
+        parameters: {
+            query?: {
+                group?: string;
+                outcome?: string | null;
+                actor?: string | null;
+                window?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_overview_api_v1_admin_audit_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_timeseries_api_v1_admin_audit_timeseries_get: {
+        parameters: {
+            query?: {
+                window?: string;
             };
             header?: never;
             path?: never;

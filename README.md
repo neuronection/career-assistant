@@ -106,6 +106,7 @@ fails when a claim here drifts from the code.
 | Career paths | `/paths` | beta | [user/career-paths.md](docs/user/career-paths.md) |
 | Skill relations admin | `/settings/taxonomy` | on | [user/skills-taxonomy.md](docs/user/skills-taxonomy.md) |
 | Company matching rules | `/settings/companies` | on | [user/companies.md](docs/user/companies.md) |
+| Audit & monitoring | `/settings/audit` | on | [user/settings.md](docs/user/settings.md) |
 
 `beta` means the surface works end to end and carries a visible Beta chip
 plus one expectation line in the app; everything else the catalog lists is
