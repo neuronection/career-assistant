@@ -312,6 +312,21 @@ class ChannelTestOut(BaseModel):
     error: str | None = None
 
 
+class DeliveryOut(BaseModel):
+    """One channel dispatch row (the per-channel health strip)."""
+
+    id: UUID
+    channel: str
+    status: str
+    error: str | None = None
+    kind: str | None = None
+    created_at: datetime
+
+
+class DeliveriesOut(BaseModel):
+    items: list[DeliveryOut]
+
+
 class WebhookChannelConfigIn(BaseModel):
     """Per-user webhook config; `***` keeps the sealed token slot."""
 

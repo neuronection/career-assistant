@@ -6628,6 +6628,75 @@
         "title": "DegreeLevel",
         "type": "string"
       },
+      "DeliveriesOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryOut"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "DeliveriesOut",
+        "type": "object"
+      },
+      "DeliveryOut": {
+        "description": "One channel dispatch row (the per-channel health strip).",
+        "properties": {
+          "channel": {
+            "title": "Channel",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "channel",
+          "status",
+          "created_at"
+        ],
+        "title": "DeliveryOut",
+        "type": "object"
+      },
       "DemandInfo": {
         "properties": {
           "note": {
@@ -39937,6 +40006,68 @@
         ]
       }
     },
+    "/api/v1/notifications/deliveries": {
+      "get": {
+        "description": "The caller's recent channel dispatch rows (newest first).",
+        "operationId": "list_deliveries_api_v1_notifications_deliveries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "channel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Channel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveriesOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Deliveries",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
     "/api/v1/notifications/dismiss": {
       "post": {
         "description": "Batch dismiss (unread and read rows); empty ids = dismiss all.",
@@ -40044,6 +40175,40 @@
       }
     },
     "/api/v1/notifications/preferences/{kind_key}": {
+      "delete": {
+        "description": "Reset one kind to its seeded defaults (drops the override row).",
+        "operationId": "delete_kind_preference_api_v1_notifications_preferences__kind_key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind_key",
+            "required": true,
+            "schema": {
+              "title": "Kind Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Kind Preference",
+        "tags": [
+          "notifications"
+        ]
+      },
       "put": {
         "description": "Enable/disable one kind or override its channels (hint stamped at\nemit powers the in-notification \"turn off\" action).",
         "operationId": "put_kind_preference_api_v1_notifications_preferences__kind_key__put",

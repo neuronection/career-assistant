@@ -1044,7 +1044,70 @@
     "feedRotateFailed": "Δεν ήταν δυνατή η αλλαγή του token.",
     "feedRevokeFailed": "Δεν ήταν δυνατή η ακύρωση του token.",
     "webhook": {
-      "urlPlaceholder": "https://hooks.example/…"
+      "urlPlaceholder": "https://hooks.example/…",
+      "generic": "Γενικό"
+    },
+    "channel": {
+      "in_app": "Εντός εφαρμογής",
+      "desktop": "Desktop",
+      "browser": "Browser",
+      "email": "Email",
+      "webhook": "Webhook"
+    },
+    "group": {
+      "career": "Καριέρα",
+      "postings": "Θέσεις",
+      "system": "Συστήματος"
+    },
+    "kindColumn": "Είδος",
+    "onColumn": "Ενεργό",
+    "filterKinds": "Φίλτρο ειδών…",
+    "matrixSummary": "{count} είδη σε {groups} ομάδες · οι διακόπτες αποθηκεύουν αμέσως",
+    "noKindsMatch": "Κανένα είδος δεν ταιριάζει με αυτό το φίλτρο.",
+    "custom": "Προσαρμοσμένο",
+    "resetShort": "Επαναφορά",
+    "resetToDefault": "Επαναφορά {{name}} στα προεπιλεγμένα κανάλια",
+    "activeChannels": "{{count}} κανάλια ενεργά",
+    "needsAttention": "1 χρειάζεται προσοχή",
+    "adminTitle": "Διαχειριστής",
+    "rulesTitle": "Κανόνες ειδοποιήσεων",
+    "rulesBody": "Ρυθμίστε τι ενεργοποιεί ειδοποίηση — τα είδη παραμένουν ο διακόπτης on/off.",
+    "ruleTitle": {
+      "fit_threshold": "Ειδοποιήσεις ορίου αντιστοιχίας",
+      "new_in_family": "Νέες θέσεις σε οικογένειες που παρακολουθείτε",
+      "new_posting_match": "Νέες αντιστοιχίες θέσεων"
+    },
+    "ruleHint": {
+      "fit_threshold": "Ειδοποίηση όταν μια θέση φτάσει το όριο αντιστοιχίας",
+      "new_in_family": "Νέες θέσεις από τις οικογένειες που παρακολουθείτε",
+      "new_posting_match": "Αντιστοιχίες radar στα κανάλια σας"
+    },
+    "ruleMinFit": "Ελάχιστη βαθμολογία αντιστοιχίας",
+    "ruleMaxPerDay": "Μέγιστο ειδοποιήσεων ανά ημέρα",
+    "ruleFamilies": "Οικογένειες",
+    "ruleMutedFamilies": "Σιγασμένες οικογένειες",
+    "feedCreated": "Δημιουργήθηκε {{date}}",
+    "smtpUsername": "Όνομα χρήστη SMTP",
+    "smtpFromName": "Όνομα αποστολέα",
+    "smtpStarttls": "Χρήση STARTTLS",
+    "smtpUseSsl": "Χρήση SSL",
+    "broadcastTitle": "Αναγγελία",
+    "broadcastBody": "Αποστολή αναγγελίας σε όλους τους ενεργούς χρήστες (εντός εφαρμογής).",
+    "broadcastTitleField": "Τίτλος",
+    "broadcastBodyField": "Κείμενο",
+    "broadcastLink": "Σύνδεσμος (προαιρετικό)",
+    "broadcastSend": "Αποστολή αναγγελίας",
+    "broadcastSent": "Παραδόθηκε σε {{count}} χρήστες",
+    "broadcastFailed": "Η αποστολή απέτυχε",
+    "healthTitle": "Κατάσταση παράδοσης",
+    "healthBody": "Η τελευταία παράδοση ανά κανάλι — έφτασε πραγματικά;",
+    "healthFailures": "{{count}} αποτυχίες πρόσφατα",
+    "healthEmpty": "Δεν έχει παραδοθεί τίποτα ακόμη.",
+    "deliveryStatus": {
+      "pending": "σε εκκρεμότητα",
+      "sent": "απεστάλη",
+      "delivered": "παραδόθηκε",
+      "failed": "απέτυχε"
     }
   },
   "users": {
@@ -1286,7 +1349,6 @@
       "deleteTitle": "Διαγραφή του “{{label}}”;",
       "deleteBody": "Αφαιρεί οριστικά την ετικέτα από τον κατάλογο. Ετικέτες που αναφέρονται ακόμη από θέσεις ή προφίλ δεν μπορούν να διαγραφούν — σημειώστε τες ως παλαιότερες αντ' αυτού."
     },
-    "draft": "Πρόχειρο",
     "stepsTotal": "{{count}} βήματα",
     "stepsShow": "Εμφάνιση όλων των βημάτων",
     "stepsHide": "Απόκρυψη βημάτων",
@@ -1314,7 +1376,8 @@
       "rawProposal": "Ακατέργαστη πρόταση",
       "discardTitle": "Απόρριψη αυτής της πρότασης;",
       "discardBody": "Η πρόταση AI διαγράφεται και δεν μπορεί να ανακτηθεί."
-    }
+    },
+    "draft": "Πρόχειρο"
   },
   "aiSettings": {
     "loading": "Φόρτωση ρυθμίσεων AI…",

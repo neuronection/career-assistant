@@ -122,7 +122,10 @@ export function useSettingsDraft<T, P>({
   useEffect(() => {
     const nextJson = JSON.stringify(optsRef.current.buildPayload(initial) ?? null);
     if (nextJson === savedJsonRef.current) return;
-    if (dirty) return;
+    const currentJson = JSON.stringify(
+      optsRef.current.buildPayload(draftRef.current) ?? null
+    );
+    if (currentJson !== savedJsonRef.current) return;
     savedJsonRef.current = nextJson;
     draftRef.current = initial;
     setDraftState(initial);

@@ -1044,7 +1044,70 @@
     "feedRotateFailed": "Could not rotate the token.",
     "feedRevokeFailed": "Could not revoke the token.",
     "webhook": {
-      "urlPlaceholder": "https://hooks.example/…"
+      "urlPlaceholder": "https://hooks.example/…",
+      "generic": "Generic"
+    },
+    "channel": {
+      "in_app": "In-app",
+      "desktop": "Desktop",
+      "browser": "Browser",
+      "email": "Email",
+      "webhook": "Webhook"
+    },
+    "group": {
+      "career": "Career",
+      "postings": "Postings",
+      "system": "System"
+    },
+    "kindColumn": "Kind",
+    "onColumn": "On",
+    "filterKinds": "Filter kinds…",
+    "matrixSummary": "{count} kinds in {groups} groups · switches save instantly",
+    "noKindsMatch": "No kinds match this filter.",
+    "custom": "Custom",
+    "resetShort": "Reset",
+    "resetToDefault": "Reset {{name}} to its default channels",
+    "activeChannels": "{{count}} channels active",
+    "needsAttention": "1 needs attention",
+    "adminTitle": "Admin",
+    "rulesTitle": "Alert rules",
+    "rulesBody": "Fine-tune what triggers a notification — the kinds above stay the on/off switch.",
+    "ruleTitle": {
+      "fit_threshold": "Fit threshold alerts",
+      "new_in_family": "New jobs in followed families",
+      "new_posting_match": "New posting matches"
+    },
+    "ruleHint": {
+      "fit_threshold": "Notify when a posting's fit reaches the threshold",
+      "new_in_family": "Digest new jobs from the families you follow",
+      "new_posting_match": "Radar matches pushed to your channels"
+    },
+    "ruleMinFit": "Minimum fit score",
+    "ruleMaxPerDay": "Max notifications per day",
+    "ruleFamilies": "Families",
+    "ruleMutedFamilies": "Muted families",
+    "feedCreated": "Created {{date}}",
+    "smtpUsername": "SMTP username",
+    "smtpFromName": "From name",
+    "smtpStarttls": "Use STARTTLS",
+    "smtpUseSsl": "Use SSL",
+    "broadcastTitle": "Announcement",
+    "broadcastBody": "Send a system announcement to every active user (in-app).",
+    "broadcastTitleField": "Title",
+    "broadcastBodyField": "Body",
+    "broadcastLink": "Link (optional)",
+    "broadcastSend": "Send announcement",
+    "broadcastSent": "Delivered to {{count}} users",
+    "broadcastFailed": "Broadcast failed",
+    "healthTitle": "Delivery health",
+    "healthBody": "The latest dispatch per channel — did it actually arrive?",
+    "healthFailures": "{{count}} failed recently",
+    "healthEmpty": "Nothing delivered yet.",
+    "deliveryStatus": {
+      "pending": "pending",
+      "sent": "sent",
+      "delivered": "delivered",
+      "failed": "failed"
     }
   },
   "users": {
@@ -1286,7 +1349,6 @@
       "deleteTitle": "Delete “{{label}}”?",
       "deleteBody": "This permanently removes the tag from the catalog. Tags still referenced by jobs or profiles cannot be deleted — deprecate them instead."
     },
-    "draft": "Draft",
     "stepsTotal": "{{count}} steps",
     "stepsShow": "Show all steps",
     "stepsHide": "Hide steps",
@@ -1314,7 +1376,8 @@
       "rawProposal": "Raw proposal",
       "discardTitle": "Discard this proposal?",
       "discardBody": "The AI proposal is deleted and cannot be restored."
-    }
+    },
+    "draft": "Draft"
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",

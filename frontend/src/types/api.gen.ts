@@ -7185,6 +7185,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/notifications/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Deliveries
+         * @description The caller's recent channel dispatch rows (newest first).
+         */
+        get: operations["list_deliveries_api_v1_notifications_deliveries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications/dismiss": {
         parameters: {
             query?: never;
@@ -7244,7 +7264,11 @@ export interface paths {
          */
         put: operations["put_kind_preference_api_v1_notifications_preferences__kind_key__put"];
         post?: never;
-        delete?: never;
+        /**
+         * Delete Kind Preference
+         * @description Reset one kind to its seeded defaults (drops the override row).
+         */
+        delete: operations["delete_kind_preference_api_v1_notifications_preferences__kind_key__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -11040,6 +11064,35 @@ export interface components {
          * @enum {string}
          */
         DegreeLevel: "vocational" | "bachelor" | "master" | "phd";
+        /** DeliveriesOut */
+        DeliveriesOut: {
+            /** Items */
+            items: components["schemas"]["DeliveryOut"][];
+        };
+        /**
+         * DeliveryOut
+         * @description One channel dispatch row (the per-channel health strip).
+         */
+        DeliveryOut: {
+            /** Channel */
+            channel: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error */
+            error?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Kind */
+            kind?: string | null;
+            /** Status */
+            status: string;
+        };
         /** DemandInfo */
         DemandInfo: {
             /**
@@ -29530,6 +29583,38 @@ export interface operations {
             };
         };
     };
+    list_deliveries_api_v1_notifications_deliveries_get: {
+        parameters: {
+            query?: {
+                channel?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveriesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     dismiss_notifications_api_v1_notifications_dismiss_post: {
         parameters: {
             query?: never;
@@ -29641,6 +29726,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["KindPrefUpdateOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_kind_preference_api_v1_notifications_preferences__kind_key__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kind_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

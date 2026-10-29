@@ -1044,7 +1044,70 @@
     "feedRotateFailed": "Fehlgeschlagenes Rotieren des Tokens.",
     "feedRevokeFailed": "Fehlgeschlagenes Rückgängigmachen des Tokens.",
     "webhook": {
-      "urlPlaceholder": "https://hooks.example/…"
+      "urlPlaceholder": "https://hooks.example/…",
+      "generic": "Generisch"
+    },
+    "channel": {
+      "in_app": "In-App",
+      "desktop": "Desktop",
+      "browser": "Browser",
+      "email": "E-Mail",
+      "webhook": "Webhook"
+    },
+    "group": {
+      "career": "Karriere",
+      "postings": "Stellen",
+      "system": "System"
+    },
+    "kindColumn": "Art",
+    "onColumn": "An",
+    "filterKinds": "Arten filtern…",
+    "matrixSummary": "{count} Arten in {groups} Gruppen · Schalter speichern sofort",
+    "noKindsMatch": "Keine Art passt zu diesem Filter.",
+    "custom": "Angepasst",
+    "resetShort": "Zurücksetzen",
+    "resetToDefault": "{{name}} auf die Standard-Kanäle zurücksetzen",
+    "activeChannels": "{{count}} Kanäle aktiv",
+    "needsAttention": "1 braucht Aufmerksamkeit",
+    "adminTitle": "Admin",
+    "rulesTitle": "Alarmregeln",
+    "rulesBody": "Feinsteuern, was eine Benachrichtigung auslöst — die Arten oben bleiben der An/Aus-Schalter.",
+    "ruleTitle": {
+      "fit_threshold": "Fit-Schwellenwert-Benachrichtigungen",
+      "new_in_family": "Neue Jobs in verfolgten Familien",
+      "new_posting_match": "Neue Stellen-Treffer"
+    },
+    "ruleHint": {
+      "fit_threshold": "Benachrichtigen, wenn der Fit einer Stelle den Schwellenwert erreicht",
+      "new_in_family": "Neue Jobs aus verfolgten Familien im Digest",
+      "new_posting_match": "Radar-Treffer auf deine Kanäle"
+    },
+    "ruleMinFit": "Mindest-Fit-Score",
+    "ruleMaxPerDay": "Max. Benachrichtigungen pro Tag",
+    "ruleFamilies": "Familien",
+    "ruleMutedFamilies": "Stumme Familien",
+    "feedCreated": "Erstellt {{date}}",
+    "smtpUsername": "SMTP-Benutzername",
+    "smtpFromName": "Absendername",
+    "smtpStarttls": "STARTTLS verwenden",
+    "smtpUseSsl": "SSL verwenden",
+    "broadcastTitle": "Ankündigung",
+    "broadcastBody": "Sende eine Systemankündigung an alle aktiven Nutzer (In-App).",
+    "broadcastTitleField": "Titel",
+    "broadcastBodyField": "Text",
+    "broadcastLink": "Link (optional)",
+    "broadcastSend": "Ankündigung senden",
+    "broadcastSent": "An {{count}} Nutzer zugestellt",
+    "broadcastFailed": "Ankündigung fehlgeschlagen",
+    "healthTitle": "Zustellungsstatus",
+    "healthBody": "Die letzte Zustellung pro Kanal — ist sie wirklich angekommen?",
+    "healthFailures": "{{count}} kürzlich fehlgeschlagen",
+    "healthEmpty": "Noch nichts zugestellt.",
+    "deliveryStatus": {
+      "pending": "ausstehend",
+      "sent": "gesendet",
+      "delivered": "zugestellt",
+      "failed": "fehlgeschlagen"
     }
   },
   "users": {
@@ -1286,7 +1349,6 @@
       "deleteTitle": "„{{label}}“ löschen?",
       "deleteBody": "Entfernt den Tag dauerhaft aus dem Katalog. Noch von Jobs oder Profilen referenzierte Tags können nicht gelöscht werden — markieren Sie sie stattdessen als veraltet."
     },
-    "draft": "Entwurf",
     "stepsTotal": "{{count}} Schritte",
     "stepsShow": "Alle Schritte anzeigen",
     "stepsHide": "Schritte ausblenden",
@@ -1314,7 +1376,8 @@
       "rawProposal": "Rohvorschlag",
       "discardTitle": "Diesen Vorschlag verwerfen?",
       "discardBody": "Der KI-Vorschlag wird gelöscht und kann nicht wiederhergestellt werden."
-    }
+    },
+    "draft": "Entwurf"
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",

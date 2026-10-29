@@ -144,11 +144,14 @@ resume. The legacy scheduler deep link redirects here. See
 
 ## Notifications (`/settings/notifications`)
 
-Configure the notification funnel: channels, per-kind routing, email and
-webhook delivery, calendar/RSS subscriptions, alert rules, thresholds,
-per-day caps, cooldowns and quiet hours. Email addresses need a one-time
-confirmation; webhook URLs are validated before they are saved. Admins also
-configure the instance SMTP transport on this page. See
+Configure the notification funnel: channel cards (email with double opt-in,
+webhook, browser push, desktop toasts) with a delivery-health strip, quiet
+hours, per-kind × per-channel routing (grouped matrix with instant switches,
+reset-to-default per kind), alert rules (fit threshold, family targeting,
+per-day caps), calendar/RSS tokens, follow-up cadence and the admin zone
+(instance SMTP transport + announcements to every active user). Email
+addresses need a one-time confirmation; webhook URLs are validated before
+they are saved. See
 [Notifications and scheduler](notifications-and-scheduler.md).
 
 ## AI audit (`/settings/audit`)

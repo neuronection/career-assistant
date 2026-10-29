@@ -1,5 +1,5 @@
 import { api } from "@/api/client";
-import type { AlertRule, AlertRuleParams, ChannelTestResult, EmailChannelConfig, EmailTransportConfig, FeedResponse, FeedToken, FeedTokenMinted, NotificationPreferences, NotificationsResponse, PushSubscriptionRecord, SearchRecord, SearchScope, WebhookChannelConfig } from "@/types/wire";
+import type { AlertRule, AlertRuleParams, ChannelTestResult, EmailChannelConfig, EmailTransportConfig, FeedResponse, FeedToken, FeedTokenMinted, NotificationDeliveryRow, NotificationPreferences, NotificationsResponse, PushSubscriptionRecord, SearchRecord, SearchScope, WebhookChannelConfig } from "@/types/wire";
 import type { NotificationItem, PreferencesMatrix } from "@/types/wire";
 import type { NotificationRuleKind } from "@/types/wire";
 
@@ -98,6 +98,10 @@ export async function setKindPreference(
   return data;
 }
 
+export async function resetKindPreference(kindKey: string): Promise<void> {
+  await api.delete(`/notifications/preferences/${kindKey}`);
+}
+
 export async function fetchVapidPublicKey(): Promise<string> {
   const { data } = await api.get<{ public_key: string }>(
     "/notifications/vapid-key"
@@ -134,6 +138,28 @@ export async function updateRule(body: {
   enabled: boolean;
 }): Promise<{ items: AlertRule[] }> {
   const { data } = await api.put<{ items: AlertRule[] }>("/notifications/rules", body);
+  return data;
+}
+
+export async function fetchNotificationDeliveries(
+  params: { channel?: string; limit?: number } = {}
+): Promise<{ items: NotificationDeliveryRow[] }> {
+  const { data } = await api.get<{ items: NotificationDeliveryRow[] }>(
+    "/notifications/deliveries",
+    { params }
+  );
+  return data;
+}
+
+export async function broadcastAnnouncement(body: {
+  title: string;
+  body?: string;
+  link?: string | null;
+}): Promise<{ delivered: number }> {
+  const { data } = await api.post<{ delivered: number }>(
+    "/admin/notifications/broadcast",
+    body
+  );
   return data;
 }
 

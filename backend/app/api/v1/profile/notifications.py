@@ -16,6 +16,7 @@ from app.core.database import get_db
 from app.schemas.engagement import (
     BroadcastIn,
     ChannelTestOut,
+    DeliveriesOut,
     EmailChannelConfigIn,
     EmailChannelConfigOut,
     EmailTransportIn,
@@ -180,6 +181,29 @@ async def put_kind_preference(
     )
     await db.commit()
     return KindPrefUpdateOut.model_validate(result)
+
+
+@router.delete("/notifications/preferences/{kind_key}", status_code=204)
+async def delete_kind_preference(
+    kind_key: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Reset one kind to its seeded defaults (drops the override row)."""
+    await NotificationService(db).delete_kind_pref(user.id, kind_key)
+    await db.commit()
+
+
+@router.get("/notifications/deliveries", response_model=DeliveriesOut)
+async def list_deliveries(
+    channel: str | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> DeliveriesOut:
+    """The caller's recent channel dispatch rows (newest first)."""
+    result = await NotificationService(db).recent_deliveries(user.id, channel=channel, limit=limit)
+    return DeliveriesOut.model_validate(result)
 
 
 @router.get("/notifications/channels/email", response_model=EmailChannelConfigOut)

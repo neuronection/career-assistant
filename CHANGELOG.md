@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings overhaul phase 1 — notifications, 2026-10-29)
+- **The notifications page is rebuilt on the settings kit**: channel
+  cards with live delivery health (the new per-channel dispatch log,
+  `GET /api/v1/notifications/deliveries`), a grouped kind-routing matrix
+  with real switches (desktop/browser per-kind routing now reachable),
+  reset-to-default per kind (`DELETE /api/v1/notifications/preferences/{kind}`),
+  debounced quiet hours (no more a PUT per keystroke), alert rules
+  editing (fit threshold, family targeting, per-day caps), the admin
+  zone (full SMTP transport form + announcements to every active user)
+  and an in-page section rail. Notices now render inside the card that
+  caused them; switches save instantly with rollback, forms keep
+  explicit Save buttons. Also fixes the raw `notifications.webhook.generic`
+  key that leaked into the payload-preset select.
+
 ### Changed (taxonomy settings UX, 2026-10-29)
 - **The taxonomy listings are searchable, grouped and clickable**
   (plan 150, phases 1–2). The Interests and Skills tabs drop their raw
@@ -107,6 +121,15 @@ All notable changes to **Career Assistant** are documented here.
   the exact view instead of resetting to Interests. Unknown or stale
   params fall back to the defaults and clean themselves up; the default
   view keeps the bare `/settings/taxonomy` URL.
+
+### Changed (taxonomy — paths & enrichment cards, 2026-10-29)
+- **Draft career paths read like plans, not datasets** — target job as a
+  chip, steps as ordered chips (optional steps marked), collapsible full
+  step list, publish/reject behind confirmation. **AI enrichment
+  proposals render as typed cards**: known fields (demand outlook,
+  education, remote policy…) show as labeled rows, lists become chips,
+  and anything unrecognized collapses into a raw-proposal disclosure —
+  no more JSON dumps.
 
 ### Changed (taxonomy — smarter review queue, 2026-10-29)
 - **The review queue now tells you what kind of decision each row is.**

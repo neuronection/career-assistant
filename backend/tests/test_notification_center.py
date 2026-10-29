@@ -494,3 +494,65 @@ async def test_non_mutable_kind_rejected(client, auth_headers, kinds):
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+async def test_kind_override_reset_deletes_row(client, auth_headers, kinds):
+    stored = await client.put(
+        "/api/v1/notifications/preferences/fit_threshold",
+        json={"channels": ["in_app", "email"]},
+        headers=auth_headers,
+    )
+    assert stored.status_code == 200
+    matrix = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
+    fit = next(k for k in matrix.json()["kinds"] if k["key"] == "fit_threshold")
+    assert fit["overridden"] is True
+
+    reset = await client.delete(
+        "/api/v1/notifications/preferences/fit_threshold", headers=auth_headers
+    )
+    assert reset.status_code == 204
+    matrix = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
+    fit = next(k for k in matrix.json()["kinds"] if k["key"] == "fit_threshold")
+    assert fit["overridden"] is False
+    assert fit["channels"] == fit["default_channels"]
+
+
+async def test_recent_deliveries_scoped_and_filtered(db, kinds, desktop_channel):
+    user = await _make_user(db, "deliveries@example.com")
+    other = await _make_user(db, "deliveries2@example.com")
+    service = NotificationService(db)
+    await service.emit("fit_threshold", [user.id, other.id], title="Strong fit")
+    await db.commit()
+
+    mine = await service.recent_deliveries(user.id)
+    assert mine["items"], "the caller's own dispatch rows are listed"
+    assert all(item["kind"] == "fit_threshold" for item in mine["items"])
+    channels = {item["channel"] for item in mine["items"]}
+    assert "in_app" in channels
+    assert channels <= {"in_app", "desktop", "browser"}
+    assert all(item["status"] == "delivered" for item in mine["items"])
+
+    desktop_only = await service.recent_deliveries(user.id, channel="desktop")
+    assert desktop_only["items"]
+    assert {item["channel"] for item in desktop_only["items"]} == {"desktop"}
+
+    theirs = await service.recent_deliveries(other.id)
+    assert theirs["items"]
+    assert all(item["id"] not in {item["id"] for item in mine["items"]} for item in theirs["items"])
+
+
+async def test_deliveries_endpoint_requires_auth_and_filters(client, auth_headers, kinds):
+    unauthed = await client.get("/api/v1/notifications/deliveries")
+    assert unauthed.status_code == 401
+
+    empty = await client.get("/api/v1/notifications/deliveries", headers=auth_headers)
+    assert empty.status_code == 200
+    assert empty.json()["items"] == []
+
+    filtered = await client.get(
+        "/api/v1/notifications/deliveries",
+        params={"channel": "email"},
+        headers=auth_headers,
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["items"] == []

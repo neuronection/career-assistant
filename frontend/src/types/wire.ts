@@ -98,6 +98,7 @@ export type SearchRecord = Schemas["SearchOut"];
 // ------------------------------------------------------- notifications
 export type AlertRuleParams = Schemas["RuleParams"];
 export type AlertRule = Schemas["RuleOut"];
+export type NotificationDeliveryRow = Schemas["DeliveryOut"];
 export type NotificationsResponse = Schemas["NotificationsOut"];
 export type NotificationKindPref = Schemas["KindPrefOut"];
 export type PreferencesMatrix = Schemas["PreferencesMatrixOut"];

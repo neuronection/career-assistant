@@ -409,6 +409,39 @@ class NotificationService:
         ]
         return {"items": items, "unread_count": unread}
 
+    async def recent_deliveries(
+        self,
+        user_id: UUID,
+        *,
+        channel: str | None = None,
+        limit: int = 20,
+    ) -> dict:
+        """Recent channel dispatch rows (newest first) — the per-channel
+        health strip answers "is email actually arriving?"."""
+        query = (
+            select(NotificationDelivery, NotificationKind.key)
+            .join(Notification, Notification.id == NotificationDelivery.notification_id)
+            .join(NotificationKind, NotificationKind.id == Notification.kind_id)
+            .where(NotificationDelivery.user_id == user_id)
+            .order_by(NotificationDelivery.created_at.desc())
+            .limit(min(limit, 100))
+        )
+        if channel:
+            query = query.where(NotificationDelivery.channel == channel)
+        rows = (await self.db.execute(query)).all()
+        items = [
+            {
+                "id": delivery.id,
+                "channel": delivery.channel,
+                "status": delivery.status,
+                "error": delivery.error,
+                "kind": kind_key,
+                "created_at": delivery.created_at,
+            }
+            for delivery, kind_key in rows
+        ]
+        return {"items": items}
+
     async def inbox_threads(
         self,
         user_id: UUID,
@@ -575,6 +608,29 @@ class NotificationService:
             "enabled": enabled if enabled is not None else kind_row.default_enabled,
             "channels": channels or list(kind_row.default_channels or ["in_app"]),
         }
+
+    async def delete_kind_pref(self, user_id: UUID, kind_key: str) -> None:
+        """Drop the caller's override row — the kind falls back to its
+        seeded defaults (`overridden` clears)."""
+        kind_row = await self._kind_row(kind_key)
+        if kind_row is None:
+            from app.core.errors import NotFoundError
+
+            raise NotFoundError("Unknown notification kind")
+        if not kind_row.mutable:
+            from app.core.errors import ValidationError
+
+            raise ValidationError("This notification kind cannot be muted")
+        rows = await self.db.execute(
+            select(NotificationKindPref).where(
+                NotificationKindPref.user_id == user_id,
+                NotificationKindPref.kind_id == kind_row.id,
+            )
+        )
+        pref = rows.scalars().first()
+        if pref is not None:
+            await self.db.delete(pref)
+            await self.db.flush()
 
     async def global_prefs(self, user_id: UUID) -> dict:
         """Global channel preferences only (desktop toggle + quiet hours)."""
