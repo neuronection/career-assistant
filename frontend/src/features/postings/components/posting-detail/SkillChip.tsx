@@ -17,7 +17,14 @@ function skillTitle(
   return parts.join(" · ");
 }
 
-export function CompactSkillChip({ skill }: { skill: NormalizedSkill }) {
+export function CompactSkillChip({
+  skill,
+  onPeek,
+}: {
+  skill: NormalizedSkill;
+  /** Opt-in skill-peek affordance (plan 149); wired by the detail page. */
+  onPeek?: (trigger: HTMLElement | null) => void;
+}) {
   const { t } = useTranslation();
   return (
     <SkillTag
@@ -25,16 +32,23 @@ export function CompactSkillChip({ skill }: { skill: NormalizedSkill }) {
       score={skill.level}
       unmapped={skill.unmapped}
       title={skillTitle(skill, t)}
+      onOpen={onPeek}
     />
   );
 }
 
-export function SkillChip({ skill }: { skill: NormalizedSkill }) {
+export function SkillChip({
+  skill,
+  onPeek,
+}: {
+  skill: NormalizedSkill;
+  onPeek?: (trigger: HTMLElement | null) => void;
+}) {
   const { t } = useTranslation();
   const [showQuote, setShowQuote] = useState(false);
   return (
     <span className="inline-flex items-center gap-1">
-      <CompactSkillChip skill={skill} />
+      <CompactSkillChip skill={skill} onPeek={onPeek} />
       {skill.evidence ? (
         <>
           <button

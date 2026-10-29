@@ -4571,6 +4571,11 @@
       "center": "Zentrieren"
     },
     "aliasesLabel": "Auch bekannt als",
-    "drawerOpen": "Skill-Seite öffnen"
+    "drawerOpen": "Skill-Seite öffnen",
+    "peek": {
+      "pendingTitle": "Noch nicht im Katalog",
+      "pendingBody": "„{{label}}“ ist bisher eine rohe Erwähnung — die Aufnahme in den Skill-Katalog steht noch aus.",
+      "openPage": "Ganze Seite öffnen"
+    }
   }
 }

@@ -72,7 +72,9 @@ cannot work), it is **flagged on the card, never hidden**.
 
 Search vacancies by "skill X at level ≥ N" and rank them by deterministic
 coverage of your skills. Every card shows its provenance: raw → fast-mapped →
-extracted.
+extracted. Skill chips on the cards (and on the posting detail page) are
+clickable — they open a compact skill peek (summary, stats, level anchors
+and related skills) with a link to the skill's full page.
 
 ### Matching skills — exact, sub-skills or related
 

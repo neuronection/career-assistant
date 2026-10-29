@@ -21,6 +21,7 @@ import { ItemCardShell } from "@/components/cards/ItemCardShell";
 import { postingSpecs } from "@/components/cards/postingSpecs";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
 import { ScoreBubble } from "@/components/score/ScoreBubble";
+import { SkillPeekModal, useSkillPeek } from "@/components/skills/SkillPeekModal";
 import { educationChipLabel } from "@/features/catalog/components/JobCard";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 import { safeExternalUrl } from "@/lib/url";
@@ -57,6 +58,7 @@ export function PostingCard({
   onChanged?: () => void;
 }) {
   const { t } = useTranslation();
+  const peek = useSkillPeek();
   const open = isPostingOpen(posting);
   const provenance = provenanceOf(posting);
   const ProvenanceIcon = PROVENANCE_ICON[provenance];
@@ -220,6 +222,8 @@ export function PostingCard({
                   skill.required_level != null
                     ? t("card.skillRequires", { level: skill.required_level })
                     : undefined,
+                onOpen: (trigger) =>
+                  peek.open(skill.key, trigger, skill.required_level ?? null),
               }))}
               moreLabel={(count) => t("card.more", { count })}
               moreAriaLabel={(count) => t("card.moreAria", { count })}
@@ -263,6 +267,12 @@ export function PostingCard({
           ) : null}
         </div>
       </div>
+      <SkillPeekModal
+        skillKey={peek.skillKey}
+        highlightLevel={peek.highlightLevel}
+        onClose={peek.close}
+        returnFocusRef={peek.returnFocusRef}
+      />
     </ItemCardShell>
   );
 }

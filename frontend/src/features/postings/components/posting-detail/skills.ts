@@ -82,3 +82,10 @@ export function groupByPriority(skills: NormalizedSkill[]): SkillGroup[] {
   }
   return [...groups.values()].sort((a, b) => b.rank - a.rank);
 }
+
+/** The `GET /skills/{key}` address for a chip: mapped keys drop the
+ * `key:` dedup prefix; raw labels try their normalized form (a miss is
+ * the peek's pending-review state, never an error). */
+export function skillAddress(skill: NormalizedSkill): string {
+  return skill.key.replace(/^(?:key|raw):/, "");
+}

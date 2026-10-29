@@ -6,25 +6,25 @@ export function SkillTag({
   unmapped = false,
   title,
   testId,
+  onOpen,
 }: {
   label: string;
   score?: number | null;
   unmapped?: boolean;
   title?: string;
   testId?: string;
+  /** Opt-in peek affordance (plan 149): present → the tag renders as a
+   * button that opens the skill peek; absent → an inert span. */
+  onOpen?: (trigger: HTMLElement | null) => void;
 }) {
   const heat = heatTone(score);
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-md border px-1.5 py-px text-xs ${
-        unmapped
-          ? "border-dashed border-[var(--as-border)] text-[var(--as-muted-fg)]"
-          : "border-[var(--as-border)] text-[var(--as-fg)]"
-      }`}
-      title={title}
-      data-testid={testId}
-      data-heat={heat}
-    >
+  const classes = `inline-flex items-center gap-1.5 rounded-md border px-1.5 py-px text-xs ${
+    unmapped
+      ? "border-dashed border-[var(--as-border)] text-[var(--as-muted-fg)]"
+      : "border-[var(--as-border)] text-[var(--as-fg)]"
+  }`;
+  const content = (
+    <>
       <span className="font-medium">{label}</span>
       {score != null ? (
         <>
@@ -39,6 +39,31 @@ export function SkillTag({
           </span>
         </>
       ) : null}
-    </span>
+    </>
+  );
+  if (!onOpen) {
+    return (
+      <span className={classes} title={title} data-testid={testId} data-heat={heat}>
+        {content}
+      </span>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        // posting cards are single-click containers — a chip click never
+        // navigates to the posting
+        event.stopPropagation();
+        onOpen(event.currentTarget);
+      }}
+      className={`${classes} cursor-pointer text-left hover:border-[var(--as-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--as-focus-ring)]`}
+      title={title}
+      data-testid={testId}
+      data-heat={heat}
+      aria-haspopup="dialog"
+    >
+      {content}
+    </button>
   );
 }

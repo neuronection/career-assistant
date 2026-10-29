@@ -5,8 +5,11 @@ place that aggregates what the app knows about a skill: what it is, who
 demands it, how it relates to other skills, and how it has changed. Open
 it from the skills table in **Settings → Taxonomy** (the **Details**
 preview, then **Open skill page**), from a node's right-click menu in
-the relations graph, or from the related-skills chips on any other skill
-page.
+the relations graph, from the related-skills chips on any other skill
+page, or from the footer of the skill peek — the compact popup that
+opens when you click a skill chip on any posting card or on the posting
+detail page (a chip the taxonomy doesn't know yet shows a
+pending-review note instead).
 
 The page is organized in four tabs.
 

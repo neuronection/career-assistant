@@ -32,4 +32,6 @@ export interface ChipItem {
   score?: number | null;
   /** Skill variant only: the skill is not resolved in the taxonomy. */
   unmapped?: boolean;
+  /** Skill variant only: opt-in skill-peek affordance (plan 149). */
+  onOpen?: (trigger: HTMLElement | null) => void;
 }

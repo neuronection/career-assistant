@@ -54,6 +54,7 @@ function Chip({
         unmapped={item.unmapped}
         title={item.title}
         testId={testId}
+        onOpen={item.onOpen}
       />
     );
   }

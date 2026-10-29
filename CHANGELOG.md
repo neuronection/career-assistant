@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (skill peek, 2026-10-29)
+- **Skill chips open a skill peek.** Skill chips on posting cards
+  (feed, search, explore, skill positions, company pages) and on the
+  posting detail page are now clickable: a compact modal shows the
+  skill in miniature — status, category and aliases, demand / avg
+  level / users / first-seen stat tiles, the level anchors with the
+  posting's required level highlighted, and related skills that switch
+  the peek in place — with "Open full page" for the full
+  `/skills/:key` page. Chips the taxonomy doesn't know yet (raw labels
+  pending review) say so instead of failing; re-opening a chip is
+  instant via a per-session cache, and Esc/outside click closes with
+  focus returned to the chip.
+
 ### Added (connector SDK — public contracts + privacy guard, 2026-10-29)
 - **The T3 contracts a bundle needs are now public law.** The connector
   SDK reference documents the `detail_ids` enrichment contract (the

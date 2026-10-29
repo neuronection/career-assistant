@@ -4572,6 +4572,11 @@
       "center": "Center"
     },
     "aliasesLabel": "Also known as",
-    "drawerOpen": "Open skill page"
+    "drawerOpen": "Open skill page",
+    "peek": {
+      "pendingTitle": "Not in the catalog yet",
+      "pendingBody": "“{{label}}” is still a raw mention — it's pending review for the skill catalog.",
+      "openPage": "Open full page"
+    }
   }
 }

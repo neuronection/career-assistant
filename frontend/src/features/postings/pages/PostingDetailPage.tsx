@@ -38,7 +38,12 @@ import {
   CompactSkillChip,
   SkillChip,
 } from "@/features/postings/components/posting-detail/SkillChip";
-import { groupByPriority, normalizeSkills } from "@/features/postings/components/posting-detail/skills";
+import {
+  groupByPriority,
+  normalizeSkills,
+  skillAddress,
+} from "@/features/postings/components/posting-detail/skills";
+import { SkillPeekModal, useSkillPeek } from "@/components/skills/SkillPeekModal";
 import { Badge, Button, EmptyState, SegmentedTabs } from "@/components/ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardStateMarker } from "@/components/cards/CardState";
@@ -90,6 +95,7 @@ export function PostingDetailPage() {
   const [error, setError] = useState("");
   const [missing, setMissing] = useState(false);
   const [skillsView, setSkillsView] = useState<"compact" | "detailed">("compact");
+  const peek = useSkillPeek();
   const skillGroups = groupByPriority(normalizeSkills(posting?.extract?.skills ?? []));
   const [descriptionOpen, setDescriptionOpen] = useState(false);
   const [showRawDescription, setShowRawDescription] = useState(false);
@@ -597,8 +603,20 @@ export function PostingDetailPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {skillsView === "compact"
-                      ? group.skills.map((skill) => <CompactSkillChip key={skill.key} skill={skill} />)
-                      : group.skills.map((skill) => <SkillChip key={skill.key} skill={skill} />)}
+                      ? group.skills.map((skill) => (
+                          <CompactSkillChip
+                            key={skill.key}
+                            skill={skill}
+                            onPeek={(trigger) => peek.open(skillAddress(skill), trigger, skill.level)}
+                          />
+                        ))
+                      : group.skills.map((skill) => (
+                          <SkillChip
+                            key={skill.key}
+                            skill={skill}
+                            onPeek={(trigger) => peek.open(skillAddress(skill), trigger, skill.level)}
+                          />
+                        ))}
                   </div>
                 </div>
               ))}
@@ -873,6 +891,13 @@ export function PostingDetailPage() {
           </div>
         </section>
       )}
+
+      <SkillPeekModal
+        skillKey={peek.skillKey}
+        highlightLevel={peek.highlightLevel}
+        onClose={peek.close}
+        returnFocusRef={peek.returnFocusRef}
+      />
     </div>
   );
 }
