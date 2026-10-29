@@ -39,8 +39,8 @@ export interface AppNavItem {
  */
 export const NAV: AppNavItem[] = [
   { to: "/", labelKey: "nav.dashboard", icon: LayoutDashboard, studentOnly: false },
-  { to: "/chat", labelKey: "nav.chat", icon: MessageCircle, studentOnly: false, section: "nav.sectionJobHunt" },
-  { to: "/catalog", labelKey: "nav.catalog", icon: Briefcase, studentOnly: false },
+  { to: "/chat", labelKey: "nav.chat", icon: MessageCircle, studentOnly: false },
+  { to: "/catalog", labelKey: "nav.catalog", icon: Briefcase, studentOnly: false, section: "nav.sectionJobHunt" },
   { to: "/rankings", labelKey: "nav.rankings", icon: Trophy, studentOnly: false },
   { to: "/postings", labelKey: "nav.postings", icon: Globe, studentOnly: false },
   { to: "/companies", labelKey: "nav.companies", icon: Building2, studentOnly: false },
