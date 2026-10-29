@@ -110,15 +110,26 @@ export interface SkillBulkResult {
   failed: SkillBulkFailure[];
 }
 
+const BULK_CHUNK = 200;
+
 export async function bulkSkillAction(
   ids: string[],
   action: SkillBulkAction,
   targetId?: string,
 ): Promise<SkillBulkResult> {
-  const { data } = await api.post<SkillBulkResult>("/admin/skills/bulk", {
-    ids,
-    action,
-    target_id: targetId ?? null,
-  });
-  return data;
+  // The bulk contract caps ids at 200 per call (server safety bound) —
+  // selections of any size chunk transparently and the results merge.
+  const results: SkillBulkResult[] = [];
+  for (let start = 0; start < ids.length; start += BULK_CHUNK) {
+    const { data } = await api.post<SkillBulkResult>("/admin/skills/bulk", {
+      ids: ids.slice(start, start + BULK_CHUNK),
+      action,
+      target_id: targetId ?? null,
+    });
+    results.push(data);
+  }
+  return {
+    affected: results.flatMap((result) => result.affected),
+    failed: results.flatMap((result) => result.failed),
+  };
 }

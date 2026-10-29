@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (taxonomy — bulk selections of any size, 2026-10-29)
+- **Bulk skill actions now handle selections larger than the 200-id
+  request cap** — "Select proposed" with a big backlog chunks into
+  sequential requests and merges the results (affected + per-item
+  failures), instead of failing with a validation error. API/validation
+  errors across the app now render as readable text too, instead of
+  crashing on the raw FastAPI detail object.
+
 ### Changed (settings overhaul phase 3 — job radar, 2026-10-29)
 - **The job radar page is rebuilt on the settings kit**: a status hero
   with the scan cadence chips and the composed scan schedule (last scan
