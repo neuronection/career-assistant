@@ -6,16 +6,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Added (taxonomy — graph view, 2026-10-29)
 - **The reviewed skill graph is now a picture, not a list.** Settings →
-  Taxonomy → Relations gains a **Graph** tab rendering every skill and
-  its approved relations as an interactive diagram (the family
-  `concept-graph` library module, promoted from health-assistant's
-  ontology graph): force-directed and hierarchy layouts (an `is a` child
-  sits under its parent), search with Enter-to-center, a collapsible
-  legend, minimap, pan/zoom and PNG export. Curated parent links that
-  have no relation row yet are folded in as `is a` edges, node color
-  shows skill status (active / proposed / deprecated), and clicking a
-  node opens a detail card with its key, category, status and relation
-  count.
+  Taxonomy → Relations gains a **Graph** tab rendering every reviewed
+  skill (active/deprecated) and its approved relations as an interactive
+  diagram (the family `concept-graph` library module, promoted from
+  health-assistant's ontology graph): force-directed and hierarchy
+  layouts (an `is a` child sits under its parent), search with
+  Enter-to-center, a collapsible legend, minimap, pan/zoom and PNG
+  export. Curated parent links that have no relation row yet are folded
+  in as `is a` edges, node color shows skill status, and clicking a node
+  opens a detail card with its key, category, status and relation count.
+  Proposed skills stay out of the canvas — they are unreviewed
+  extraction labels and live in the review queue.
 
 ### Added (posting change journal, 2026-10-29)
 - **Every change to a posting is now on record.** An append-only journal

@@ -51,10 +51,13 @@ deprecate those instead.
 
 ### Graph
 
-The **Graph** tab draws the reviewed taxonomy: every skill is a node
-(colored by status) and every approved relation an edge (colored by
-relation type). Parent links set by hand that have no relation row yet
-count as `is a` edges, so the curated tree is always visible.
+The **Graph** tab draws the reviewed taxonomy: every reviewed skill
+(active or deprecated) is a node (colored by status) and every approved
+relation an edge (colored by relation type). Parent links set by hand
+that have no relation row yet count as `is a` edges, so the curated tree
+is always visible. Proposed skills stay out of the picture — they are
+unreviewed extraction labels (often hundreds) and belong to the review
+queue, not the catalog graph.
 
 - Switch between the **force** layout (organic clusters) and the
   **hierarchy** layout (containers above their members — an `is a` child

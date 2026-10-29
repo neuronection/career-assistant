@@ -49,7 +49,6 @@ const RELATIONS: RelationKind[] = ["is_a", "synonym", "part_of", "related_to"];
 
 const NODE_COLORS: Record<string, string> = {
   active: "#059669",
-  proposed: "#0284c7",
   deprecated: "#d97706",
 };
 
@@ -380,14 +379,20 @@ export function SkillRelationsPanel() {
   const [graphNodeId, setGraphNodeId] = useState<string | undefined>();
 
   const graph = useMemo(() => {
+    // The reviewed taxonomy only: proposed skills (extraction labels awaiting
+    // review) would flood the canvas — one real run had 605 of them against
+    // 57 active skills, spreading the force layout over ~24k px.
+    const reviewed = skills.filter((skill) => skill.status !== "proposed");
+    const reviewedIds = new Set(reviewed.map((skill) => skill.id));
     const approved = rows.filter((row) => row.status === "approved");
     const pair = (a: string, b: string) => [a, b].sort().join(":");
     const isAPairs = new Set(
-      approved.filter((row) => row.relation === "is_a").map((row) => pair(row.from_skill.id, row.to_skill.id)),
+      approved
+        .filter((row) => row.relation === "is_a")
+        .map((row) => pair(row.from_skill.id, row.to_skill.id)),
     );
-    const skillIds = new Set(skills.map((skill) => skill.id));
-    const parentEdges = skills
-      .filter((skill) => skill.parent_id && skillIds.has(skill.parent_id))
+    const parentEdges = reviewed
+      .filter((skill) => skill.parent_id && reviewedIds.has(skill.parent_id))
       .filter((skill) => !isAPairs.has(pair(skill.id, skill.parent_id as string)))
       .map((skill) => ({
         id: `parent:${skill.id}`,
@@ -396,19 +401,21 @@ export function SkillRelationsPanel() {
         relation: "is_a",
       }));
     return {
-      nodes: skills.map((skill) => ({
+      nodes: reviewed.map((skill) => ({
         id: skill.id,
         name: skill.label,
         primary_kind: skill.status,
         type: "skill",
       })),
       edges: [
-        ...approved.map((row) => ({
-          id: row.id,
-          source: row.from_skill.id,
-          target: row.to_skill.id,
-          relation: row.relation,
-        })),
+        ...approved
+          .filter((row) => reviewedIds.has(row.from_skill.id) && reviewedIds.has(row.to_skill.id))
+          .map((row) => ({
+            id: row.id,
+            source: row.from_skill.id,
+            target: row.to_skill.id,
+            relation: row.relation,
+          })),
         ...parentEdges,
       ],
     };
