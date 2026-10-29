@@ -126,6 +126,15 @@ def _scan_source(module: str, source: str) -> _Scan:
                     and node.args[0].id == "posting"
                 ):
                     self._mark("setattr")
+                elif func.id == "update" and node.args:
+                    first = node.args[0]
+                    if (isinstance(first, ast.Name) and first.id == "JobPosting") or (
+                        isinstance(first, ast.Attribute)
+                        and isinstance(first.value, ast.Name)
+                        and first.value.id == "JobPosting"
+                        and first.attr in ("id", "status", "org_id", "raw")
+                    ):
+                        self._mark("bulk:update")
             if (
                 isinstance(func, ast.Attribute)
                 and func.attr == "delete"
@@ -244,6 +253,25 @@ def test_gate_catches_setattr_and_ctor_mutations():
     assert scan.mutations[("extract_service", "f")] == {"setattr"}
     assert scan.mutations[("extract_service", "g")] == {"ctor:JobPosting"}
     assert scan.mutations[("extract_service", "h")] == {"delete:posting_skills"}
+
+
+def test_gate_catches_bulk_update_statements():
+    """A Core/ORM bulk UPDATE over job_postings is a posting mutation
+    too — assignments the attribute scan can never see."""
+    scan = _scan_source(
+        "postings_service",
+        "from sqlalchemy import update\n"
+        "async def mass_expire(db):\n"
+        "    await db.execute(update(JobPosting).values(status='expired'))\n"
+        "async def by_id(db, pid):\n"
+        "    await db.execute(update(JobPosting.id).values(x=1))\n"
+        "async def benign(db):\n"
+        "    await db.execute(update(JobSource).values(enabled=True))\n",
+    )
+    assert scan.mutations.get(("postings_service", "mass_expire")) == {"bulk:update"}
+    assert ("postings_service", "benign") not in scan.mutations, (
+        "non-posting bulk updates are not this gate's business"
+    )
 
 
 def test_stale_manifest_entry_fails():

@@ -34,11 +34,17 @@ describe("PostingHistory (plan 142)", () => {
   });
 
   it("renders the day-grouped timeline with kind badges and duration chips", async () => {
+    const DAY = 24 * 60 * MINUTE;
     mockGet.mockResolvedValue({
       data: {
         items: [
-          entry({ id: "chg-2", actor_kind: "extract_llm", duration_ms: 1520, occurred_at: iso(MINUTE) }),
-          entry(),
+          entry({
+            id: "chg-2",
+            actor_kind: "extract_llm",
+            duration_ms: 1520,
+            occurred_at: iso(MINUTE),
+          }),
+          entry({ occurred_at: iso(3 * DAY) }),
         ],
         total: 2,
         limit: 50,
@@ -46,7 +52,7 @@ describe("PostingHistory (plan 142)", () => {
         posting_id: "p1",
       },
     });
-    render(<PostingHistory postingRef="AB12CD34" createdAt={iso(3 * 24 * 60 * MINUTE)} />);
+    render(<PostingHistory postingRef="AB12CD34" createdAt={iso(3 * DAY)} />);
 
     await waitFor(() => {
       expect(screen.getByTestId("posting-history-list")).toBeTruthy();
@@ -56,6 +62,11 @@ describe("PostingHistory (plan 142)", () => {
     const durations = screen.getAllByTestId("history-duration");
     expect(durations.map((d) => d.textContent)).toEqual(["1.5 s", "240 ms"]);
     expect(mockGet).toHaveBeenCalledWith("/postings/AB12CD34/history", { params: { limit: 50 } });
+    const dayHeaders = screen
+      .getAllByText((content, element) => element?.tagName === "P" && /\d/.test(content))
+      .filter((el) => el.className.includes("tracking-[0.08em]"));
+    expect(dayHeaders.length).toBe(2), "one header per day group";
+    expect(dayHeaders[0].textContent).not.toBe(dayHeaders[1].textContent);
   });
 
   it("expands a capped diff on click, including the skills set-diff", async () => {

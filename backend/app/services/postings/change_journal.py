@@ -185,13 +185,14 @@ def raw_summary(posting: JobPosting) -> dict:
     }
 
 
-def extract_summary(posting: JobPosting) -> dict:
-    """Compact stand-in for the extract envelope: version, the cleaned
-    description's head (the one content-bearing field users see), and
-    list-field counts."""
+def extract_snapshot_fields(posting: JobPosting) -> dict:
+    """The extract envelope's diffable projection as TOP-LEVEL tracked
+    keys (each caps independently — never one truncated JSON blob): the
+    cleaned description's head (the one content-bearing field users
+    see) and the list-field counts."""
     extract = posting.extract or {}
     return {
-        "description_clean": _cap(_norm(str(extract.get("description_clean") or ""))),
+        "description_clean": str(extract.get("description_clean") or ""),
         "skills_count": len(extract.get("skills") or []),
         "prerequisites_count": len(extract.get("prerequisites") or []),
         "suppressed_count": len(extract.get("_suppressed_fields") or []),

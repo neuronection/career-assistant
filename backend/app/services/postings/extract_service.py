@@ -154,7 +154,7 @@ async def apply_extract(
     from app.services.postings.change_journal import (
         EXTRACT_FIELDS,
         PostingChangeJournal,
-        extract_summary,
+        extract_snapshot_fields,
         facts_summary,
         snapshot,
     )
@@ -162,7 +162,7 @@ async def apply_extract(
     def _snap() -> dict:
         return {
             **snapshot(posting, EXTRACT_FIELDS),
-            "extract_summary": extract_summary(posting),
+            **extract_snapshot_fields(posting),
             "facts_summary": facts_summary(posting),
         }
 

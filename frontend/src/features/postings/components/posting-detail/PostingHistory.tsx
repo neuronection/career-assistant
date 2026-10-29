@@ -193,24 +193,24 @@ export function PostingHistory({
 }) {
   const { t } = useTranslation();
   const [entries, setEntries] = useState<PostingChangeEntry[] | null>(null);
-  const [error, setError] = useState("");
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setEntries(null);
-    setError("");
+    setFailed(false);
     void api
       .get<HistoryResponse>(`/postings/${postingRef}/history`, { params: { limit: 50 } })
       .then((resp) => {
         if (alive) setEntries(resp.data.items ?? []);
       })
       .catch(() => {
-        if (alive) setError(t("postingDetail.history.error"));
+        if (alive) setFailed(true);
       });
     return () => {
       alive = false;
     };
-  }, [postingRef, t]);
+  }, [postingRef]);
 
   const groups = useMemo(() => {
     const byDay = new Map<string, PostingChangeEntry[]>();
@@ -234,9 +234,9 @@ export function PostingHistory({
       <h2 className="text-sm font-semibold text-[var(--as-fg)]">
         {t("postingDetail.history.heading")}
       </h2>
-      {error ? (
+      {failed ? (
         <p className="text-xs text-[var(--as-muted-fg)]" data-testid="posting-history-error">
-          {error}
+          {t("postingDetail.history.error")}
         </p>
       ) : entries === null ? (
         <p className="text-xs text-[var(--as-muted-fg)]" data-testid="posting-history-loading">
@@ -251,13 +251,13 @@ export function PostingHistory({
             : t("postingDetail.history.emptyNoDate")}
         </p>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="posting-history-list">
           {groups.map(([day, dayEntries]) => (
             <div key={day} className="space-y-2">
               <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
                 {new Date(day).toLocaleDateString()}
               </p>
-              <ul className="space-y-2" data-testid="posting-history-list">
+              <ul className="space-y-2">
                 {dayEntries.map((entry) => (
                   <HistoryRow key={entry.id} entry={entry} />
                 ))}
