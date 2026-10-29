@@ -21,6 +21,10 @@ type AITab = "providers" | "models" | "tasks";
 // conformance test.
 export const AI_TABS: readonly AITab[] = ["providers", "models", "tasks"];
 
+export function parseAITab(raw: string | null): AITab {
+  return (AI_TABS as readonly string[]).includes(raw ?? "") ? (raw as AITab) : "providers";
+}
+
 /** AI configuration with URL-synced tabs (?tab=providers|models|tasks). */
 export function AIConfig() {
   const { t } = useTranslation();
@@ -28,11 +32,7 @@ export function AIConfig() {
   const user = useAuthStore((s) => s.user);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
-  const [activeTab, setActiveTab] = useState<AITab>(
-    tabFromUrl && (AI_TABS as readonly string[]).includes(tabFromUrl)
-      ? (tabFromUrl as AITab)
-      : "providers"
-  );
+  const activeTab = parseAITab(tabFromUrl);
   const [providers, setProviders] = useState<AIProvider[]>([]);
   const [canManageGlobal, setCanManageGlobal] = useState(false);
   const [mockAllowed, setMockAllowed] = useState(true);
@@ -48,19 +48,19 @@ export function AIConfig() {
       navigate("/settings/tools", { replace: true });
       return;
     }
-    if (
-      tabFromUrl &&
-      (AI_TABS as readonly string[]).includes(tabFromUrl) &&
-      tabFromUrl !== activeTab
-    ) {
-      setActiveTab(tabFromUrl as AITab);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabFromUrl]);
+    const expected = activeTab === "providers" ? null : activeTab;
+    if (tabFromUrl === expected) return;
+    const next = new URLSearchParams(searchParams);
+    if (expected) next.set("tab", expected);
+    else next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [tabFromUrl, activeTab, searchParams, setSearchParams, navigate]);
 
   const setActive = (tab: AITab) => {
-    setActiveTab(tab);
-    setSearchParams(tab !== "providers" ? { tab } : {}, { replace: true });
+    const next = new URLSearchParams(searchParams);
+    if (tab === "providers") next.delete("tab");
+    else next.set("tab", tab);
+    setSearchParams(next, { replace: true });
   };
 
   const refresh = useCallback(async () => {

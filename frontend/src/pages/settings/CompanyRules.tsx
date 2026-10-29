@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Building2, Plus, X } from "lucide-react";
 import {
@@ -25,22 +26,49 @@ import {
 } from "@/api/companyRules";
 import { EmptyState, SegmentedTabs, SearchableDropdown, Spinner } from "@/components/ui";
 
-type Tab = "suggestions" | "aliases" | "exclusions" | "queue" | "thresholds";
+export type CompanyTab = "suggestions" | "aliases" | "exclusions" | "queue" | "thresholds";
+
+// Exported for the settings-tab conformance tests.
+export const COMPANY_TABS: readonly CompanyTab[] = [
+  "suggestions",
+  "aliases",
+  "exclusions",
+  "queue",
+  "thresholds",
+];
+
+export function parseCompanyTab(raw: string | null): CompanyTab {
+  return (COMPANY_TABS as readonly string[]).includes(raw ?? "")
+    ? (raw as CompanyTab)
+    : "suggestions";
+}
+
+const TAB_LABEL_KEYS: Record<CompanyTab, string> = {
+  suggestions: "companyRules.tabSuggestions",
+  aliases: "companyRules.tabAliases",
+  exclusions: "companyRules.tabExclusions",
+  queue: "companyRules.tabQueue",
+  thresholds: "companyRules.tabThresholds",
+};
 
 /** Admin company rules: aliases, exclusions, the gray-band queue, merge
  * suggestions and matcher thresholds (plan 135). */
 export function CompanyRules() {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<Tab>("suggestions");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = parseCompanyTab(searchParams.get("tab"));
+
+  useEffect(() => {
+    const expected = tab === "suggestions" ? null : tab;
+    if (searchParams.get("tab") === expected) return;
+    const next = new URLSearchParams(searchParams);
+    if (expected) next.set("tab", expected);
+    else next.delete("tab");
+    setSearchParams(next, { replace: true });
+  }, [tab, searchParams, setSearchParams]);
 
   const tabs = useMemo(
-    () => [
-      { value: "suggestions", label: t("companyRules.tabSuggestions") },
-      { value: "aliases", label: t("companyRules.tabAliases") },
-      { value: "exclusions", label: t("companyRules.tabExclusions") },
-      { value: "queue", label: t("companyRules.tabQueue") },
-      { value: "thresholds", label: t("companyRules.tabThresholds") },
-    ],
+    () => COMPANY_TABS.map((value) => ({ value, label: t(TAB_LABEL_KEYS[value]) })),
     [t]
   );
 
@@ -54,7 +82,12 @@ export function CompanyRules() {
         ariaLabel={t("companyRules.title")}
         items={tabs}
         value={tab}
-        onValueChange={(value) => setTab(value as Tab)}
+        onValueChange={(value) => {
+          const nextParams = new URLSearchParams(searchParams);
+          if (value === "suggestions") nextParams.delete("tab");
+          else nextParams.set("tab", value);
+          setSearchParams(nextParams, { replace: true });
+        }}
       />
       {tab === "suggestions" && <SuggestionsTab />}
       {tab === "aliases" && <AliasesTab />}

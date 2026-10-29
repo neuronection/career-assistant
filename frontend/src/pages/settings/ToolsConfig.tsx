@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { SegmentedTabs } from "@/components/ui";
 import { WebSearchSection } from "@/components/settings/WebSearchSection";
@@ -15,40 +15,36 @@ export const TOOLS_TAB_SECTIONS: readonly ToolsSection[] = [
   "connectors",
 ];
 
+export function parseToolsSection(raw: string | null): ToolsSection {
+  return (TOOLS_TAB_SECTIONS as readonly string[]).includes(raw ?? "")
+    ? (raw as ToolsSection)
+    : "web-search";
+}
+
 /**
  * Tools configuration with URL-synced sections (?section=web-search|connectors).
  * Admin-only (same gate the former AI-config `web` tab had, plan 27 Phase 3).
  */
 export function ToolsConfig() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const sectionFromUrl = searchParams.get("section") as ToolsSection | null;
-  const [activeSection, setActiveSection] = useState<ToolsSection>(
-    sectionFromUrl && TOOLS_TAB_SECTIONS.includes(sectionFromUrl)
-      ? sectionFromUrl
-      : "web-search"
-  );
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionFromUrl = searchParams.get("section");
+  const activeSection = parseToolsSection(sectionFromUrl);
 
   useEffect(() => {
-    if (
-      sectionFromUrl &&
-      TOOLS_TAB_SECTIONS.includes(sectionFromUrl) &&
-      sectionFromUrl !== activeSection
-    ) {
-      setActiveSection(sectionFromUrl);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sectionFromUrl]);
+    const expected = activeSection === "web-search" ? null : activeSection;
+    if (sectionFromUrl === expected) return;
+    const next = new URLSearchParams(searchParams);
+    if (expected) next.set("section", expected);
+    else next.delete("section");
+    setSearchParams(next, { replace: true });
+  }, [sectionFromUrl, activeSection, searchParams, setSearchParams]);
 
   const setSection = (section: ToolsSection) => {
-    setActiveSection(section);
-    navigate(
-      section !== "web-search"
-        ? { pathname: "/settings/tools", search: `?section=${section}` }
-        : { pathname: "/settings/tools" },
-      { replace: true }
-    );
+    const next = new URLSearchParams(searchParams);
+    if (section === "web-search") next.delete("section");
+    else next.set("section", section);
+    setSearchParams(next, { replace: true });
   };
 
   return (

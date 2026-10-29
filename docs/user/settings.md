@@ -102,7 +102,9 @@ the display label, never rewrite the stored name).
 ## Companies rules (`/settings/companies`)
 
 Admin review surface for how employer names resolve to companies
-(plan 135). Every learned decision is editable here:
+(plan 135). Every learned decision is editable here. Tabs are
+URL-addressable via `?tab=` (suggestions, aliases, exclusions, queue,
+thresholds) — refreshing or sharing a link reopens the exact view.
 
 - **Merge suggestions** — near-miss pairs the matcher was unsure about.
   Accepting merges the label's company into the established one

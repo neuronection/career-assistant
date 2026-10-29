@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter } from "react-router-dom";
 
 import * as rulesApi from "@/api/companyRules";
 import {
@@ -121,6 +122,14 @@ const PAIR: MatchPairRow = {
   created_at: "2026-10-27T00:00:00Z",
 };
 
+function renderRules() {
+  render(
+    <MemoryRouter initialEntries={["/settings/companies"]}>
+      <CompanyRules />
+    </MemoryRouter>,
+  );
+}
+
 describe("CompanyRules (plan 135 slice C)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -133,7 +142,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
   });
 
   it("lists merge suggestions with both sides and the evidence reason", async () => {
-    render(<CompanyRules />);
+    renderRules();
     const card = await screen.findByTestId("suggestion-card-sug-1");
     expect(card).toHaveTextContent("Acme Cloud Ltd");
     expect(card).toHaveTextContent("Acme Cloud");
@@ -142,7 +151,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
 
   it("accepting a suggestion calls accept and reloads", async () => {
     mocked.acceptSuggestion.mockResolvedValue({ id: "org-2", status: "deprecated" });
-    render(<CompanyRules />);
+    renderRules();
     const button = await screen.findByTestId("suggestion-accept-sug-1");
     fireEvent.click(button);
     await waitFor(() => expect(acceptSuggestion).toHaveBeenCalledWith("sug-1"));
@@ -150,7 +159,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
 
   it("dismissing a suggestion calls dismiss (which writes the exclusion)", async () => {
     mocked.dismissSuggestion.mockResolvedValue({ id: "sug-1", status: "dismissed" });
-    render(<CompanyRules />);
+    renderRules();
     const button = await screen.findByTestId("suggestion-dismiss-sug-1");
     fireEvent.click(button);
     await waitFor(() => expect(dismissSuggestion).toHaveBeenCalledWith("sug-1"));
@@ -158,7 +167,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
 
   it("the aliases tab loads rows for a picked org and can exclude one", async () => {
     mocked.setAliasState.mockResolvedValue({ ...ALIAS_ROWS[0], state: "excluded" });
-    render(<CompanyRules />);
+    renderRules();
     fireEvent.click(await screen.findByRole("tab", { name: "Aliases" }));
     fireEvent.change(await screen.findByTestId("rules-org-picker"), {
       target: { value: "org-1" },
@@ -173,7 +182,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
 
   it("the exclusions tab splits global and pair rows and deletes one", async () => {
     mocked.deleteExclusion.mockResolvedValue(undefined);
-    render(<CompanyRules />);
+    renderRules();
     fireEvent.click(await screen.findByRole("tab", { name: "Exclusions" }));
     await waitFor(() => {
       expect(screen.getByTestId("exclusion-row-confidential")).toBeInTheDocument();
@@ -184,7 +193,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
   });
 
   it("the queue tab shows pending pairs", async () => {
-    render(<CompanyRules />);
+    renderRules();
     fireEvent.click(await screen.findByRole("tab", { name: "Pending pairs" }));
     expect(await screen.findByTestId("pair-row-pair-1")).toBeInTheDocument();
     expect(screen.getByText(/Procter & Gamble/)).toBeInTheDocument();
@@ -192,7 +201,7 @@ describe("CompanyRules (plan 135 slice C)", () => {
 
   it("thresholds load and save", async () => {
     mocked.saveThresholds.mockResolvedValue({ match: 0.92, gray_low: 0.45, llm_auto: 0.95 });
-    render(<CompanyRules />);
+    renderRules();
     fireEvent.click(await screen.findByRole("tab", { name: "Thresholds" }));
     const input = await screen.findByTestId("threshold-match");
     fireEvent.change(input, { target: { value: "0.92" } });

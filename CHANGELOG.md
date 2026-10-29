@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (settings — every settings tab is now URL-addressable, 2026-10-29)
+- **Companies rules joins the club.** Settings → Companies tabs sync to the
+  address bar (`/settings/companies?tab=aliases|exclusions|queue|thresholds`)
+  — refresh or share a link and you land on the exact view instead of
+  resetting to Merge suggestions. Unknown params fall back to the default
+  and clean themselves up; the default keeps the bare URL.
+- **AI Configuration and Tools were rebuilt on the same one-pattern
+  tab sync** the rest of the settings shell now uses — same URLs as
+  before (`?tab=` / `?section=`), plus unknown-param cleanup. The legacy
+  `?tab=web` deep link still redirects to Tools.
+
 ### Changed (taxonomy — routable tabs, 2026-10-29)
 - **Every Taxonomy tab and subtab is now a URL you can keep.** Tabs sync to
   the address bar (`/settings/taxonomy?tab=skills`, subtabs as
