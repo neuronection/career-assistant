@@ -46,7 +46,6 @@ export function useSettingsDraft<T, P>({
   const [draft, setDraftState] = useState<T>(initial);
   const [state, setState] = useState<SettingsSaveState>("idle");
   const [error, setError] = useState("");
-  const [dirty, setDirty] = useState(false);
 
   const draftRef = useRef<T>(initial);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -70,13 +69,11 @@ export function useSettingsDraft<T, P>({
     }
     const payload = build(current);
     if (!payload) {
-      setDirty(false);
       setState("idle");
       return true;
     }
     const json = JSON.stringify(payload);
     if (json === savedJsonRef.current) {
-      setDirty(false);
       setState("idle");
       return true;
     }
@@ -85,7 +82,6 @@ export function useSettingsDraft<T, P>({
     try {
       await save(payload);
       savedJsonRef.current = json;
-      setDirty(false);
       setState("saved");
       return true;
     } catch (err) {
@@ -106,7 +102,6 @@ export function useSettingsDraft<T, P>({
       const payload = optsRef.current.buildPayload(next);
       const dirtyNow =
         payload !== null && JSON.stringify(payload) !== savedJsonRef.current;
-      setDirty(dirtyNow);
       setState(dirtyNow ? "dirty" : "idle");
       if (timerRef.current) {
         clearTimeout(timerRef.current);
@@ -129,7 +124,6 @@ export function useSettingsDraft<T, P>({
     savedJsonRef.current = nextJson;
     draftRef.current = initial;
     setDraftState(initial);
-    setDirty(false);
     setState("idle");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initial]);
@@ -140,7 +134,12 @@ export function useSettingsDraft<T, P>({
     };
   }, []);
 
-  return { draft, setDraft, state, error, dirty, save: flush };
+  const currentPayload = optsRef.current.buildPayload(draft);
+  const dirtyDerived =
+    currentPayload !== null &&
+    JSON.stringify(currentPayload) !== savedJsonRef.current;
+
+  return { draft, setDraft, state, error, dirty: dirtyDerived, save: flush };
 }
 
 /** Instant-toggle companion for the hybrid save contract: the switch
