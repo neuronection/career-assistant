@@ -251,8 +251,7 @@
         "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
         "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias, one or many",
         "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",
-        "Settings → Taxonomy curates in bulk: many skills, one call, per-item reports — thresholds and the run ledger live there too",
-        "Every skill has a page at /skills/:key — stats, postings, the approved subgraph and a lifecycle journal with admin actions"
+        "Settings → Taxonomy curates in bulk; every skill's page (/skills/:key) adds stats, positions, subgraph and lifecycle history"
       ],
       "links": [
         {
