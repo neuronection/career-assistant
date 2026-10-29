@@ -535,19 +535,24 @@ async def test_corroborated_label_auto_promotes_after_two_postings(
     """plan 147 — the same normalized extraction label from two distinct
     postings is corroboration: the proposed skill promotes itself."""
     first = await _make_posting(
-        db, source, external_id="corr-1", title="Mainframe Dev",
-        skills_raw=["cobol"], raw={"description": "Maintain cobol systems."},
+        db,
+        source,
+        external_id="corr-1",
+        title="Mainframe Dev",
+        skills_raw=["cobol"],
+        raw={"description": "Maintain cobol systems."},
     )
     await extract_posting_now(db, first)
-    proposed = (
-        (await db.execute(select(Skill).where(Skill.key == "cobol")))
-        .scalars().first()
-    )
+    proposed = (await db.execute(select(Skill).where(Skill.key == "cobol"))).scalars().first()
     assert proposed.status == "proposed", "one posting is not corroboration yet"
 
     second = await _make_posting(
-        db, source, external_id="corr-2", title="COBOL Engineer",
-        skills_raw=["cobol"], raw={"description": "Write new cobol modules."},
+        db,
+        source,
+        external_id="corr-2",
+        title="COBOL Engineer",
+        skills_raw=["cobol"],
+        raw={"description": "Write new cobol modules."},
     )
     await extract_posting_now(db, second)
 
@@ -565,14 +570,15 @@ async def test_single_posting_never_promotes_and_reextract_is_not_self_corrobora
     db, client, auth_headers, seeded_catalog, source, kinds
 ):
     posting = await _make_posting(
-        db, source, external_id="corr-solo", title="Mainframe Dev",
-        skills_raw=["fortran"], raw={"description": "Maintain fortran systems."},
+        db,
+        source,
+        external_id="corr-solo",
+        title="Mainframe Dev",
+        skills_raw=["fortran"],
+        raw={"description": "Maintain fortran systems."},
     )
     await extract_posting_now(db, posting)
-    proposed = (
-        (await db.execute(select(Skill).where(Skill.key == "fortran")))
-        .scalars().first()
-    )
+    proposed = (await db.execute(select(Skill).where(Skill.key == "fortran"))).scalars().first()
     assert proposed.status == "proposed"
     assert proposed.provenance.get("corroborated_postings") is None
 

@@ -14,7 +14,7 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ValidationError
@@ -924,6 +924,66 @@ async def list_postings(
 
 
 # ------------------------------------------------------- skill-level search
+
+
+async def postings_for_skill(
+    db: AsyncSession,
+    user_id: UUID,
+    skill_id: UUID,
+    *,
+    limit: int = 20,
+    offset: int = 0,
+) -> dict:
+    """The skill page's positions list (plan 148): postings with a
+    `posting_skills` row for this skill, excluding hidden — the saved
+    view's visibility rule (expired/closed postings stay listable with
+    their closed chip), newest first, bounded.
+
+    Item dicts carry the same (posting, interaction, application) triples
+    the feed/search projections consume, so the caller renders the exact
+    `PostingOut` shape the cards already render.
+    """
+    from sqlalchemy.orm import selectinload
+
+    from app.models.job_model import JobTag
+
+    scope = (
+        select(JobPosting.id)
+        .join(PostingSkill, PostingSkill.posting_id == JobPosting.id)
+        .where(PostingSkill.skill_id == skill_id, JobPosting.status != "hidden")
+    )
+    total = (await db.execute(select(func.count()).select_from(scope.subquery()))).scalar_one()
+    query = (
+        select(JobPosting, PostingInteraction, Application)
+        .join(PostingSkill, PostingSkill.posting_id == JobPosting.id)
+        .options(
+            selectinload(JobPosting.catalog_job).selectinload(Job.family),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.tag_links)
+            .selectinload(JobTag.tag),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.skill_links)
+            .selectinload(JobSkill.skill),
+        )
+        .outerjoin(
+            PostingInteraction,
+            (PostingInteraction.posting_id == JobPosting.id)
+            & (PostingInteraction.user_id == user_id),
+        )
+        .outerjoin(
+            Application,
+            (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+        )
+        .where(PostingSkill.skill_id == skill_id, JobPosting.status != "hidden")
+        .order_by(JobPosting.posted_at.desc(), JobPosting.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    items = [
+        {"posting": posting, "interaction": interaction, "application": application}
+        for posting, interaction, application in (await db.execute(query)).all()
+    ]
+    return {"items": items, "total": total}
 
 
 PRIORITY_WEIGHT = {"must_have": 3.0, "nice_to_have": 2.0, "bonus": 1.0}

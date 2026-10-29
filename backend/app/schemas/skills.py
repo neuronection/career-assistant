@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.models.enums import JobSkillImportance, UserSkillSource
 from app.schemas.job import JobSkillOut
+from app.schemas.posting import PostingOut
 
 
 class UserSkillIn(BaseModel):
@@ -62,6 +63,19 @@ class SkillGapReport(BaseModel):
     gaps: list[GapOut] = Field(default_factory=list)
 
 
+class SkillStatsOut(BaseModel):
+    """The skill page's aggregate block (plan 148) — one server-side
+    aggregate pass, no per-row queries."""
+
+    demand_count: int = 0
+    level_histogram: list[dict] = Field(default_factory=list)
+    avg_required_level: float | None = None
+    user_count: int = 0
+    first_seen: datetime | None = None
+    last_seen: datetime | None = None
+    corroboration: dict | None = None
+
+
 class SkillJobsOut(BaseModel):
     """A skill plus the published jobs asking for it."""
 
@@ -76,6 +90,10 @@ class SkillJobsOut(BaseModel):
     status: str
     children_keys: list[str] = Field(default_factory=list)
     jobs: list[JobSkillOut] = Field(default_factory=list)
+    # Plan 148 additive page fields: the aggregate block and the merged
+    # banner target (survivor key, None when the row was never merged).
+    stats: SkillStatsOut | None = None
+    merged_into: str | None = None
 
 
 class SkillChangeOut(BaseModel):
@@ -99,3 +117,38 @@ class SkillHistoryOut(BaseModel):
     offset: int
     skill_id: UUID
     skill_key: str
+
+
+class SkillGraphNodeOut(BaseModel):
+    """One depth-1 subgraph vertex (plan 148) — ConceptGraphView-shaped."""
+
+    id: UUID
+    key: str
+    label: str
+    status: str
+
+
+class SkillGraphEdgeOut(BaseModel):
+    """One approved edge, stored direction (plan 138 semantics)."""
+
+    id: UUID
+    source: UUID
+    target: UUID
+    relation: str
+
+
+class SkillRelationsOut(BaseModel):
+    """The approved depth-1 neighborhood of one skill."""
+
+    nodes: list[SkillGraphNodeOut] = Field(default_factory=list)
+    edges: list[SkillGraphEdgeOut] = Field(default_factory=list)
+
+
+class SkillPositionsOut(BaseModel):
+    """The postings demanding one skill — the postings list projection
+    shape, so the existing cards render identically."""
+
+    items: list[PostingOut] = Field(default_factory=list)
+    total: int
+    limit: int
+    offset: int

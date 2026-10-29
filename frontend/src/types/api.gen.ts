@@ -7863,6 +7863,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/{posting_ref}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Posting History
+         * @description One posting's change journal, newest first — actor kind, links,
+         *     operation knobs, duration and the capped field diff per row.
+         */
+        get: operations["posting_history_api_v1_postings__posting_ref__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/profile": {
         parameters: {
             query?: never;
@@ -8019,6 +8040,72 @@ export interface paths {
          * @description One skill with subskills and the published jobs asking for it.
          */
         get: operations["get_skill_api_v1_skills__key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{key}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skill History
+         * @description One skill's lifecycle journal, newest first (plan 148) — event
+         *     kind, actor role and the capped detail per row. User-visible for
+         *     every signed-in user, exactly like the postings journal read.
+         */
+        get: operations["skill_history_api_v1_skills__key__history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{key}/positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skill Positions
+         * @description The postings demanding this skill (plan 148): the postings list
+         *     projection shape — existing cards render identically to /postings.
+         *     Visibility follows the saved-view rule (hidden excluded, closed
+         *     postings stay listable); user interaction state rides the caller.
+         */
+        get: operations["skill_positions_api_v1_skills__key__positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/skills/{key}/relations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Skill Relations Graph
+         * @description The approved depth-1 neighborhood of this skill (plan 148) —
+         *     ConceptGraphView-shaped nodes+edges, stored edge direction.
+         */
+        get: operations["skill_relations_graph_api_v1_skills__key__relations_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -13568,6 +13655,44 @@ export interface components {
             target_job_id: string;
         };
         /**
+         * PostingChangeOut
+         * @description One journal row (plan 142): actor kind + links (ids and knobs
+         *     only), the operation's parameters, duration and the capped diff.
+         */
+        PostingChangeOut: {
+            /** Actor Kind */
+            actor_kind: string;
+            /** Actor Ref */
+            actor_ref?: {
+                [key: string]: unknown;
+            };
+            /** Diff */
+            diff?: {
+                [key: string]: unknown;
+            };
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Operation */
+            operation?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Outcome
+             * @default ok
+             */
+            outcome: string;
+        };
+        /**
          * PostingDetailOut
          * @description Detail view: full extract, source attribution, the
          *     match-score card and the similar-postings rail.
@@ -14118,6 +14243,25 @@ export interface components {
             priority?: string | null;
             /** Required Level */
             required_level?: number | null;
+        };
+        /**
+         * PostingsHistoryOut
+         * @description The posting history read: newest-first journal page.
+         */
+        PostingsHistoryOut: {
+            /** Items */
+            items: components["schemas"]["PostingChangeOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /**
+             * Posting Id
+             * Format: uuid
+             */
+            posting_id: string;
+            /** Total */
+            total: number;
         };
         /** PostingsOut */
         PostingsOut: {
@@ -15417,6 +15561,35 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["SkillBulkFailure"][];
         };
+        /**
+         * SkillChangeOut
+         * @description One skill journal row (plan 148): event kind, actor role and the
+         *     ids-only actor ref + capped detail.
+         */
+        SkillChangeOut: {
+            /** Actor Kind */
+            actor_kind: string;
+            /** Actor Ref */
+            actor_ref?: {
+                [key: string]: unknown;
+            };
+            /** Detail */
+            detail?: {
+                [key: string]: unknown;
+            };
+            /** Event */
+            event: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+        };
         /** SkillGapReport */
         SkillGapReport: {
             /** Gaps */
@@ -15430,6 +15603,67 @@ export interface components {
             job_id: string;
             /** Job Title */
             job_title: string;
+        };
+        /**
+         * SkillGraphEdgeOut
+         * @description One approved edge, stored direction (plan 138 semantics).
+         */
+        SkillGraphEdgeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Relation */
+            relation: string;
+            /**
+             * Source
+             * Format: uuid
+             */
+            source: string;
+            /**
+             * Target
+             * Format: uuid
+             */
+            target: string;
+        };
+        /**
+         * SkillGraphNodeOut
+         * @description One depth-1 subgraph vertex (plan 148) — ConceptGraphView-shaped.
+         */
+        SkillGraphNodeOut: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Status */
+            status: string;
+        };
+        /**
+         * SkillHistoryOut
+         * @description The skill history read: newest-first journal page.
+         */
+        SkillHistoryOut: {
+            /** Items */
+            items: components["schemas"]["SkillChangeOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /**
+             * Skill Id
+             * Format: uuid
+             */
+            skill_id: string;
+            /** Skill Key */
+            skill_key: string;
+            /** Total */
+            total: number;
         };
         /**
          * SkillJobsOut
@@ -15459,8 +15693,11 @@ export interface components {
             level_anchors?: {
                 [key: string]: unknown;
             }[];
+            /** Merged Into */
+            merged_into?: string | null;
             /** Parent Id */
             parent_id?: string | null;
+            stats?: components["schemas"]["SkillStatsOut"] | null;
             /** Status */
             status: string;
         };
@@ -15493,6 +15730,21 @@ export interface components {
             parent_source?: ("curated" | "learned") | null;
             /** Status */
             status: string;
+        };
+        /**
+         * SkillPositionsOut
+         * @description The postings demanding one skill — the postings list projection
+         *     shape, so the existing cards render identically.
+         */
+        SkillPositionsOut: {
+            /** Items */
+            items?: components["schemas"]["PostingOut"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
         };
         /**
          * SkillRelationBulkIn
@@ -15743,6 +15995,47 @@ export interface components {
          * @enum {string}
          */
         SkillRelationType: "is_a" | "synonym" | "part_of" | "related_to";
+        /**
+         * SkillRelationsOut
+         * @description The approved depth-1 neighborhood of one skill.
+         */
+        SkillRelationsOut: {
+            /** Edges */
+            edges?: components["schemas"]["SkillGraphEdgeOut"][];
+            /** Nodes */
+            nodes?: components["schemas"]["SkillGraphNodeOut"][];
+        };
+        /**
+         * SkillStatsOut
+         * @description The skill page's aggregate block (plan 148) — one server-side
+         *     aggregate pass, no per-row queries.
+         */
+        SkillStatsOut: {
+            /** Avg Required Level */
+            avg_required_level?: number | null;
+            /** Corroboration */
+            corroboration?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Demand Count
+             * @default 0
+             */
+            demand_count: number;
+            /** First Seen */
+            first_seen?: string | null;
+            /** Last Seen */
+            last_seen?: string | null;
+            /** Level Histogram */
+            level_histogram?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * User Count
+             * @default 0
+             */
+            user_count: number;
+        };
         /**
          * SkillUpdateIn
          * @description Admin edits for a skill; keys stay immutable, lifecycle via status.
@@ -30424,6 +30717,40 @@ export interface operations {
             };
         };
     };
+    posting_history_api_v1_postings__posting_ref__history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                posting_ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingsHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_profile_api_v1_profile_get: {
         parameters: {
             query?: never;
@@ -30759,6 +31086,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillJobsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skill_history_api_v1_skills__key__history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skill_positions_api_v1_skills__key__positions_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillPositionsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    skill_relations_graph_api_v1_skills__key__relations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationsOut"];
                 };
             };
             /** @description Validation Error */

@@ -78,6 +78,25 @@ class SkillRelationService:
         )
         return SkillGraph(nodes=nodes, edges=edges)
 
+    async def neighborhood(
+        self,
+        skill_id: uuid.UUID,
+        *,
+        limit: int = 100,
+    ) -> list[SkillRelation]:
+        """Approved edges touching ``skill_id`` (both endpoints), newest
+        first, bounded — the skill page's depth-1 subgraph read."""
+        rows = await self.db.execute(
+            select(SkillRelation)
+            .where(
+                SkillRelation.status == SkillRelationStatus.APPROVED.value,
+                (SkillRelation.from_skill_id == skill_id) | (SkillRelation.to_skill_id == skill_id),
+            )
+            .order_by(SkillRelation.created_at.desc())
+            .limit(max(1, limit))
+        )
+        return list(rows.scalars().all())
+
     async def list_relations(
         self,
         *,

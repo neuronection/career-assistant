@@ -18892,6 +18892,47 @@
         "title": "SkillBulkOut",
         "type": "object"
       },
+      "SkillChangeOut": {
+        "description": "One skill journal row (plan 148): event kind, actor role and the\nids-only actor ref + capped detail.",
+        "properties": {
+          "actor_kind": {
+            "title": "Actor Kind",
+            "type": "string"
+          },
+          "actor_ref": {
+            "additionalProperties": true,
+            "title": "Actor Ref",
+            "type": "object"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "event",
+          "actor_kind"
+        ],
+        "title": "SkillChangeOut",
+        "type": "object"
+      },
       "SkillGapReport": {
         "properties": {
           "gaps": {
@@ -18921,6 +18962,111 @@
           "job_title"
         ],
         "title": "SkillGapReport",
+        "type": "object"
+      },
+      "SkillGraphEdgeOut": {
+        "description": "One approved edge, stored direction (plan 138 semantics).",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "relation": {
+            "title": "Relation",
+            "type": "string"
+          },
+          "source": {
+            "format": "uuid",
+            "title": "Source",
+            "type": "string"
+          },
+          "target": {
+            "format": "uuid",
+            "title": "Target",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "source",
+          "target",
+          "relation"
+        ],
+        "title": "SkillGraphEdgeOut",
+        "type": "object"
+      },
+      "SkillGraphNodeOut": {
+        "description": "One depth-1 subgraph vertex (plan 148) \u2014 ConceptGraphView-shaped.",
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "status"
+        ],
+        "title": "SkillGraphNodeOut",
+        "type": "object"
+      },
+      "SkillHistoryOut": {
+        "description": "The skill history read: newest-first journal page.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SkillChangeOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "skill_id": {
+            "format": "uuid",
+            "title": "Skill Id",
+            "type": "string"
+          },
+          "skill_key": {
+            "title": "Skill Key",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "skill_id",
+          "skill_key"
+        ],
+        "title": "SkillHistoryOut",
         "type": "object"
       },
       "SkillJobsOut": {
@@ -18976,6 +19122,17 @@
             "title": "Level Anchors",
             "type": "array"
           },
+          "merged_into": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merged Into"
+          },
           "parent_id": {
             "anyOf": [
               {
@@ -18987,6 +19144,16 @@
               }
             ],
             "title": "Parent Id"
+          },
+          "stats": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SkillStatsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "title": "Status",
@@ -19088,6 +19255,37 @@
           "origin"
         ],
         "title": "SkillOut",
+        "type": "object"
+      },
+      "SkillPositionsOut": {
+        "description": "The postings demanding one skill \u2014 the postings list projection\nshape, so the existing cards render identically.",
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PostingOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "SkillPositionsOut",
         "type": "object"
       },
       "SkillRelationBulkIn": {
@@ -19561,6 +19759,99 @@
         ],
         "title": "SkillRelationType",
         "type": "string"
+      },
+      "SkillRelationsOut": {
+        "description": "The approved depth-1 neighborhood of one skill.",
+        "properties": {
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/SkillGraphEdgeOut"
+            },
+            "title": "Edges",
+            "type": "array"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/SkillGraphNodeOut"
+            },
+            "title": "Nodes",
+            "type": "array"
+          }
+        },
+        "title": "SkillRelationsOut",
+        "type": "object"
+      },
+      "SkillStatsOut": {
+        "description": "The skill page's aggregate block (plan 148) \u2014 one server-side\naggregate pass, no per-row queries.",
+        "properties": {
+          "avg_required_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Required Level"
+          },
+          "corroboration": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corroboration"
+          },
+          "demand_count": {
+            "default": 0,
+            "title": "Demand Count",
+            "type": "integer"
+          },
+          "first_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen"
+          },
+          "last_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Seen"
+          },
+          "level_histogram": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Level Histogram",
+            "type": "array"
+          },
+          "user_count": {
+            "default": 0,
+            "title": "User Count",
+            "type": "integer"
+          }
+        },
+        "title": "SkillStatsOut",
+        "type": "object"
       },
       "SkillUpdateIn": {
         "additionalProperties": false,
@@ -42328,6 +42619,193 @@
           }
         },
         "summary": "Get Skill",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{key}/history": {
+      "get": {
+        "description": "One skill's lifecycle journal, newest first (plan 148) \u2014 event\nkind, actor role and the capped detail per row. User-visible for\nevery signed-in user, exactly like the postings journal read.",
+        "operationId": "skill_history_api_v1_skills__key__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillHistoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Skill History",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{key}/positions": {
+      "get": {
+        "description": "The postings demanding this skill (plan 148): the postings list\nprojection shape \u2014 existing cards render identically to /postings.\nVisibility follows the saved-view rule (hidden excluded, closed\npostings stay listable); user interaction state rides the caller.",
+        "operationId": "skill_positions_api_v1_skills__key__positions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillPositionsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Skill Positions",
+        "tags": [
+          "skills"
+        ]
+      }
+    },
+    "/api/v1/skills/{key}/relations": {
+      "get": {
+        "description": "The approved depth-1 neighborhood of this skill (plan 148) \u2014\nConceptGraphView-shaped nodes+edges, stored edge direction.",
+        "operationId": "skill_relations_graph_api_v1_skills__key__relations_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SkillRelationsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Skill Relations Graph",
         "tags": [
           "skills"
         ]

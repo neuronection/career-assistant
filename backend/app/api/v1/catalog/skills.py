@@ -8,19 +8,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.errors import DomainError
-from app.models.taxonomy_model import SkillChange
+from app.models.taxonomy_model import Skill, SkillChange
 from app.schemas.skills import (
     SkillChangeOut,
     SkillGapReport,
+    SkillGraphEdgeOut,
+    SkillGraphNodeOut,
     SkillHistoryOut,
     SkillJobsOut,
+    SkillPositionsOut,
+    SkillRelationsOut,
+    SkillStatsOut,
     UserSkillOut,
     UserSkillPatchIn,
     UserSkillsIn,
 )
 from app.services.catalog.job_service import JobService
+from app.services.catalog.skill_relations import SkillRelationService
 from app.services.catalog.skills_service import SkillService
 from app.services.deps import get_current_user
+from app.services.postings.postings_service import (
+    load_posting_skill_refs,
+    postings_for_skill,
+)
 
 router = APIRouter(tags=["skills"])
 
@@ -108,6 +118,11 @@ async def get_skill(
     ]
     from app.schemas.job import JobSkillOut
 
+    stats = await service.stats(skill)
+    merged_into = None
+    merged_ref = (skill.provenance or {}).get("merged_into")
+    if merged_ref:
+        merged_into = await _merged_target_key(db, merged_ref)
     return SkillJobsOut(
         id=skill.id,
         key=skill.key,
@@ -120,7 +135,102 @@ async def get_skill(
         status=skill.status,
         children_keys=children,
         jobs=[JobSkillOut.model_validate(row) for row in jobs],
+        stats=SkillStatsOut.model_validate(stats),
+        merged_into=merged_into,
     )
+
+
+async def _merged_target_key(db: AsyncSession, merged_ref: str) -> str | None:
+    """The merge survivor's key for the banner (provenance carries the
+    target id); None when the target is gone."""
+    from uuid import UUID as _UUID
+
+    from app.models.taxonomy_model import Skill
+
+    try:
+        target = await db.get(Skill, _UUID(str(merged_ref)))
+    except ValueError:
+        return None
+    return target.key if target is not None else None
+
+
+@router.get("/skills/{key}/positions", response_model=SkillPositionsOut)
+async def skill_positions(
+    key: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=20, ge=1, le=50),
+    offset: int = Query(default=0, ge=0),
+) -> SkillPositionsOut:
+    """The postings demanding this skill (plan 148): the postings list
+    projection shape — existing cards render identically to /postings.
+    Visibility follows the saved-view rule (hidden excluded, closed
+    postings stay listable); user interaction state rides the caller."""
+    service = SkillService(db)
+    try:
+        skill = await service.require_skill(key)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    result = await postings_for_skill(db, user.id, skill.id, limit=limit, offset=offset)
+    from app.models.experience_model import Organization
+    from app.models.posting_model import JobSource
+
+    page_ids = [item["posting"].id for item in result["items"]]
+    org_ids = {item["posting"].org_id for item in result["items"] if item["posting"].org_id}
+    org_keys: dict = {}
+    if org_ids:
+        rows = await db.execute(select(Organization).where(Organization.id.in_(org_ids)))
+        org_keys = {row.id: row.key for row in rows.scalars().all()}
+    source_rows = await db.execute(select(JobSource))
+    source_keys = {row.id: row.key for row in source_rows.scalars().all()}
+    skill_refs = await load_posting_skill_refs(db, page_ids)
+    from app.api.v1.postings.postings import _posting_out
+
+    items = [
+        _posting_out(
+            item["posting"],
+            item["interaction"],
+            item.get("application"),
+            source_key=source_keys.get(item["posting"].source_id, ""),
+            org_key=org_keys.get(item["posting"].org_id, ""),
+            skills=skill_refs.get(item["posting"].id),
+        )
+        for item in result["items"]
+    ]
+    return SkillPositionsOut(items=items, total=result["total"], limit=limit, offset=offset)
+
+
+@router.get("/skills/{key}/relations", response_model=SkillRelationsOut)
+async def skill_relations_graph(
+    key: str,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    limit: int = Query(default=100, ge=1, le=200),
+) -> SkillRelationsOut:
+    """The approved depth-1 neighborhood of this skill (plan 148) —
+    ConceptGraphView-shaped nodes+edges, stored edge direction."""
+    service = SkillService(db)
+    try:
+        skill = await service.require_skill(key)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    rows = await SkillRelationService(db).neighborhood(skill.id, limit=limit)
+    neighbor_ids = {skill.id}
+    for row in rows:
+        neighbor_ids.add(row.from_skill_id)
+        neighbor_ids.add(row.to_skill_id)
+    skill_rows = await db.execute(select(Skill).where(Skill.id.in_(neighbor_ids)))
+    nodes = [
+        SkillGraphNodeOut(id=s.id, key=s.key, label=s.label, status=s.status)
+        for s in skill_rows.scalars().all()
+    ]
+    edges = [
+        SkillGraphEdgeOut(
+            id=row.id, source=row.from_skill_id, target=row.to_skill_id, relation=row.relation
+        )
+        for row in rows
+    ]
+    return SkillRelationsOut(nodes=nodes, edges=edges)
 
 
 @router.get("/skills/{key}/history", response_model=SkillHistoryOut)

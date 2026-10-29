@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -145,6 +145,72 @@ class SkillService:
             .limit(20)
         )
         return list(rows.scalars().all())
+
+    async def stats(self, skill: Skill) -> dict:
+        """The skill page's aggregate block (plan 148), three bounded
+        round-trips, no per-row queries.
+
+        ``demand_*`` counts the SAME universe the positions endpoint
+        lists (postings with a `posting_skills` row, hidden excluded), so
+        the number always matches the list under it; ``corroboration``
+        reads the plan-147 provenance (origin + distinct corroborating
+        postings) for ai-origin rows only.
+        """
+        from app.models.posting_model import JobPosting, PostingSkill
+        from app.models.user_model import UserSkill as UserSkillRow
+
+        demand = await self.db.execute(
+            select(
+                func.count(JobPosting.id),
+                func.avg(PostingSkill.required_level),
+                func.min(func.coalesce(JobPosting.posted_at, JobPosting.created_at)),
+                func.max(func.coalesce(JobPosting.posted_at, JobPosting.created_at)),
+            )
+            .select_from(PostingSkill)
+            .join(JobPosting, JobPosting.id == PostingSkill.posting_id)
+            .where(PostingSkill.skill_id == skill.id, JobPosting.status != "hidden")
+        )
+        demand_count, avg_level, first_seen, last_seen = demand.one()
+        histogram_rows = await self.db.execute(
+            select(PostingSkill.required_level, func.count(PostingSkill.posting_id))
+            .join(JobPosting, JobPosting.id == PostingSkill.posting_id)
+            .where(
+                PostingSkill.skill_id == skill.id,
+                JobPosting.status != "hidden",
+                PostingSkill.required_level.is_not(None),
+            )
+            .group_by(PostingSkill.required_level)
+            .order_by(PostingSkill.required_level)
+        )
+        histogram = [
+            {"level": level, "n": n} for level, n in histogram_rows.all() if level is not None
+        ]
+        user_count = (
+            await self.db.execute(
+                select(func.count(UserSkillRow.id)).where(
+                    UserSkillRow.skill_id == skill.id, UserSkillRow.hidden.is_(False)
+                )
+            )
+        ).scalar_one()
+
+        provenance = skill.provenance or {}
+        corroboration = None
+        if skill.origin == SkillOrigin.AI.value:
+            origin = provenance.get("posting_id")
+            seen = provenance.get("corroborated_postings") or []
+            distinct = len({origin, *seen}) if origin else len(seen)
+            if distinct:
+                corroboration = {"postings": distinct}
+
+        return {
+            "demand_count": demand_count,
+            "level_histogram": histogram,
+            "avg_required_level": round(float(avg_level), 1) if avg_level is not None else None,
+            "user_count": user_count,
+            "first_seen": first_seen,
+            "last_seen": last_seen,
+            "corroboration": corroboration,
+        }
 
     async def user_skills(self, user_id: UUID) -> list[UserSkill]:
         rows = await self.db.execute(
