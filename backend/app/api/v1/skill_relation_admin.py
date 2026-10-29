@@ -19,6 +19,8 @@ from app.core.errors import DomainError, NotFoundError
 from app.models.enums import SkillRelationType
 from app.models.taxonomy_model import Skill, SkillRelation
 from app.schemas.skill_relations import (
+    SkillRelationBulkIn,
+    SkillRelationBulkOut,
     SkillRelationCreateIn,
     SkillRelationOut,
     SkillRelationRunLedgerOut,
@@ -28,6 +30,7 @@ from app.schemas.skill_relations import (
     SkillRelationThresholdsIn,
     SkillRelationThresholdsOut,
 )
+from app.schemas.taxonomy import SkillBulkFailure
 from app.services.catalog.skill_relation_learn import (
     Thresholds,
     backfill_parent_edges,
@@ -233,6 +236,56 @@ async def dismiss_skill_relation(
     except DomainError as exc:
         raise _http(exc) from exc
     return await _one(db, row)
+
+
+@router.post("/bulk", response_model=SkillRelationBulkOut)
+async def bulk_skill_relation_action(
+    body: SkillRelationBulkIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SkillRelationBulkOut:
+    """One review decision over many queue rows (accept / dismiss).
+
+    Each row rides the single-row path (cycle re-check at click time, the
+    is_a tree catch-up, the negative-edge heal); only real transitions
+    count as affected — a row already in the target state is a no-op and a
+    refused one (cycle, unknown id) lands in `failed` with the pair as its
+    identity.
+    """
+    service = SkillRelationService(db)
+    affected: list[uuid.UUID] = []
+    failed: list[SkillBulkFailure] = []
+    for row_id in body.ids:
+        row: SkillRelation | None = None
+        try:
+            row = await service.get(row_id)
+            before = row.status
+            if body.action == "accept":
+                row = await service.approve(row_id, decided_by=user.id)
+            else:
+                row = await service.reject(row_id, decided_by=user.id)
+        except DomainError as exc:
+            key = ""
+            if row is not None:
+                endpoints = {
+                    skill.id: skill.label
+                    for skill in (
+                        await db.execute(
+                            select(Skill).where(Skill.id.in_([row.from_skill_id, row.to_skill_id]))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                }
+                first = endpoints.get(row.from_skill_id, "?")
+                second = endpoints.get(row.to_skill_id, "?")
+                key = f"{first} → {second}"
+            failed.append(SkillBulkFailure(id=row_id, key=key, reason=str(exc)))
+            continue
+        await _catch_up(db, row)
+        if row.status != before:
+            affected.append(row_id)
+    return SkillRelationBulkOut(affected=affected, failed=failed)
 
 
 @router.post("/{relation_id}/save-alias", response_model=SkillRelationSaveAliasOut)

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  bulkSkillAction,
   createTag,
   deleteTag,
   fetchInterests,
@@ -8,14 +9,17 @@ import {
   mergeSkill,
   promoteSkill,
   updateTag,
+  type SkillBulkAction,
+  type SkillBulkFailure,
   type SkillRow,
   type Tag,
 } from "@/api/taxonomy";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
-import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
+import { EmptyState, SegmentedTabs, Spinner, ConfirmationModal } from "@/components/ui";
 import { SkillRelationsPanel } from "@/components/settings/SkillRelationsPanel";
 import { TranslationsPanel } from "@/components/settings/TranslationsPanel";
+import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 
 interface PathRow {
   id: string;
@@ -53,6 +57,12 @@ export function Taxonomy() {
   const [draft, setDraft] = useState({ key: "", label: "", category: "", description: "" });
   const [merging, setMerging] = useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = useState("");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkTarget, setBulkTarget] = useState("");
+  const [bulkNote, setBulkNote] = useState("");
+  const [bulkFailures, setBulkFailures] = useState<SkillBulkFailure[]>([]);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -138,6 +148,52 @@ export function Taxonomy() {
     }
   };
 
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const exitSelect = () => {
+    setSelectMode(false);
+    setSelected(new Set());
+    setBulkTarget("");
+  };
+
+  const applyBulk = async (action: SkillBulkAction, ids: string[]) => {
+    if (ids.length === 0) return;
+    setError("");
+    setNote("");
+    setBulkNote("");
+    setBulkFailures([]);
+    try {
+      const result = await bulkSkillAction(
+        ids,
+        action,
+        action === "merge" ? bulkTarget : undefined,
+      );
+      setSelected(new Set());
+      setBulkTarget("");
+      if (result.affected.length > 0) {
+        setBulkNote(
+          action === "delete"
+            ? t("taxonomy.bulk.deleted", { count: result.affected.length })
+            : t("taxonomy.bulk.done", { count: result.affected.length }),
+        );
+      }
+      setBulkFailures(result.failed);
+      await load();
+    } catch (err) {
+      setError(apiDetail(err));
+    }
+  };
+
   const moderatePath = async (id: string, action: "publish" | "reject") => {
     setError("");
     try {
@@ -160,6 +216,12 @@ export function Taxonomy() {
 
   const activeSkills = skills.filter((s) => s.status === "active");
   const proposed = skills.filter((s) => s.status === "proposed");
+  const selectedSkills = skills.filter((s) => selected.has(s.id));
+  const promotableIds = selectedSkills.filter((s) => s.status === "proposed").map((s) => s.id);
+  const deprecatableIds = selectedSkills.filter((s) => s.status === "active").map((s) => s.id);
+  const restorableIds = selectedSkills.filter((s) => s.status === "deprecated").map((s) => s.id);
+  const mergeableIds = selectedSkills.filter((s) => s.status !== "active").map((s) => s.id);
+  const mergeTargets = activeSkills.filter((s) => !selected.has(s.id));
 
   return (
     <div className="space-y-4" data-testid="settings-taxonomy">
@@ -175,15 +237,42 @@ export function Taxonomy() {
             }),
           )}
           value={kind}
-          onValueChange={(next) => setKind(next as typeof kind)}
+          onValueChange={(next) => {
+            setKind(next as typeof kind);
+            exitSelect();
+            setBulkNote("");
+            setBulkFailures([]);
+          }}
         />
         {kind !== "paths" && kind !== "enrichment" && kind !== "relations" && (
-          <button
-            onClick={() => setCreating((v) => !v)}
-            className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
-          >
-            {creating ? t("common.cancel") : t("taxonomy.newTag")}
-          </button>
+          <div className="flex items-center gap-2">
+            {kind === "skills" && selectMode && proposed.length > 0 && (
+              <button
+                onClick={() =>
+                  setSelected(new Set(skills.filter((s) => s.status === "proposed").map((s) => s.id)))
+                }
+                className="text-sm text-primary-700 rounded-lg px-3 py-1.5 border border-primary-200"
+                data-testid="taxonomy-select-proposed"
+              >
+                {t("taxonomy.bulk.selectProposed", { count: proposed.length })}
+              </button>
+            )}
+            {kind === "skills" && (
+              <button
+                onClick={() => (selectMode ? exitSelect() : setSelectMode(true))}
+                className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 text-slate-600"
+                data-testid="taxonomy-select-toggle"
+              >
+                {selectMode ? t("taxonomy.bulk.exit") : t("taxonomy.bulk.select")}
+              </button>
+            )}
+            <button
+              onClick={() => setCreating((v) => !v)}
+              className="text-sm bg-primary-600 text-white rounded-lg px-3 py-1.5"
+            >
+              {creating ? t("common.cancel") : t("taxonomy.newTag")}
+            </button>
+          </div>
         )}
       </div>
 
@@ -225,6 +314,21 @@ export function Taxonomy() {
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
       {note && <p className="text-xs text-amber-600">{note}</p>}
+      {bulkNote && (
+        <div data-testid="taxonomy-bulk-note">
+          <p className="text-xs text-emerald-700">{bulkNote}</p>
+          {bulkFailures.length > 0 && (
+            <ul className="mt-1 list-disc pl-4 text-xs text-amber-600">
+              {bulkFailures.map((failure) => (
+                <li key={failure.id} data-testid={`taxonomy-bulk-failure-${failure.id}`}>
+                  {failure.key ? `${failure.key} — ` : ""}
+                  {failure.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {kind === "relations" ? (
         <SkillRelationsPanel />
@@ -327,23 +431,102 @@ export function Taxonomy() {
           </div>
         )
       ) : kind === "skills" ? (
-        skills.length === 0 ? (
-          <EmptyState title={t("taxonomy.noSkills")} />
-        ) : (
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <>
+          {selectMode && (
+            <BulkBar
+              count={selected.size}
+              total={skills.length}
+              onClear={() => setSelected(new Set())}
+              onSelectAll={() => setSelected(new Set(skills.map((s) => s.id)))}
+              testid="taxonomy-bulk-bar"
+            >
+              <button
+                onClick={() => void applyBulk("promote", promotableIds)}
+                disabled={promotableIds.length === 0}
+                className="text-xs text-emerald-700 hover:text-emerald-600 disabled:opacity-40"
+                data-testid="taxonomy-bulk-promote"
+              >
+                {t("taxonomy.promote")} ({promotableIds.length})
+              </button>
+              <button
+                onClick={() => void applyBulk("deprecate", deprecatableIds)}
+                disabled={deprecatableIds.length === 0}
+                className="text-xs text-slate-500 hover:text-primary-700 disabled:opacity-40"
+                data-testid="taxonomy-bulk-deprecate"
+              >
+                {t("taxonomy.deprecate")} ({deprecatableIds.length})
+              </button>
+              <button
+                onClick={() => void applyBulk("restore", restorableIds)}
+                disabled={restorableIds.length === 0}
+                className="text-xs text-slate-500 hover:text-primary-700 disabled:opacity-40"
+                data-testid="taxonomy-bulk-restore"
+              >
+                {t("taxonomy.restore")} ({restorableIds.length})
+              </button>
+              <span className="flex items-center gap-1">
+                <span className="text-xs text-slate-500">
+                  {t("taxonomy.bulk.mergeLabel", { count: mergeableIds.length })}
+                </span>
+                <select
+                  value={bulkTarget}
+                  onChange={(e) => setBulkTarget(e.target.value)}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1"
+                  data-testid="taxonomy-bulk-merge-target"
+                >
+                  <option value="">{t("taxonomy.chooseActive")}</option>
+                  {mergeTargets.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.key}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => void applyBulk("merge", mergeableIds)}
+                  disabled={!bulkTarget || mergeableIds.length === 0}
+                  className="text-xs bg-primary-600 text-white rounded-lg px-3 py-1 disabled:opacity-50"
+                  data-testid="taxonomy-bulk-merge"
+                >
+                  {t("taxonomy.mergeConfirm")}
+                </button>
+              </span>
+              <button
+                onClick={() => setConfirmingDelete(true)}
+                disabled={selected.size === 0}
+                className="text-xs text-rose-600 hover:text-rose-500 disabled:opacity-40"
+                data-testid="taxonomy-bulk-delete"
+              >
+                {t("taxonomy.delete")} ({selected.size})
+              </button>
+            </BulkBar>
+          )}
+          {skills.length === 0 ? (
+            <EmptyState title={t("taxonomy.noSkills")} />
+          ) : (
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-left text-slate-500">
                 <tr>
+                  {selectMode && <th className="px-4 py-2 w-10"></th>}
                   <th className="px-4 py-2">{t("taxonomy.key")}</th>
                   <th className="px-4 py-2">{t("taxonomy.label")}</th>
                   <th className="px-4 py-2">{t("taxonomy.category")}</th>
                   <th className="px-4 py-2">{t("taxonomy.status")}</th>
-                  <th className="px-4 py-2"></th>
+                  {!selectMode && <th className="px-4 py-2"></th>}
                 </tr>
               </thead>
               <tbody>
                 {[...proposed, ...skills.filter((s) => s.status !== "proposed")].map((skill) => (
                   <tr key={skill.id} className="border-t border-slate-100">
+                    {selectMode && (
+                      <td className="px-4 py-2">
+                        <SelectionToggle
+                          selected={selected.has(skill.id)}
+                          label={t("taxonomy.bulk.selectOne", { label: skill.label })}
+                          onToggle={() => toggleSelected(skill.id)}
+                        />
+                      </td>
+                    )}
                     <td className="px-4 py-2 font-mono text-xs">{skill.key}</td>
                     <td className="px-4 py-2">
                       {skill.label}
@@ -361,15 +544,16 @@ export function Taxonomy() {
                         <span className="text-emerald-600">{t("taxonomy.active")}</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
-                      {skill.status === "proposed" && (
-                        <button
-                          onClick={() => void promote(skill)}
-                          className="text-xs text-emerald-700 hover:text-emerald-600"
-                        >
-                          {t("taxonomy.promote")}
-                        </button>
-                      )}
+                    {!selectMode && (
+                      <td className="px-4 py-2 text-right space-x-2 whitespace-nowrap">
+                        {skill.status === "proposed" && (
+                          <button
+                            onClick={() => void promote(skill)}
+                            className="text-xs text-emerald-700 hover:text-emerald-600"
+                          >
+                            {t("taxonomy.promote")}
+                          </button>
+                        )}
                       {skill.status === "active" ? (
                         <button
                           onClick={() => void setStatus(skill, "deprecated")}
@@ -399,7 +583,8 @@ export function Taxonomy() {
                       >
                         {t("taxonomy.delete")}
                       </button>
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -441,8 +626,9 @@ export function Taxonomy() {
                 </button>
               </div>
             )}
-          </div>
-        )
+            </div>
+          )}
+        </>
       ) : tags.length === 0 ? (
         <EmptyState title={t("taxonomy.noTags")} />
       ) : (
@@ -494,6 +680,19 @@ export function Taxonomy() {
           </table>
         </div>
       )}
+
+      <ConfirmationModal
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        onConfirm={() => {
+          setConfirmingDelete(false);
+          void applyBulk("delete", Array.from(selected));
+        }}
+        title={t("taxonomy.bulk.deleteTitle", { count: selected.size })}
+        description={t("taxonomy.bulk.deleteBody")}
+        confirmLabel={t("taxonomy.delete")}
+        destructive
+      />
     </div>
   );
 }

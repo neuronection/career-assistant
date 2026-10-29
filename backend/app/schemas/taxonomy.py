@@ -1,7 +1,7 @@
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class InterestTagOut(BaseModel):
@@ -63,3 +63,41 @@ class SkillUpdateIn(BaseModel):
     parent_id: UUID | None = None
     aliases: list[str] | None = Field(default=None, max_length=20)
     level_anchors: list[dict] | None = None
+
+
+class SkillBulkIn(BaseModel):
+    """Body of POST /admin/skills/bulk — one lifecycle action over many skills.
+
+    Merge is many-to-one: every id merges into `target_id` (an active skill).
+    """
+
+    model_config = {"extra": "forbid"}
+
+    ids: list[UUID] = Field(min_length=1, max_length=200)
+    action: Literal["promote", "deprecate", "restore", "delete", "merge"]
+    target_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def _merge_requires_target(self) -> "SkillBulkIn":
+        if self.action == "merge" and self.target_id is None:
+            raise ValueError("target_id is required for merge")
+        if self.action != "merge" and self.target_id is not None:
+            raise ValueError("target_id is only valid for merge")
+        return self
+
+
+class SkillBulkFailure(BaseModel):
+    """One id the bulk call could not act on, and why (verbatim reason)."""
+
+    id: UUID
+    key: str = ""
+    reason: str
+    job_refs: int | None = None
+    profile_refs: int | None = None
+
+
+class SkillBulkOut(BaseModel):
+    """Outcome of one bulk call — acted-on ids plus per-item failures."""
+
+    affected: list[UUID] = Field(default_factory=list)
+    failed: list[SkillBulkFailure] = Field(default_factory=list)

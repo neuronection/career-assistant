@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { apiDetail } from "@/api/client";
 import {
   acceptSkillRelation,
+  bulkSkillRelationAction,
   createSkillRelation,
   dismissSkillRelation,
   fetchSkillRelationRuns,
@@ -38,6 +39,7 @@ import {
   NumberField,
   SelectField,
 } from "@/features/cv/components/cv/formPrimitives";
+import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 
 type Tab = "queue" | "editor" | "thresholds" | "runs";
 type RelationKind = SkillRelationRow["relation"];
@@ -68,6 +70,7 @@ function RelationRowCard({
   row,
   note,
   busy,
+  selectSlot,
   onAccept,
   onDismiss,
   onAlias,
@@ -76,6 +79,7 @@ function RelationRowCard({
   row: SkillRelationRow;
   note?: string;
   busy: boolean;
+  selectSlot?: React.ReactNode;
   onAccept: () => void;
   onDismiss: () => void;
   onAlias: () => void;
@@ -92,7 +96,8 @@ function RelationRowCard({
       data-testid={`relation-row-${row.id}`}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-[var(--as-fg)]">
+        <p className="flex items-center gap-2 text-sm text-[var(--as-fg)]">
+          {selectSlot}
           <span className="font-medium">{row.from_skill.label}</span>{" "}
           <span className="text-[var(--as-muted-fg)]">
             {t(`taxonomy.relations.relation.${row.relation}`)}
@@ -186,6 +191,11 @@ export function SkillRelationsPanel() {
   const [thresholdNote, setThresholdNote] = useState("");
   const [globalNote, setGlobalNote] = useState("");
   const [runs, setRuns] = useState<SkillRelationRun[]>([]);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkFailures, setBulkFailures] = useState<
+    { id: string; key: string; reason: string }[]
+  >([]);
 
   const options = useMemo<PickerOption[]>(
     () =>
@@ -252,6 +262,40 @@ export function SkillRelationsPanel() {
       }
     },
     [load, t],
+  );
+
+  const toggleSelected = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const applyBulk = useCallback(
+    async (action: "accept" | "dismiss") => {
+      const ids = Array.from(selected);
+      if (ids.length === 0) return;
+      setError("");
+      setGlobalNote("");
+      setBulkFailures([]);
+      try {
+        const result = await bulkSkillRelationAction(ids, action);
+        setSelected(new Set());
+        if (result.affected.length > 0) {
+          setGlobalNote(t("taxonomy.relations.bulk.done", { count: result.affected.length }));
+        }
+        setBulkFailures(result.failed);
+        await load();
+      } catch (err) {
+        setError(apiDetail(err));
+      }
+    },
+    [selected, load, t],
   );
 
   const onAdd = async () => {
@@ -337,50 +381,118 @@ export function SkillRelationsPanel() {
           <p className="mt-3 text-sm text-[var(--as-muted-fg)]">{t("common.loading")}</p>
         </div>
       ) : tab === "queue" ? (
-        groups.length === 0 ? (
-          <EmptyState
-            title={t("taxonomy.relations.queue.empty")}
-            description={t("taxonomy.relations.queue.emptyBody")}
-          />
-        ) : (
-          <div className="space-y-3" data-testid="skill-relations-queue">
-            {groups.map(([key, group]) => (
-              <div key={key} className="space-y-2" data-testid={`relation-pair-${key}`}>
-                {group.length > 1 && (
-                  <p className="text-xs font-medium text-[var(--as-muted-fg)]">
-                    {group[0].from_skill.label} · {group[0].to_skill.label}
-                  </p>
-                )}
-                {group.map((row) => (
-                  <RelationRowCard
-                    key={row.id}
-                    row={row}
-                    note={notes[row.id]}
-                    busy={busyId === row.id}
-                    onAccept={() =>
-                      void runAction(
-                        row,
-                        () => acceptSkillRelation(row.id),
-                        t("taxonomy.relations.accepted"),
-                      )
-                    }
-                    onDismiss={() =>
-                      void runAction(
-                        row,
-                        () => dismissSkillRelation(row.id),
-                        t("taxonomy.relations.dismissed"),
-                      )
-                    }
-                    onAlias={() => void aliasAction(row)}
-                    onRemove={() =>
-                      void runAction(row, () => removeSkillRelation(row.id), "")
-                    }
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-        )
+        <>
+          {groups.length > 0 && (
+            <div className="flex items-center justify-end">
+              <button
+                onClick={() => {
+                  if (selectMode) setSelected(new Set());
+                  setSelectMode((v) => !v);
+                }}
+                className="rounded-lg border border-[var(--as-border)] px-3 py-1.5 text-sm text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
+                data-testid="relation-select-toggle"
+              >
+                {selectMode ? t("taxonomy.bulk.exit") : t("taxonomy.relations.bulk.select")}
+              </button>
+            </div>
+          )}
+          {selectMode && (
+            <BulkBar
+              count={selected.size}
+              total={proposed.length}
+              onClear={() => setSelected(new Set())}
+              onSelectAll={() => setSelected(new Set(proposed.map((row) => row.id)))}
+              testid="relation-bulk-bar"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selected.size === 0}
+                onClick={() => void applyBulk("accept")}
+                data-testid="relation-bulk-accept"
+              >
+                {t("taxonomy.relations.accept")} ({selected.size})
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={selected.size === 0}
+                onClick={() => void applyBulk("dismiss")}
+                data-testid="relation-bulk-dismiss"
+              >
+                {t("taxonomy.relations.dismiss")} ({selected.size})
+              </Button>
+            </BulkBar>
+          )}
+          {bulkFailures.length > 0 && (
+            <ul
+              className="list-disc pl-4 text-xs text-amber-600"
+              data-testid="relation-bulk-failures"
+            >
+              {bulkFailures.map((failure) => (
+                <li key={failure.id}>
+                  {failure.key ? `${failure.key} — ` : ""}
+                  {failure.reason}
+                </li>
+              ))}
+            </ul>
+          )}
+          {groups.length === 0 ? (
+            <EmptyState
+              title={t("taxonomy.relations.queue.empty")}
+              description={t("taxonomy.relations.queue.emptyBody")}
+            />
+          ) : (
+            <div className="space-y-3" data-testid="skill-relations-queue">
+              {groups.map(([key, group]) => (
+                <div key={key} className="space-y-2" data-testid={`relation-pair-${key}`}>
+                  {group.length > 1 && (
+                    <p className="text-xs font-medium text-[var(--as-muted-fg)]">
+                      {group[0].from_skill.label} · {group[0].to_skill.label}
+                    </p>
+                  )}
+                  {group.map((row) => (
+                    <RelationRowCard
+                      key={row.id}
+                      row={row}
+                      note={notes[row.id]}
+                      busy={busyId === row.id || selectMode}
+                      selectSlot={
+                        selectMode ? (
+                          <SelectionToggle
+                            selected={selected.has(row.id)}
+                            label={t("taxonomy.relations.bulk.selectOne", {
+                              label: `${row.from_skill.label} → ${row.to_skill.label}`,
+                            })}
+                            onToggle={() => toggleSelected(row.id)}
+                          />
+                        ) : undefined
+                      }
+                      onAccept={() =>
+                        void runAction(
+                          row,
+                          () => acceptSkillRelation(row.id),
+                          t("taxonomy.relations.accepted"),
+                        )
+                      }
+                      onDismiss={() =>
+                        void runAction(
+                          row,
+                          () => dismissSkillRelation(row.id),
+                          t("taxonomy.relations.dismissed"),
+                        )
+                      }
+                      onAlias={() => void aliasAction(row)}
+                      onRemove={() =>
+                        void runAction(row, () => removeSkillRelation(row.id), "")
+                      }
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       ) : tab === "editor" ? (
         <div className="space-y-4" data-testid="skill-relations-editor">
           <div

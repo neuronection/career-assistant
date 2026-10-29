@@ -94,3 +94,31 @@ export async function mergeSkill(id: string, targetId: string): Promise<SkillRow
   });
   return data;
 }
+
+export type SkillBulkAction = "promote" | "deprecate" | "restore" | "delete" | "merge";
+
+export interface SkillBulkFailure {
+  id: string;
+  key: string;
+  reason: string;
+  job_refs?: number | null;
+  profile_refs?: number | null;
+}
+
+export interface SkillBulkResult {
+  affected: string[];
+  failed: SkillBulkFailure[];
+}
+
+export async function bulkSkillAction(
+  ids: string[],
+  action: SkillBulkAction,
+  targetId?: string,
+): Promise<SkillBulkResult> {
+  const { data } = await api.post<SkillBulkResult>("/admin/skills/bulk", {
+    ids,
+    action,
+    target_id: targetId ?? null,
+  });
+  return data;
+}

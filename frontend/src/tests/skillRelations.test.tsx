@@ -14,6 +14,7 @@ vi.mock("@/api/skillRelations", async (importOriginal) => {
     createSkillRelation: vi.fn(),
     acceptSkillRelation: vi.fn(),
     dismissSkillRelation: vi.fn(),
+    bulkSkillRelationAction: vi.fn(),
     saveSkillRelationAlias: vi.fn(),
     removeSkillRelation: vi.fn(),
     fetchSkillRelationThresholds: vi.fn(),
@@ -272,5 +273,63 @@ describe("SkillRelationsPanel", () => {
     expect(screen.getByTestId("run-watermark-run-1").textContent).toMatch(/held/i);
     expect(screen.getByTestId("run-ledger-backfilled").textContent).toMatch(/1/);
     expect(mocked.fetchSkillRelationRuns).toHaveBeenCalled();
+  });
+
+  it("bulk accept applies one decision to the selected queue rows", async () => {
+    mocked.bulkSkillRelationAction.mockResolvedValue({
+      affected: ["r-proposed", "r-alias"],
+      failed: [],
+    });
+    render(<SkillRelationsPanel />);
+    fireEvent.click(await screen.findByTestId("relation-select-toggle"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /select js/i }));
+    expect(screen.getByTestId("relation-bulk-bar")).toHaveTextContent("2 selected");
+
+    fireEvent.click(screen.getByTestId("relation-bulk-accept"));
+
+    await waitFor(() =>
+      expect(mocked.bulkSkillRelationAction).toHaveBeenCalledWith(
+        ["r-proposed", "r-alias"],
+        "accept",
+      ),
+    );
+    expect(await screen.findByText("2 edges updated.")).toBeTruthy();
+    await waitFor(() => expect(mocked.fetchSkillRelations).toHaveBeenCalledTimes(2));
+  });
+
+  it("bulk dismiss reports per-row failures", async () => {
+    mocked.bulkSkillRelationAction.mockResolvedValue({
+      affected: ["r-proposed"],
+      failed: [{ id: "r-alias", key: "Js → JavaScript", reason: "is_a edge would create a cycle" }],
+    });
+    render(<SkillRelationsPanel />);
+    fireEvent.click(await screen.findByTestId("relation-select-toggle"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /select js/i }));
+
+    fireEvent.click(screen.getByTestId("relation-bulk-dismiss"));
+
+    await waitFor(() =>
+      expect(mocked.bulkSkillRelationAction).toHaveBeenCalledWith(
+        ["r-proposed", "r-alias"],
+        "dismiss",
+      ),
+    );
+    const failures = await screen.findByTestId("relation-bulk-failures");
+    expect(failures.textContent).toMatch(/Js → JavaScript/);
+    expect(failures.textContent).toMatch(/cycle/);
+  });
+
+  it("exiting select mode clears the selection", async () => {
+    render(<SkillRelationsPanel />);
+    fireEvent.click(await screen.findByTestId("relation-select-toggle"));
+    fireEvent.click(screen.getByRole("checkbox", { name: /select java/i }));
+    expect(screen.getByTestId("relation-bulk-bar")).toHaveTextContent("1 selected");
+
+    fireEvent.click(screen.getByTestId("relation-select-toggle"));
+
+    expect(screen.queryByTestId("relation-bulk-bar")).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /select java/i })).toBeNull();
   });
 });

@@ -36,6 +36,7 @@ from app.schemas.scheduler import (
     ScheduleRunNowOut,
     ScheduleToggleOut,
 )
+from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.deps import get_current_user, require_admin
@@ -189,6 +190,21 @@ async def merge_skill(
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
+
+
+@router.post("/skills/bulk", response_model=SkillBulkOut)
+async def bulk_skill_action(
+    body: SkillBulkIn,
+    db: AsyncSession = Depends(get_db),
+) -> SkillBulkOut:
+    """One lifecycle action over many skills (promote/deprecate/restore/
+    delete, or many-to-one merge into `target_id`).
+
+    Best-effort with a per-item report: ids the seams refuse (wrong status,
+    still referenced, unknown) come back as failure rows, never a 4xx.
+    """
+    result = await TaxonomyService(db).bulk_skills(body.ids, body.action, body.target_id)
+    return SkillBulkOut.model_validate(result)
 
 
 @router.get("/paths")

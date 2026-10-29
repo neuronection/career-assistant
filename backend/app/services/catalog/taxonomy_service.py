@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ValidationError
+from app.core.errors import DomainError, ValidationError
 from app.models.career_path_model import CareerPathStep
 from app.models.enums import (
     InterestTagKind,
@@ -391,6 +391,60 @@ class TaxonomyService:
         await self.db.commit()
         await self.db.refresh(target)
         return target
+
+    async def bulk_skills(
+        self,
+        ids: list[UUID],
+        action: str,
+        target_id: UUID | None = None,
+    ) -> dict:
+        """One lifecycle action over many skills, per-item seams preserved.
+
+        Each id rides the same seam as its single-row action (promote /
+        update_skill / delete_skill / merge) so validation semantics never
+        drift; a seam refusal (wrong status, references, unknown id) is
+        collected as a failure row instead of failing the whole call.
+        """
+        affected: list[UUID] = []
+        failed: list[dict] = []
+        for skill_id in ids:
+            skill = await self.db.get(Skill, skill_id)
+            key = skill.key if skill is not None else ""
+            before = skill.status if skill is not None else None
+            try:
+                if action == "promote":
+                    await self.promote(skill_id)
+                elif action == "deprecate":
+                    await self.update_skill(skill_id, {"status": "deprecated"})
+                elif action == "restore":
+                    await self.update_skill(skill_id, {"status": "active"})
+                elif action == "delete":
+                    await self.delete_skill(skill_id)
+                elif action == "merge":
+                    if target_id is None:  # pragma: no cover - schema-enforced
+                        raise ValidationError("target_id is required for merge")
+                    await self.merge(skill_id, target_id)
+                else:
+                    raise ValidationError(f"Unknown bulk action: {action}")
+            except ReferenceCountError as exc:
+                failed.append(
+                    {
+                        "id": str(skill_id),
+                        "key": key,
+                        "reason": str(exc),
+                        "job_refs": exc.job_refs,
+                        "profile_refs": exc.profile_refs,
+                    }
+                )
+            except DomainError as exc:
+                failed.append({"id": str(skill_id), "key": key, "reason": str(exc)})
+            else:
+                # deprecate/restore of a row already in that state is a no-op
+                # write, not a transition — count only real changes
+                if action in ("deprecate", "restore") and before == skill.status:
+                    continue
+                affected.append(skill_id)
+        return {"affected": affected, "failed": failed}
 
 
 class ReferenceCountError(ValidationError):

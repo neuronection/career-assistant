@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from app.models.enums import SkillRelationType
+from app.schemas.taxonomy import SkillBulkFailure
 
 
 class SkillRelationSkillOut(BaseModel):
@@ -51,6 +53,23 @@ class SkillRelationCreateIn(BaseModel):
     to_skill: str = Field(min_length=1, max_length=120)
     relation: SkillRelationType
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
+
+
+class SkillRelationBulkIn(BaseModel):
+    """Body of POST /admin/skill-relations/bulk — one review decision over
+    many queue rows. Only real transitions count as affected."""
+
+    model_config = {"extra": "forbid"}
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=200)
+    action: Literal["accept", "dismiss"]
+
+
+class SkillRelationBulkOut(BaseModel):
+    """Outcome of one relations bulk call — transitioned ids + failures."""
+
+    affected: list[uuid.UUID] = Field(default_factory=list)
+    failed: list[SkillBulkFailure] = Field(default_factory=list)
 
 
 class SkillRelationThresholdsOut(BaseModel):

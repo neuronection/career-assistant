@@ -35,6 +35,20 @@ derived from matching labels, or imported):
   the real skill — matching resolves it from then on — and the edge is
   dismissed, because a label is not a relation.
 
+**Select mode** adds bulk review: pick any number of cards (or all at
+once), then one **Accept** or **Dismiss** applies to the whole batch. Only
+rows that actually change state are counted; a row the backend refuses
+(for example an `is a` that would close a cycle) is reported back instead
+of failing the batch.
+
+The Skills tab has the same Select mode for the skill list itself —
+**Promote**, **Deprecate**, **Restore**, **Merge** into a chosen active
+skill, and **Delete** (behind a confirm). Each button shows how many of
+the selected rows it applies to, and a *Select proposed* shortcut grabs
+every AI-proposed skill at once. Bulk delete skips skills still
+referenced by jobs or profiles and lists them with the reason —
+deprecate those instead.
+
 ### All relations
 
 The same cards for every relation regardless of state, plus a manual

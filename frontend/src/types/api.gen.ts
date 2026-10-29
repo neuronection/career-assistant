@@ -1361,6 +1361,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/skill-relations/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Skill Relation Action
+         * @description One review decision over many queue rows (accept / dismiss).
+         *
+         *     Each row rides the single-row path (cycle re-check at click time, the
+         *     is_a tree catch-up, the negative-edge heal); only real transitions
+         *     count as affected — a row already in the target state is a no-op and a
+         *     refused one (cycle, unknown id) lands in `failed` with the pair as its
+         *     identity.
+         */
+        post: operations["bulk_skill_relation_action_api_v1_admin_skill_relations_bulk_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/skill-relations/runs": {
         parameters: {
             query?: never;
@@ -1485,6 +1511,30 @@ export interface paths {
          *     the pair never returns as an edge suggestion.
          */
         post: operations["save_skill_relation_as_alias_api_v1_admin_skill_relations__relation_id__save_alias_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/skills/bulk": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bulk Skill Action
+         * @description One lifecycle action over many skills (promote/deprecate/restore/
+         *     delete, or many-to-one merge into `target_id`).
+         *
+         *     Best-effort with a per-item report: ids the seams refuse (wrong status,
+         *     still referenced, unknown) come back as failure rows, never a 4xx.
+         */
+        post: operations["bulk_skill_action_api_v1_admin_skills_bulk_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -15318,6 +15368,55 @@ export interface components {
          * @enum {string}
          */
         ShiftTolerance: "none" | "occasional" | "regular";
+        /**
+         * SkillBulkFailure
+         * @description One id the bulk call could not act on, and why (verbatim reason).
+         */
+        SkillBulkFailure: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Job Refs */
+            job_refs?: number | null;
+            /**
+             * Key
+             * @default
+             */
+            key: string;
+            /** Profile Refs */
+            profile_refs?: number | null;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * SkillBulkIn
+         * @description Body of POST /admin/skills/bulk — one lifecycle action over many skills.
+         *
+         *     Merge is many-to-one: every id merges into `target_id` (an active skill).
+         */
+        SkillBulkIn: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "promote" | "deprecate" | "restore" | "delete" | "merge";
+            /** Ids */
+            ids: string[];
+            /** Target Id */
+            target_id?: string | null;
+        };
+        /**
+         * SkillBulkOut
+         * @description Outcome of one bulk call — acted-on ids plus per-item failures.
+         */
+        SkillBulkOut: {
+            /** Affected */
+            affected?: string[];
+            /** Failed */
+            failed?: components["schemas"]["SkillBulkFailure"][];
+        };
         /** SkillGapReport */
         SkillGapReport: {
             /** Gaps */
@@ -15394,6 +15493,30 @@ export interface components {
             parent_source?: ("curated" | "learned") | null;
             /** Status */
             status: string;
+        };
+        /**
+         * SkillRelationBulkIn
+         * @description Body of POST /admin/skill-relations/bulk — one review decision over
+         *     many queue rows. Only real transitions count as affected.
+         */
+        SkillRelationBulkIn: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "accept" | "dismiss";
+            /** Ids */
+            ids: string[];
+        };
+        /**
+         * SkillRelationBulkOut
+         * @description Outcome of one relations bulk call — transitioned ids + failures.
+         */
+        SkillRelationBulkOut: {
+            /** Affected */
+            affected?: string[];
+            /** Failed */
+            failed?: components["schemas"]["SkillBulkFailure"][];
         };
         /**
          * SkillRelationCreateIn
@@ -18923,6 +19046,39 @@ export interface operations {
             };
         };
     };
+    bulk_skill_relation_action_api_v1_admin_skill_relations_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillRelationBulkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillRelationBulkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_skill_relation_runs_api_v1_admin_skill_relations_runs_get: {
         parameters: {
             query?: {
@@ -19116,6 +19272,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SkillRelationSaveAliasOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    bulk_skill_action_api_v1_admin_skills_bulk_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillBulkIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SkillBulkOut"];
                 };
             };
             /** @description Validation Error */

@@ -93,6 +93,22 @@ export async function dismissSkillRelation(id: string): Promise<SkillRelationRow
   return data;
 }
 
+export interface SkillRelationBulkResult {
+  affected: string[];
+  failed: { id: string; key: string; reason: string }[];
+}
+
+export async function bulkSkillRelationAction(
+  ids: string[],
+  action: "accept" | "dismiss",
+): Promise<SkillRelationBulkResult> {
+  const { data } = await api.post<SkillRelationBulkResult>("/admin/skill-relations/bulk", {
+    ids,
+    action,
+  });
+  return data;
+}
+
 export async function saveSkillRelationAlias(id: string): Promise<SkillRelationSaveAlias> {
   const { data } = await api.post<SkillRelationSaveAlias>(
     `/admin/skill-relations/${id}/save-alias`,

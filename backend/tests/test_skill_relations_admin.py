@@ -4,6 +4,7 @@ override and the run ledger — every write through the single seam."""
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -221,6 +222,109 @@ async def test_dismiss_writes_the_negative_edge(db, client, _admin_and_user):
     assert rows[0].status == SkillRelationStatus.REJECTED.value
     reloaded = await service.list_relations(status="rejected")
     assert len(reloaded) == 1
+
+
+async def test_bulk_accept_transitions_and_runs_the_catch_up(db, client, _admin_and_user):
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "java", "kotlin", "python")
+    service = SkillRelationService(db)
+    java_is_a = await service.add("java", "python", "is_a", source="llm", confidence=0.9)
+    kotlin_rel = await service.add("kotlin", "python", "related_to", source="llm", confidence=0.8)
+    missing = uuid.uuid4()
+
+    response = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [str(java_is_a.id), str(kotlin_rel.id), str(missing)], "action": "accept"},
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["affected"] == [str(java_is_a.id), str(kotlin_rel.id)]
+    assert [row["id"] for row in body["failed"]] == [str(missing)]
+
+    await db.refresh(skills["java"])
+    assert skills["java"].parent_id == skills["python"].id, "the tree catch-up ran per row"
+
+    again = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [str(java_is_a.id)], "action": "accept"},
+        headers=admin,
+    )
+    assert again.json()["affected"] == [], "an already-approved row is a no-op"
+
+
+async def test_bulk_dismiss_writes_negative_edges(db, client, _admin_and_user):
+    admin, _ = _admin_and_user
+    await _seed_skills(db, "java", "kotlin", "python")
+    service = SkillRelationService(db)
+    edges = [
+        await service.add("java", "python", "is_a", source="llm", confidence=0.9),
+        await service.add("kotlin", "python", "related_to", source="llm", confidence=0.8),
+    ]
+
+    response = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [str(edge.id) for edge in edges], "action": "dismiss"},
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["affected"] == [str(edge.id) for edge in edges]
+
+    rows = {row.id: row for row in await _rows(db)}
+    assert all(rows[edge.id].status == SkillRelationStatus.REJECTED.value for edge in edges)
+
+
+async def test_bulk_accept_refusal_reports_the_pair_and_keeps_rows(db, client, _admin_and_user):
+    admin, _ = _admin_and_user
+    skills = await _seed_skills(db, "a", "b")
+    service = SkillRelationService(db)
+    edge = await service.add("a", "b", "is_a", source="llm", confidence=0.9)
+    skills["b"].parent_id = skills["a"].id
+    await db.flush()
+
+    response = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [str(edge.id)], "action": "accept"},
+        headers=admin,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["affected"] == []
+    assert len(body["failed"]) == 1
+    assert body["failed"][0]["key"] == "A → B", "the failure carries the pair identity"
+    assert "cycle" in body["failed"][0]["reason"]
+
+    rows = await _rows(db)
+    assert rows[0].status == SkillRelationStatus.PROPOSED.value, "the row survives"
+
+
+async def test_bulk_guards_and_noop_dismiss(db, client, _admin_and_user):
+    admin, user = _admin_and_user
+    forbidden = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": ["00000000-0000-0000-0000-000000000001"], "action": "accept"},
+        headers=user,
+    )
+    assert forbidden.status_code == 403
+    invalid = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [], "action": "accept"},
+        headers=admin,
+    )
+    assert invalid.status_code == 422
+
+    await _seed_skills(db, "java", "python")
+    service = SkillRelationService(db)
+    edge = await service.add("java", "python", "is_a", source="llm", confidence=0.9)
+    await service.reject(edge.id)
+
+    noop = await client.post(
+        "/api/v1/admin/skill-relations/bulk",
+        json={"ids": [str(edge.id)], "action": "dismiss"},
+        headers=admin,
+    )
+    assert noop.status_code == 200, noop.text
+    assert noop.json()["affected"] == [], "an already-rejected row is a no-op"
 
 
 async def test_remove_deletes_the_row(db, client, _admin_and_user):
