@@ -149,6 +149,9 @@ export async function explorePostings(
 ): Promise<ExploreResponse> {
   const { data } = await api.get<ExploreResponse>("/postings/explore", {
     params,
+    // repeated params (`org=A&org=B`), never bracketed — org names may
+    // contain commas and the backend reads them via getlist
+    paramsSerializer: { indexes: null },
   });
   return data;
 }

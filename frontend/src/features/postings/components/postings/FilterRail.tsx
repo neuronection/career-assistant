@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown, Plus, X } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import type { FilterSpec, SkillExpandMode } from "@/api/postings";
 import { SegmentedTabs } from "@neuronection/assistant-ui";
@@ -15,6 +15,11 @@ import {
   AXIS_DEFINITIONS,
   countActiveFilters,
 } from "@/features/postings/components/postings/filterState";
+import {
+  Section,
+  TriStateChips,
+  triStateToggle,
+} from "@/features/postings/components/postings/filterBits";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 
 interface FilterRailProps {
@@ -81,40 +86,6 @@ export function FilterRail({ spec, onChange, onClear }: FilterRailProps) {
 }
 
 // ------------------------------------------------------------ shared bits
-
-function Section({
-  title,
-  active,
-  children,
-}: {
-  title: string;
-  active: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(active);
-  const effectiveOpen = open || active;
-  return (
-    <div className="border border-slate-100 rounded-lg">
-      <button
-        type="button"
-        className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={effectiveOpen}
-      >
-        <span className={active ? "font-medium text-slate-800" : ""}>{title}</span>
-        <span className="flex items-center gap-2">
-          {active ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-primary-500" aria-hidden />
-          ) : null}
-          <ChevronDown
-            className={`w-3.5 h-3.5 text-slate-400 transition-transform ${effectiveOpen ? "" : "-rotate-90"}`}
-          />
-        </span>
-      </button>
-      {effectiveOpen ? <div className="px-3 pb-3 space-y-2">{children}</div> : null}
-    </div>
-  );
-}
 
 function ChipInput({
   include,
@@ -241,60 +212,22 @@ function EnumSection({
   const section = spec[axis];
   const active = section.include.length + section.exclude.length > 0;
 
-  const toggle = (value: string, mode: "include" | "exclude") => {
-    const next = { ...spec };
-    const sec = { ...next[axis] };
-    if (mode === "include") {
-      sec.include = sec.include.includes(value)
-        ? sec.include.filter((v) => v !== value)
-        : [...sec.include, value];
-      sec.exclude = sec.exclude.filter((v) => v !== value);
-    } else {
-      sec.exclude = sec.exclude.includes(value)
-        ? sec.exclude.filter((v) => v !== value)
-        : [...sec.exclude, value];
-      sec.include = sec.include.filter((v) => v !== value);
-    }
-    next[axis] = sec;
-    onChange(next);
-  };
-
   return (
     <Section title={t(definition.labelKey)} active={active}>
-      <div className="flex flex-wrap gap-1.5">
-        {definition.values.map((value) => {
-          const isIncluded = section.include.includes(value);
-          const isExcluded = section.exclude.includes(value);
-          return (
-            <button
-              key={value}
-              type="button"
-              onClick={() => toggle(value, isIncluded || isExcluded ? (isIncluded ? "exclude" : "include") : "include")}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                toggle(value, "exclude");
-              }}
-              className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-                isIncluded
-                  ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
-                  : isExcluded
-                    ? "border-rose-300 bg-rose-50 text-rose-700"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-              }`}
-              title={
-                isIncluded
-                  ? t("filters.clickToExclude")
-                  : isExcluded
-                    ? t("filters.clickToIncludeOnly")
-                    : t("filters.clickToInclude")
-              }
-            >
-              {isExcluded ? "− " : ""}
-              {value.replace(/_/g, " ")}
-            </button>
-          );
-        })}
-      </div>
+      <TriStateChips
+        values={definition.values.map((value) => ({
+          value,
+          label: value.replace(/_/g, " "),
+        }))}
+        include={section.include}
+        exclude={section.exclude}
+        onToggle={(value, mode) =>
+          onChange({
+            ...spec,
+            [axis]: triStateToggle(section.include, section.exclude, value, mode),
+          })
+        }
+      />
     </Section>
   );
 }

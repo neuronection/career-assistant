@@ -82,7 +82,8 @@ export function App() {
           <Route path="/rankings" element={<Rankings />} />
           <Route path="/compare" element={<Compare />} />
           <Route path="/postings" element={<Postings />}>
-            <Route index element={<PostingsFeed />} />
+            <Route index element={<Navigate to="/postings/search" replace />} />
+            <Route path="feed" element={<PostingsFeed />} />
             <Route path="search" element={<Explore />} />
           </Route>
           <Route path="/postings/:ref" element={<PostingDetailPage />} />

@@ -303,6 +303,7 @@ export interface JobMatchDetail {
 export interface ExploreParams {
   q?: string;
   skills?: string;
+  skill_exclude?: string;
   skill_mode?: "all" | "any";
   skill_priority?: string;
   education_min?: string;
@@ -312,21 +313,28 @@ export interface ExploreParams {
   salary_min?: number;
   salary_currency?: string;
   seniority?: string;
+  seniority_exclude?: string;
   employment_type?: string;
   remote_policy?: string;
+  remote_policy_exclude?: string;
   city?: string;
   country?: string;
   source?: string;
+  source_exclude?: string;
   mapped_family?: string;
   saved?: boolean;
   seen?: boolean;
   applied?: boolean;
   extracted_only?: boolean;
   contract?: string;
+  contract_exclude?: string;
   travel?: string;
+  travel_exclude?: string;
   schedule?: string;
+  schedule_exclude?: string;
   benefits?: string;
-  org?: string;
+  org?: string | string[];
+  org_exclude?: string | string[];
   sort?: string;
   cursor?: string;
   limit?: number;

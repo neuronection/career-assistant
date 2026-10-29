@@ -35,7 +35,7 @@ frontend/src/
 | `/onboarding`, `/onboarding/express` | Wizard + express start |
 | `/catalog`, `/catalog/graph`, `/catalog/generate`, `/jobs/:code` | Catalog, graph, AI generation, job detail |
 | `/rankings`, `/compare` | Rankings + compare tray |
-| `/postings`, `/postings/search` | Postings feed + Explore |
+| `/postings` (→ `/postings/search`), `/postings/feed`, `/postings/search` | Postings shell — search default + feed |
 | `/autopilot`, `/interviews`, `/growth` | Autopilot, interview prep, growth |
 | `/profile`, `/profile/experience`, `/profile/education`, `/profile/import`, `/profile/assessment` | Profile + workspaces |
 | `/catalog/universities`, `/catalog/universities/:id` | University intake |

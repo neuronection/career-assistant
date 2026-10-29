@@ -241,7 +241,7 @@ describe("Skill-level search & provenance", () => {
 });
 
 describe("Postings shell", () => {
-  it("redirects /explore into the search subtab and renders the feed by default", async () => {
+  it("redirects /explore and the index into the search subtab (search is the default)", async () => {
     mockFetchPostings.mockResolvedValue({
       items: [],
       unseen: 0,
@@ -250,7 +250,8 @@ describe("Postings shell", () => {
       <MemoryRouter initialEntries={["/explore"]}>
         <Routes>
           <Route path="/postings" element={<Postings />}>
-            <Route index element={<PostingsFeed />} />
+            <Route index element={<Navigate to="/postings/search" replace />} />
+            <Route path="feed" element={<PostingsFeed />} />
             <Route path="search" element={<div data-testid="explore-body" />} />
           </Route>
           <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
@@ -259,6 +260,48 @@ describe("Postings shell", () => {
     );
 
     expect(await screen.findByTestId("postings-page")).toBeInTheDocument();
+    expect(screen.getByTestId("postings-tab-search")).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByTestId("postings-tab-feed")).not.toHaveAttribute("aria-current", "page");
+  });
+
+  it("renders the feed at /postings/feed with the feed tab active", async () => {
+    mockFetchPostings.mockResolvedValue({
+      items: [],
+      unseen: 0,
+    } as never);
+    render(
+      <MemoryRouter initialEntries={["/postings/feed"]}>
+        <Routes>
+          <Route path="/postings" element={<Postings />}>
+            <Route path="feed" element={<PostingsFeed />} />
+            <Route path="search" element={<div data-testid="explore-body" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId("postings")).toBeInTheDocument();
+    expect(screen.getByTestId("postings-tab-feed")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("lands on the search page from the bare /postings index", async () => {
+    mockFetchPostings.mockResolvedValue({
+      items: [],
+      unseen: 0,
+    } as never);
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Routes>
+          <Route path="/postings" element={<Postings />}>
+            <Route index element={<Navigate to="/postings/search" replace />} />
+            <Route path="feed" element={<PostingsFeed />} />
+            <Route path="search" element={<div data-testid="explore-body" />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByTestId("explore-body")).toBeInTheDocument();
     expect(screen.getByTestId("postings-tab-search")).toHaveAttribute("aria-current", "page");
   });
 });

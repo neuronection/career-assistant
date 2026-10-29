@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Text, and_, case, func, or_, select
+from sqlalchemy import Text, and_, case, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -91,6 +91,7 @@ def parse_explore_filters(params: dict) -> dict:
     allowed = {
         "q",
         "skills",
+        "skill_exclude",
         "skill_mode",
         "skill_priority",
         "education_min",
@@ -102,21 +103,28 @@ def parse_explore_filters(params: dict) -> dict:
         "salary_currency",
         "keywords",
         "seniority",
+        "seniority_exclude",
         "employment_type",
         "remote_policy",
+        "remote_policy_exclude",
         "city",
         "country",
         "source",
+        "source_exclude",
         "mapped_family",
         "saved",
         "seen",
         "applied",
         "extracted_only",
         "contract",
+        "contract_exclude",
         "travel",
+        "travel_exclude",
         "schedule",
+        "schedule_exclude",
         "benefits",
         "org",
+        "org_exclude",
     }
     unknown = set(params or {}) - allowed
     if unknown:
@@ -133,24 +141,31 @@ def parse_explore_filters(params: dict) -> dict:
             return [part.strip() for part in value.split(",") if part.strip()]
         return [str(part).strip() for part in value if str(part).strip()]
 
-    entries: list[tuple[str, int | None]] = []
-    for entry in _as_list(params.get("skills")):
-        key, sep, level = entry.partition(":")
-        key = key.strip().lower()
-        if not key:
-            continue
-        if sep:
-            try:
-                lvl = int(level)
-            except ValueError as exc:
-                raise ValidationError(f"invalid level for skill {key!r}") from exc
-            if not 1 <= lvl <= 10:
-                raise ValidationError(f"level for {key!r} out of range 1-10")
-            entries.append((key, lvl))
-        else:
-            entries.append((key, None))
-    if entries:
-        filters["skills"] = entries
+    def _parse_skill_entries(value: Any) -> list[tuple[str, int | None]]:
+        entries: list[tuple[str, int | None]] = []
+        for entry in _as_list(value):
+            key, sep, level = entry.partition(":")
+            key = key.strip().lower()
+            if not key:
+                continue
+            if sep:
+                try:
+                    lvl = int(level)
+                except ValueError as exc:
+                    raise ValidationError(f"invalid level for skill {key!r}") from exc
+                if not 1 <= lvl <= 10:
+                    raise ValidationError(f"level for {key!r} out of range 1-10")
+                entries.append((key, lvl))
+            else:
+                entries.append((key, None))
+        return entries
+
+    include_entries = _parse_skill_entries(params.get("skills"))
+    exclude_entries = _parse_skill_entries(params.get("skill_exclude"))
+    if include_entries:
+        filters["skills"] = include_entries
+    if exclude_entries:
+        filters["skill_exclude"] = exclude_entries[:12]
     if params.get("skill_mode"):
         if params["skill_mode"] not in ("all", "any"):
             raise ValidationError("skill_mode must be all|any")
@@ -193,23 +208,28 @@ def parse_explore_filters(params: dict) -> dict:
     if params.get("salary_currency"):
         filters["salary_currency"] = str(params["salary_currency"])[:3].upper()
 
-    for key in (
-        "keywords",
-        "seniority",
-        "employment_type",
-        "remote_policy",
-        "mapped_family",
-        "contract",
-        "travel",
-    ):
+    for key in ("keywords", "employment_type", "mapped_family"):
         values = _as_list(params.get(key))
         if values:
             filters[key] = values[:12]
+
+    for key in ("seniority", "remote_policy", "contract", "travel"):
+        values = _as_list(params.get(key))
+        if values:
+            filters[key] = values[:12]
+        excluded = _as_list(params.get(f"{key}_exclude"))
+        if excluded:
+            filters[f"{key}_exclude"] = excluded[:12]
 
     SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
     schedule = [cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES]
     if schedule:
         filters["schedule"] = schedule[:5]
+    schedule_excluded = [
+        cue for cue in _as_list(params.get("schedule_exclude")) if cue in SCHEDULE_CUE_VALUES
+    ]
+    if schedule_excluded:
+        filters["schedule_exclude"] = schedule_excluded[:5]
 
     BENEFIT_KIND_VALUES = (
         "healthcare",
@@ -226,8 +246,12 @@ def parse_explore_filters(params: dict) -> dict:
     if benefits:
         filters["benefits"] = benefits[:9]
 
-    if params.get("org"):
-        filters["org"] = str(params["org"]).strip()[:200]
+    orgs = [name[:200] for name in _as_list(params.get("org"))]
+    if orgs:
+        filters["org"] = orgs[:12]
+    org_excluded = [name[:200] for name in _as_list(params.get("org_exclude"))]
+    if org_excluded:
+        filters["org_exclude"] = org_excluded[:12]
     if params.get("city"):
         filters["city"] = str(params["city"]).strip()[:120]
     if params.get("country"):
@@ -236,6 +260,9 @@ def parse_explore_filters(params: dict) -> dict:
     sources = _as_list(params.get("source"))
     if sources:
         filters["source"] = sources[:10]
+    sources_excluded = _as_list(params.get("source_exclude"))
+    if sources_excluded:
+        filters["source_exclude"] = sources_excluded[:10]
 
     for key in ("saved", "seen", "applied", "extracted_only"):
         if params.get(key) not in (None, ""):
@@ -247,7 +274,7 @@ def parse_explore_filters(params: dict) -> dict:
 
 
 async def _resolve_skill_ids(db: AsyncSession, filters: dict) -> dict[str, UUID]:
-    keys = [key for key, _ in filters.get("skills") or []]
+    keys = [key for key, _ in (filters.get("skills") or []) + (filters.get("skill_exclude") or [])]
     if not keys:
         return {}
     rows = await db.execute(select(Skill).where(Skill.key.in_(keys)))
@@ -259,7 +286,7 @@ async def _resolve_skill_ids(db: AsyncSession, filters: dict) -> dict[str, UUID]
 
 
 async def _resolve_source_ids(db: AsyncSession, filters: dict) -> dict[str, UUID]:
-    keys = filters.get("source") or []
+    keys = list(filters.get("source") or []) + list(filters.get("source_exclude") or [])
     if not keys:
         return {}
     rows = await db.execute(select(JobSource).where(JobSource.key.in_(keys)))
@@ -297,30 +324,42 @@ def _conditions_for(
         ]
         conditions.append(or_(*per_keyword))
 
-    elif dimension == "skills" and filters.get("skills") and skill_ids:
-        per_skill = []
-        for key, lvl in filters["skills"]:
-            skill_id = skill_ids.get(key)
-            if skill_id is None:
-                continue
-            cond = select(PostingSkill.id).where(
-                PostingSkill.posting_id == JobPosting.id,
-                PostingSkill.skill_id == skill_id,
-            )
-            if filters.get("skill_priority"):
-                cond = cond.where(PostingSkill.priority == filters["skill_priority"])
-            if lvl is not None:
-                cond = cond.where(
-                    PostingSkill.required_level.is_not(None),
-                    PostingSkill.required_level >= lvl,
+    elif (
+        dimension == "skills"
+        and (filters.get("skills") or filters.get("skill_exclude"))
+        and skill_ids
+    ):
+
+        def _skill_exists(entries: list[tuple[str, int | None]]) -> list:
+            per_skill = []
+            for key, lvl in entries:
+                skill_id = skill_ids.get(key)
+                if skill_id is None:
+                    continue
+                cond = select(PostingSkill.id).where(
+                    PostingSkill.posting_id == JobPosting.id,
+                    PostingSkill.skill_id == skill_id,
                 )
-            per_skill.append(cond.exists())
-        if per_skill:
+                if filters.get("skill_priority"):
+                    cond = cond.where(PostingSkill.priority == filters["skill_priority"])
+                if lvl is not None:
+                    cond = cond.where(
+                        PostingSkill.required_level.is_not(None),
+                        PostingSkill.required_level >= lvl,
+                    )
+                per_skill.append(cond.exists())
+            return per_skill
+
+        include_conds = _skill_exists(filters.get("skills") or [])
+        if include_conds:
             conditions.append(
-                and_(*per_skill)
+                and_(*include_conds)
                 if (filters.get("skill_mode") or "all") == "all"
-                else or_(*per_skill)
+                else or_(*include_conds)
             )
+        exclude_conds = _skill_exists(filters.get("skill_exclude") or [])
+        if exclude_conds:
+            conditions.append(not_(or_(*exclude_conds)))
 
     elif dimension == "salary" and filters.get("salary_min") is not None:
         # Annualized basis: "pays at least X per year" matches the better
@@ -355,37 +394,65 @@ def _conditions_for(
         ]
         conditions.append(or_(*matches))
 
-    elif dimension == "seniority" and filters.get("seniority"):
-        conditions.append(JobPosting.seniority.in_(filters["seniority"]))
+    elif dimension in ("seniority", "employment_type", "remote_policy", "contract", "travel"):
+        column = {
+            "seniority": JobPosting.seniority,
+            "employment_type": JobPosting.employment_type,
+            "remote_policy": JobPosting.onsite_policy,
+            "contract": JobPosting.contract_type,
+            "travel": JobPosting.travel_class,
+        }[dimension]
+        if filters.get(dimension):
+            conditions.append(column.in_(filters[dimension]))
+        if filters.get(f"{dimension}_exclude"):
+            conditions.append(or_(column.is_(None), column.not_in(filters[f"{dimension}_exclude"])))
 
-    elif dimension == "employment_type" and filters.get("employment_type"):
-        conditions.append(JobPosting.employment_type.in_(filters["employment_type"]))
-
-    elif dimension == "remote_policy" and filters.get("remote_policy"):
-        conditions.append(JobPosting.onsite_policy.in_(filters["remote_policy"]))
-
-    elif dimension == "contract" and filters.get("contract"):
-        conditions.append(JobPosting.contract_type.in_(filters["contract"]))
-
-    elif dimension == "travel" and filters.get("travel"):
-        conditions.append(JobPosting.travel_class.in_(filters["travel"]))
-
-    elif dimension == "schedule" and filters.get("schedule"):
+    elif dimension == "schedule" and (filters.get("schedule") or filters.get("schedule_exclude")):
         facts_text = func.coalesce(func.cast(JobPosting.posting_facts, Text), "")
-        cue_conditions = [facts_text.like(f'%"{cue}"%') for cue in filters["schedule"]]
-        conditions.append(or_(*cue_conditions))
+        if filters.get("schedule"):
+            cue_conditions = [facts_text.like(f'%"{cue}"%') for cue in filters["schedule"]]
+            conditions.append(or_(*cue_conditions))
+        if filters.get("schedule_exclude"):
+            cue_conditions = [facts_text.like(f'%"{cue}"%') for cue in filters["schedule_exclude"]]
+            conditions.append(not_(or_(*cue_conditions)))
 
     elif dimension == "benefits" and filters.get("benefits"):
         facts_text = func.coalesce(func.cast(JobPosting.posting_facts, Text), "")
         kind_conditions = [facts_text.like(f'%"{kind}"%') for kind in filters["benefits"]]
         conditions.append(or_(*kind_conditions))
 
-    elif dimension == "org" and filters.get("org"):
-        conditions.append(
-            JobPosting.org_id.in_(
-                select(Organization.id).where(Organization.name.ilike(f"%{filters['org']}%"))
+    elif dimension == "org" and (filters.get("org") or filters.get("org_exclude")):
+        if filters.get("org"):
+            conditions.append(
+                JobPosting.org_id.in_(
+                    select(Organization.id).where(
+                        or_(
+                            *[
+                                Organization.name.ilike(f"%{_like_literal(name)}%", escape="\\")
+                                for name in filters["org"]
+                            ]
+                        )
+                    )
+                )
             )
-        )
+        if filters.get("org_exclude"):
+            # Postings with no resolved organization are not "the excluded
+            # org" — an exclude never drops them.
+            conditions.append(
+                or_(
+                    JobPosting.org_id.is_(None),
+                    JobPosting.org_id.not_in(
+                        select(Organization.id).where(
+                            or_(
+                                *[
+                                    Organization.name.ilike(f"%{_like_literal(name)}%", escape="\\")
+                                    for name in filters["org_exclude"]
+                                ]
+                            )
+                        )
+                    ),
+                )
+            )
 
     elif dimension == "location" and (filters.get("city") or filters.get("country")):
         if filters.get("city"):
@@ -413,10 +480,15 @@ def _conditions_for(
                 )
             )
 
-    elif dimension == "source" and filters.get("source"):
-        ids = [source_ids[key] for key in filters["source"] if key in source_ids]
-        if ids:
-            conditions.append(JobPosting.source_id.in_(ids))
+    elif dimension == "source" and (filters.get("source") or filters.get("source_exclude")):
+        include_ids = [source_ids[key] for key in filters.get("source") or [] if key in source_ids]
+        if include_ids:
+            conditions.append(JobPosting.source_id.in_(include_ids))
+        exclude_ids = [
+            source_ids[key] for key in filters.get("source_exclude") or [] if key in source_ids
+        ]
+        if exclude_ids:
+            conditions.append(JobPosting.source_id.not_in(exclude_ids))
 
     elif dimension == "mapped_family" and filters.get("mapped_family"):
         conditions.append(

@@ -10,7 +10,7 @@ from playwright.sync_api import expect
 
 
 def test_cover_letter_from_posting_to_ai_draft(page) -> None:
-    page.goto(f"{BASE_URL}/postings")
+    page.goto(f"{BASE_URL}/postings/feed")
     page.wait_for_selector('[data-testid="postings"]')
     details = page.get_by_test_id("posting-details").first
     details.wait_for(state="visible", timeout=30_000)

@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (tooling — gates and version tooling, 2026-10-29)
+- **version-manager gains a `check` subcommand** verifying every
+  propagated version target matches the repo version. Ruff now excludes
+  the vendored search-providers contract module from formatting and
+  linting, FastAPI's `Depends`/`Query`/`Body`… calls are recognized as
+  immutable by bugbear, and the OpenAI "legacy wire" wording is now
+  "completions wire" (D7 vocabulary sweep).
+
 ### Added (skill pages — /skills/:key, 2026-10-29)
 - **Every skill now has a page.** Open `/skills/:key` from the taxonomy
   table's new **Details** preview, a graph node's right-click menu or a

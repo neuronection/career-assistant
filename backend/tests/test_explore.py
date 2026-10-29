@@ -606,3 +606,173 @@ async def test_explore_org_filter(
     assert filtered.status_code == 200, filtered.text
     items = [i["id"] for i in filtered.json()["items"]]
     assert str(a.id) in items
+
+
+async def test_explore_org_include_list_and_exclude(
+    db,
+    client,
+    auth_headers,
+    profile_ready,
+    seeded_catalog,
+    source,
+    search_fixtures,
+):
+    from app.services.catalog.organization_service import OrganizationService
+
+    a, b, c = search_fixtures
+    org_a, _created = await OrganizationService(db).find_or_propose("AnalystCo")
+    org_b, _created = await OrganizationService(db).find_or_propose("BetaCo")
+    org_comma, _created = await OrganizationService(db).find_or_propose("Acme, Inc.")
+    a.org_id = org_a.id
+    b.org_id = org_b.id
+    comma_posting = await _make_posting(db, source, external_id="ex-org")
+    comma_posting.org_id = org_comma.id
+    await db.commit()
+
+    both = await client.get(
+        "/api/v1/postings/explore",
+        params=[("org", "AnalystCo"), ("org", "BetaCo")],
+        headers=auth_headers,
+    )
+    assert both.status_code == 200, both.text
+    ids = {i["id"] for i in both.json()["items"]}
+    assert str(a.id) in ids and str(b.id) in ids
+
+    # repeated params keep comma names whole — "Acme, Inc." is one org
+    comma = await client.get(
+        "/api/v1/postings/explore",
+        params=[("org", "Acme, Inc.")],
+        headers=auth_headers,
+    )
+    assert comma.status_code == 200, comma.text
+    ids = {i["id"] for i in comma.json()["items"]}
+    assert str(comma_posting.id) in ids
+    assert str(a.id) not in ids
+
+    excluded = await client.get(
+        "/api/v1/postings/explore",
+        params={"org_exclude": "AnalystCo"},
+        headers=auth_headers,
+    )
+    assert excluded.status_code == 200, excluded.text
+    ids = {i["id"] for i in excluded.json()["items"]}
+    assert str(a.id) not in ids
+    assert str(b.id) in ids
+    # c has no resolved organization — an exclude never drops it
+    assert str(c.id) in ids
+
+
+async def test_explore_skill_exclude(
+    db,
+    client,
+    auth_headers,
+    profile_ready,
+    seeded_catalog,
+    source,
+    kinds,
+    search_fixtures,
+):
+    a, b, c = search_fixtures
+
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"skill_exclude": "programming:3"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    ids = {i["id"] for i in response.json()["items"]}
+    # a requires programming at 5 (≥3) — excluded; b sits below the
+    # threshold and c's row has no extracted level — both stay
+    assert str(a.id) not in ids
+    assert str(b.id) in ids and str(c.id) in ids
+
+    clean = await _make_posting(
+        db,
+        source,
+        external_id="ex-d",
+        skills_raw=["programming"],
+        raw={"description": "We need programming. Salary: 40000-60000 EUR per year."},
+    )
+    any_mention = await client.get(
+        "/api/v1/postings/explore",
+        params={"skill_exclude": "problem-solving"},
+        headers=auth_headers,
+    )
+    assert any_mention.status_code == 200, any_mention.text
+    ids = {i["id"] for i in any_mention.json()["items"]}
+    # a, b and c all mention problem-solving (c at an unextracted level)
+    assert str(a.id) not in ids and str(b.id) not in ids and str(c.id) not in ids
+    assert str(clean.id) in ids
+
+    unknown = await client.get(
+        "/api/v1/postings/explore",
+        params={"skill_exclude": "nope"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 400
+    assert "nope" in unknown.json()["detail"]
+
+
+async def test_explore_seniority_exclude(
+    db,
+    client,
+    auth_headers,
+    profile_ready,
+    seeded_catalog,
+    source,
+    kinds,
+    search_fixtures,
+):
+    a, b, c = search_fixtures
+    a.seniority, b.seniority = "mid", "senior"
+    await db.commit()
+
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"seniority_exclude": "mid"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    ids = {i["id"] for i in response.json()["items"]}
+    assert str(a.id) not in ids
+    # b has another seniority; c has none — an exclude never drops
+    # postings whose value is unknown
+    assert str(b.id) in ids and str(c.id) in ids
+
+
+async def test_explore_source_exclude(
+    db,
+    client,
+    auth_headers,
+    profile_ready,
+    seeded_catalog,
+    source,
+    kinds,
+    search_fixtures,
+):
+    from app.models.posting_model import JobSource
+
+    a, _b, _c = search_fixtures
+    other = JobSource(key="synth2", connector_key="synthetic", config={}, enabled=True)
+    db.add(other)
+    await db.commit()
+    await db.refresh(other)
+    elsewhere = await _make_posting(db, other, external_id="ex-s2")
+
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"source_exclude": "synth"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    ids = {i["id"] for i in response.json()["items"]}
+    assert str(a.id) not in ids
+    assert str(elsewhere.id) in ids
+
+    unknown = await client.get(
+        "/api/v1/postings/explore",
+        params={"source_exclude": "nope"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 400
+    assert "nope" in unknown.json()["detail"]

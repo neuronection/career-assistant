@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bookmark, Plus, Radar, Search, X } from "lucide-react";
+import { Bookmark, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
@@ -10,57 +10,109 @@ import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
-import { EmptyState, SearchableDropdown } from "@/components/ui";
+import { EmptyState, Spinner } from "@/components/ui";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
+import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
+import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
+import {
+  Section,
+  TriStateChips,
+  triStateToggle,
+} from "@/features/postings/components/postings/filterBits";
 
 const POSTED_WINDOWS = [
-  { value: "", labelKey: "explore.posted.any" },
   { value: "24h", labelKey: "explore.posted.h24" },
   { value: "7d", labelKey: "explore.posted.d7" },
   { value: "30d", labelKey: "explore.posted.d30" },
   { value: "90d", labelKey: "explore.posted.d90" },
 ];
 
+const CONTRACT_VALUES = [
+  "permanent",
+  "temporary",
+  "contract",
+  "freelance",
+  "b2b",
+  "internship",
+  "apprenticeship",
+];
+
+const TRAVEL_VALUES = ["none", "occasional", "frequent"];
+const SCHEDULE_VALUES = ["shift_work", "on_call", "nights", "weekends", "flexible"];
+
 const EMPTY_FACETS: ExploreFacets = {};
 
 interface Filters {
   q: string;
   skills: { key: string; level: number | null }[];
+  skillsExclude: string[];
   skillMode: "all" | "any";
-  skillPriority: string;
   postedWithin: string;
   salaryMin: string;
   seniority: string[];
-  remotePolicy: string;
+  seniorityExclude: string[];
+  remotePolicy: string[];
+  remotePolicyExclude: string[];
   source: string[];
+  sourceExclude: string[];
   extractedOnly: boolean;
   saved: boolean;
   sort: string;
   contract: string[];
+  contractExclude: string[];
   travel: string[];
+  travelExclude: string[];
   schedule: string[];
-  org: string;
+  scheduleExclude: string[];
+  orgs: string[];
+  orgsExclude: string[];
 }
 
 const INITIAL: Filters = {
   q: "",
   skills: [],
+  skillsExclude: [],
   skillMode: "all",
-  skillPriority: "",
   postedWithin: "",
   salaryMin: "",
   seniority: [],
-  remotePolicy: "",
+  seniorityExclude: [],
+  remotePolicy: [],
+  remotePolicyExclude: [],
   source: [],
+  sourceExclude: [],
   extractedOnly: false,
   saved: false,
   sort: "fit",
   contract: [],
+  contractExclude: [],
   travel: [],
+  travelExclude: [],
   schedule: [],
-  org: "",
+  scheduleExclude: [],
+  orgs: [],
+  orgsExclude: [],
 };
+
+function countActive(f: Filters): number {
+  let n = 0;
+  if (f.q) n++;
+  n += f.skills.length + f.skillsExclude.length;
+  if (f.skillMode !== "all" && f.skills.length) n++;
+  if (f.postedWithin) n++;
+  if (f.salaryMin) n++;
+  n += f.seniority.length + f.seniorityExclude.length;
+  n += f.remotePolicy.length + f.remotePolicyExclude.length;
+  n += f.source.length + f.sourceExclude.length;
+  n += f.contract.length + f.contractExclude.length;
+  n += f.travel.length + f.travelExclude.length;
+  n += f.schedule.length + f.scheduleExclude.length;
+  n += f.orgs.length + f.orgsExclude.length;
+  if (f.extractedOnly) n++;
+  if (f.saved) n++;
+  return n;
+}
 
 export function Explore() {
   const { t } = useTranslation();
@@ -71,12 +123,14 @@ export function Explore() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [sources, setSources] = useState<PostingSourceInfo[]>([]);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
-  const [skillKey, setSkillKey] = useState("");
-  const [skillLevel, setSkillLevel] = useState<number | null>(null);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const loadingRef = useRef(false);
+  const filtersRef = useRef(filters);
 
   const paramsFrom = useCallback((current: Filters, nextCursor?: string | null): ExploreParams => {
     const params: ExploreParams = { sort: current.sort, limit: 20 };
@@ -86,17 +140,28 @@ export function Explore() {
         .map((s) => (s.level ? `${s.key}:${s.level}` : s.key))
         .join(",");
       params.skill_mode = current.skillMode;
-      if (current.skillPriority) params.skill_priority = current.skillPriority;
     }
+    if (current.skillsExclude.length) params.skill_exclude = current.skillsExclude.join(",");
     if (current.postedWithin) params.posted_within = current.postedWithin;
     if (current.salaryMin) params.salary_min = Number(current.salaryMin);
     if (current.seniority.length) params.seniority = current.seniority.join(",");
-    if (current.remotePolicy) params.remote_policy = current.remotePolicy;
+    if (current.seniorityExclude.length)
+      params.seniority_exclude = current.seniorityExclude.join(",");
+    if (current.remotePolicy.length) params.remote_policy = current.remotePolicy.join(",");
+    if (current.remotePolicyExclude.length)
+      params.remote_policy_exclude = current.remotePolicyExclude.join(",");
     if (current.source.length) params.source = current.source.join(",");
+    if (current.sourceExclude.length) params.source_exclude = current.sourceExclude.join(",");
     if (current.contract.length) params.contract = current.contract.join(",");
+    if (current.contractExclude.length)
+      params.contract_exclude = current.contractExclude.join(",");
     if (current.travel.length) params.travel = current.travel.join(",");
+    if (current.travelExclude.length) params.travel_exclude = current.travelExclude.join(",");
     if (current.schedule.length) params.schedule = current.schedule.join(",");
-    if (current.org) params.org = current.org;
+    if (current.scheduleExclude.length)
+      params.schedule_exclude = current.scheduleExclude.join(",");
+    if (current.orgs.length) params.org = current.orgs;
+    if (current.orgsExclude.length) params.org_exclude = current.orgsExclude;
     if (current.extractedOnly) params.extracted_only = true;
     if (current.saved) params.saved = true;
     if (nextCursor) params.cursor = nextCursor;
@@ -140,18 +205,50 @@ export function Explore() {
 
   const patch = (update: Partial<Filters>) => setFilters((prev) => ({ ...prev, ...update }));
 
-  const toggleIn = (list: string[], value: string) =>
-    list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
-  const addSkillFilter = () => {
-    if (!skillKey) return;
-    patch({
-      skills: filters.skills.some((s) => s.key === skillKey)
-        ? filters.skills
-        : [...filters.skills, { key: skillKey, level: skillLevel }],
-    });
-    setSkillKey("");
-    setSkillLevel(null);
+  const loadMore = useCallback(() => {
+    if (!cursor || loadingRef.current || radarActive) return;
+    const requestFilters = filters;
+    loadingRef.current = true;
+    setLoadingMore(true);
+    setError("");
+    void explorePostings(paramsFrom(requestFilters, cursor))
+      .then((response) => {
+        // a filter change that landed mid-flight re-owns the list —
+        // the stale page is dropped, never appended to it
+        if (requestFilters !== filtersRef.current) return;
+        setItems((prev) => [...prev, ...response.items]);
+        setTotal(response.total);
+        setFacets(response.facets ?? {});
+        setCursor(response.next_cursor ?? null);
+      })
+      .catch((err) => setError(String(err)))
+      .finally(() => {
+        loadingRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [cursor, filters, paramsFrom, radarActive]);
+
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || !cursor || radarActive) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) loadMore();
+      },
+      // start fetching just before the user reaches the end
+      { rootMargin: "480px 0px" }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [cursor, radarActive, loadMore]);
+
+  const addSkillFilter = (key: string) => {
+    if (!key || filters.skills.some((s) => s.key === key)) return;
+    patch({ skills: [...filters.skills, { key, level: null }] });
   };
 
   const saveThisSearch = () => {
@@ -210,20 +307,8 @@ export function Explore() {
     setCursor(null);
   };
 
-  const active =
-    filters.q ||
-    filters.skills.length ||
-    filters.postedWithin ||
-    filters.salaryMin ||
-    filters.seniority.length ||
-    filters.remotePolicy ||
-    filters.source.length ||
-    filters.extractedOnly ||
-    filters.saved ||
-    filters.contract.length ||
-    filters.travel.length ||
-    filters.schedule.length ||
-    filters.org;
+  const activeCount = countActive(filters);
+  const active = activeCount > 0;
 
   const facetCount = (group: string, key: string): number | undefined =>
     (facets ?? {})[group]?.[key];
@@ -266,10 +351,33 @@ export function Explore() {
       {savedNote && <p className="text-sm text-emerald-600" data-testid="saved-note">{savedNote}</p>}
 
       <div className="flex gap-6">
-        <aside className="w-64 shrink-0 space-y-4" data-testid="explore-filters">
-          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
+        <aside
+          className="w-64 shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          data-testid="explore-filters"
+        >
+          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-700">
+                {t("filters.title")}
+                {activeCount > 0 ? (
+                  <span className="ml-2 text-xs text-primary-600" data-testid="explore-filter-count">
+                    {t("filters.activeCount", { count: activeCount })}
+                  </span>
+                ) : null}
+              </div>
+              {active ? (
+                <button
+                  onClick={() => setFilters(INITIAL)}
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                  data-testid="clear-filters"
+                >
+                  {t("explore.clearAllFilters")}
+                </button>
+              ) : null}
+            </div>
+
             <label className="flex items-center gap-2 text-sm">
-              <Search className="w-4 h-4 text-slate-400" />
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
                 value={filters.q}
                 onChange={(e) => patch({ q: e.target.value })}
@@ -279,59 +387,53 @@ export function Explore() {
               />
             </label>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-              {t("explore.facet.skills")}
-            </p>
-              <div className="flex gap-1.5">
-                <div className="flex-1 min-w-0">
-                  <SearchableDropdown
-                    options={skillOptions}
-                    value={skillKey}
-                    onChange={(value) => setSkillKey(value)}
-                    placeholder={t("explore.addSkill")}
-                    clearable
-                  />
-                </div>
-                <select
-                  value={skillLevel ?? ""}
-                  onChange={(e) => setSkillLevel(e.target.value ? Number(e.target.value) : null)}
-                  className="text-xs border border-slate-200 rounded-lg px-1"
-                  aria-label={t("explore.skillLevel")}
-                  data-testid="level-select"
-                >
-                  <option value="">{t("explore.anyLevel")}</option>
-                  {Array.from({ length: 10 }, (_, i) => (
-                    <option key={i + 1} value={i + 1}>≥{i + 1}</option>
-                  ))}
-                </select>
-                <button
-                  onClick={addSkillFilter}
-                  disabled={!skillKey}
-                  className="text-xs px-2 py-1.5 rounded-lg bg-primary-600 text-white disabled:opacity-40"
-                  aria-label={t("explore.addSkillFilter")}
-                >
-                  <Plus className="w-3 h-3" />
-                </button>
-              </div>
+            <Section
+              title={t("explore.facet.skills")}
+              active={filters.skills.length > 0 || filters.skillsExclude.length > 0}
+              count={filters.skills.length + filters.skillsExclude.length}
+              defaultOpen
+            >
+              <SkillPicker
+                value={filters.skills.map((s) => s.key)}
+                onChange={(keys) =>
+                  patch({
+                    skills: keys.map(
+                      (key) => filters.skills.find((s) => s.key === key) ?? { key, level: null }
+                    ),
+                  })
+                }
+                placeholder={t("explore.addSkill")}
+              />
               {filters.skills.length > 0 && (
                 <>
-                  <select
-                    value={filters.skillMode}
-                    onChange={(e) => patch({ skillMode: e.target.value as "all" | "any" })}
-                    className="text-xs border border-slate-200 rounded-lg px-1 mt-1.5 w-full"
-                    aria-label={t("explore.skillMatchMode")}
-                  >
-                    <option value="all">{t("explore.allMustMatch")}</option>
-                    <option value="any">{t("explore.anyMatches")}</option>
-                  </select>
-                  <div className="flex flex-wrap gap-1 mt-1.5">
+                  <div className="flex flex-wrap gap-1">
                     {filters.skills.map((s) => (
                       <span
                         key={s.key}
-                        className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded flex items-center gap-1"
+                        className="text-xs bg-primary-50 text-primary-700 border border-primary-200 rounded-full px-2 py-0.5 flex items-center gap-1"
+                        data-testid={`skill-chip-${s.key}`}
                       >
-                        {s.key}{s.level ? ` ≥${s.level}` : ""}
+                        {skillOptions.find((o) => o.value === s.key)?.label ?? s.key}
+                        <select
+                          value={s.level ?? ""}
+                          onChange={(e) =>
+                            patch({
+                              skills: filters.skills.map((entry) =>
+                                entry.key === s.key
+                                  ? { ...entry, level: e.target.value ? Number(e.target.value) : null }
+                                  : entry
+                              ),
+                            })
+                          }
+                          className="bg-white border border-primary-200 rounded px-0.5 text-[11px] text-primary-700"
+                          aria-label={t("explore.skillLevel")}
+                          data-testid={`skill-level-${s.key}`}
+                        >
+                          <option value="">{t("explore.anyLevel")}</option>
+                          {Array.from({ length: 10 }, (_, i) => (
+                            <option key={i + 1} value={i + 1}>≥{i + 1}</option>
+                          ))}
+                        </select>
                         <button
                           onClick={() =>
                             patch({ skills: filters.skills.filter((f) => f.key !== s.key) })
@@ -343,16 +445,33 @@ export function Explore() {
                       </span>
                     ))}
                   </div>
+                  <select
+                    value={filters.skillMode}
+                    onChange={(e) => patch({ skillMode: e.target.value as "all" | "any" })}
+                    className="text-xs border border-slate-200 rounded-lg px-1 py-1 w-full"
+                    aria-label={t("explore.skillMatchMode")}
+                  >
+                    <option value="all">{t("explore.allMustMatch")}</option>
+                    <option value="any">{t("explore.anyMatches")}</option>
+                  </select>
                 </>
               )}
-              {((facets ?? {}).skills ? Object.keys((facets ?? {}).skills) : []).length > 0 && !active && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
+              <p className="text-xs font-medium text-slate-500 pt-1">
+                {t("explore.excludeSkills")}
+              </p>
+              <SkillPicker
+                value={filters.skillsExclude}
+                onChange={(keys) => patch({ skillsExclude: keys })}
+                placeholder={t("explore.excludeSkillPlaceholder")}
+              />
+              {!active && ((facets ?? {}).skills ? Object.keys((facets ?? {}).skills) : []).length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
                   {Object.entries((facets ?? {}).skills ?? {})
                     .slice(0, 8)
                     .map(([key, count]) => (
                       <button
                         key={key}
-                        onClick={() => patch({ skills: [...filters.skills, { key, level: null }] })}
+                        onClick={() => addSkillFilter(key)}
                         className="text-[10px] bg-slate-50 text-slate-500 border border-slate-100 px-1.5 py-0.5 rounded hover:bg-primary-50"
                       >
                         {key} · {count}
@@ -360,37 +479,27 @@ export function Explore() {
                     ))}
                 </div>
               )}
-            </div>
+            </Section>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.facet.posted")}</p>
-              <select
-                value={filters.postedWithin}
-                onChange={(e) => patch({ postedWithin: e.target.value })}
-                className="text-sm border border-slate-200 rounded-lg px-2 py-1.5 w-full"
-                data-testid="posted-within"
-              >
-                {POSTED_WINDOWS.map((w) => (
-                  <option key={w.value} value={w.value}>{t(w.labelKey)}</option>
-                ))}
-              </select>
-              {!active && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {Object.entries((facets ?? {}).posted ?? {}).map(([bucket, count]) => (
-                    <button
-                      key={bucket}
-                      onClick={() => patch({ postedWithin: bucket === "older" ? "90d" : bucket })}
-                      className="text-[10px] bg-slate-50 text-slate-500 border border-slate-100 px-1.5 py-0.5 rounded"
-                    >
-                      {bucket} · {count}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <Section title={t("explore.facet.posted")} active={!!filters.postedWithin}>
+              <TriStateChips
+                showCounts
+                allowExclude={false}
+                values={POSTED_WINDOWS.map((w) => ({
+                  value: w.value,
+                  label: t(w.labelKey),
+                  count: (facets ?? {}).posted?.[w.value],
+                  testId: `posted-${w.value}`,
+                }))}
+                include={filters.postedWithin ? [filters.postedWithin] : []}
+                exclude={[]}
+                onToggle={(value) =>
+                  patch({ postedWithin: filters.postedWithin === value ? "" : value })
+                }
+              />
+            </Section>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.salaryFrom")}</p>
+            <Section title={t("explore.salaryFrom")} active={!!filters.salaryMin}>
               <input
                 value={filters.salaryMin}
                 onChange={(e) => patch({ salaryMin: e.target.value.replace(/[^0-9]/g, "") })}
@@ -398,154 +507,167 @@ export function Explore() {
                 className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
                 data-testid="salary-min"
               />
-            </div>
+            </Section>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">{t("explore.seniority")}</p>
-              <div className="flex flex-wrap gap-1">
-                {Object.entries((facets ?? {}).seniority ?? {}).map(([value, count]) => (
-                  <button
-                    key={value}
-                    onClick={() => patch({ seniority: toggleIn(filters.seniority, value) })}
-                    className={`text-xs px-2 py-0.5 rounded border ${
-                      filters.seniority.includes(value)
-                        ? "bg-primary-600 text-white border-primary-600"
-                        : "border-slate-200 text-slate-600"
-                    }`}
-                  >
-                    {t(`explore.facetValue.${value}`, { defaultValue: value })} · {count}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.workMode")}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {Object.entries((facets ?? {}).remote_policy ?? {}).map(([value, count]) => (
-                  <button
-                    key={value}
-                    onClick={() => patch({ remotePolicy: filters.remotePolicy === value ? "" : value })}
-                    className={`text-xs px-2 py-0.5 rounded border ${
-                      filters.remotePolicy === value
-                        ? "bg-primary-600 text-white border-primary-600"
-                        : "border-slate-200 text-slate-600"
-                    }`}
-                  >
-                    {t(`explore.facetValue.${value}`, { defaultValue: value })} · {count}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.contract")}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {["permanent", "temporary", "contract", "freelance", "b2b", "internship", "apprenticeship"].map(
-                  (value) => (
-                    <button
-                      key={value}
-                      onClick={() => patch({ contract: toggleIn(filters.contract, value) })}
-                      className={`text-xs px-2 py-0.5 rounded border ${
-                        filters.contract.includes(value)
-                          ? "bg-primary-600 text-white border-primary-600"
-                          : "border-slate-200 text-slate-600"
-                      }`}
-                      data-testid={`contract-${value}`}
-                    >
-                      {t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") })}
-                    </button>
-                  ),
-                )}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.travel")}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {["none", "occasional", "frequent"].map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => patch({ travel: toggleIn(filters.travel, value) })}
-                    className={`text-xs px-2 py-0.5 rounded border ${
-                      filters.travel.includes(value)
-                        ? "bg-primary-600 text-white border-primary-600"
-                        : "border-slate-200 text-slate-600"
-                    }`}
-                    data-testid={`travel-${value}`}
-                  >
-                    {t(`explore.facetValue.${value}`, { defaultValue: value })}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.schedule")}
-              </p>
-              <div className="flex flex-wrap gap-1">
-                {["shift_work", "on_call", "nights", "weekends", "flexible"].map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => patch({ schedule: toggleIn(filters.schedule, value) })}
-                    className={`text-xs px-2 py-0.5 rounded border ${
-                      filters.schedule.includes(value)
-                        ? "bg-primary-600 text-white border-primary-600"
-                        : "border-slate-200 text-slate-600"
-                    }`}
-                    data-testid={`schedule-${value}`}
-                  >
-                    {t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") })}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.organization")}
-              </p>
-              <input
-                value={filters.org}
-                onChange={(e) => patch({ org: e.target.value })}
-                placeholder={t("explore.orgExample")}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
-                data-testid="org-filter"
+            <Section
+              title={t("explore.seniority")}
+              active={filters.seniority.length + filters.seniorityExclude.length > 0}
+              count={filters.seniority.length + filters.seniorityExclude.length}
+            >
+              <TriStateChips
+                showCounts
+                values={Object.entries((facets ?? {}).seniority ?? {}).map(([value, count]) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, { defaultValue: value }),
+                  count,
+                  testId: `seniority-${value}`,
+                }))}
+                include={filters.seniority}
+                exclude={filters.seniorityExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(
+                    filters.seniority,
+                    filters.seniorityExclude,
+                    value,
+                    mode
+                  );
+                  patch({ seniority: next.include, seniorityExclude: next.exclude });
+                }}
               />
-            </div>
+            </Section>
 
-            <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase mb-1">
-                {t("explore.facet.sources")}
+            <Section
+              title={t("explore.facet.workMode")}
+              active={filters.remotePolicy.length + filters.remotePolicyExclude.length > 0}
+              count={filters.remotePolicy.length + filters.remotePolicyExclude.length}
+            >
+              <TriStateChips
+                showCounts
+                values={Object.entries((facets ?? {}).remote_policy ?? {}).map(([value, count]) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, { defaultValue: value }),
+                  count,
+                  testId: `mode-${value}`,
+                }))}
+                include={filters.remotePolicy}
+                exclude={filters.remotePolicyExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(
+                    filters.remotePolicy,
+                    filters.remotePolicyExclude,
+                    value,
+                    mode
+                  );
+                  patch({ remotePolicy: next.include, remotePolicyExclude: next.exclude });
+                }}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.contract")}
+              active={filters.contract.length + filters.contractExclude.length > 0}
+              count={filters.contract.length + filters.contractExclude.length}
+            >
+              <TriStateChips
+                values={CONTRACT_VALUES.map((value) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") }),
+                  testId: `contract-${value}`,
+                }))}
+                include={filters.contract}
+                exclude={filters.contractExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(filters.contract, filters.contractExclude, value, mode);
+                  patch({ contract: next.include, contractExclude: next.exclude });
+                }}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.travel")}
+              active={filters.travel.length + filters.travelExclude.length > 0}
+              count={filters.travel.length + filters.travelExclude.length}
+            >
+              <TriStateChips
+                values={TRAVEL_VALUES.map((value) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, { defaultValue: value }),
+                  testId: `travel-${value}`,
+                }))}
+                include={filters.travel}
+                exclude={filters.travelExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(filters.travel, filters.travelExclude, value, mode);
+                  patch({ travel: next.include, travelExclude: next.exclude });
+                }}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.schedule")}
+              active={filters.schedule.length + filters.scheduleExclude.length > 0}
+              count={filters.schedule.length + filters.scheduleExclude.length}
+            >
+              <TriStateChips
+                values={SCHEDULE_VALUES.map((value) => ({
+                  value,
+                  label: t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") }),
+                  testId: `schedule-${value}`,
+                }))}
+                include={filters.schedule}
+                exclude={filters.scheduleExclude}
+                onToggle={(value, mode) => {
+                  const next = triStateToggle(filters.schedule, filters.scheduleExclude, value, mode);
+                  patch({ schedule: next.include, scheduleExclude: next.exclude });
+                }}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.organization")}
+              active={filters.orgs.length + filters.orgsExclude.length > 0}
+              count={filters.orgs.length + filters.orgsExclude.length}
+            >
+              <OrgPicker
+                value={filters.orgs}
+                onChange={(names) => patch({ orgs: names })}
+                placeholder={t("explore.orgPlaceholder")}
+              />
+              <p className="text-xs font-medium text-slate-500 pt-1">
+                {t("explore.excludeOrganizations")}
               </p>
-              <div className="space-y-1">
-                {sources.map((s) => (
-                  <label key={s.key} className="flex items-center justify-between text-xs text-slate-600">
-                    <span className="flex items-center gap-1">
-                      <input
-                        type="checkbox"
-                        checked={filters.source.includes(s.key)}
-                        onChange={() => patch({ source: toggleIn(filters.source, s.key) })}
-                      />
-                      {s.key}
-                    </span>
-                    <span className="text-slate-400">
-                      {facetCount("source", s.key) ?? s.open_postings}
-                    </span>
-                  </label>
-                ))}
-                {sources.length === 0 && (
-                  <p className="text-xs text-slate-400">{t("explore.noSources")}</p>
-                )}
-              </div>
-            </div>
+              <OrgPicker
+                value={filters.orgsExclude}
+                onChange={(names) => patch({ orgsExclude: names })}
+                placeholder={t("explore.excludeOrgPlaceholder")}
+              />
+            </Section>
+
+            <Section
+              title={t("explore.facet.sources")}
+              active={filters.source.length + filters.sourceExclude.length > 0}
+              count={filters.source.length + filters.sourceExclude.length}
+            >
+              {sources.length === 0 ? (
+                <p className="text-xs text-slate-400">{t("explore.noSources")}</p>
+              ) : (
+                <TriStateChips
+                  showCounts
+                  values={sources.map((s) => ({
+                    value: s.key,
+                    label: s.key,
+                    count: facetCount("source", s.key) ?? s.open_postings,
+                    testId: `source-${s.key}`,
+                  }))}
+                  include={filters.source}
+                  exclude={filters.sourceExclude}
+                  onToggle={(value, mode) => {
+                    const next = triStateToggle(filters.source, filters.sourceExclude, value, mode);
+                    patch({ source: next.include, sourceExclude: next.exclude });
+                  }}
+                />
+              )}
+            </Section>
 
             <label className="flex items-center justify-between text-xs text-slate-600">
               <span>{t("explore.deepExtractedOnly")}</span>
@@ -565,16 +687,6 @@ export function Explore() {
                 data-testid="saved-only"
               />
             </label>
-
-            {active && (
-              <button
-                onClick={() => setFilters(INITIAL)}
-                className="text-xs text-slate-400 hover:text-slate-600"
-                data-testid="clear-filters"
-              >
-                {t("explore.clearAllFilters")}
-              </button>
-            )}
           </div>
         </aside>
 
@@ -595,13 +707,12 @@ export function Explore() {
             />
           ))}
           {cursor && !radarActive && (
-            <button
-              onClick={() => load(filters, true)}
-              className="text-sm text-primary-700 hover:underline"
-              data-testid="load-more"
-            >
-              {t("explore.loadMore")}
-            </button>
+            <div ref={sentinelRef} className="h-px" data-testid="load-more-sentinel" />
+          )}
+          {loadingMore && (
+            <div className="flex justify-center py-4" data-testid="loading-more">
+              <Spinner size="lg" label={t("explore.loadingMore")} />
+            </div>
           )}
           {radarActive && (
             <button

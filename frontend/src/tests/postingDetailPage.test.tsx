@@ -175,7 +175,7 @@ function renderPage(entry = "/postings/P3KX9Q2A") {
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/postings/:ref" element={<PostingDetailPage />} />
-        <Route path="/postings" element={<div data-testid="list-page" />} />
+        <Route path="/postings/feed" element={<div data-testid="list-page" />} />
         <Route path="/applications" element={<div data-testid="applications-page" />} />
       </Routes>
     </MemoryRouter>
@@ -207,9 +207,13 @@ describe("PostingDetailPage", () => {
 
     const timeline = await screen.findByTestId("posting-timeline");
     expect(timeline).toHaveTextContent("5 days ago");
-    expect(timeline).toHaveTextContent("3 days ago");
-    expect(timeline).toHaveTextContent("2 hours ago");
     expect(timeline).toHaveTextContent("in 12 days");
+    // first-seen / last-updated are trivia: behind the info toggle
+    expect(timeline).not.toHaveTextContent("3 days ago");
+    fireEvent.click(screen.getByTestId("timeline-info"));
+    const panel = await screen.findByTestId("timeline-info-panel");
+    expect(panel).toHaveTextContent("3 days ago");
+    expect(panel).toHaveTextContent("2 hours ago");
   });
 
   it("collapses long raw descriptions behind Show more", async () => {
@@ -273,7 +277,7 @@ describe("PostingDetailPage", () => {
     expect(
       await screen.findByText("This posting is no longer available.")
     ).toBeInTheDocument();
-    expect(screen.getByText("All postings")).toHaveAttribute("href", "/postings");
+    expect(screen.getByText("All postings")).toHaveAttribute("href", "/postings/feed");
   });
 
   it("renders the structured extract sections with evidence quotes", async () => {

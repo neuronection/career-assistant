@@ -259,6 +259,12 @@ async def postings_explore(
     for key, values in multi.items():
         if values and "," in values[0]:
             raw[key] = [part.strip() for part in values[0].split(",") if part.strip()]
+    # org names may contain commas ("Acme, Inc.") — repeated params only,
+    # never comma-split (unlike the enum axes below).
+    for key in ("org", "org_exclude"):
+        values = [value.strip() for value in request.query_params.getlist(key) if value.strip()]
+        if values:
+            raw[key] = values
     for key in (
         "seniority",
         "employment_type",

@@ -45,7 +45,7 @@ Open a company to see everything about it in one place:
 - **Open postings** — every open posting as the **same card the live feed
   uses**: fit bubble, requirement-ordered skills, and the same actions
   (apply, save, hide — applied/saved state stays in sync with
-  `/postings`). The card opens the posting's in-app page
+  `/postings/feed`). The card opens the posting's in-app page
   (`/postings/:ref`); the source-board link is the card's Apply action.
 
 ## Where the data comes from

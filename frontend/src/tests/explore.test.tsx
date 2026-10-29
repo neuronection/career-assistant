@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
 import { explorePostings } from "@/api/postings";
+import { fetchCompanies } from "@/api/companies";
 import { recordSearch, saveSearch } from "@/api/engagement";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
@@ -19,6 +20,19 @@ vi.mock("@/api/postings", async (importOriginal) => {
     ]),
   };
 });
+
+vi.mock("@/api/companies", () => ({
+  fetchCompanies: vi.fn().mockResolvedValue([
+    {
+      key: "acme",
+      name: "Acme Corp",
+      status: "active",
+      industry_tags: [],
+      open_postings: 4,
+      has_profile: false,
+    },
+  ]),
+}));
 
 vi.mock("@/api/skills", () => ({
   fetchSkillOntology: vi.fn().mockResolvedValue([
@@ -36,21 +50,36 @@ vi.mock("@/api/engagement", async (importOriginal) => {
   };
 });
 
-vi.mock("@/components/ui", async (importOriginal) => {
-  const mod = await importOriginal<typeof import("@/components/ui")>();
-  const FakeCombobox = (props: { value?: string; onChange: (v: string) => void }) => (
-    <input
-      data-testid="skill-combobox"
-      value={props.value ?? ""}
-      onChange={(e) => props.onChange(e.target.value)}
-    />
-  );
-  return { ...mod, SearchableDropdown: FakeCombobox };
-});
+class MockIntersectionObserver {
+  static latest: MockIntersectionObserver | null = null;
+  private callback: IntersectionObserverCallback;
+  observe = vi.fn();
+  disconnect = vi.fn();
+  unobserve = vi.fn();
+  constructor(callback: IntersectionObserverCallback) {
+    this.callback = callback;
+    MockIntersectionObserver.latest = this;
+  }
+  static triggerIntersecting() {
+    MockIntersectionObserver.latest?.callback(
+      [{ isIntersecting: true } as unknown as IntersectionObserverEntry],
+      MockIntersectionObserver.latest as unknown as IntersectionObserver
+    );
+  }
+}
+vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
 
 const mockExplore = vi.mocked(explorePostings);
+const mockCompanies = vi.mocked(fetchCompanies);
 const mockRecord = vi.mocked(recordSearch);
 const mockSave = vi.mocked(saveSearch);
+
+async function pickFromPlaceholder(placeholder: string, query: string, optionName: RegExp | string) {
+  const input = screen.getByPlaceholderText(placeholder);
+  fireEvent.change(input, { target: { value: query } });
+  const option = await screen.findByRole("option", { name: optionName });
+  fireEvent.click(option);
+}
 
 function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   return {
@@ -96,10 +125,24 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
 
 beforeEach(() => {
   mockExplore.mockResolvedValue(exploreResponse());
+  mockCompanies.mockResolvedValue([
+    {
+      key: "acme",
+      name: "Acme Corp",
+      status: "active",
+      industry_tags: [],
+      open_postings: 4,
+      has_profile: false,
+    },
+  ]);
 });
 
+function openSection(title: string) {
+  fireEvent.click(screen.getByText(title));
+}
+
 describe("Explore page", () => {
-  it("renders filters, facet badges and results", async () => {
+  it("renders filters, facet counts and results", async () => {
     render(
       <MemoryRouter>
         <Explore />
@@ -109,13 +152,16 @@ describe("Explore page", () => {
     expect(await screen.findByTestId("posting-title")).toHaveTextContent(
       "Backend Engineer"
     );
-    // facet badges drive the filter sidebar
-    expect(screen.getByText("Mid-level · 2")).toBeInTheDocument();
+    openSection("Seniority");
+    openSection("Sources");
+    // facet counts ride the tri-state chips
+    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("Mid-level");
+    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("2");
     expect(screen.getByText("programming · 2")).toBeInTheDocument();
-    expect((await screen.findAllByText("synth")).length).toBeGreaterThan(0);
+    expect(screen.getByTestId("source-synth")).toHaveTextContent("synth");
   });
 
-  it("passes v2 lifestyle filters to the API", async () => {
+  it("passes v2 lifestyle filters and the org picker to the API", async () => {
     mockExplore.mockResolvedValue(exploreResponse());
     const user = userEvent.setup();
     render(
@@ -125,17 +171,21 @@ describe("Explore page", () => {
     );
     await screen.findByTestId("explore");
 
+    openSection("Contract");
+    openSection("Travel");
+    openSection("Schedule");
+    openSection("Organization");
     await user.click(screen.getByTestId("contract-internship"));
     await user.click(screen.getByTestId("travel-none"));
     await user.click(screen.getByTestId("schedule-nights"));
-    await user.type(screen.getByTestId("org-filter"), "Acme");
+    await pickFromPlaceholder("Add organization…", "Acme", /Acme Corp/);
 
     await waitFor(() => {
       const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
       expect(call.contract).toBe("internship");
       expect(call.travel).toBe("none");
       expect(call.schedule).toBe("nights");
-      expect(call.org).toBe("Acme");
+      expect(call.org).toEqual(["Acme Corp"]);
     });
   });
 
@@ -161,16 +211,12 @@ describe("Explore page", () => {
     fireEvent.change(screen.getByTestId("explore-q"), {
       target: { value: "engineer" },
     });
-    fireEvent.change(screen.getByTestId("skill-combobox"), {
-      target: { value: "programming" },
-    });
-    fireEvent.change(screen.getByTestId("level-select"), {
+    await pickFromPlaceholder("Add skill…", "prog", /Programming/);
+    fireEvent.change(await screen.findByTestId("skill-level-programming"), {
       target: { value: "4" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Add skill filter" }));
-    fireEvent.change(screen.getByTestId("posted-within"), {
-      target: { value: "7d" },
-    });
+    openSection("Posted");
+    fireEvent.click(screen.getByTestId("posted-7d"));
 
     await waitFor(() =>
       expect(mockExplore).toHaveBeenLastCalledWith(
@@ -183,7 +229,10 @@ describe("Explore page", () => {
       )
     );
 
-    fireEvent.click(await screen.findByTestId("load-more"));
+    // infinite scroll: reaching the sentinel auto-loads the next page —
+    // there is no load-more button anymore
+    expect(screen.queryByTestId("load-more")).not.toBeInTheDocument();
+    MockIntersectionObserver.triggerIntersecting();
     await waitFor(() =>
       expect(mockExplore).toHaveBeenLastCalledWith(
         expect.objectContaining({ cursor: "abc" })
@@ -191,6 +240,65 @@ describe("Explore page", () => {
     );
     // page 2 appended: 2 + 2 cards on screen
     expect(screen.getAllByTestId("posting-card")).toHaveLength(4);
+  });
+
+  it("inverts a seniority facet into an exclude on the second click", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    openSection("Seniority");
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ seniority: "mid" })
+      )
+    );
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ seniority_exclude: "mid" })
+      )
+    );
+    const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+    expect(call.seniority).toBeUndefined();
+  });
+
+  it("excludes skills, sources and organizations", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    openSection("Organization");
+    openSection("Sources");
+    await pickFromPlaceholder("Exclude skill…", "prog", /Programming/);
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ skill_exclude: "programming" })
+      )
+    );
+
+    // right-click excludes directly
+    fireEvent.contextMenu(screen.getByTestId("source-synth"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ source_exclude: "synth" })
+      )
+    );
+
+    await pickFromPlaceholder("Exclude organization…", "Acme", /Acme Corp/);
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ org_exclude: ["Acme Corp"] })
+      )
+    );
   });
 
   it("saves the current filter set as a saved search", async () => {

@@ -96,13 +96,27 @@ reviewed before they ever widen a filter.
 
 ## The Explore page
 
-**Postings → Search** (`/postings/search`) filters every structured field —
-including contract type, travel, schedule cues, benefits and organization —
-with live facet counts. You can:
+**Postings → Search** (`/postings/search`) is the Postings default and
+filters every structured field — including contract type, travel, schedule
+cues, benefits and organization — with live facet counts. The filter rail
+speaks the same language as the feed's:
+
+- every multi-value axis is **tri-state** — click a chip to include, click
+  again to exclude (rendered struck in red), click once more to clear;
+  right-click excludes directly,
+- **skills** use the type-ahead picker with the browse-catalog modal and a
+  per-skill minimum level, plus a second picker for **excluded skills**,
+- **organization** is picked from the companies catalog (search popup)
+  with its own exclude list,
+- **sources** are include/exclude chips with live counts.
+
+You can also:
 
 - **Save searches** and schedule them (see
   [Notifications and scheduler](notifications-and-scheduler.md)).
-- **Paginate by cursor** through large result sets.
+- **Scroll** — results load infinitely: the next page fetches
+  automatically as you approach the end (cursor pagination under the
+  hood).
 
 ## Opening a posting
 
@@ -127,8 +141,9 @@ everything the system knows about the role:
 new tab and records the click; beside it sit the cover-letter draft, the
 practice interview and the [application tracker](applications.md) entry.
 
-The **Postings feed** (`/postings`) is the discovery view of everything
-available, ordered unseen-first.
+The **Postings feed** (`/postings/feed`) is the discovery view of everything
+available, ordered unseen-first. **Search is the default landing** —
+`/postings` opens the Explore page.
 
 ## Semantic search
 
@@ -151,8 +166,8 @@ similar-but-different employers apart, and near-misses queue for the AI
 arbiter — a confident match links, a confident "different" creates the
 new company, anything unsettled becomes a merge suggestion. Filter the
 feed by company with the `company` chip or the **no company** audit
-filter on `/postings`, and open any card's company name to see all of
-that employer's postings on `/companies/:key`.
+filter on `/postings/feed`, and open any card's company name to see all
+of that employer's postings on `/companies/:key`.
 
 ## Related
 
