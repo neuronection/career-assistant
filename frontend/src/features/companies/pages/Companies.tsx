@@ -125,58 +125,67 @@ export function Companies() {
   };
 
   return (
-    <div className="ca-card-page max-w-6xl mx-auto space-y-6" data-testid="companies">
+    <div className="space-y-4" data-testid="companies">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="relative min-w-0 flex-1 basis-56">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--as-muted-fg)]" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("companies.searchPlaceholder")}
-            aria-label={t("companies.searchPlaceholder")}
-            className="w-full rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] py-2 pl-9 pr-3 text-sm text-[var(--as-fg)] outline-none focus:border-[var(--as-accent)]"
-            data-testid="company-search"
-          />
-        </label>
-        <div className="flex gap-1.5" data-testid="company-filter-statuses">
-          {FILTERS.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={filter === mode}
-              onClick={() => setFilter(mode)}
-              className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${
-                filter === mode
-                  ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
-                  : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
-              }`}
-              data-testid={`company-filter-${mode}`}
-            >
-              {t(`companies.filter.${mode}`)}
-            </button>
-          ))}
-        </div>
-      </div>
+      <div className="flex gap-6">
+        <aside
+          className="w-64 shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          data-testid="company-filters"
+        >
+          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-700">
+                {t("companies.railTitle")}
+              </div>
+              {filtersActive > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                  data-testid="company-filters-clear"
+                >
+                  {t("companies.clearFilters", { count: filtersActive })}
+                </button>
+              ) : null}
+            </div>
 
-      <div className="space-y-2" data-testid="company-filter-rail">
-        <div className="flex items-center justify-between">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-            {t("companies.railTitle")}
-          </p>
-          {filtersActive > 0 ? (
-            <button
-              type="button"
-              onClick={clearAll}
-              className="text-xs text-[var(--as-accent)] underline decoration-transparent transition-colors hover:decoration-current"
-              data-testid="company-filters-clear"
-            >
-              {t("companies.clearFilters", { count: filtersActive })}
-            </button>
-          ) : null}
-        </div>
-        <div className="grid gap-2 lg:grid-cols-2">
+            <label className="flex items-center gap-2 text-sm">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={t("companies.searchPlaceholder")}
+                aria-label={t("companies.searchPlaceholder")}
+                className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+                data-testid="company-search"
+              />
+            </label>
+
+            <div data-testid="company-filter-statuses">
+              <p className="text-xs font-medium text-slate-500 pt-1">
+                {t("companies.statusTitle")}
+              </p>
+              <div className="flex flex-wrap gap-1 pt-1">
+                {FILTERS.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={filter === mode}
+                    onClick={() => setFilter(mode)}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      filter === mode
+                        ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                    data-testid={`company-filter-${mode}`}
+                  >
+                    {t(`companies.filter.${mode}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+        <div className="grid gap-2">
           <Section
             title={t("companies.facetTitle.work_mode")}
             active={workMode.include.length + workMode.exclude.length > 0}
@@ -236,9 +245,9 @@ export function Companies() {
             />
           </Section>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs text-[var(--as-muted-fg)]">
-            <span className="mb-1 block font-semibold uppercase tracking-wide">
+        <div className="space-y-2 pt-1">
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium text-slate-500">
               {t("companies.facetTitle.locations")}
             </span>
             <input
@@ -246,19 +255,19 @@ export function Companies() {
               onChange={(e) => setLocation(e.target.value)}
               placeholder={t("companies.locationPlaceholder")}
               aria-label={t("companies.facetTitle.locations")}
-              className="w-44 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
               data-testid="company-filter-location"
             />
           </label>
-          <label className="text-xs text-[var(--as-muted-fg)]">
-            <span className="mb-1 block font-semibold uppercase tracking-wide">
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium text-slate-500">
               {t("companies.facetTitle.minOpen")}
             </span>
             <select
               value={String(minOpen)}
               onChange={(e) => setMinOpen(Number(e.target.value))}
               aria-label={t("companies.facetTitle.minOpen")}
-              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
               data-testid="company-filter-min-open"
             >
               {MIN_OPEN_OPTIONS.map((option) => (
@@ -269,8 +278,10 @@ export function Companies() {
             </select>
           </label>
         </div>
-      </div>
+          </div>
+        </aside>
 
+        <div className="flex-1 space-y-3">
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
       {!loaded ? (
@@ -301,6 +312,8 @@ export function Companies() {
           ))}
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

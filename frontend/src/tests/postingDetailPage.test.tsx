@@ -175,7 +175,7 @@ function renderPage(entry = "/postings/P3KX9Q2A") {
     <MemoryRouter initialEntries={[entry]}>
       <Routes>
         <Route path="/postings/:ref" element={<PostingDetailPage />} />
-        <Route path="/postings/feed" element={<div data-testid="list-page" />} />
+        <Route path="/postings" element={<div data-testid="list-page" />} />
         <Route path="/applications" element={<div data-testid="applications-page" />} />
       </Routes>
     </MemoryRouter>
@@ -277,7 +277,7 @@ describe("PostingDetailPage", () => {
     expect(
       await screen.findByText("This posting is no longer available.")
     ).toBeInTheDocument();
-    expect(screen.getByText("All postings")).toHaveAttribute("href", "/postings/feed");
+    expect(screen.getByText("All postings")).toHaveAttribute("href", "/postings");
   });
 
   it("renders the structured extract sections with evidence quotes", async () => {

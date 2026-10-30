@@ -176,7 +176,7 @@ export function Onboarding() {
             </p>
           </Link>
           <Link
-            to="/postings/search"
+            to="/postings"
             className="rounded-2xl border border-[var(--as-border)] bg-[var(--as-surface)] p-5 hover:border-[var(--as-accent)]"
             data-testid="finish-explore"
           >

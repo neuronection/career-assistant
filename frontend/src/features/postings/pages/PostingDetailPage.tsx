@@ -187,12 +187,12 @@ export function PostingDetailPage() {
 
   function hide() {
     if (posting === null) return;
-    void hidePosting(posting.id, true).then(() => navigate("/postings/feed"));
+    void hidePosting(posting.id, true).then(() => navigate("/postings"));
   }
 
   const backLink = (
     <Link
-      to="/postings/feed"
+      to="/postings"
       className="inline-flex items-center gap-1.5 text-sm text-primary-700 hover:underline"
     >
       <ArrowLeft className="w-4 h-4" /> {t("postingDetail.backToPostings")}

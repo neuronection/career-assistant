@@ -105,11 +105,11 @@ export const scenes = [
   {
     name: "postings",
     group: "Career exploration",
-    caption: "Live postings feed from connected sources.",
-    narration: "Live postings arrive from connected boards, deduplicated and linked to catalog roles.",
-    path: "/postings/feed",
+    caption: "Search live postings from connected sources — filters over the hiring those companies prove.",
+    narration: "Live postings arrive from connected boards, deduplicated and linked to catalog roles — searchable and filterable.",
+    path: "/postings",
     viewports: ["desktop"],
-    waitForSelector: "[data-testid='postings-page']",
+    waitForSelector: "[data-testid='explore']",
   },
   {
     name: "posting-detail",

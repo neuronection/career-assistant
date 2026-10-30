@@ -100,8 +100,8 @@ reviewed before they ever widen a filter.
 
 ## The Explore page
 
-**Postings → Search** (`/postings/search`) is the Postings default and
-filters every structured field — including contract type, travel, schedule
+**Postings** (`/postings`) — the page IS the search, and it filters
+every structured field — including contract type, travel, schedule
 cues, benefits and organization — with live facet counts. The filter rail
 speaks the same language as the feed's:
 
@@ -145,10 +145,6 @@ everything the system knows about the role:
 new tab and records the click; beside it sit the cover-letter draft, the
 practice interview and the [application tracker](applications.md) entry.
 
-The **Postings feed** (`/postings/feed`) is the discovery view of everything
-available, ordered unseen-first. **Search is the default landing** —
-`/postings` opens the Explore page.
-
 ## Semantic search
 
 Postings embed into a portable vector store (pgvector optional; plain
@@ -168,10 +164,9 @@ fuzzy scores link without asking. Learned name variants persist as
 reviewable alias rows, per-pair "never link" exclusions keep
 similar-but-different employers apart, and near-misses queue for the AI
 arbiter — a confident match links, a confident "different" creates the
-new company, anything unsettled becomes a merge suggestion. Filter the
-feed by company with the `company` chip or the **no company** audit
-filter on `/postings/feed`, and open any card's company name to see all
-of that employer's postings on `/companies/:key`.
+new company, anything unsettled becomes a merge suggestion. Filter by company with the `company` chip or the **no company** audit
+filter, and open any card's company name to see all of that employer's
+postings on `/companies/:key`.
 
 ## Related
 

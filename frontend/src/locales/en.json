@@ -283,7 +283,7 @@
     "feedCaughtUp": "Your feed is all caught up. Nice.",
     "dismissNudge": "Dismiss nudge",
     "targetMode": "Target mode",
-    "liveTab": "Live tab →",
+    "liveTab": "Postings →",
     "microRun": "5-min micro-run",
     "openTargetJobs": "Open jobs for your targets",
     "expandCareer": "Expand your career",
@@ -523,9 +523,6 @@
     "saved": "Saved"
   },
   "postings": {
-    "title": "Postings",
-    "tabFeed": "Feed",
-    "tabSearch": "Search",
     "sortBestFit": "Best fit",
     "sortFreshest": "Freshest",
     "filterBySkill": "Filter by skill…",
@@ -938,8 +935,8 @@
   },
   "scheduler": {
     "searchesTitle": "Scheduled searches",
-    "searchesBody": "The app runs your saved postings searches on a schedule — new matches ping you and land in the Live tab.",
-    "noSavedSearches": "No saved searches yet — save one from the Live tab first.",
+    "searchesBody": "The app runs your saved postings searches on a schedule — new matches ping you and land in Postings.",
+    "noSavedSearches": "No saved searches yet — save one from Postings first.",
     "filtersOnly": "filters only",
     "notScheduled": "not scheduled",
     "failures_one": "{{count}} failure",
@@ -4381,7 +4378,8 @@
       "employment": {},
       "industries": {},
       "locations": {}
-    }
+    },
+    "statusTitle": "Status"
   },
   "companyDetail": {
     "back": "All companies",

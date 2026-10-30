@@ -283,7 +283,7 @@
     "feedCaughtUp": "Ihr Feed ist auf dem neuesten Stand. Schön.",
     "dismissNudge": "Benachrichtigung ablehnen",
     "targetMode": "Zielmodus",
-    "liveTab": "Live-Tab →",
+    "liveTab": "Stellen →",
     "microRun": "5-minütiger Micro-Run",
     "openTargetJobs": "Stellen für Ihre Ziele öffnen",
     "expandCareer": "Erweitern Sie Ihre Karriere",
@@ -523,9 +523,6 @@
     "saved": "Gespeichert"
   },
   "postings": {
-    "title": "Stellenangebote",
-    "tabFeed": "Feed",
-    "tabSearch": "Suche",
     "sortBestFit": "Beste Übereinstimmung",
     "sortFreshest": "Neueste",
     "filterBySkill": "Filter nach Fähigkeit…",
@@ -938,8 +935,8 @@
   },
   "scheduler": {
     "searchesTitle": "Geplante Suchanfragen",
-    "searchesBody": "Die App führt Ihre gespeicherten Suchanfragen nach Zeitplan aus — neue Übereinstimmungen benachrichtigen Sie und landen im Live-Tab.",
-    "noSavedSearches": "Noch keine gespeicherten Suchanfragen — starten Sie zuerst eine von der Live-Seite aus.",
+    "searchesBody": "Die App führt deine gespeicherten Suchen nach Zeitplan aus — neue Treffer landen in den Stellen.",
+    "noSavedSearches": "Noch keine gespeicherten Suchen — speichere eine in den Stellen.",
     "filtersOnly": "Nur filtern",
     "notScheduled": "nicht geplant",
     "failures_one": "{{count}} Fehler",
@@ -4380,7 +4377,8 @@
       "employment": {},
       "industries": {},
       "locations": {}
-    }
+    },
+    "statusTitle": "Status"
   },
   "companyDetail": {
     "back": "Alle Unternehmen",
