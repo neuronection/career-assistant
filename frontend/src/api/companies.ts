@@ -13,6 +13,7 @@ export interface CompanyQuery {
   min_open?: number;
   industry?: string[];
   location?: string;
+  sort?: string;
   facets?: boolean;
 }
 
@@ -34,6 +35,7 @@ function toParams(query: CompanyQuery): Record<string, unknown> {
   }
   if (query.min_open) params.min_open = query.min_open;
   if (query.location?.trim()) params.location = query.location.trim();
+  if (query.sort) params.sort = query.sort;
   if (query.facets) params.facets = true;
   return params;
 }

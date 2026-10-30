@@ -324,6 +324,7 @@ export interface ExploreParams {
   mapped_family?: string;
   saved?: boolean;
   seen?: boolean;
+  seen_exclude?: boolean;
   applied?: boolean;
   extracted_only?: boolean;
   contract?: string;

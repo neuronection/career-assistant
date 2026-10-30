@@ -112,7 +112,26 @@ speaks the same language as the feed's:
   per-skill minimum level, plus a second picker for **excluded skills**,
 - **organization** is picked from the companies catalog (search popup)
   with its own exclude list,
-- **sources** are include/exclude chips with live counts.
+- **sources** are include/exclude chips with live counts,
+- **state toggles** sit under the facets: deep-extracted only, saved
+  only and **Hide seen** — reviewed postings drop out of the list without
+  touching the other filters.
+
+### Sorting results
+
+The results header sorts the list without changing the filters: **Best
+fit** (the default), **Newest** (posted date), **Highest salary**
+(annualized range; unknown salary sorts last) and — once you type a
+search query — **Relevance**, which fuses the lexical match with the
+semantic ranking. Changing the sort restarts the list at page one; the
+fit score stays on every card whichever order you pick.
+
+**Every filter and the sort live in the URL** — the address bar carries
+the whole search (`/postings?sort=salary&seniority=mid&seen_exclude=true`,
+skills as `skills=programming:4`, organizations as repeated `org=` values).
+A reload, the browser's back button and a shared or bookmarked link all
+open the same filtered view; unknown or malformed values are dropped and
+the page falls back to its defaults.
 
 You can also:
 
@@ -121,6 +140,16 @@ You can also:
 - **Scroll** — results load infinitely: the next page fetches
   automatically as you approach the end (cursor pagination under the
   hood).
+
+### Seen, at a glance
+
+A posting is marked seen when you open it or send an application, and
+the **"Mark as seen"** action in an unseen card's status line marks it
+seen without opening anything — one click, no menu, and the same slot
+then shows the quiet double-check. Seen cards stay fully readable
+(nothing is dimmed): that double-check and a **neutral bar down the
+card's left edge** identify them, so a long results list separates fresh
+openings from ones you already reviewed. Marking is one-way.
 
 ## Opening a posting
 

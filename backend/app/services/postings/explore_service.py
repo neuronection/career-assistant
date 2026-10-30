@@ -81,6 +81,14 @@ def _utcnow() -> datetime:
 # ------------------------------------------------------------ filter parser
 
 
+def _as_bool(value: Any) -> bool:
+    """Query strings arrive as text: ``false``/``0``/``no``/``off`` are OFF,
+    any other non-empty value is ON."""
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "0", "false", "no", "off")
+    return bool(value)
+
+
 def parse_explore_filters(params: dict) -> dict:
     """Normalize raw query/JSON params into a typed filter dict.
 
@@ -114,6 +122,7 @@ def parse_explore_filters(params: dict) -> dict:
         "mapped_family",
         "saved",
         "seen",
+        "seen_exclude",
         "applied",
         "extracted_only",
         "contract",
@@ -264,9 +273,9 @@ def parse_explore_filters(params: dict) -> dict:
     if sources_excluded:
         filters["source_exclude"] = sources_excluded[:10]
 
-    for key in ("saved", "seen", "applied", "extracted_only"):
-        if params.get(key) not in (None, ""):
-            filters[key] = bool(params.get(key))
+    for key in ("saved", "seen", "seen_exclude", "applied", "extracted_only"):
+        if params.get(key) not in (None, "") and _as_bool(params[key]):
+            filters[key] = True
     return filters
 
 
@@ -506,6 +515,8 @@ def _conditions_for(
             conditions.append(PostingInteraction.saved_at.is_not(None))
         if filters.get("seen"):
             conditions.append(PostingInteraction.seen_at.is_not(None))
+        if filters.get("seen_exclude"):
+            conditions.append(PostingInteraction.seen_at.is_(None))
         if filters.get("applied"):
             conditions.append(
                 JobPosting.id.in_(
@@ -981,6 +992,13 @@ async def explore(
             frontier,
             limit,
         )
+
+    if sort != "fit" and page:
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in page])
+        for entry in page:
+            entry["fit"] = fits[entry["posting"].id]["score"]
 
     return {
         "items": [

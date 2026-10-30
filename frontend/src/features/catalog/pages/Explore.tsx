@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Bookmark, Radar, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { ArrowUpDown, Bookmark, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
 import { recordSearch, saveSearch } from "@/api/engagement";
@@ -10,114 +10,32 @@ import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
-import { EmptyState, Spinner } from "@/components/ui";
+import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
+import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
 import {
-  Section,
-  TriStateChips,
-  triStateToggle,
-} from "@/components/filters/filterBits";
-
-const POSTED_WINDOWS = [
-  { value: "24h", labelKey: "explore.posted.h24" },
-  { value: "7d", labelKey: "explore.posted.d7" },
-  { value: "30d", labelKey: "explore.posted.d30" },
-  { value: "90d", labelKey: "explore.posted.d90" },
-];
-
-const CONTRACT_VALUES = [
-  "permanent",
-  "temporary",
-  "contract",
-  "freelance",
-  "b2b",
-  "internship",
-  "apprenticeship",
-];
-
-const TRAVEL_VALUES = ["none", "occasional", "frequent"];
-const SCHEDULE_VALUES = ["shift_work", "on_call", "nights", "weekends", "flexible"];
+  CONTRACT_VALUES,
+  POSTED_WINDOWS,
+  SCHEDULE_VALUES,
+  SORT_OPTIONS,
+  TRAVEL_VALUES,
+  countActive,
+  parseFilters,
+  toParams,
+  toSearchParams,
+  type Filters,
+} from "@/features/catalog/exploreParams";
 
 const EMPTY_FACETS: ExploreFacets = {};
 
-interface Filters {
-  q: string;
-  skills: { key: string; level: number | null }[];
-  skillsExclude: string[];
-  skillMode: "all" | "any";
-  postedWithin: string;
-  salaryMin: string;
-  seniority: string[];
-  seniorityExclude: string[];
-  remotePolicy: string[];
-  remotePolicyExclude: string[];
-  source: string[];
-  sourceExclude: string[];
-  extractedOnly: boolean;
-  saved: boolean;
-  sort: string;
-  contract: string[];
-  contractExclude: string[];
-  travel: string[];
-  travelExclude: string[];
-  schedule: string[];
-  scheduleExclude: string[];
-  orgs: string[];
-  orgsExclude: string[];
-}
-
-const INITIAL: Filters = {
-  q: "",
-  skills: [],
-  skillsExclude: [],
-  skillMode: "all",
-  postedWithin: "",
-  salaryMin: "",
-  seniority: [],
-  seniorityExclude: [],
-  remotePolicy: [],
-  remotePolicyExclude: [],
-  source: [],
-  sourceExclude: [],
-  extractedOnly: false,
-  saved: false,
-  sort: "fit",
-  contract: [],
-  contractExclude: [],
-  travel: [],
-  travelExclude: [],
-  schedule: [],
-  scheduleExclude: [],
-  orgs: [],
-  orgsExclude: [],
-};
-
-function countActive(f: Filters): number {
-  let n = 0;
-  if (f.q) n++;
-  n += f.skills.length + f.skillsExclude.length;
-  if (f.skillMode !== "all" && f.skills.length) n++;
-  if (f.postedWithin) n++;
-  if (f.salaryMin) n++;
-  n += f.seniority.length + f.seniorityExclude.length;
-  n += f.remotePolicy.length + f.remotePolicyExclude.length;
-  n += f.source.length + f.sourceExclude.length;
-  n += f.contract.length + f.contractExclude.length;
-  n += f.travel.length + f.travelExclude.length;
-  n += f.schedule.length + f.scheduleExclude.length;
-  n += f.orgs.length + f.orgsExclude.length;
-  if (f.extractedOnly) n++;
-  if (f.saved) n++;
-  return n;
-}
-
 export function Explore() {
   const { t } = useTranslation();
-  const [filters, setFilters] = useState<Filters>(INITIAL);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
   const [items, setItems] = useState<PostingOut[]>([]);
   const [total, setTotal] = useState(0);
   const [facets, setFacets] = useState<ExploreFacets>(EMPTY_FACETS);
@@ -131,41 +49,14 @@ export function Explore() {
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
 
-  const paramsFrom = useCallback((current: Filters, nextCursor?: string | null): ExploreParams => {
-    const params: ExploreParams = { sort: current.sort, limit: 20 };
-    if (current.q) params.q = current.q;
-    if (current.skills.length) {
-      params.skills = current.skills
-        .map((s) => (s.level ? `${s.key}:${s.level}` : s.key))
-        .join(",");
-      params.skill_mode = current.skillMode;
-    }
-    if (current.skillsExclude.length) params.skill_exclude = current.skillsExclude.join(",");
-    if (current.postedWithin) params.posted_within = current.postedWithin;
-    if (current.salaryMin) params.salary_min = Number(current.salaryMin);
-    if (current.seniority.length) params.seniority = current.seniority.join(",");
-    if (current.seniorityExclude.length)
-      params.seniority_exclude = current.seniorityExclude.join(",");
-    if (current.remotePolicy.length) params.remote_policy = current.remotePolicy.join(",");
-    if (current.remotePolicyExclude.length)
-      params.remote_policy_exclude = current.remotePolicyExclude.join(",");
-    if (current.source.length) params.source = current.source.join(",");
-    if (current.sourceExclude.length) params.source_exclude = current.sourceExclude.join(",");
-    if (current.contract.length) params.contract = current.contract.join(",");
-    if (current.contractExclude.length)
-      params.contract_exclude = current.contractExclude.join(",");
-    if (current.travel.length) params.travel = current.travel.join(",");
-    if (current.travelExclude.length) params.travel_exclude = current.travelExclude.join(",");
-    if (current.schedule.length) params.schedule = current.schedule.join(",");
-    if (current.scheduleExclude.length)
-      params.schedule_exclude = current.scheduleExclude.join(",");
-    if (current.orgs.length) params.org = current.orgs;
-    if (current.orgsExclude.length) params.org_exclude = current.orgsExclude;
-    if (current.extractedOnly) params.extracted_only = true;
-    if (current.saved) params.saved = true;
-    if (nextCursor) params.cursor = nextCursor;
-    return params;
-  }, []);
+  const paramsFrom = useCallback(
+    (current: Filters, nextCursor?: string | null): ExploreParams => {
+      const params: ExploreParams = { ...toParams(current), sort: current.sort, limit: 20 };
+      if (nextCursor) params.cursor = nextCursor;
+      return params;
+    },
+    []
+  );
 
   const load = useCallback(
     (current: Filters, append: boolean) => {
@@ -202,11 +93,28 @@ export function Explore() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const patch = (update: Partial<Filters>) => setFilters((prev) => ({ ...prev, ...update }));
+  const patch = useCallback(
+    (update: Partial<Filters>) => {
+      setSearchParams(toSearchParams({ ...filters, ...update }), { replace: true });
+    },
+    [filters, setSearchParams]
+  );
+
+  const resetFilters = useCallback(() => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
 
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  useEffect(() => {
+    const canonical = toSearchParams(parseFilters(searchParams)).toString();
+    if (canonical !== searchParams.toString()) {
+      setSearchParams(new URLSearchParams(canonical), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadMore = useCallback(() => {
     if (!cursor || radarActive) return undefined;
@@ -286,7 +194,7 @@ export function Explore() {
 
   const clearRadar = () => {
     setRadarActive(false);
-    setFilters(INITIAL);
+    resetFilters();
     setCursor(null);
   };
 
@@ -296,12 +204,15 @@ export function Explore() {
   const facetCount = (group: string, key: string): number | undefined =>
     (facets ?? {})[group]?.[key];
 
+  const sortOptions = SORT_OPTIONS.filter(
+    (option) => option.value !== "relevance" || filters.q.trim().length > 0
+  ).map((option) => ({ value: option.value, label: t(option.labelKey) }));
+
   return (
     <div className="space-y-6" data-testid="explore">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 text-sm text-slate-500">
           {radarActive ? t("explore.radarActive") : t("explore.intro")}
-          {total ? ` ${total} matching.` : ""}
         </p>
         <div className="flex items-center gap-2">
           {radarActive ? (
@@ -350,7 +261,7 @@ export function Explore() {
               </div>
               {active ? (
                 <button
-                  onClick={() => setFilters(INITIAL)}
+                  onClick={resetFilters}
                   className="text-xs text-slate-400 hover:text-slate-600"
                   data-testid="clear-filters"
                 >
@@ -363,7 +274,13 @@ export function Explore() {
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
                 value={filters.q}
-                onChange={(e) => patch({ q: e.target.value })}
+                onChange={(e) => {
+                  const q = e.target.value;
+                  patch({
+                    q,
+                    ...(filters.sort === "relevance" && !q.trim() ? { sort: "fit" } : {}),
+                  });
+                }}
                 placeholder={t("explore.searchPlaceholder")}
                 className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
                 data-testid="explore-q"
@@ -670,10 +587,37 @@ export function Explore() {
                 data-testid="saved-only"
               />
             </label>
+            <label className="flex items-center justify-between text-xs text-slate-600">
+              <span title={t("explore.hideSeenTitle")}>{t("explore.hideSeen")}</span>
+              <input
+                type="checkbox"
+                checked={filters.seenExclude}
+                onChange={(e) => patch({ seenExclude: e.target.checked })}
+                data-testid="seen-exclude"
+              />
+            </label>
           </div>
         </aside>
 
         <div className="flex-1 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500" data-testid="explore-result-count">
+              {total ? t("explore.matching", { count: total }) : ""}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />
+              <span>{t("explore.sortBy")}</span>
+              <div className="w-44">
+                <SearchableDropdown
+                  options={sortOptions}
+                  value={filters.sort}
+                  onChange={(value) => patch({ sort: value })}
+                  label={t("explore.sortBy")}
+                  hideLabel
+                />
+              </div>
+            </div>
+          </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
           {items.length === 0 && !error && (
             <EmptyState

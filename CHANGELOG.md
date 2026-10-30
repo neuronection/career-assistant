@@ -4,11 +4,35 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (URL state + company sorting, 2026-10-30)
+- **A `/postings` search now lives in the URL**: the search text, every
+  facet (includes, excludes, skills with their levels, organizations,
+  sources, the state toggles) and the sort ride the address bar, so a
+  reload, the back button, a bookmark or a shared link all reopen the
+  same view. Malformed or unknown values are dropped and the page falls
+  back to its defaults.
+- **`/companies` sorts the directory**: Most open roles (default), Name
+  A–Z and Recently hiring (latest open posting first). **Its whole filter
+  rail is URL state too** — name search, status chips, every tri-state
+  facet, location, the open-roles floor and the sort
+  (`/companies?status=new&work_mode=remote&min_open=5&sort=recent`); the
+  open-roles select gains an "Any number of roles" entry for no floor.
+
+### Changed (postings — hide seen + sorting, 2026-10-30)
+- **Hide seen** joins the `/postings` filter rail: one toggle drops the
+  postings you already opened (and still counts as an active filter), so
+  a long list can be reduced to what is actually new.
+- **Results sort from the header**: Best fit (default), Newest, Highest
+  salary (annualized, unknown last) and Relevance once a query is typed —
+  all four orders the explore engine already implemented, now reachable.
+  Every sort still carries the deterministic fit score on the returned
+  page, so score rings never go blank when you change the order.
+
 ### Changed (posting cards — one-click seen + a seen rail, 2026-10-30)
 - **Unseen postings on `/postings` carry a one-click seen action** — a
-  single check button on the card (no menu, no trip to the detail page)
-  and it disappears once the posting is seen; Apply and opening the
-  detail still mark seen as before.
+  quiet "Mark as seen" action in the card's status line (no menu, no trip
+  to the detail page); clicking it turns that same slot into the seen
+  mark in place. Apply and opening the detail still mark seen as before.
 - **Seen postings are visible at a glance**: the card's leading edge
   gains a 3 px neutral bar next to the existing quiet double-check — a
   read marker, not a warning colour, and the card keeps full contrast

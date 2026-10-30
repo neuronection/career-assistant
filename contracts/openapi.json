@@ -32202,6 +32202,19 @@
             }
           },
           {
+            "description": "open_postings (busiest first) | name (A-Z) | recent (latest open posting)",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "open_postings",
+              "description": "open_postings (busiest first) | name (A-Z) | recent (latest open posting)",
+              "pattern": "^(open_postings|name|recent)$",
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
             "description": "Include the per-axis company-count facets",
             "in": "query",
             "name": "facets",

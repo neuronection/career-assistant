@@ -377,6 +377,8 @@
     "orgExample": "e.g. Acme",
     "deepExtractedOnly": "Deep-extracted only",
     "savedOnly": "Saved only",
+    "hideSeen": "Hide seen",
+    "hideSeenTitle": "Hide postings you have already opened",
     "nothingMatches": "Nothing matches those filters",
     "nothingMatchesBody": "Loosen a filter or ask an admin to connect more posting sources.",
     "loadMore": "Load more",
@@ -438,7 +440,13 @@
     "radarApply": "My radar",
     "radarClear": "Clear radar",
     "radarActive": "Showing your radar matches.",
-    "radarNotConfigured": "Your job radar is not configured yet — set it up in Settings."
+    "radarNotConfigured": "Your job radar is not configured yet — set it up in Settings.",
+    "matching": "{{count}} matching",
+    "sortBy": "Sort",
+    "sortFit": "Best fit",
+    "sortFresh": "Newest",
+    "sortSalary": "Highest salary",
+    "sortRelevance": "Relevance"
   },
   "applications": {
     "title": "My applications",
@@ -3234,6 +3242,7 @@
     "unsave": "Unsave",
     "hide": "hide",
     "hideTitle": "Hide from the live tab",
+    "markSeen": "Mark as seen",
     "salaryBasis": {
       "gross": "gross",
       "net": "net"
@@ -4348,6 +4357,11 @@
   },
   "companies": {
     "subtitle": "Companies hiring right now — reviewed facts, financials with sources, and every open posting in one place.",
+    "count": "{{count}} companies",
+    "sortBy": "Sort",
+    "sortOpen": "Most open roles",
+    "sortName": "Name A–Z",
+    "sortRecent": "Recently hiring",
     "searchPlaceholder": "Search companies…",
     "loadError": "Could not load companies.",
     "noneYetTitle": "No companies yet",
@@ -4373,7 +4387,8 @@
     "railTitle": "Filter by active hiring",
     "clearFilters": "Clear filters ({count})",
     "locationPlaceholder": "City or country",
-    "minOpenN": "≥ {count} open roles",
+    "minOpenN": "≥ {{count}} open roles",
+    "minOpenAny": "Any number of roles",
     "facetTitle": {
       "work_mode": "Work mode",
       "seniority": "Seniority",

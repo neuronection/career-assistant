@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import * as companiesApi from "@/api/companies";
 import * as postingsApi from "@/api/postings";
@@ -193,4 +194,113 @@ describe("Companies browsing (plan 135)", () => {
     expect(card).toHaveAttribute("data-state", "closed");
     expect(screen.getByTestId("posting-closed")).toBeInTheDocument();
   });
+
+  it("sorts the directory and keeps the sort in the URL", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/companies"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    // the default order is omitted (the endpoint's own default)
+    const calls = mocked.fetchCompanies.mock.calls;
+    expect(calls[calls.length - 1]?.[0]?.sort).toBeUndefined();
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Recently hiring" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("sort=recent")
+    );
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "recent" })
+      )
+    );
+  });
+
+  it("restores the directory sort from the URL", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    render(
+      <MemoryRouter initialEntries={["/companies?sort=name"]}>
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "name" })
+      )
+    );
+  });
+
+  it("keeps the directory filters in the URL", async () => {
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY], facets: null });
+    render(
+      <MemoryRouter initialEntries={["/companies"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+
+    fireEvent.change(screen.getByTestId("company-search"), { target: { value: "acme" } });
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("q=acme")
+    );
+    fireEvent.change(screen.getByTestId("company-filter-location"), {
+      target: { value: "Athens" },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("location=Athens")
+    );
+    fireEvent.change(screen.getByTestId("company-filter-min-open"), {
+      target: { value: "5" },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("min_open=5")
+    );
+    fireEvent.click(screen.getByTestId("company-filter-new"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("status=new")
+    );
+
+    fireEvent.click(screen.getByTestId("company-filters-clear"));
+    await waitFor(() => expect(screen.getByTestId("location-search").textContent).toBe(""));
+  });
+
+  it("restores directory filters from the URL", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY, PROPOSED],
+      facets: null,
+    });
+    render(
+      <MemoryRouter
+        initialEntries={["/companies?q=acme&location=Athens&min_open=5&work_mode=remote&status=new"]}
+      >
+        <Companies />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-newborn-works");
+    expect(screen.queryByTestId("company-card-acme-cloud")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          q: "acme",
+          location: "Athens",
+          min_open: 5,
+          work_mode: ["remote"],
+        })
+      )
+    );
+    expect(screen.getByTestId("company-filter-new")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("company-search")).toHaveValue("acme");
+  });
 });
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-search">{location.search}</span>;
+}

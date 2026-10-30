@@ -97,6 +97,49 @@ async def test_explore_saved_keeps_closed_posting(
     assert body["items"][0]["status"] == "expired"
 
 
+async def test_explore_seen_filters_and_seen_exclusion(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    seen = await _make_posting(db, source, external_id="seen-1")
+    unseen = await _make_posting(db, source, external_id="unseen-1")
+    marked = await client.post(
+        "/api/v1/postings/seen",
+        json={"posting_ids": [str(seen.id)]},
+        headers=auth_headers,
+    )
+    assert marked.status_code == 200, marked.text
+
+    both = await client.get("/api/v1/postings/explore", headers=auth_headers)
+    assert {i["id"] for i in both.json()["items"]} == {str(seen.id), str(unseen.id)}
+
+    seen_only = await client.get(
+        "/api/v1/postings/explore", params={"seen": "true"}, headers=auth_headers
+    )
+    assert [i["id"] for i in seen_only.json()["items"]] == [str(seen.id)]
+
+    excluded = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "true"}, headers=auth_headers
+    )
+    body = excluded.json()
+    assert body["total"] == 1
+    assert [i["id"] for i in body["items"]] == [str(unseen.id)]
+    assert body["items"][0]["seen"] is False
+
+    off = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "false"}, headers=auth_headers
+    )
+    assert off.json()["total"] == 2
+
+
+def test_parse_explore_filters_reads_text_booleans_honestly():
+    from app.services.postings.explore_service import parse_explore_filters
+
+    assert parse_explore_filters({"seen_exclude": "false"}) == {}
+    assert parse_explore_filters({"seen_exclude": "0"}) == {}
+    assert parse_explore_filters({"seen_exclude": "true"}) == {"seen_exclude": True}
+    assert parse_explore_filters({"saved": False}) == {}
+
+
 async def test_explore_released_windows_and_fresh_only(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
@@ -267,6 +310,10 @@ async def test_explore_cursor_pagination(
     first_ids = [i["id"] for i in body["items"]]
     second_ids = [i["id"] for i in second_body["items"]]
     assert not set(first_ids) & set(second_ids)
+    # the fit score rides every sort, not only sort=fit — a salary/newest
+    # page must not render empty score bubbles
+    assert all(item["fit"] is not None for item in body["items"])
+    assert all(item["fit"] is not None for item in second_body["items"])
 
 
 # -------------------------------------------------------------- posting_fits

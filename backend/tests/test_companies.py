@@ -64,6 +64,39 @@ async def test_list_orders_by_open_postings_and_excludes_empty(
     assert rows[0]["has_profile"] is False
 
 
+async def test_list_sorts_by_name_and_recency(db, client, auth_headers, seeded_catalog, source):
+    from datetime import UTC, datetime, timedelta
+
+    recent = await _seed_company(db, source, name="RecentCo", count=1)
+    older = await _seed_company(db, source, name="OlderCo", count=2)
+    middle = await _seed_company(db, source, name="MiddleCo", count=1)
+    now = datetime.now(UTC)
+    for org, age_days in ((recent, 1), (middle, 5), (older, 30)):
+        for posting in await _org_postings(db, org.id):
+            posting.posted_at = now - timedelta(days=age_days)
+    await db.commit()
+
+    by_name = await client.get("/api/v1/companies", params={"sort": "name"}, headers=auth_headers)
+    assert by_name.status_code == 200, by_name.text
+    names = [row["name"] for row in by_name.json()["items"]]
+    assert names == sorted(names)
+
+    by_recent = await client.get(
+        "/api/v1/companies", params={"sort": "recent"}, headers=auth_headers
+    )
+    assert [row["name"] for row in by_recent.json()["items"]][:3] == [
+        "RecentCo",
+        "MiddleCo",
+        "OlderCo",
+    ]
+
+    busy = await client.get("/api/v1/companies", headers=auth_headers)
+    assert busy.json()["items"][0]["name"] == "OlderCo", "default sort stays busiest first"
+
+    invalid = await client.get("/api/v1/companies", params={"sort": "bogus"}, headers=auth_headers)
+    assert invalid.status_code == 422
+
+
 async def test_list_q_filters_by_name(db, client, auth_headers, seeded_catalog, source):
     await _seed_company(db, source, name="AlphaSoft", count=1)
     await _seed_company(db, source, name="BetaWorks", count=1)
@@ -364,11 +397,19 @@ async def test_employment_exclude_removes_internship_only_companies(
     db, client, auth_headers, seeded_catalog, source
 ):
     await _seed_company(
-        db, source, name="ProShop", count=1, employment_type="full_time",
+        db,
+        source,
+        name="ProShop",
+        count=1,
+        employment_type="full_time",
         onsite_policy="remote",
     )
     await _seed_company(
-        db, source, name="InternMill", count=1, employment_type="internship",
+        db,
+        source,
+        name="InternMill",
+        count=1,
+        employment_type="internship",
         onsite_policy="remote",
     )
 
