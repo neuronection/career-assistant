@@ -339,7 +339,7 @@ async def test_detail_writer_journals_merge_and_fetch_reset(
             )
             for external_id in ids
         ]
-        return rows, [], None
+        return rows, [], None, None
 
     monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
     report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})

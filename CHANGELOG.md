@@ -4,6 +4,32 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (posting cards — one-click seen + a seen rail, 2026-10-30)
+- **Unseen postings on `/postings` carry a one-click seen action** — a
+  single check button on the card (no menu, no trip to the detail page)
+  and it disappears once the posting is seen; Apply and opening the
+  detail still mark seen as before.
+- **Seen postings are visible at a glance**: the card's leading edge
+  gains a 3 px neutral bar next to the existing quiet double-check — a
+  read marker, not a warning colour, and the card keeps full contrast
+  (nothing is dimmed). The same rail marks seen cards on `/catalog` and
+  the dashboard feed.
+
+### Fixed (postings — live-instance findings from the kariera review, 2026-10-30)
+- **Salary annualization no longer crashes on database numerics.** The
+  extraction path multiplied the `Numeric` column value (a `Decimal` on
+  both dialects) by a float factor — "unsupported operand type(s) for *:
+  'decimal.Decimal' and 'float'" failed one posting's deep extraction
+  live on the desktop profile. `annualized()` now normalizes to floats;
+  a regression test pins the Decimal inputs.
+- **Detail enrichment drains the backlog in one run.** It processed a
+  single knob-sized batch per run (the 5-batch cap existed but the loop
+  ignored it); it now drains up to `MAX_BATCHES_PER_RUN` batches, reports
+  the batch count and the bundle's `run_summary` (previously discarded),
+  and carries the detail rung's provenance (`detail_extractor` /
+  `source_page`) into the posting's raw bag — the data now shows whether
+  a description came from JSON-LD or the DOM fallback.
+
 ### Changed (sources — clickable cards + custom pacing values, 2026-10-30)
 - **Job-source cards open their manage page on click** — the whole row is
   the target (title is the keyboard-reachable affordance); the enable
