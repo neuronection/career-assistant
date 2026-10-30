@@ -34,6 +34,13 @@ All notable changes to **Career Assistant** are documented here.
   respected) and searches again; the timeline shows the broaden step with
   the queries it chose. A run whose budget is already spent skips the extra
   call, so a capped goal still ships its deterministic findings.
+- **Skill filters can widen over the curated skill graph** (plan 158):
+  explore, the chat's `search_postings` tool and saved searches accept
+  `skill_expand=off|down|related` (default `off`, so nothing changes unless
+  asked). `down` also matches sub-skills and synonyms of a listed skill;
+  `related` additionally walks related concepts. Exclusions only ever widen
+  with `down` semantics — excluding a parent skill excludes its family, and
+  the precision-losing mode never widens what you banned.
 - **Autopilot also searches by meaning** (plan 158): one semantic pass over
   the posting embeddings already stored adds vacancies whose wording never
   matches a keyword variant. It is a recall source, never a bypass — every

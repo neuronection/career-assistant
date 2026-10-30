@@ -892,3 +892,157 @@ async def test_explore_state_axes_exclude_when_false(
         str(applied.id),
         str(hidden.id),
     }, "absent axis = don't care"
+
+
+# ----------------------------------------------- S6 skill-graph expansion
+
+
+async def _skill_axis_setup(db, seeded_catalog):
+    """programming ← data-analysis (child); programming ↔ writing (related)."""
+    from app.models.enums import SkillRelationSource, SkillRelationStatus
+    from app.models.taxonomy_model import Skill, SkillRelation
+
+    skills = {
+        key: (await db.execute(select(Skill).where(Skill.key == key))).scalars().first()
+        for key in ("programming", "data-analysis", "writing")
+    }
+    skills["data-analysis"].parent_id = skills["programming"].id
+    first, second = sorted(
+        (skills["programming"].id, skills["writing"].id), key=lambda value: str(value)
+    )
+    db.add(
+        SkillRelation(
+            from_skill_id=first,
+            to_skill_id=second,
+            relation="related_to",
+            status=SkillRelationStatus.APPROVED.value,
+            source=SkillRelationSource.MANUAL.value,
+        )
+    )
+    await db.commit()
+    return skills
+
+
+async def test_explore_skill_expand_down(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """`skill_expand=down` matches a posting carrying a child skill; `off`
+    stays exact (plan 158 S6.1/S6.3)."""
+    from tests.conftest import _add_posting_skill, _make_posting
+
+    await _skill_axis_setup(db, seeded_catalog)
+    parent = await _make_posting(
+        db,
+        source,
+        external_id="se-parent",
+        title="Parent Role",
+        skills_raw=[],
+        raw={"description": "Programming daily."},
+    )
+    child = await _make_posting(
+        db,
+        source,
+        external_id="se-child",
+        title="Child Role",
+        skills_raw=[],
+        raw={"description": "Data-analysis work."},
+    )
+    await _add_posting_skill(db, parent, "programming", 5, "must_have")
+    await _add_posting_skill(db, child, "data-analysis", 5, "must_have")
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(skills="programming") == {str(parent.id)}
+    assert await ids(skills="programming", skill_expand="off") == {str(parent.id)}
+    assert await ids(skills="programming", skill_expand="down") == {
+        str(parent.id),
+        str(child.id),
+    }
+
+    unknown = await client.get(
+        "/api/v1/postings/explore",
+        params={"skills": "programming,nope", "skill_expand": "down"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 400, "unknown keys still 400 under expansion"
+    assert "nope" in unknown.json()["detail"]
+
+    bad_mode = await client.get(
+        "/api/v1/postings/explore",
+        params={"skills": "programming", "skill_expand": "sideways"},
+        headers=auth_headers,
+    )
+    assert bad_mode.status_code == 400
+
+
+async def test_explore_skill_exclude_expands_down_only(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """Excluding a parent excludes its children; `related` never applies to
+    excludes (plan 158 S6.1/S6.3)."""
+    from tests.conftest import _add_posting_skill, _make_posting
+
+    await _skill_axis_setup(db, seeded_catalog)
+    parent = await _make_posting(
+        db,
+        source,
+        external_id="se2-parent",
+        title="Parent Role",
+        skills_raw=[],
+        raw={"description": "Programming daily."},
+    )
+    child = await _make_posting(
+        db,
+        source,
+        external_id="se2-child",
+        title="Child Role",
+        skills_raw=[],
+        raw={"description": "Data-analysis work."},
+    )
+    related = await _make_posting(
+        db,
+        source,
+        external_id="se2-related",
+        title="Related Role",
+        skills_raw=[],
+        raw={"description": "Writing briefs."},
+    )
+    for posting, key in (
+        (parent, "programming"),
+        (child, "data-analysis"),
+        (related, "writing"),
+    ):
+        await _add_posting_skill(db, posting, key, 5, "must_have")
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(skill_exclude="programming") == {str(child.id), str(related.id)}
+    assert await ids(skill_exclude="programming", skill_expand="down") == {str(related.id)}
+    assert await ids(skill_exclude="programming", skill_expand="related") == {str(related.id)}, (
+        "related never widens an exclusion"
+    )
+    assert await ids(skills="programming", skill_expand="related") == {
+        str(parent.id),
+        str(child.id),
+        str(related.id),
+    }
+
+
+def test_skill_expand_is_taught_to_every_llm_caller():
+    """The engine accepting `skill_expand` is worthless if no LLM caller
+    knows it: the planner prompt, the chat grounding prompt and the
+    search_postings tool description all name it (plan 158 S6.4)."""
+    from app.ai.agents.prompts import CHATBOT
+    from app.ai.graphs.autopilot import _plan_system
+    from app.ai.tools.registry import list_tools
+
+    assert "skill_expand" in _plan_system()
+    assert "skill_expand" in CHATBOT
+    tool = next(tool for tool in list_tools() if tool["key"] == "search_postings")
+    assert "skill_expand" in tool["description"]

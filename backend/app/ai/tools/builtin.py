@@ -753,7 +753,9 @@ BUILTIN_TOOLS: list[AITool] = [
         description=(
             "Search live vacancies from connected boards (explore filters,"
             " per-posting fit). The query — if any — holds short search "
-            "terms, never a chat sentence."
+            "terms, never a chat sentence. `skill_expand` widens a skill "
+            "filter over the curated graph: off (exact), down (subtree + "
+            "synonyms), related (also related_to/part_of)."
         ),
         input_model=SearchPostingsInput,
         handler=_search_postings,

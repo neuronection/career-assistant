@@ -13,7 +13,9 @@ Open it at `/autopilot`.
    your profile: your skills (and the taxonomy skills around them), your
    education level, your location, and the seniority you asked for. Each
    variant searches by **keyword**, so multi-word concepts match titles and
-   employers instead of being treated as one exact phrase.
+   employers instead of being treated as one exact phrase, and a skill
+   filter can widen over the curated skill graph (its sub-skills and
+   synonyms) instead of matching one exact key.
 2. **Searches two ways** — by keyword variants and **by meaning** over the
    posting embeddings already stored. The semantic pass is a recall source,
    not a shortcut: every posting it proposes still passes the same

@@ -56,6 +56,8 @@ BENEFIT_KIND_VALUES = (
     "other",
 )
 SKILL_FACET_SIZE = 15
+SKILL_EXPAND_MODES = ("off", "down", "related")
+SKILL_EXPAND_HOPS = 1
 OPEN_STATUSES = ("mapped", "new")
 
 ALLOWED_FILTER_KEYS = frozenset(
@@ -65,6 +67,7 @@ ALLOWED_FILTER_KEYS = frozenset(
         "skill_exclude",
         "skill_mode",
         "skill_priority",
+        "skill_expand",
         "education_min",
         "languages",
         "posted_within",
@@ -199,6 +202,11 @@ def parse_explore_filters(params: dict) -> dict:
         if params["skill_mode"] not in ("all", "any"):
             raise ValidationError("skill_mode must be all|any")
         filters["skill_mode"] = params["skill_mode"]
+    if params.get("skill_expand") not in (None, ""):
+        if params["skill_expand"] not in SKILL_EXPAND_MODES:
+            raise ValidationError("skill_expand must be one of: " + ", ".join(SKILL_EXPAND_MODES))
+        filters["skill_expand"] = params["skill_expand"]
+
     if params.get("skill_priority"):
         try:
             filters["skill_priority"] = PostingSkillPriority(params["skill_priority"]).value
@@ -290,8 +298,20 @@ def parse_explore_filters(params: dict) -> dict:
 # ---------------------------------------------------------- SQL conditions
 
 
+def _skill_keys(filters: dict) -> list[str]:
+    keys: list[str] = []
+    for key, _level in (filters.get("skills") or []) + (filters.get("skill_exclude") or []):
+        if key not in keys:
+            keys.append(key)
+    for group in filters.get("skill_groups") or []:
+        for key, _level in group:
+            if key not in keys:
+                keys.append(key)
+    return keys
+
+
 async def _resolve_skill_ids(db: AsyncSession, filters: dict) -> dict[str, UUID]:
-    keys = [key for key, _ in (filters.get("skills") or []) + (filters.get("skill_exclude") or [])]
+    keys = _skill_keys(filters)
     if not keys:
         return {}
     rows = await db.execute(select(Skill).where(Skill.key.in_(keys)))
@@ -312,6 +332,54 @@ async def _resolve_source_ids(db: AsyncSession, filters: dict) -> dict[str, UUID
     if unknown:
         raise ValidationError(f"Unknown sources: {', '.join(unknown)}")
     return found
+
+
+async def _expand_skill_filters(db: AsyncSession, filters: dict) -> dict:
+    """Expand the skill axes over the curated graph (plan 158 S6).
+
+    Include seeds become OR-groups (seed + its neighbourhood at the seed's
+    level), so expansion widens instead of demanding every discovered key;
+    excludes always walk ``down`` (excluding a parent excludes its family)
+    and never the precision-losing ``related`` mode — one cross-surface
+    behavior with the feed engine.
+    """
+    mode = filters.get("skill_expand") or "off"
+    if mode == "off" or not (filters.get("skills") or filters.get("skill_exclude")):
+        return filters
+    from app.models.enums import SkillExpandMode
+    from app.services.catalog.skill_relations import SkillRelationService
+    from app.services.postings.filter_expand import expand_keys
+
+    graph = await SkillRelationService(db).load_graph()
+    if not graph.nodes:
+        return filters
+    expanded = dict(filters)
+    include = filters.get("skills") or []
+    if include:
+        groups: list[list[tuple[str, int | None]]] = []
+        claimed: set[str] = set()
+        for key, level in include:
+            group = [(key, level)]
+            claimed.add(key)
+            for other in expand_keys(
+                [key], graph, mode=SkillExpandMode(mode), hops=SKILL_EXPAND_HOPS
+            ):
+                if other not in claimed:
+                    group.append((other, level))
+                    claimed.add(other)
+            groups.append(group)
+        expanded["skill_groups"] = groups
+    exclude = filters.get("skill_exclude") or []
+    if exclude:
+        widened: list[tuple[str, int | None]] = []
+        for key, level in exclude:
+            for other in expand_keys(
+                [key], graph, mode=SkillExpandMode.DOWN, hops=SKILL_EXPAND_HOPS
+            ):
+                if all(other != seen for seen, _level in widened):
+                    widened.append((other, level))
+        expanded["skill_exclude"] = widened[:12]
+    return expanded
 
 
 def _conditions_for(
@@ -372,7 +440,15 @@ def _conditions_for(
                 per_skill.append(cond.exists())
             return per_skill
 
-        include_conds = _skill_exists(filters.get("skills") or [])
+        groups = filters.get("skill_groups")
+        if groups:
+            include_conds = []
+            for group in groups:
+                group_conds = _skill_exists(group)
+                if group_conds:
+                    include_conds.append(or_(*group_conds))
+        else:
+            include_conds = _skill_exists(filters.get("skills") or [])
         if include_conds:
             conditions.append(
                 and_(*include_conds)
@@ -1004,6 +1080,7 @@ async def explore(
     if sort == "relevance" and not filters.get("q"):
         raise ValidationError("sort=relevance requires the q filter")
 
+    filters = await _expand_skill_filters(db, filters)
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
     conditions = _collect_conditions(filters, skill_ids, source_ids, user_id)
