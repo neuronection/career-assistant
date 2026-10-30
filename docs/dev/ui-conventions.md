@@ -481,7 +481,7 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   wrapper — six labels scroll instead of squeezing. Loading stays the
   app's Spinner + label row (previews are the shimmer exception, §6).
 
-## 2i. Filter chips — one cycle, one clear (plan 164)
+## 2i. Filter chips — one cycle, one clear (plan 167)
 
 Every filter chip follows the same contract (`TriStateChips` in
 `components/filters/filterBits.tsx`), on every rail (`/postings`,
