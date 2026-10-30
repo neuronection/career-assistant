@@ -266,7 +266,7 @@ describe("SkillPage", () => {
     expect(screen.getByTestId("positions-count")).toHaveTextContent("2");
     expect(screen.getByTestId("positions-explore-link")).toHaveAttribute(
       "href",
-      "/postings/search?skills=sql",
+      "/postings?skills=sql",
     );
   });
 
