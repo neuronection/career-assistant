@@ -21243,6 +21243,62 @@
         "title": "UpdateBlockPropsOp",
         "type": "object"
       },
+      "UpdateCheckOut": {
+        "properties": {
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          },
+          "current_version": {
+            "title": "Current Version",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latest_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Version"
+          },
+          "release_url": {
+            "default": "https://github.com/neuronection/career-assistant/releases/latest",
+            "title": "Release Url",
+            "type": "string"
+          },
+          "update_available": {
+            "default": false,
+            "title": "Update Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "current_version"
+        ],
+        "title": "UpdateCheckOut",
+        "type": "object"
+      },
       "UpdateDesignOp": {
         "description": "Patch design tokens on the rendered template (duplicate-if-bank).\n\nNull values are allowed so optional tokens (e.g. `chip_text_color`)\ncan be reset to their derived default.",
         "properties": {
@@ -22766,7 +22822,7 @@
     },
     "/api/v1/admin/audit/export": {
       "get": {
-        "description": "The filtered ledger as CSV (plan 152), capped at 10 000 rows \u2014\ncarries the same filters as the stream's list endpoint.",
+        "description": "The filtered ledger as CSV (plans 152/157), capped at 10 000 rows \u2014\ncarries the same filters as the stream's list endpoint.",
         "operationId": "audit_export_api_v1_admin_audit_export_get",
         "parameters": [
           {
@@ -22775,8 +22831,19 @@
             "required": false,
             "schema": {
               "default": "ai",
-              "pattern": "^(ai|events|jobs)$",
+              "pattern": "^(ai|events|jobs|source_runs|changes)$",
               "title": "Stream",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "entity",
+            "required": false,
+            "schema": {
+              "default": "postings",
+              "pattern": "^(postings|skills)$",
+              "title": "Entity",
               "type": "string"
             }
           },
@@ -22953,6 +23020,39 @@
                 }
               ],
               "title": "Job Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "trigger",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(manual|scheduled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trigger"
+            }
+          },
+          {
+            "in": "query",
+            "name": "event",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Event"
             }
           }
         ],
@@ -36024,6 +36124,27 @@
           }
         },
         "summary": "Get Instance Config",
+        "tags": [
+          "instance"
+        ]
+      }
+    },
+    "/api/v1/instance/update-check": {
+      "get": {
+        "operationId": "get_update_check_api_v1_instance_update_check_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpdateCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Update Check",
         "tags": [
           "instance"
         ]

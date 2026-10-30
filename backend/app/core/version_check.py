@@ -206,7 +206,9 @@ def validate_doc(doc: Any) -> list[str]:
             if declared not in ("stable", "beta"):
                 issues.append(f"history[{index}].channel must be stable or beta")
             elif suffix_channel is not None and suffix_channel != declared:
-                issues.append(f"history[{index}] declares {declared} but its version is {suffix_channel}")
+                issues.append(
+                    f"history[{index}] declares {declared} but its version is {suffix_channel}"
+                )
             _validate_release(entry, declared, f"history[{index}]", issues)
     return issues
 
@@ -268,7 +270,7 @@ def check_update(
             payload["latest_version"] = reference.tag
             payload["release_url"] = reference.url
         payload["update_available"] = offer is not None
-    except Exception as error:  # noqa: BLE001 — the law: any failure = skip
+    except Exception as error:
         payload["error"] = str(error) or error.__class__.__name__
     return payload
 

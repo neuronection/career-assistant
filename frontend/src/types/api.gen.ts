@@ -94,7 +94,7 @@ export interface paths {
         };
         /**
          * Audit Export
-         * @description The filtered ledger as CSV (plan 152), capped at 10 000 rows —
+         * @description The filtered ledger as CSV (plans 152/157), capped at 10 000 rows —
          *     carries the same filters as the stream's list endpoint.
          */
         get: operations["audit_export_api_v1_admin_audit_export_get"];
@@ -5171,6 +5171,23 @@ export interface paths {
         };
         /** Get Instance Config */
         get: operations["get_instance_config_api_v1_instance_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance/update-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Update Check */
+        get: operations["get_update_check_api_v1_instance_update_check_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -16879,6 +16896,27 @@ export interface components {
                 } | null;
             };
         };
+        /** UpdateCheckOut */
+        UpdateCheckOut: {
+            /** Checked At */
+            checked_at?: string | null;
+            /** Current Version */
+            current_version: string;
+            /** Error */
+            error?: string | null;
+            /** Latest Version */
+            latest_version?: string | null;
+            /**
+             * Release Url
+             * @default https://github.com/neuronection/career-assistant/releases/latest
+             */
+            release_url: string;
+            /**
+             * Update Available
+             * @default false
+             */
+            update_available: boolean;
+        };
         /**
          * UpdateDesignOp
          * @description Patch design tokens on the rendered template (duplicate-if-bank).
@@ -17437,6 +17475,7 @@ export interface operations {
         parameters: {
             query?: {
                 stream?: string;
+                entity?: string;
                 window?: string | null;
                 from?: string | null;
                 to?: string | null;
@@ -17448,6 +17487,8 @@ export interface operations {
                 outcome?: string | null;
                 actor?: string | null;
                 job_type?: string | null;
+                trigger?: string | null;
+                event?: string | null;
             };
             header?: never;
             path?: never;
@@ -26336,6 +26377,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceConfigOut"];
+                };
+            };
+        };
+    };
+    get_update_check_api_v1_instance_update_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCheckOut"];
                 };
             };
         };

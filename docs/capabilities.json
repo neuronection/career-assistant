@@ -4,6 +4,27 @@
   "updated": "2026-10-30",
   "capabilities": [
     {
+      "id": "update-checks",
+      "verb": "See when a new version ships, right where you work",
+      "summary": "A quiet banner in the app shell announces new releases, checked against the family version API — no identifiers leave the instance, and updates still install the usual way.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Public /api/v1/instance/update-check endpoint, 6 h server-side cache",
+        "Real semver ordering with the stable-channel law (prereleases never offered to stable clients)",
+        "The check is a plain anonymous GET — no telemetry, failures read as 'no update'"
+      ],
+      "platforms": ["selfhosted", "desktop"],
+      "links": [
+        {
+          "kind": "website",
+          "href": "https://neuronection.com/en/career/",
+          "label": "Career Assistant"
+        }
+      ],
+      "order": 5
+    },
+    {
       "id": "job-catalog",
       "verb": "Discover careers you didn't know exist",
       "summary": "A structured job catalog you browse as a family tree and a typed relation graph, extendable with AI-generated careers that map onto the same taxonomy.",
