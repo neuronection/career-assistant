@@ -293,7 +293,7 @@ def test_rawposting_cap_facts_agree_across_repos() -> None:
         "employment_type": ("full_time", "internship"),
         "onsite_policy": ("onsite", "remote"),
         "skills_raw": ("60",),
-        "raw": ("8 KB",),
+        "raw": ("64 KB",),
     }
     failures: list[str] = []
     for field, tokens in caps.items():

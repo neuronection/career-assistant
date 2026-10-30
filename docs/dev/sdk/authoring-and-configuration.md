@@ -337,7 +337,7 @@ coerced downstream):
 | `education_level` | str | ≤ 40 free text — degree names differ per country; leave the source's wording, core maps it |
 | `skills_raw` | list[str] | ≤ 60 entries — skill mentions before taxonomy mapping |
 | `posted_at`, `expires_at` | datetime \| null | prefer timezone-aware UTC — naive datetimes are accepted and coerced downstream |
-| `raw` | object | the source's own payload — an arbitrary bag, but T3 caps it at 8 KB per row |
+| `raw` | object | the source's own payload — an arbitrary bag, but T3 caps it at 64 KB per row |
 
 The three enums are closed (`SeniorityLevel`, `EmploymentType`,
 `OnsitePolicy` in `sdk.py`): map free text onto them only where
@@ -346,7 +346,7 @@ unambiguous, and set a closed enum never for "probably".
 The result envelope is `ConnectorResult` — `{items, next_state,
 partial_errors}` — and every partial error is a typed `ConnectorError`
 (see the [Reference](reference.md#error-codes) table), never a string.
-`next_state` is yours and opaque to the host (capped at 8 KB at T3).
+`next_state` is yours and opaque to the host (capped at 8 KB at T3; the `raw` bag's cap is 64 KB — sized for full, untruncated job descriptions).
 
 **Mapping guidance** (established by the real boards, pinned by
 `backend/tests/test_job_board_connectors.py` against captured wire
@@ -514,7 +514,7 @@ capability honesty and conditional-GET forwarding — all offline.
   `fetch_postings(config, state) -> {items, next_state}`. Everything you
   return is untrusted and validated
   app-side (required `external_id`/`title`, http(s) URLs, char caps, a
-  300-item cap, 8 KB `raw`/`next_state` caps). The template repo's
+  300-item cap, 64 KB `raw` / 8 KB `next_state` caps). The template repo's
   `server.py` is the complete example —
   [recipe 2](examples-and-use-cases.md#recipe-2--a-t3-mcp-script-connector).
 - **T2 (sandboxed module)**: ship `manifest.json` whose `entry` names

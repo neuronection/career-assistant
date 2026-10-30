@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (connectors — full-length job descriptions, 2026-10-30)
+- **The 8 KB raw-bag cap for MCP-script sources is now 64 KB** — job
+  descriptions arrive complete instead of trimmed around ~6,000
+  characters (the envelope's progressive shrink remains the last-resort
+  guard; `next_state` stays at 8 KB — cursors don't need more). The AI
+  deep-extraction prompt slice rises with it (6,000 → 24,000 chars), so
+  skills/seniority/salary extraction sees the full text. The connector
+  template's authoring guide and the SDK caps table document the new
+  bound.
+
 ### Fixed (extensions — one source per origin+subpath, 2026-10-30)
 - **Multi-bundle repositories can register one source per bundle.** The
   "source already exists" rule now keys on origin **+ subpath**: the
@@ -19,17 +29,19 @@ All notable changes to **Career Assistant** are documented here.
   instead of a raw crash.
 
 ### Added (update checks — family version API, plan 48 W6)
-- **A passive "new version available" banner** in the app shell, backed by
+- **A discreet update badge in the sidebar footer**, backed by
   `GET /api/v1/instance/update-check`: a public, 6 h-cached endpoint over
   the synced family version-check contract
   (`backend/app/core/version_check.py`, canonical in `dev/contracts/` —
   ADR-0048) that checks the neuronection.com version API with real semver
   ordering and the stable-channel law (prereleases are never offered to
   stable clients; validation before use; failures read as "no update",
-  never a blocker; no telemetry). Dismissing remembers the offered
-  version. Updates still install through the package manager or installer
-  — check-only by family law. Accepted by the shared cross-language
-  fixture wall (`backend/tests/fixtures/version_check.fixtures.json`).
+  never a blocker; no telemetry). Clicking the badge opens the release
+  links; dismissing isn't needed — the dot is a status, not an
+  interruption. Updates still install through the package manager or
+  installer — check-only by family law. Accepted by the shared
+  cross-language fixture wall
+  (`backend/tests/fixtures/version_check.fixtures.json`).
 
 ### Changed (AI-call detail drawer, 2026-10-30)
 - **AI activity rows open a detail drawer instead of inline expansion**

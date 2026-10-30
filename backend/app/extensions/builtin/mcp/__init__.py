@@ -46,7 +46,11 @@ from app.extensions.sdk import (
 )
 
 MAX_ITEMS = 300
-RAW_JSON_CAP = 8_192
+NEXT_STATE_CAP = 8_192
+# The raw bag carries the full job description (64 KiB — a complete,
+# untruncated posting text plus the bundle's stamps; the wire stays
+# bounded by the 300-item cap, so a worst-case call is ~20 MB).
+RAW_JSON_CAP = 65_536
 RUN_SUMMARY_CAP = 2_048
 
 
@@ -313,7 +317,7 @@ class McpConnector(PostingConnector):
         if not isinstance(next_state, dict):
             errors.append(_invalid("envelope next_state is not an object — dropped"))
             next_state = {}
-        if len(json.dumps(next_state, default=str)) > RAW_JSON_CAP:
+        if len(json.dumps(next_state, default=str)) > NEXT_STATE_CAP:
             errors.append(_invalid("envelope next_state exceeds the size cap — dropped"))
             next_state = {}
         run_summary = payload.get("run_summary")
