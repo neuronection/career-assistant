@@ -896,6 +896,47 @@ async def test_semantic_sweep_degrades_without_embeddings(
     assert result["status"] == "completed"
 
 
+async def test_semantic_sweep_degrades_on_a_dim_mismatch(
+    client, auth_headers, db, search_fixtures, source, autopilot_mock
+):
+    """A stored vector of another dimension is skipped, not fatal: the
+    sweep returns no semantic candidates and the lexical run completes
+    (plan 158 S3.2)."""
+    from app.services.embedding_service import KIND_POSTING, EmbeddingService
+    from tests.conftest import _make_posting
+
+    autopilot_mock(_narrow_planner())
+    posting = await _make_posting(
+        db,
+        source,
+        external_id="ex-embed-wrong-dim",
+        title="Zebra wrangler",
+        org="Zoological Hotel",
+        skills_raw=[],
+        raw={"description": "Wrangling striped animals at the hotel lobby."},
+    )
+    await EmbeddingService(db).upsert_embedding(
+        KIND_POSTING,
+        posting.id,
+        "embedding fixture with a foreign dimension",
+        vector=[0.1, 0.2, 0.3],
+    )
+    await db.commit()
+
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    sweep = next(
+        entry
+        for entry in result["searches"]
+        if entry.get("rationale") == "semantic sweep over stored posting embeddings"
+    )
+    assert sweep["found"] == 0 and sweep["error"] == ""
+    assert result["status"] == "completed"
+
+
 async def test_semantic_sweep_skips_gated_postings(
     client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
 ):
