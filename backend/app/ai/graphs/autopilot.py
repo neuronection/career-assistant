@@ -22,7 +22,7 @@ from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
@@ -54,6 +54,8 @@ SNIPPET_CHARS = 600
 SEMANTIC_K = 60
 SEARCH_VARIANTS = 6
 REPLAN_LIMIT = 1
+GRAPH_SEEDS = 3
+GRAPH_NEIGHBORS = 6
 
 PROFILE_SKILL_LIMIT = 12
 PLAN_SKILL_LIMIT = 40
@@ -458,6 +460,7 @@ def _serialize_candidate(item: dict) -> dict | None:
     application = item.get("application")
     return {
         "posting_id": str(posting.id),
+        "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
         "ref": posting.ref,
         "title": posting.title,
         "org": posting.org,
@@ -940,6 +943,87 @@ def make_replan_node(deps: GraphDeps):
     return replan
 
 
+def make_graph_sweep_node(deps: GraphDeps):
+    async def graph_sweep(state: AutopilotState) -> dict:
+        """Deterministic: expand the pool over the catalog's curated
+        ``similar_to``/``alternative_to`` edges — role adjacency no text
+        signal encodes. No embeddings, no AI; degrades to a no-op entry."""
+        entry = {
+            "step": "search",
+            "query": "",
+            "filters": {},
+            "rationale": "curated graph expansion (no mapped seeds)",
+            "found": 0,
+            "examined": 0,
+            "error": "",
+        }
+        pool = list(state.get("candidates") or [])
+        try:
+            from app.models.enums import JobStatus, RelationType
+            from app.models.job_model import Job, JobRelation
+
+            seeds = [
+                candidate
+                for candidate in sorted(pool, key=_pool_order, reverse=True)
+                if candidate.get("catalog_job_id")
+            ][:GRAPH_SEEDS]
+            if not seeds:
+                return {"candidates": pool, "searches": [*(state.get("searches") or []), entry]}
+            titles = [str(seed.get("title") or "") for seed in seeds]
+            entry["rationale"] = f"curated graph expansion from {', '.join(titles)}"[:400]
+            seed_ids = {UUID(str(seed["catalog_job_id"])) for seed in seeds}
+            rows = await deps.db.execute(
+                select(JobRelation)
+                .where(
+                    JobRelation.relation_type.in_(
+                        [RelationType.SIMILAR_TO.value, RelationType.ALTERNATIVE_TO.value]
+                    ),
+                    or_(
+                        JobRelation.from_job_id.in_(seed_ids),
+                        JobRelation.to_job_id.in_(seed_ids),
+                    ),
+                )
+                .order_by(JobRelation.weight.desc(), JobRelation.id)
+            )
+            related: list[UUID] = []
+            for relation in rows.scalars().all():
+                other = (
+                    relation.to_job_id if relation.from_job_id in seed_ids else relation.from_job_id
+                )
+                if other in seed_ids or other in related:
+                    continue
+                related.append(other)
+            published = set(
+                (
+                    await deps.db.execute(
+                        select(Job.id).where(
+                            Job.id.in_(related), Job.status == JobStatus.PUBLISHED.value
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            targets = [job_id for job_id in related if job_id in published][:GRAPH_NEIGHBORS]
+            if targets:
+                known = {str(candidate["posting_id"]) for candidate in pool}
+                gated = await _gated_rows(deps, state, catalog_job_ids=targets, exclude_ids=known)
+                entry["examined"] = len(gated)
+                merged = {str(candidate["posting_id"]): candidate for candidate in pool}
+                entry["found"] = _merge_candidates(
+                    merged, await _scored_candidates(deps, state, gated)
+                )
+                pool = sorted(merged.values(), key=_pool_order, reverse=True)[
+                    : curator_pool(state.get("top_n"))
+                ]
+        except Exception as exc:
+            logger.warning("autopilot graph sweep degraded", exc_info=True)
+            entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+        return {"candidates": pool, "searches": [*(state.get("searches") or []), entry]}
+
+    return graph_sweep
+
+
 def make_curate_node(deps: GraphDeps):
     async def curate(state: AutopilotState) -> dict:
         """LLM step 2: top candidates → explained shortlist (audited)."""
@@ -1120,6 +1204,7 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     builder.add_node("filter", make_filter_node(deps))
     builder.add_node("replan", make_replan_node(deps), retry_policy=retry)
     builder.add_node("evaluate", make_evaluate_node(deps))
+    builder.add_node("graph_sweep", make_graph_sweep_node(deps))
     builder.add_node("curate", make_curate_node(deps), retry_policy=retry)
     builder.add_node("deliver", make_deliver_node(deps))
 
@@ -1135,8 +1220,9 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     )
     builder.add_edge("replan", "search")
     builder.add_conditional_edges(
-        "evaluate", route_by_abort, {"deliver": "deliver", "continue": "budget_guard"}
+        "evaluate", route_by_abort, {"deliver": "deliver", "continue": "graph_sweep"}
     )
+    builder.add_edge("graph_sweep", "budget_guard")
     builder.add_conditional_edges(
         "budget_guard",
         route_by_abort,

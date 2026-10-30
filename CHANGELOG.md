@@ -39,8 +39,14 @@ All notable changes to **Career Assistant** are documented here.
   `skill_expand=off|down|related` (default `off`, so nothing changes unless
   asked). `down` also matches sub-skills and synonyms of a listed skill;
   `related` additionally walks related concepts. Exclusions only ever widen
-  with `down` semantics — excluding a parent skill excludes its family, and
   the precision-losing mode never widens what you banned.
+- **Autopilot also searches related roles** (plan 158): the strongest mapped
+  matches seed a one-hop walk over the catalog's curated
+  `similar_to`/`alternative_to` edges, and open postings for those neighbour
+  roles join the pool — deterministic, no embeddings and no AI, so it works
+  on the desktop profile too. The same gates (open, unseen, never-terms,
+  cooldown) apply, and a catalog without relations simply adds a no-op
+  timeline entry.
 - **Autopilot also searches by meaning** (plan 158): one semantic pass over
   the posting embeddings already stored adds vacancies whose wording never
   matches a keyword variant. It is a recall source, never a bypass — every

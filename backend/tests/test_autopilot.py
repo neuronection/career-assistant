@@ -539,6 +539,10 @@ async def test_graph_resume_from_checkpoint(db, search_fixtures, auth_headers):
     final = await graph.ainvoke(None, config)
     assert final.get("searches") is not None
     assert final.get("findings") is not None
+    assert any(
+        str(entry.get("rationale") or "").startswith("curated graph expansion")
+        for entry in final.get("searches") or []
+    ), "the resumed flow traverses the graph sweep"
 
 
 async def test_chat_tools_registered():
@@ -1179,3 +1183,225 @@ async def test_replan_then_budget_abort_still_ships_partials(
     assert first["findings"], "partials by design"
     assert first["findings"][0]["why"].startswith("Fit ")
     assert first["status"] == "budget_aborted"
+
+
+# ------------------------------------------- S7 curated job-relation sweep
+
+
+async def _related_catalog_jobs(db) -> tuple:
+    """Two published catalog jobs joined by a curated similar_to edge."""
+    from sqlalchemy import select as _select
+
+    from app.models.enums import RelationType
+    from app.models.job_model import Job, JobRelation
+
+    jobs = (
+        (
+            await db.execute(
+                _select(Job).where(Job.status == "published").order_by(Job.code).limit(2)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    source_job, related_job = jobs
+    db.add(
+        JobRelation(
+            from_job_id=source_job.id,
+            to_job_id=related_job.id,
+            relation_type=RelationType.SIMILAR_TO.value,
+            weight=0.9,
+            source="manual",
+        )
+    )
+    await db.commit()
+    return source_job, related_job
+
+
+async def test_graph_sweep_surfaces_a_related_roles_posting(
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+):
+    """A posting under a similar_to-related catalog job surfaces even when
+    no variant's text matches it (plan 158 S7.1/S7.3)."""
+    from tests.conftest import _make_posting
+
+    source_job, related_job = await _related_catalog_jobs(db)
+    seed = await _make_posting(
+        db,
+        source,
+        external_id="g-seed",
+        title="Alpha Seed Role",
+        skills_raw=[],
+        raw={"description": "Seed role."},
+    )
+    neighbour = await _make_posting(
+        db,
+        source,
+        external_id="g-neighbour",
+        title="Omega Neighbour Role",
+        skills_raw=[],
+        raw={"description": "Neighbour role."},
+    )
+    seed.catalog_job_id = source_job.id
+    neighbour.catalog_job_id = related_job.id
+    await db.commit()
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {
+                        "rationale": "narrow lexical probe",
+                        "query": "",
+                        "filters": {"keywords": ["alpha"]},
+                    }
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    autopilot_mock(scripted)
+    created = await _goal(client, auth_headers, constraints={"top_n": 3})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    surfaced = [finding["posting_id"] for finding in result["findings"]]
+    assert str(neighbour.id) in surfaced
+    sweep = next(
+        entry
+        for entry in result["searches"]
+        if str(entry.get("rationale") or "").startswith("curated graph expansion from")
+    )
+    assert sweep["found"] >= 1
+    assert "Alpha Seed Role" in sweep["rationale"]
+
+
+async def test_graph_sweep_keeps_gated_postings_out(
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+):
+    """Seen and never-term postings stay out of the sweep's pool
+    (plan 158 S7.1/S7.3)."""
+    from app.models.posting_model import PostingInteraction
+    from tests.conftest import _make_posting
+
+    source_job, related_job = await _related_catalog_jobs(db)
+    seed = await _make_posting(
+        db, source, external_id="g2-seed", title="Alpha Seed Role", skills_raw=[], raw={}
+    )
+    seen = await _make_posting(
+        db, source, external_id="g2-seen", title="Omega Seen Role", skills_raw=[], raw={}
+    )
+    banned = await _make_posting(
+        db, source, external_id="g2-banned", title="Omega Banned Role", skills_raw=[], raw={}
+    )
+    for posting in (seed, seen, banned):
+        posting.catalog_job_id = source_job.id if posting is seed else related_job.id
+    db.add(
+        PostingInteraction(
+            user_id=_uid(auth_headers), posting_id=seen.id, seen_at=datetime.now(UTC)
+        )
+    )
+    await db.commit()
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {
+                        "rationale": "narrow lexical probe",
+                        "query": "",
+                        "filters": {"keywords": ["alpha"]},
+                    }
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    autopilot_mock(scripted)
+    created = await _goal(client, auth_headers, constraints={"top_n": 3, "never_terms": ["banned"]})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    surfaced = {finding["posting_id"] for finding in result["findings"]}
+    assert str(seen.id) not in surfaced
+    assert str(banned.id) not in surfaced
+
+
+async def test_graph_sweep_recuts_the_pool_and_degrades_without_relations(
+    db, auth_headers, seeded_catalog, source, kinds, autopilot_mock
+):
+    """The sweep never grows the pool past the curator pool, and a catalog
+    with no relations yields a no-op entry (plan 158 S7.2/S7.3)."""
+    from sqlalchemy import select as _select
+
+    from app.ai.graphs.autopilot import (
+        GraphDeps,
+        build_autopilot_graph,
+        curator_pool,
+        initial_state,
+    )
+    from app.ai.schemas import SearchPlan
+    from app.models.job_model import Job
+    from tests.conftest import _make_posting
+
+    source_job = (
+        (await db.execute(_select(Job).where(Job.status == "published").order_by(Job.code)))
+        .scalars()
+        .first()
+    )
+    for index in range(20):
+        posting = await _make_posting(
+            db, source, external_id=f"g3-{index}", title=f"Alpha Bulk Role {index}", raw={}
+        )
+        posting.catalog_job_id = source_job.id
+    await db.commit()
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {"rationale": "broad net", "query": "", "filters": {"keywords": ["alpha"]}}
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    autopilot_mock(scripted)
+    user_id = _uid(auth_headers)
+    goal = AutopilotGoal(user_id=user_id, goal_text="alpha roles", constraints={}, budget={})
+    db.add(goal)
+    await db.flush()
+    run = AutopilotRun(goal_id=goal.id)
+    db.add(run)
+    await db.commit()
+
+    graph = build_autopilot_graph(GraphDeps(db=db), InMemorySaver())
+    config = {"configurable": {"thread_id": str(run.id)}}
+    final = await graph.ainvoke(
+        initial_state(
+            user_id=user_id,
+            goal_id=goal.id,
+            run_id=run.id,
+            goal_text="alpha roles",
+            constraints={},
+            budget={},
+        ),
+        config,
+    )
+    await db.commit()
+
+    assert len(final["candidates"]) <= curator_pool(5)
+    assert len(final["findings"]) <= 5
+    sweep = next(
+        entry
+        for entry in final["searches"]
+        if str(entry.get("rationale") or "").startswith("curated graph expansion")
+    )
+    assert sweep["found"] == 0, "no relations ⇒ no-op entry"

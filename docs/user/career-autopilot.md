@@ -16,10 +16,13 @@ Open it at `/autopilot`.
    employers instead of being treated as one exact phrase, and a skill
    filter can widen over the curated skill graph (its sub-skills and
    synonyms) instead of matching one exact key.
-2. **Searches two ways** — by keyword variants and **by meaning** over the
-   posting embeddings already stored. The semantic pass is a recall source,
-   not a shortcut: every posting it proposes still passes the same
-   deterministic gates before it can reach the shortlist.
+2. **Searches three ways** — by keyword variants, **by meaning** over the
+   posting embeddings already stored, and by **related roles**: when a strong
+   match maps to a catalog job, the curated `similar_to`/`alternative_to`
+   neighbours of that role are searched too (QA ↔ test automation — adjacency
+   no wording encodes). All three are recall sources, not shortcuts: every
+   posting any of them proposes still passes the same deterministic gates
+   before it can reach the shortlist.
 3. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
    If the filtered pool is thinner than your shortlist size, it **broadens
@@ -40,8 +43,9 @@ hidden — so a long browsing history never crowds new vacancies out of a run.
 
 Semantic coverage grows as your postings get embedded: an admin recompute
 (Settings → AI Configuration) embeds them today, so a fresh board's postings
-join the by-meaning pass only once they have an embedding. Keyword search
-works immediately — an embedding failure never breaks a run.
+join the by-meaning pass only once they have an embedding. Keyword search and
+related-role expansion work immediately — an embedding failure, an unmapped
+board or a catalog without relations never breaks a run.
 
 ## Cadence and budgets
 
