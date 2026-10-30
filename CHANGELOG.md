@@ -47,6 +47,12 @@ All notable changes to **Career Assistant** are documented here.
   on the desktop profile too. The same gates (open, unseen, never-terms,
   cooldown) apply, and a catalog without relations simply adds a no-op
   timeline entry.
+- **The Autopilot graph is documented as a reference flow** (plan 158): the
+  developer docs now carry its topology, the candidate funnel with the real
+  bounds, the checkpointed state channels, the three recall signals (keyword,
+  semantic, curated job relations) and the budget/abort routing table, plus a
+  plain-language diagram on the user page. A docs-truth test pins every
+  number and node name to the code, so a stale diagram fails CI.
 - **Autopilot also searches by meaning** (plan 158): one semantic pass over
   the posting embeddings already stored adds vacancies whose wording never
   matches a keyword variant. It is a recall source, never a bypass — every

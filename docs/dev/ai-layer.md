@@ -88,7 +88,7 @@ Multi-step flows are checkpointed `StateGraph`s under `app/ai/graphs/`:
 
 - `cv_draft.py` — the one-shot CV generation flow (plan → enrich → synthesize
   → assemble → review/fix).
-- `autopilot.py` — the Autopilot run.
+- `autopilot.py` — the Autopilot run (the full reference below).
 - `chat_turn.py` — the main chat turn: `retrieve` → `agent_round ⇄
   execute_tools` → `synth` → `hitl` → `finalize`.
 
@@ -98,6 +98,97 @@ run id, so an interrupted run resumes from its last completed node via
 `ainvoke(None, config)`. Retention: desktop prunes SQLite at boot
 (`CAREER_CHECKPOINT_TTL_DAYS`); the server prunes Postgres on the daily
 `system_checkpoint_prune` schedule.
+
+### The Autopilot graph (reference flow)
+
+Deterministic nodes do one thing each; the three audited LLM steps (`plan`,
+`replan`, `curate`) are one gateway call apiece on the `AUTOPILOT_RUN` task.
+The LLM proposes, math ranks: fit and must-term coverage are computed in
+Python, and explanations ship only after quote verification.
+
+**Topology** — one checkpoint per node boundary; the loop edge is bounded by
+`REPLAN_LIMIT`:
+
+```mermaid
+flowchart TD
+    S([START]) --> P["plan · LLM (vocab + profile)"]
+    P -->|abort| DEL
+    P -->|else| SR["search · variants + semantic sweep"]
+    SR --> F["filter · never/seen/cooldown + must_hits"]
+    F -->|"kept < top_n and replan_attempts < 1"| RP["replan · LLM, bounded"]
+    F -->|else| E
+    RP -->|"new variants only"| SR
+    E["evaluate · (must_hits, fit) sort, curator pool"] --> GS["graph_sweep · job relations"]
+    E -->|abort| DEL
+    GS --> BG["budget_guard · ledger cap"]
+    BG -->|abort| DEL
+    BG -->|else| C["curate · LLM (+ must_hits)"]
+    C --> DEL["deliver · quote-verified, evidence, notify"]
+    DEL --> FIN([END])
+```
+
+**Candidate funnel** — three recall sources, every one of them behind the same
+deterministic gates:
+
+```mermaid
+flowchart LR
+    V["keyword/filter variants<br/>up to 6 x 40 examined<br/>200-posting fit window"] --> G{"deterministic gates<br/>open · unseen · never-terms · cooldown"}
+    M["semantic sweep<br/>top 60 by cosine"] --> G
+    R["curated job-relation sweep<br/>up to 3 seeds, 6 neighbour roles"] --> G
+    G --> C["merge + dedupe<br/>CANDIDATE_CAP 120"]
+    C --> P["curator pool (max(12, 3 x top_n))<br/>15 at the default top_n 5"]
+    P --> T["findings<br/>top_n 5"]
+```
+
+**Pinned constants** (the truth gate `backend/tests/test_autopilot_docs_truth.py`
+compares this table with the code):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `SEARCH_VARIANTS` | 6 | planned variants executed per pass |
+| `SEARCH_LIMIT` | 40 | examined postings per variant |
+| `SEMANTIC_K` | 60 | semantic candidates per run |
+| `GRAPH_SEEDS` | 3 | mapped matches that seed the relation walk |
+| `GRAPH_NEIGHBORS` | 6 | neighbour roles the walk may expand to |
+| `CANDIDATE_CAP` | 120 | checkpointed merge pool ceiling |
+| `CURATOR_POOL` | 15 | curated shortlist pool at the default top_n |
+| `REPLAN_LIMIT` | 1 | broaden passes per run |
+
+**State channels** — what is checkpointed, its bound, and why:
+
+| Channel | Bound | Why it is in the checkpoint |
+|---|---|---|
+| `plan` | ≤ 6 variants | the plan is the run's contract; a resume re-executes it |
+| `candidates` | `CANDIDATE_CAP` 120 | the merge pool rides every write — the cap bounds checkpoint weight (~1.5 KB each) on Postgres and SQLite alike |
+| `searches` | one entry per search/filter/replan step | the transparency timeline the UI renders |
+| `replan_attempts` / `replans` | 1 attempt | the loop edge's governor; resumable |
+| `curation` | ≤ 10 findings | the LLM's shortlist explanation |
+| `progress_pct` | 0-100, monotonic | the progress callback must never report backwards on a re-entry |
+| `profile_context` | ≤ 12 skills | the planner's grounding; computed once per run |
+| `abort_reason` / `tokens_used` | one value | routing + the run's recorded spend |
+
+**Similarity signals** — what each recall source catches, needs and how it
+degrades:
+
+| Source | Catches | Needs | Degrades by |
+|---|---|---|---|
+| Keyword/filter variants | exact vocabulary: titles, employers, skill keys, enums | nothing beyond the catalog | a bad variant is dropped with a timeline error; the rest still run |
+| Semantic sweep (embeddings) | wording and description-level meaning no keyword shares | stored posting embeddings + an assigned `embed` task | timeline entry with a sanitized note; lexical candidates unaffected |
+| Curated job-relation sweep | role adjacency (`similar_to`/`alternative_to`) no text encodes | postings mapped to catalog jobs + curated relations | no-op timeline entry; no embeddings, no AI, desktop-safe |
+
+**Budget and abort routing** — every `abort_reason`, where it fires, and what
+still ships:
+
+| `abort_reason` | Fires at | What still ships |
+|---|---|---|
+| `budget` | `plan` (gateway refuses), `budget_guard` (ledger cap over `ai_budgets`) | searched candidates ship with deterministic `Fit …` explanations (`budget_aborted`) |
+| `cancelled` | `budget_guard` (user cancel) | the same partial path, status `cancelled` |
+| `error` | `plan`/`curate` gateway failure with no findings | status `failed`; with findings the run completes |
+| none (empty pool) | never aborts | an empty run counts toward the stale-goal nudge after 3 |
+
+A replan spends one audited call; when the run budget is already spent the
+node skips the call and the deterministic findings still ship.
+
 
 ## Decision models (`app/ai/decide/`)
 

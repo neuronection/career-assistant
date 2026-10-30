@@ -9,6 +9,18 @@ Open it at `/autopilot`.
 
 ## What a run does
 
+```mermaid
+flowchart LR
+    G["your goal"] --> S["searches your boards<br/>by keyword, by meaning,<br/>and by related roles"]
+    S --> F["drops what you have seen,<br/>applied to or hidden,<br/>your never-terms<br/>and the per-goal cooldown"]
+    F -->|"too thin"| R["broadens once"]
+    R --> S
+    F --> K["ranks by your must-haves,<br/>then by fit"]
+    K --> P["shortlist with<br/>verified quotes"]
+    P --> FB["more like this / hide like this"]
+    FB --> G
+```
+
 1. **Plans** several query and filter variants from your goal — grounded in
    your profile: your skills (and the taxonomy skills around them), your
    education level, your location, and the seniority you asked for. Each

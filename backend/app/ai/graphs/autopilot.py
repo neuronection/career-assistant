@@ -6,9 +6,11 @@ Nodes do one thing each: an LLM step is one audited gateway call
 The graph is checkpointed (``thread_id`` = run id), so a worker crash
 resumes from the last completed node via ``ainvoke(None, config)``; a
 budget abort routes straight to ``deliver`` so partial findings still
-ship. Final ordering is deterministic (fit sort) — the LLM curates, math
-ranks. There is no auto-apply node: findings are suggestions, applying
-stays a user click.
+ship. Three recall sources feed one pool (keyword variants, a semantic
+sweep over stored embeddings, a curated job-relation sweep), every source
+behind the same deterministic gates; final ordering is deterministic
+(must-term coverage, then fit) — the LLM curates, math ranks. There is no
+auto-apply node: findings are suggestions, applying stays a user click.
 """
 
 import json
@@ -1190,12 +1192,12 @@ def route_after_filter(state: AutopilotState) -> str:
 
 
 def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
-    """Compile plan → search → filter → evaluate → guard → curate →
-    deliver. The guard sits between the deterministic pipeline and the
-    second LLM call: at budget the searched candidates still ship with
-    deterministic explanations (partial findings). Tests pass an
-    ``InMemorySaver``; production passes the app checkpointer
-    (thread_id = run id)."""
+    """Compile plan → search → filter (⇄ replan, bounded) → evaluate →
+    graph_sweep → budget_guard → curate → deliver. The guard sits between
+    the deterministic pipeline and the last LLM call: at budget the searched
+    candidates still ship with deterministic explanations (partial
+    findings). Tests pass an ``InMemorySaver``; production passes the app
+    checkpointer (thread_id = run id)."""
     builder = StateGraph(AutopilotState)
     retry = RetryPolicy(max_attempts=2)
     builder.add_node("plan", make_plan_node(deps), retry_policy=retry)
