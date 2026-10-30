@@ -1785,7 +1785,10 @@
         "planSources": "{{count}} radar(s)",
         "paused": "Paused",
         "originMcp": "MCP",
-        "originBundled": "Bundled"
+        "originBundled": "Bundled",
+        "statusOk": "Healthy",
+        "statusDegraded": "Degraded",
+        "statusFailing": "Failing"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -4571,10 +4574,13 @@
     "runPartial": "Partial",
     "runFailed": "Failed",
     "runSkipped": "Skipped",
-    "budgetCustom": "Custom · {{seconds}}s",
     "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
     "presetLabel": "Start with",
-    "advancedLabel": "Advanced (traffic safety)"
+    "advancedLabel": "Advanced (traffic safety)",
+    "customValue": "Custom…",
+    "customValueFor": "{{label}} — custom value",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Open the source page"
   },
   "filters": {
     "title": "Filters",

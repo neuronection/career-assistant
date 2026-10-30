@@ -1785,7 +1785,10 @@
         "planSources": "{{count}} radar",
         "paused": "Σε παύση",
         "originMcp": "MCP",
-        "originBundled": "Ενσωματωμένο"
+        "originBundled": "Ενσωματωμένο",
+        "statusOk": "Υγιής",
+        "statusDegraded": "Υποβαθμισμένη",
+        "statusFailing": "Σε αποτυχία"
       },
       "extSources": {
         "title": "Επεκτατικές πηγές (εισαγωγή από git)",
@@ -4570,10 +4573,13 @@
     "runPartial": "Μερικό",
     "runFailed": "Απέτυχε",
     "runSkipped": "Παραλείφθηκε",
-    "budgetCustom": "Προσαρμοσμένο · {{seconds}} s",
     "budgetKept": "Το όριο επήλθε — κρατήθηκαν {{count}} αγγελίες· οι υπόλοιπες συνέχισουν στον επόμενο συγχρονισμό",
     "presetLabel": "Ξεκίνα με",
-    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)"
+    "advancedLabel": "Για προχωρημένους (ασφάλεια κίνησης)",
+    "customValue": "Προσαρμοσμένη τιμή…",
+    "customValueFor": "{{label}} — προσαρμοσμένη τιμή",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Άνοιγμα σελίδας πηγής"
   },
   "filters": {
     "title": "Φίλτρα",

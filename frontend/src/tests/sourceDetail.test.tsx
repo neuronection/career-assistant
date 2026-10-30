@@ -175,5 +175,56 @@ describe("SourceDetailPage", () => {
     const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
     expect(call.query_batch_size).toBe(2);
     expect(JSON.parse(call.config.options).budget_seconds).toBe(90);
-    expect(JSON.parse(call.config.options).detail_mode ?? "off").toBe("off");
+    expect(JSON.parse(call.config.options).detail_mode ?? "all").toBe("all");
+  });
+
+  it("accepts a custom role-group count and budget through the Custom entry", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            max_pages: { type: "number", title: "Max pages" },
+            budget_seconds: { type: "number", title: "Time budget" },
+            detail_mode: { type: "string", title: "Detail mode" },
+          },
+        },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+
+    const batchRow = screen.getByTestId("pacing-Role groups per sync");
+    await user.click(within(batchRow).getByRole("tab", { name: "Custom…" }));
+    const batchInput = screen.getByTestId("pacing-Role groups per sync-custom");
+    expect(batchInput).toHaveAttribute("min", "1");
+    expect(batchInput).toHaveAttribute("max", "6");
+    await user.clear(batchInput);
+    await user.type(batchInput, "5");
+
+    const budgetRow = screen.getByTestId("pacing-Time budget");
+    await user.click(within(budgetRow).getByRole("tab", { name: "Custom…" }));
+    const budgetInput = screen.getByTestId("pacing-Time budget-custom");
+    expect(budgetInput).toHaveAttribute("min", "20");
+    expect(budgetInput).toHaveAttribute("max", "90");
+    await user.clear(budgetInput);
+    await user.type(budgetInput, "75");
+
+    // picking a preset again returns to the presets
+    await user.click(within(batchRow).getByRole("tab", { name: "3" }));
+    expect(screen.queryByTestId("pacing-Role groups per sync-custom")).toBeNull();
+
+    await user.click(within(batchRow).getByRole("tab", { name: "Custom…" }));
+    const reopened = screen.getByTestId("pacing-Role groups per sync-custom");
+    await user.clear(reopened);
+    await user.type(reopened, "4");
+
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.query_batch_size).toBe(4);
+    expect(JSON.parse(call.config.options).budget_seconds).toBe(75);
   });

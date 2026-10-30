@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (sources — clickable cards + custom pacing values, 2026-10-30)
+- **Job-source cards open their manage page on click** — the whole row is
+  the target (title is the keyboard-reachable affordance); the enable
+  toggle, Test and the ⋯ overflow keep working on their own. Cards follow
+  the app-wide item-card grammar (hover accent, focus ring), so the
+  sources list reads like every other card grid.
+- **Pacing knobs take custom values, not only presets**: role groups per
+  sync (1–6), time budget (20–90 s) and any bundle numeric field with
+  choices (pages per sync, …) gain a trailing **Custom…** entry that
+  swaps the chips for a bounded number input — a stored value outside the
+  presets opens the input prefilled. New defaults: every integration
+  fetches all detail pages, role groups 2, budget 90 s, detail fetch
+  session Guest.
+- Status chips render their labels instead of raw i18n keys.
+
 ### Changed (audit auto-refresh + export coverage, 2026-10-30)
 - **Overview gains an auto-refresh toggle** (plan 157): a 30-second
   cadence refetches the KPIs, charts and failure feed in place — the

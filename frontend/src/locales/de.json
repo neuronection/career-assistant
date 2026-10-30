@@ -1785,7 +1785,10 @@
         "planSources": "{{count}} Radar(e)",
         "paused": "Pausiert",
         "originMcp": "MCP",
-        "originBundled": "Eingebaut"
+        "originBundled": "Eingebaut",
+        "statusOk": "Gesund",
+        "statusDegraded": "Beeinträchtigt",
+        "statusFailing": "Fehlerhaft"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -4570,10 +4573,13 @@
     "runPartial": "Teilweise",
     "runFailed": "Fehlgeschlagen",
     "runSkipped": "Übersprungen",
-    "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
     "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
     "presetLabel": "Starten mit",
-    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)",
+    "customValue": "Eigener Wert…",
+    "customValueFor": "{{label}} — eigener Wert",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Quellenseite öffnen"
   },
   "filters": {
     "title": "Filter",
