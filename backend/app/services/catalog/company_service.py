@@ -48,13 +48,22 @@ class CompanyService:
         min_open: int | None = None,
         industry: list[str] | None = None,
         location: str | None = None,
+        sort: str = "open_postings",
         facets: bool = False,
     ) -> dict:
         """Companies with open postings, busiest first — filterable by the
         hiring reality those postings prove (plan 154): work mode,
-        seniority, employment type, where the jobs are, and volume."""
+        seniority, employment type, where the jobs are, and volume.
+
+        `sort` orders the directory: ``open_postings`` (default, busiest
+        first), ``name`` (A-Z) or ``recent`` (latest open posting first).
+        """
         counts = (
-            select(JobPosting.org_id, func.count().label("open_postings"))
+            select(
+                JobPosting.org_id,
+                func.count().label("open_postings"),
+                func.max(JobPosting.posted_at).label("latest_posted"),
+            )
             .where(JobPosting.org_id.is_not(None), JobPosting.status.in_(OPEN_STATUSES))
             .group_by(JobPosting.org_id)
             .subquery()
@@ -67,9 +76,20 @@ class CompanyService:
                 Organization.status.in_(["active", "proposed"]),
                 counts.c.open_postings.is_not(None),
             )
-            .order_by(desc(func.coalesce(counts.c.open_postings, 0)), Organization.name.asc())
             .limit(max(1, min(limit, 500)))
         )
+        if sort == "name":
+            query = query.order_by(Organization.name.asc(), Organization.id.asc())
+        elif sort == "recent":
+            query = query.order_by(
+                counts.c.latest_posted.desc().nulls_last(),
+                Organization.name.asc(),
+            )
+        else:
+            query = query.order_by(
+                desc(func.coalesce(counts.c.open_postings, 0)),
+                Organization.name.asc(),
+            )
         if q and q.strip():
             query = query.where(Organization.name.ilike(f"%{q.strip()}%"))
         if min_open is not None:

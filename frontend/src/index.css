@@ -113,6 +113,24 @@ body {
    chat dock narrows the column, not the viewport, so no lg: here. */
 .ca-item-card {
   container-type: inline-size;
+  position: relative;
+}
+
+/* Seen rail (plan 159): a reviewed posting carries a 3px neutral bar on its
+   leading edge — the at-a-glance read cue in a long list. It is a marker,
+   not a state hue (accent stays hover/interactive, fit bands stay the only
+   colour language) and the card keeps full contrast: cards are never
+   dimmed. Drawn as a pseudo-element, never a box-shadow, so the shell's
+   focus-within ring is untouched. */
+.ca-item-card[data-seen="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--as-muted-fg) 55%, transparent);
+  pointer-events: none;
 }
 
 @container (max-width: 30rem) {

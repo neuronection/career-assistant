@@ -727,9 +727,9 @@ def make_search_node(deps: GraphDeps):
             if variant.get("query"):
                 raw_filters["q"] = variant["query"]
             if exclude_seen:
-                raw_filters.setdefault("seen", False)
-                raw_filters.setdefault("applied", False)
-                raw_filters.setdefault("hidden", False)
+                raw_filters.setdefault("seen_exclude", True)
+                raw_filters.setdefault("applied_exclude", True)
+                raw_filters.setdefault("hidden_exclude", True)
             entry = {
                 "step": "search",
                 "query": variant.get("query") or "",

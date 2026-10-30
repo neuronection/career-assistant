@@ -237,8 +237,16 @@ Information is **three tiers**, never one chip soup:
    row: a faded second row reads as disabled.
 3. **State markers** (`CardState`) — binary facts as a compact icon (+
    optional label), never a pill: **seen** = one muted double-check in the
-   kicker (unseen renders nothing — the normal state is silent, and cards
-   are never dimmed); **closed** = neutral lock + close date tooltip,
+   kicker plus a 3 px neutral rail on the card's leading edge
+   (`[data-seen="true"]::before` in `index.css` — a read marker, not a
+   state hue: accent stays hover/interactive and fit bands stay the only
+   colour language; unseen renders nothing, the normal state is silent,
+   and cards are never dimmed). While unseen, the *same kicker slot*
+   carries the `posting-mark-seen` action (a quiet text action with an
+   accent check) — state and action share one slot, so clicking it turns
+   the slot into the seen mark in place; seen is one-way (no un-see
+   endpoint), which is why it is not a toggle. **closed** =
+   neutral lock + close date tooltip,
    with the whole card desaturated via `data-state="closed"` (tokens, not
    `filter: grayscale`, so contrast holds) and Apply disabled; saved /
    applied ride the kicker; **partial details** = info dot (extraction
@@ -262,7 +270,8 @@ group headings. Unmapped skills get a dashed border (data quality, not
 ranking).
 
 Testids are contracts: `posting-card`/`posting-details`/`posting-title`/
-`posting-apply`/`posting-save`/`posting-hide`/`posting-provenance`/
+`posting-apply`/`posting-save`/`posting-hide`/`posting-mark-seen`/
+`posting-provenance`/
 `posting-coverage`/`posting-seen`/`posting-closed`/`posting-partial`/
 `posting-details-pending`, `job-card`/`job-title`/`education-chip`,
 `scores-{code}`/`breakdown-toggle-{code}`/`compare-add-{code}`,
@@ -471,6 +480,29 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   icon prop) and keep a phone-floor width inside an `overflow-x-auto`
   wrapper — six labels scroll instead of squeezing. Loading stays the
   app's Spinner + label row (previews are the shimmer exception, §6).
+
+## 2h. Shareable list state — the URL is the state (plan 163)
+
+A list page whose filters/order a user would want to reload, go back to
+or send to someone else keeps that state **in the URL, not in
+`useState`**:
+
+- derive the page state from `useSearchParams` during render through an
+  exported pure helper — `/postings` uses one vocabulary module
+  (`features/catalog/exploreParams.ts`: `parseFilters` / `toParams` /
+  `toSearchParams` / `countActive`, the same shape the API and saved
+  searches use);
+- handlers write the **canonical** search string with `replace: true`
+  (no history spam, no dual state → no sync effect);
+- one guarded mount effect drops unknown/malformed params and falls back
+  to defaults — never error on a hand-edited link;
+- omit defaults (`sort=fit` never appears), keep names that may contain
+  commas as repeated params (`org=Acme%2C+Inc.`), and validate every
+  closed vocabulary on parse.
+- `/companies` is the second adopter (`features/companies/companiesParams.ts`):
+  the directory rail, the search text, the status chips, the sort and the
+  open-roles floor all ride the URL (`?status=new&work_mode=remote&min_open=5`),
+  with the same parse → write → canonicalize contract.
 
 ## 2d. Feature state (beta affordance)
 

@@ -12,6 +12,7 @@ import {
 vi.mock("@/api/taxonomy", () => ({
   fetchInterests: vi.fn().mockResolvedValue([]),
   fetchSkillRows: vi.fn().mockResolvedValue([]),
+  fetchTaxonomyStats: vi.fn().mockResolvedValue(null),
   createTag: vi.fn(),
   deleteTag: vi.fn(),
   updateTag: vi.fn(),

@@ -11,7 +11,7 @@ covers v2 fields only, so salary/education stay human-owned.
 import logging
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.catalog_enricher import EnrichmentPatch
@@ -31,6 +31,21 @@ V2_KEYS = (
 
 def _proposal_of(job: Job) -> dict | None:
     return (job.ai_metadata or {}).get("enrichment_proposal") or None
+
+
+def _pending_predicate(dialect_name: str):
+    """Rows carrying a live enrichment proposal, filtered in the database.
+
+    The key's JSON *type* decides it, not mere presence: rejection stores
+    an explicit JSON ``null`` under the same key (``enrichment_rejected_at``
+    keeps the audit trail), so a presence test would resurrect discarded
+    proposals on PostgreSQL while SQLite's NULL-extracting accessor hid
+    the divergence. ``object`` is the only live shape — the writer stores
+    validated, non-empty patches.
+    """
+    if dialect_name == "postgresql":
+        return text("jsonb_typeof(ai_metadata -> 'enrichment_proposal') = 'object'")
+    return text("json_type(ai_metadata, '$.enrichment_proposal') = 'object'")
 
 
 class CatalogEnrichService:
@@ -84,9 +99,20 @@ class CatalogEnrichService:
     async def pending(self) -> list[Job]:
         """Jobs with an enrichment proposal awaiting review."""
         rows = await self.db.execute(
-            select(Job).where(Job.status == "published").order_by(Job.updated_at)
+            select(Job)
+            .where(Job.status == "published", _pending_predicate(self.db.get_bind().dialect.name))
+            .order_by(Job.updated_at)
         )
-        return [job for job in rows.scalars().all() if _proposal_of(job)]
+        return list(rows.scalars().all())
+
+    async def count_pending(self) -> int:
+        """Cheap backlog count for the taxonomy stats bar (plan 161)."""
+        total = await self.db.scalar(
+            select(func.count())
+            .select_from(Job)
+            .where(Job.status == "published", _pending_predicate(self.db.get_bind().dialect.name))
+        )
+        return int(total or 0)
 
     async def apply(self, job: Job) -> Job:
         """Merge the proposal's v2 fields into the curated attributes."""

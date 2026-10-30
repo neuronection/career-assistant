@@ -97,6 +97,13 @@ taxonomy by stable `key` slugs, so changes here are what keep labels and
 translations from breaking data. Unknown skills introduced by users or the AI
 appear as `proposed` rows for review.
 
+The page opens with a **work-queue bar** over everything you own: the skill
+ontology by lifecycle state (active, proposed, deprecated, and how many the
+corroboration gate promoted — all time and in the last seven days), then
+every review queue's live count (relations, enrichment, draft paths,
+translations). The counts come from the server, so a tab badge and a tile
+never disagree; a queue's tab carries its count until the queue is empty.
+
 Tabs and subtabs are URL-addressable: add `?tab=` (interests, skills,
 paths, enrichment, translations, relations) and, for the Relations
 subtabs, `&section=` (queue, editor, graph, thresholds, runs) —

@@ -11,7 +11,9 @@ import {
   MenuContent,
   MenuItem,
   MenuTrigger,
-} from "@/components/ui";import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
+} from "@/components/ui";
+import { ItemCardShell } from "@/components/cards/ItemCardShell";
+import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
@@ -98,145 +100,170 @@ function JobSourceCard({
   const Icon = source.kind === "market" ? Globe : Radar;
 
   return (
-    <article
-      data-testid={`integration-instance-${source.id}`}
-      className="space-y-2 rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3.5"
+    <ItemCardShell
+      testId={`integration-instance-${source.id}`}
+      density="compact"
+      onOpen={onManage}
+      className="gap-3 p-3.5"
+      actions={
+        <>
+          {isPosting ? (
+            <Button size="sm" variant="outline" disabled={probing} onClick={onTest}>
+              {probing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Radar className="h-3.5 w-3.5" />
+              )}
+              {t("toolsSettings.connectors.sources.test")}
+            </Button>
+          ) : null}
+          <Menu>
+            <MenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={`${t("toolsSettings.connectors.sources.actions")}: ${source.key}`}
+                data-testid={`source-actions-${source.key}`}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </MenuTrigger>
+            <MenuContent align="end">
+              {isPosting ? (
+                <MenuItem
+                  data-testid={`sync-source-${source.key}`}
+                  disabled={busy}
+                  onSelect={onSync}
+                >
+                  <RefreshCw className="h-3.5 w-3.5" />
+                  {t("toolsSettings.connectors.sources.sync")}
+                </MenuItem>
+              ) : null}
+              {connector?.manifest?.docs ? (
+                <MenuItem
+                  data-testid={`connector-docs-${source.connector_key}`}
+                  onSelect={onDocs}
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  {t("toolsSettings.connectors.docs.open", "Docs")}
+                </MenuItem>
+              ) : null}
+              <MenuItem data-testid={`query-plan-${source.key}`} onSelect={onPlan}>
+                {t("toolsSettings.connectors.sources.plan")}
+              </MenuItem>
+              <MenuItem data-testid={`manage-source-${source.key}`} onSelect={onManage}>
+                {t("toolsSettings.connectors.sources.manage")}
+              </MenuItem>
+              <MenuItem
+                data-testid={`remove-source-${source.key}`}
+                disabled={busy}
+                onSelect={onRemove}
+              >
+                {t("toolsSettings.connectors.sources.remove")}
+              </MenuItem>
+            </MenuContent>
+          </Menu>
+        </>
+      }
     >
-      <div className="flex items-start gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-primary)_10%,var(--as-surface-raised))] text-[var(--as-primary)]" aria-hidden>
+      <div className="flex min-w-0 flex-1 items-start gap-2.5">
+        <span
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-primary)_10%,var(--as-surface-raised))] text-[var(--as-primary)]"
+          aria-hidden
+        >
           <Icon className="h-4 w-4" />
         </span>
-        <div className="min-w-0 flex-1">
-          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold text-[var(--as-fg)]">
-            <span className="truncate" data-testid={`job-source-name-${source.key}`}>{source.key}</span>
-          </p>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <button
+            type="button"
+            className="block w-full min-w-0 truncate text-left text-sm font-semibold text-[var(--as-fg)] hover:text-[var(--as-accent)]"
+            title={t("sourceDetail.openSource")}
+            data-testid={`job-source-name-${source.key}`}
+          >
+            {source.key}
+          </button>
           <p className="truncate text-xs text-[var(--as-muted-fg)]">
             {connector?.title ?? source.connector_key}
           </p>
+
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--as-muted)] px-2 py-0.5">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${active ? tone.dot : "bg-[var(--as-muted-fg)]"}`}
+                aria-hidden
+              />
+              <span className="text-[var(--as-fg)]">
+                {paused
+                  ? t("toolsSettings.connectors.sources.paused")
+                  : active
+                    ? t(tone.labelKey)
+                    : t("toolsSettings.connectors.sources.paused")}
+              </span>
+            </span>
+            <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">
+              {source.managed
+                ? t("toolsSettings.connectors.sources.originMcp")
+                : t("toolsSettings.connectors.sources.originBundled")}
+            </span>
+            <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">
+              T1
+            </span>
+            {needsSecret ? (
+              <span
+                className="rounded-full bg-[color-mix(in_srgb,var(--as-warning)_18%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
+                data-testid={`integration-condition-${source.id}-needs-secret`}
+              >
+                {t("toolsSettings.connectors.sources.needsSecret")}
+              </span>
+            ) : null}
+          </div>
+
+          <p className="text-xs text-[var(--as-muted-fg)]">
+            {source.posting_count != null
+              ? t("companies.openPostings", { count: source.posting_count })
+              : null}
+            {lastSuccess
+              ? ` · ${t("toolsSettings.connectors.sources.lastSuccess")} ${lastSuccess}`
+              : ""}
+            {source.error ? (
+              <span className="block truncate text-[var(--as-danger)]">{source.error}</span>
+            ) : null}
+          </p>
+
+          {probe ? (
+            <p
+              className={probe.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"}
+              data-testid={`job-source-probe-${source.key}`}
+            >
+              {probe.ok
+                ? t("toolsSettings.connectors.sources.probeOk", {
+                    items: probe.items ?? 0,
+                    latency: probe.latency_ms ?? 0,
+                  })
+                : t("toolsSettings.connectors.sources.probeError", {
+                    code: probe.error?.code ?? "error",
+                    detail: probe.error?.detail ?? "",
+                  })}
+            </p>
+          ) : null}
         </div>
-        <SwitchRow
-          label={t("toolsSettings.connectors.sources.enabledAria") + ": " + source.key}
-          checked={active}
-          hideLabel
-          disabled={busy}
-          onCheckedChange={onToggle}
-          className="w-auto shrink-0 border-none bg-transparent px-0 py-0 hover:bg-transparent"
-          data-testid={`job-source-toggle-${source.key}`}
-        />
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--as-muted)] px-2 py-0.5">
-          <span className={`h-1.5 w-1.5 rounded-full ${active ? tone.dot : "bg-[var(--as-muted-fg)]"}`} aria-hidden />
-          <span className="text-[var(--as-fg)]">
-            {paused ? t("toolsSettings.connectors.sources.paused") : active ? t(tone.labelKey) : t("toolsSettings.connectors.sources.paused")}
-          </span>
-        </span>
-        <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">
-          {source.managed ? t("toolsSettings.connectors.sources.originMcp") : t("toolsSettings.connectors.sources.originBundled")}
-        </span>
-        <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">T1</span>
-        {needsSecret ? (
-          <span
-            className="rounded-full bg-[color-mix(in_srgb,var(--as-warning)_18%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
-            data-testid={`integration-condition-${source.id}-needs-secret`}
-          >
-            {t("toolsSettings.connectors.sources.needsSecret")}
-          </span>
-        ) : null}
-      </div>
-
-      <p className="text-xs text-[var(--as-muted-fg)]">
-        {source.posting_count != null
-          ? t("companies.openPostings", { count: source.posting_count })
-          : null}
-        {lastSuccess
-          ? ` · ${t("toolsSettings.connectors.sources.lastSuccess")} ${lastSuccess}`
-          : ""}
-        {source.error ? (
-          <span className="block truncate text-[var(--as-danger)]">{source.error}</span>
-        ) : null}
-      </p>
-
-      {probe ? (
-        <p
-          className={
-            probe.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"
-          }
-          data-testid={`job-source-probe-${source.key}`}
+        <div
+          className="shrink-0"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
         >
-          {probe.ok
-            ? t("toolsSettings.connectors.sources.probeOk", {
-                items: probe.items ?? 0,
-                latency: probe.latency_ms ?? 0,
-              })
-            : t("toolsSettings.connectors.sources.probeError", {
-                code: probe.error?.code ?? "error",
-                detail: probe.error?.detail ?? "",
-              })}
-        </p>
-      ) : null}
-
-      <div className="flex items-center justify-end gap-1.5 pt-0.5">
-        {isPosting ? (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={probing}
-            onClick={onTest}
-          >
-            {probing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
-            {t("toolsSettings.connectors.sources.test")}
-          </Button>
-        ) : null}
-        <Menu>
-          <MenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label={`${t("toolsSettings.connectors.sources.actions")}: ${source.key}`}
-              data-testid={`source-actions-${source.key}`}
-            >
-              <MoreHorizontal className="h-4 w-4" />
-            </Button>
-          </MenuTrigger>
-          <MenuContent align="end">
-            {isPosting ? (
-              <MenuItem
-                data-testid={`sync-source-${source.key}`}
-                disabled={busy}
-                onSelect={onSync}
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                {t("toolsSettings.connectors.sources.sync")}
-              </MenuItem>
-            ) : null}
-            {connector?.manifest?.docs ? (
-              <MenuItem
-                data-testid={`connector-docs-${source.connector_key}`}
-                onSelect={onDocs}
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                {t("toolsSettings.connectors.docs.open", "Docs")}
-              </MenuItem>
-            ) : null}
-            <MenuItem data-testid={`query-plan-${source.key}`} onSelect={onPlan}>
-              {t("toolsSettings.connectors.sources.plan")}
-            </MenuItem>
-            <MenuItem data-testid={`manage-source-${source.key}`} onSelect={onManage}>
-              {t("toolsSettings.connectors.sources.manage")}
-            </MenuItem>
-            <MenuItem
-              data-testid={`remove-source-${source.key}`}
-              disabled={busy}
-              onSelect={onRemove}
-            >
-              {t("toolsSettings.connectors.sources.remove")}
-            </MenuItem>
-          </MenuContent>
-        </Menu>
+          <SwitchRow
+            label={t("toolsSettings.connectors.sources.enabledAria") + ": " + source.key}
+            checked={active}
+            hideLabel
+            disabled={busy}
+            onCheckedChange={onToggle}
+            className="w-auto shrink-0 border-none bg-transparent px-0 py-0 hover:bg-transparent"
+            data-testid={`job-source-toggle-${source.key}`}
+          />
+        </div>
       </div>
-    </article>
+    </ItemCardShell>
   );
 }
 
@@ -483,7 +510,7 @@ function JobSourceConnectors() {
                   connector_key: "",
                   config: {},
                   query_mode: "static",
-                  query_batch_size: 1,
+                  query_batch_size: 2,
                 })
               }
               data-testid="add-job-source"

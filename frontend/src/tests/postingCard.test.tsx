@@ -1,9 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
+import { markPostingsSeen } from "@/api/postings";
 import { PostingCard } from "@/features/postings/components/PostingCard";
 import type { PostingOut } from "@/types/wire";
+
+vi.mock("@/api/postings", () => ({
+  markPostingsSeen: vi.fn().mockResolvedValue({ marked: 1 }),
+  savePosting: vi.fn().mockResolvedValue(undefined),
+  hidePosting: vi.fn().mockResolvedValue(undefined),
+  markApplied: vi.fn().mockResolvedValue(undefined),
+}));
 
 function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   return {
@@ -77,6 +85,32 @@ describe("PostingCard", () => {
   it("marks a seen posting with the quiet seen icon", () => {
     renderCard(posting({ seen: true }));
     expect(screen.getByTestId("posting-seen")).toBeInTheDocument();
+    expect(screen.queryByTestId("posting-mark-seen")).not.toBeInTheDocument();
+  });
+
+  it("marks a posting seen from the card without opening it", async () => {
+    const onOpen = vi.fn();
+    renderCard(posting(), onOpen);
+    expect(screen.getByTestId("posting-card")).not.toHaveAttribute("data-seen");
+    fireEvent.click(screen.getByTestId("posting-mark-seen"));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(markPostingsSeen).toHaveBeenCalledWith(["p1"]);
+    await waitFor(() =>
+      expect(screen.getByTestId("posting-card")).toHaveAttribute("data-seen", "true")
+    );
+    expect(screen.getByTestId("posting-seen")).toBeInTheDocument();
+    expect(document.activeElement).toContainElement(screen.getByTestId("posting-seen"));
+    expect(screen.queryByTestId("posting-mark-seen")).not.toBeInTheDocument();
+  });
+
+  it("rolls the seen mark back when the request fails", async () => {
+    vi.mocked(markPostingsSeen).mockRejectedValueOnce(new Error("offline"));
+    renderCard(posting());
+    fireEvent.click(screen.getByTestId("posting-mark-seen"));
+    await waitFor(() =>
+      expect(screen.getByTestId("posting-mark-seen")).toBeInTheDocument()
+    );
+    expect(screen.getByTestId("posting-card")).not.toHaveAttribute("data-seen");
   });
 
   it("marks partial details instead of a needs-review chip", () => {

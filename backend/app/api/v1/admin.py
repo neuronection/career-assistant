@@ -35,9 +35,10 @@ from app.schemas.scheduler import (
     ScheduleRunNowOut,
     ScheduleToggleOut,
 )
-from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut
+from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut, TaxonomyStatsOut
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
+from app.services.catalog.taxonomy_stats import collect_taxonomy_stats
 from app.services.deps import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,12 @@ async def bulk_skill_action(
         body.ids, body.action, body.target_id, actor_ref={"user_id": str(admin.id)}
     )
     return SkillBulkOut.model_validate(result)
+
+
+@router.get("/taxonomy/stats", response_model=TaxonomyStatsOut)
+async def taxonomy_queue_stats(db: AsyncSession = Depends(get_db)) -> TaxonomyStatsOut:
+    """Backlog counts behind the taxonomy work-queue bar (plan 161)."""
+    return TaxonomyStatsOut.model_validate(await collect_taxonomy_stats(db))
 
 
 @router.get("/paths")
@@ -927,8 +934,37 @@ async def list_source_runs(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """The run ledger (plan 134): newest first — when it ran, trigger,
-    duration, status, items synced and the bounded error."""
+    duration, status, items synced and the bounded error.
+
+    Ghost healing on read: a crash can leave a ``running`` row behind and
+    the page would claim "Running now" for hours (the next sync only
+    closes it later). Rows past the same staleness cutoff the next run
+    uses close as interrupted here, so the banner tells the truth."""
+    from datetime import UTC, datetime, timedelta
+
     from app.models.posting_model import SourceRun
+    from app.services.postings.postings_service import STALE_RUN_MINUTES
+
+    now = datetime.now(UTC)
+    stale = (
+        (
+            await db.execute(
+                select(SourceRun).where(
+                    SourceRun.source_id == source_id,
+                    SourceRun.status == "running",
+                    SourceRun.started_at < now - timedelta(minutes=STALE_RUN_MINUTES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in stale:
+        row.status = "failed"
+        row.error = "interrupted — the run never finished"
+        row.finished_at = now
+    if stale:
+        await db.commit()
 
     rows = (
         (

@@ -97,6 +97,49 @@ async def test_explore_saved_keeps_closed_posting(
     assert body["items"][0]["status"] == "expired"
 
 
+async def test_explore_seen_filters_and_seen_exclusion(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    seen = await _make_posting(db, source, external_id="seen-1")
+    unseen = await _make_posting(db, source, external_id="unseen-1")
+    marked = await client.post(
+        "/api/v1/postings/seen",
+        json={"posting_ids": [str(seen.id)]},
+        headers=auth_headers,
+    )
+    assert marked.status_code == 200, marked.text
+
+    both = await client.get("/api/v1/postings/explore", headers=auth_headers)
+    assert {i["id"] for i in both.json()["items"]} == {str(seen.id), str(unseen.id)}
+
+    seen_only = await client.get(
+        "/api/v1/postings/explore", params={"seen": "true"}, headers=auth_headers
+    )
+    assert [i["id"] for i in seen_only.json()["items"]] == [str(seen.id)]
+
+    excluded = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "true"}, headers=auth_headers
+    )
+    body = excluded.json()
+    assert body["total"] == 1
+    assert [i["id"] for i in body["items"]] == [str(unseen.id)]
+    assert body["items"][0]["seen"] is False
+
+    off = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "false"}, headers=auth_headers
+    )
+    assert off.json()["total"] == 2
+
+
+def test_parse_explore_filters_reads_text_booleans_honestly():
+    from app.services.postings.explore_service import parse_explore_filters
+
+    assert parse_explore_filters({"seen_exclude": "false"}) == {}
+    assert parse_explore_filters({"seen_exclude": "0"}) == {}
+    assert parse_explore_filters({"seen_exclude": "true"}) == {"seen_exclude": True}
+    assert parse_explore_filters({"saved": False}) == {}
+
+
 async def test_explore_released_windows_and_fresh_only(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
@@ -267,6 +310,10 @@ async def test_explore_cursor_pagination(
     first_ids = [i["id"] for i in body["items"]]
     second_ids = [i["id"] for i in second_body["items"]]
     assert not set(first_ids) & set(second_ids)
+    # the fit score rides every sort, not only sort=fit — a salary/newest
+    # page must not render empty score bubbles
+    assert all(item["fit"] is not None for item in body["items"])
+    assert all(item["fit"] is not None for item in second_body["items"])
 
 
 # -------------------------------------------------------------- posting_fits
@@ -843,8 +890,9 @@ def test_ranked_window_math_is_pinned():
 async def test_explore_state_axes_exclude_when_false(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
-    """`seen=False`, `applied=False`, `hidden=False` exclude the marked
-    rows and keep postings with no interaction row at all (plan 158 S4.7)."""
+    """`seen_exclude`, `applied_exclude`, `hidden_exclude` exclude the
+    marked rows and keep postings with no interaction row at all
+    (plan 158 S4.7, unified with the feed's `seen_exclude` key)."""
     from app.models.application_model import Application
     from app.models.posting_model import PostingInteraction
 
@@ -865,19 +913,19 @@ async def test_explore_state_axes_exclude_when_false(
         assert response.status_code == 200, response.text
         return {item["id"] for item in response.json()["items"]}
 
-    assert await ids(seen="false") == {
+    assert await ids(seen_exclude="true") == {
         str(clean.id),
         str(untouched.id),
         str(applied.id),
         str(hidden.id),
     }
-    assert await ids(applied="false") == {
+    assert await ids(applied_exclude="true") == {
         str(clean.id),
         str(seen.id),
         str(untouched.id),
         str(hidden.id),
     }
-    assert await ids(hidden="false") == {
+    assert await ids(hidden_exclude="true") == {
         str(clean.id),
         str(seen.id),
         str(untouched.id),

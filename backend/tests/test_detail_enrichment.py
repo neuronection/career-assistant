@@ -119,7 +119,7 @@ async def test_run_detail_enrichment_merges_and_records(db, synthetic_connector,
             )
             for external_id in ids
         ]
-        return rows, [], None
+        return rows, [], None, None
 
     monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
     report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
@@ -152,7 +152,7 @@ async def test_run_detail_enrichment_gives_up_after_attempts(db, synthetic_conne
 
     async def fake_fetch(_db, _source, ids):
         calls.append(list(ids))
-        return [], [], "connector down"
+        return [], [], "connector down", None
 
     monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
     report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
@@ -232,3 +232,42 @@ async def test_bulk_reextract_by_ids(db, client, auth_headers, synthetic_connect
     assert garbage.json()["missing"] == ["not-a-uuid"], "garbage ids report as missing"
     empty = await client.post("/api/v1/admin/postings/reextract", json={}, headers=auth_headers)
     assert empty.status_code == 400
+
+
+async def test_run_detail_enrichment_drains_batches_and_keeps_run_summary(
+    db, synthetic_connector, monkeypatch
+):
+    """The backlog drains in ONE run: up to MAX_BATCHES_PER_RUN knob-sized
+    batches, each batch's tool run_summary surfaced on the report (the
+    enrichment calls used to discard it)."""
+    from app.extensions.sdk import RawPosting
+
+    source = _source({"detail_mode": "smart", "keywords": "python", "detail_limit": 1})
+    db.add(source)
+    await db.flush()
+    for n in range(1, 4):
+        db.add(_posting(source, str(n), title="Python Developer"))
+    await db.commit()
+
+    calls: list[list[str]] = []
+
+    async def fake_fetch(_db, _source, ids):
+        calls.append(list(ids))
+        rows = [
+            RawPosting(
+                external_id=external_id,
+                title="Python Developer",
+                org="Acme",
+                raw={"description": f"Details for {external_id}."},
+            )
+            for external_id in ids
+        ]
+        summary = {"schema": 1, "navigations": {"search_pages": 0, "detail_pages": len(ids)}}
+        return rows, [], None, summary
+
+    monkeypatch.setattr(detail_service, "_fetch_details", fake_fetch)
+    report = await detail_service.run_detail_enrichment(db, {"source_id": str(source.id)})
+    assert report["enriched"] == 3, "one run drains the whole backlog (batches of 1)"
+    assert report["batches"] == 3
+    assert report["run_summary"]["navigations"]["detail_pages"] == 1, "last batch's summary"
+    assert all(len(call) == 1 for call in calls)

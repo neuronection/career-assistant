@@ -44,6 +44,11 @@ async def list_companies(
         default=None, description="CSV match-any over profile industry tags"
     ),
     location: str | None = Query(default=None, description="Matches open-posting city or country"),
+    sort: str = Query(
+        default="open_postings",
+        pattern="^(open_postings|name|recent)$",
+        description="open_postings (busiest first) | name (A-Z) | recent (latest open posting)",
+    ),
     facets: bool = Query(default=False, description="Include the per-axis company-count facets"),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -62,6 +67,7 @@ async def list_companies(
         min_open=min_open,
         industry=_csv(industry),
         location=location,
+        sort=sort,
         facets=facets,
     )
     return CompaniesOut.model_validate(result)

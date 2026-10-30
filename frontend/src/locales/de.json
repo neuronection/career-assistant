@@ -377,6 +377,8 @@
     "orgExample": "z.B. Acme",
     "deepExtractedOnly": "Nur tief extrahierte",
     "savedOnly": "Nur gespeicherte",
+    "hideSeen": "Gesehene ausblenden",
+    "hideSeenTitle": "Bereits geöffnete Stellenangebote ausblenden",
     "nothingMatches": "Keine Ergebnisse für diese Filter",
     "nothingMatchesBody": "Entfernen Sie einen Filter oder bitten Sie einen Administrator, weitere Jobquellen zu verbinden.",
     "loadMore": "Mehr anzeigen",
@@ -438,7 +440,13 @@
     "radarApply": "Mein Radar",
     "radarClear": "Radar löschen",
     "radarActive": "Zeigt die Treffer deines Radars.",
-    "radarNotConfigured": "Dein Job-Radar ist noch nicht eingerichtet — konfiguriere ihn in den Einstellungen."
+    "radarNotConfigured": "Dein Job-Radar ist noch nicht eingerichtet — konfiguriere ihn in den Einstellungen.",
+    "matching": "{{count}} Treffer",
+    "sortBy": "Sortieren",
+    "sortFit": "Beste Passung",
+    "sortFresh": "Neueste",
+    "sortSalary": "Höchstes Gehalt",
+    "sortRelevance": "Relevanz"
   },
   "applications": {
     "title": "Meine Bewerbungen",
@@ -1226,6 +1234,25 @@
       "translations": "Übersetzungen",
       "relations": "Relationen"
     },
+    "stats": {
+      "skillsGroup": "Skill-Ontologie · {{total}} gesamt",
+      "queueGroup": "Prüf-Warteschlange · {{total}} offen",
+      "active": "Aktiv",
+      "proposed": "Vorgeschlagen",
+      "deprecated": "Veraltet",
+      "autoPromoted": "Auto-befördert",
+      "relations": "Relationen",
+      "enrichment": "Ergänzung",
+      "paths": "Entwurfs-Pfade",
+      "translations": "Übersetzungen",
+      "hint": {
+        "active": "kuratiert, in Auswahllisten",
+        "awaiting": "wartet auf Prüfung",
+        "promoted": "+{{count}} in 7 T. befördert",
+        "deprecated": "auflösbar, ausgeblendet",
+        "allTime": "gesamt"
+      }
+    },
     "newTag": "Neuer Tag",
     "keyPlaceholder": "Schlüssel (stabiler Slug, z.B. renewable-energy)",
     "labelPlaceholder": "Label",
@@ -1788,7 +1815,10 @@
         "planSources": "{{count}} Radar(e)",
         "paused": "Pausiert",
         "originMcp": "MCP",
-        "originBundled": "Eingebaut"
+        "originBundled": "Eingebaut",
+        "statusOk": "Gesund",
+        "statusDegraded": "Beeinträchtigt",
+        "statusFailing": "Fehlerhaft"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -3233,6 +3263,7 @@
     "unsave": "Nicht speichern",
     "hide": "verstecken",
     "hideTitle": "Aus dem Live-Tab ausblenden",
+    "markSeen": "Als gesehen markieren",
     "salaryBasis": {
       "gross": "brutto",
       "net": "netto"
@@ -4347,6 +4378,11 @@
   },
   "companies": {
     "subtitle": "Unternehmen, die gerade einstellen — geprüfte Fakten, Finanzangaben mit Quellen und alle offenen Stellen an einem Ort.",
+    "count": "{{count}} Unternehmen",
+    "sortBy": "Sortieren",
+    "sortOpen": "Meiste offene Stellen",
+    "sortName": "Name A–Z",
+    "sortRecent": "Zuletzt ausgeschrieben",
     "searchPlaceholder": "Unternehmen suchen…",
     "loadError": "Unternehmen konnten nicht geladen werden.",
     "noneYetTitle": "Noch keine Unternehmen",
@@ -4372,7 +4408,8 @@
     "railTitle": "Nach aktiver Stellenlage filtern",
     "clearFilters": "Filter löschen ({count})",
     "locationPlaceholder": "Stadt oder Land",
-    "minOpenN": "≥ {count} offene Stellen",
+    "minOpenN": "≥ {{count}} offene Stellen",
+    "minOpenAny": "Beliebige Anzahl",
     "facetTitle": {
       "work_mode": "Arbeitsmodus",
       "seniority": "Erfahrungslevel",
@@ -4573,10 +4610,13 @@
     "runPartial": "Teilweise",
     "runFailed": "Fehlgeschlagen",
     "runSkipped": "Übersprungen",
-    "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
     "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
     "presetLabel": "Starten mit",
-    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)",
+    "customValue": "Eigener Wert…",
+    "customValueFor": "{{label}} — eigener Wert",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Quellenseite öffnen"
   },
   "filters": {
     "title": "Filter",

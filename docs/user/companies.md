@@ -34,6 +34,17 @@ name; the **New** filter narrows the
 list to posting-born companies (created from a job post and not yet
 reviewed — they carry a New badge until an admin promotes them).
 
+The results header **sorts** the directory: **Most open roles** (the
+default), **Name A–Z** or **Recently hiring** (latest open posting first).
+**The whole rail is URL state**: the name search, the status chips, every
+tri-state facet, the location box, the open-roles floor and the sort are
+encoded in the address bar
+(`/companies?status=new&work_mode=remote&min_open=5&location=Athens&sort=recent`),
+so a filtered directory survives a reload and can be bookmarked or shared;
+unknown or malformed values are dropped and the page falls back to its
+defaults. The open-roles select carries an **Any number of roles** entry
+for "no floor".
+
 ## The company page
 
 Open a company to see everything about it in one place:

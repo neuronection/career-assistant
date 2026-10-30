@@ -60,6 +60,80 @@ All notable changes to **Career Assistant** are documented here.
   semantic candidate passes the same open/seen/never-term/cooldown gates, and
   a missing or failing embedding simply leaves the keyword results intact.
   Coverage grows as postings get embedded (admin recompute today).
+### Added (taxonomy backlog bar, 2026-10-30)
+- **`/settings/taxonomy` shows the backlog**: a work-queue bar over the
+  skill ontology (active, proposed, deprecated, auto-promoted all-time and
+  the last seven days) plus every review queue's live count — relations,
+  enrichment, draft paths, translations. Queue tabs carry their counts, so
+  pending work is visible without opening each section. Counts come from
+  one server-side aggregation (`GET /admin/taxonomy/stats`), so the bar and
+  the tabs can never disagree, and the enrichment moderation queue now
+  filters its proposals in SQL instead of loading every published job.
+
+### Changed (URL state + company sorting, 2026-10-30)
+- **A `/postings` search now lives in the URL**: the search text, every
+  facet (includes, excludes, skills with their levels, organizations,
+  sources, the state toggles) and the sort ride the address bar, so a
+  reload, the back button, a bookmark or a shared link all reopen the
+  same view. Malformed or unknown values are dropped and the page falls
+  back to its defaults.
+- **`/companies` sorts the directory**: Most open roles (default), Name
+  A–Z and Recently hiring (latest open posting first). **Its whole filter
+  rail is URL state too** — name search, status chips, every tri-state
+  facet, location, the open-roles floor and the sort
+  (`/companies?status=new&work_mode=remote&min_open=5&sort=recent`); the
+  open-roles select gains an "Any number of roles" entry for no floor.
+
+### Changed (postings — hide seen + sorting, 2026-10-30)
+- **Hide seen** joins the `/postings` filter rail: one toggle drops the
+  postings you already opened (and still counts as an active filter), so
+  a long list can be reduced to what is actually new.
+- **Results sort from the header**: Best fit (default), Newest, Highest
+  salary (annualized, unknown last) and Relevance once a query is typed —
+  all four orders the explore engine already implemented, now reachable.
+  Every sort still carries the deterministic fit score on the returned
+  page, so score rings never go blank when you change the order.
+
+### Changed (posting cards — one-click seen + a seen rail, 2026-10-30)
+- **Unseen postings on `/postings` carry a one-click seen action** — a
+  quiet "Mark as seen" action in the card's status line (no menu, no trip
+  to the detail page); clicking it turns that same slot into the seen
+  mark in place. Apply and opening the detail still mark seen as before.
+- **Seen postings are visible at a glance**: the card's leading edge
+  gains a 3 px neutral bar next to the existing quiet double-check — a
+  read marker, not a warning colour, and the card keeps full contrast
+  (nothing is dimmed). The same rail marks seen cards on `/catalog` and
+  the dashboard feed.
+
+### Fixed (postings — live-instance findings from the kariera review, 2026-10-30)
+- **Salary annualization no longer crashes on database numerics.** The
+  extraction path multiplied the `Numeric` column value (a `Decimal` on
+  both dialects) by a float factor — "unsupported operand type(s) for *:
+  'decimal.Decimal' and 'float'" failed one posting's deep extraction
+  live on the desktop profile. `annualized()` now normalizes to floats;
+  a regression test pins the Decimal inputs.
+- **Detail enrichment drains the backlog in one run.** It processed a
+  single knob-sized batch per run (the 5-batch cap existed but the loop
+  ignored it); it now drains up to `MAX_BATCHES_PER_RUN` batches, reports
+  the batch count and the bundle's `run_summary` (previously discarded),
+  and carries the detail rung's provenance (`detail_extractor` /
+  `source_page`) into the posting's raw bag — the data now shows whether
+  a description came from JSON-LD or the DOM fallback.
+
+### Changed (sources — clickable cards + custom pacing values, 2026-10-30)
+- **Job-source cards open their manage page on click** — the whole row is
+  the target (title is the keyboard-reachable affordance); the enable
+  toggle, Test and the ⋯ overflow keep working on their own. Cards follow
+  the app-wide item-card grammar (hover accent, focus ring), so the
+  sources list reads like every other card grid.
+- **Pacing knobs take custom values, not only presets**: role groups per
+  sync (1–6), time budget (20–90 s) and any bundle numeric field with
+  choices (pages per sync, …) gain a trailing **Custom…** entry that
+  swaps the chips for a bounded number input — a stored value outside the
+  presets opens the input prefilled. New defaults: every integration
+  fetches all detail pages, role groups 2, budget 90 s, detail fetch
+  session Guest.
+- Status chips render their labels instead of raw i18n keys.
 
 ### Changed (audit auto-refresh + export coverage, 2026-10-30)
 - **Overview gains an auto-refresh toggle** (plan 157): a 30-second

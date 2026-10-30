@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { SourcesSection } from "@/components/settings/SourcesSection";
 import * as aiApi from "@/api/ai";
@@ -123,6 +123,17 @@ function renderSection() {
   return render(
     <MemoryRouter>
       <SourcesSection />
+    </MemoryRouter>,
+  );
+}
+
+function renderSectionWithRoutes() {
+  return render(
+    <MemoryRouter initialEntries={["/settings/tools?section=sources"]}>
+      <Routes>
+        <Route path="/settings/tools" element={<SourcesSection />} />
+        <Route path="/sources/:sourceId" element={<div data-testid="source-manage-page" />} />
+      </Routes>
     </MemoryRouter>,
   );
 }
@@ -268,5 +279,47 @@ describe("SourcesSection job sources", () => {
     expect(screen.getByTestId("query-plan-acme-board")).toBeInTheDocument();
     expect(screen.getByTestId("manage-source-acme-board")).toBeInTheDocument();
     expect(screen.getByTestId("remove-source-acme-board")).toBeInTheDocument();
+  });
+
+  it("opens the source manage page when the card is clicked", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(
+      [{ ...sources[0], kind: "posting", last_status: "ok", paused_at: null }] as never,
+    );
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSectionWithRoutes();
+
+    const card = await screen.findByTestId("integration-instance-src-1");
+    expect(card.className).toContain("cursor-pointer");
+    await userEvent.click(card);
+    expect(await screen.findByTestId("source-manage-page")).toBeInTheDocument();
+  });
+
+  it("the title is a keyboard-reachable open affordance", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(
+      [{ ...sources[0], kind: "posting", last_status: "ok", paused_at: null }] as never,
+    );
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSectionWithRoutes();
+
+    const name = await screen.findByTestId("job-source-name-acme-board");
+    name.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByTestId("source-manage-page")).toBeInTheDocument();
+  });
+
+  it("the enable toggle never opens the manage page", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(
+      [{ ...sources[0], kind: "posting", last_status: "ok", paused_at: null }] as never,
+    );
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    vi.mocked(sourcesApi.updateSource).mockResolvedValue({} as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSectionWithRoutes();
+
+    await userEvent.click(await screen.findByTestId("job-source-toggle-acme-board"));
+    await waitFor(() => expect(sourcesApi.updateSource).toHaveBeenCalled());
+    expect(screen.queryByTestId("source-manage-page")).toBeNull();
   });
 });

@@ -27,7 +27,13 @@ vi.mock("@/api/skills", async (importOriginal) => {
 
 vi.mock("@/api/taxonomy", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/taxonomy")>();
-  return { ...actual, deleteTag: vi.fn(), mergeSkill: vi.fn(), promoteSkill: vi.fn() };
+  return {
+    ...actual,
+    deleteTag: vi.fn(),
+    mergeSkill: vi.fn(),
+    promoteSkill: vi.fn(),
+    fetchTaxonomyStats: vi.fn().mockResolvedValue(null),
+  };
 });
 
 import {

@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
 import { explorePostings } from "@/api/postings";
@@ -340,4 +340,115 @@ describe("Explore page", () => {
     fireEvent.click(await screen.findByTestId("clear-filters"));
     expect(screen.getByTestId("explore-q")).toHaveValue("");
   });
+
+  it("excludes seen postings from the filter rail", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    expect(mockExplore).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ seen_exclude: expect.anything() })
+    );
+    fireEvent.click(screen.getByTestId("seen-exclude"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ seen_exclude: true })
+      )
+    );
+    expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+  });
+
+  it("sorts from the results toolbar and offers relevance only with a query", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    expect(screen.queryByRole("option", { name: "Relevance" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: "Highest salary" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "salary" })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("explore-q"), { target: { value: "engineer" } });
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Relevance" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "engineer", sort: "relevance" })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("explore-q"), { target: { value: "" } });
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "fit" })
+      )
+    );
+  });
+
+  it("restores sort and filters from the URL on load", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/postings?sort=salary&q=engineer&seniority=mid&seen_exclude=true"]}
+      >
+        <Explore />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sort: "salary",
+          q: "engineer",
+          seniority: "mid",
+          seen_exclude: true,
+        })
+      )
+    );
+    expect(screen.getByTestId("explore-q")).toHaveValue("engineer");
+    expect(screen.getByTestId("seen-exclude")).toBeChecked();
+  });
+
+  it("writes sort and filter changes back to the URL", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    fireEvent.click(screen.getByTestId("seen-exclude"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("seen_exclude=true")
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Newest" }));
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).toContain("sort=fresh");
+      expect(search).toContain("seen_exclude=true");
+    });
+
+    fireEvent.click(screen.getByTestId("clear-filters"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toBe("")
+    );
+    expect(screen.getByTestId("seen-exclude")).not.toBeChecked();
+  });
 });
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-search">{location.search}</span>;
+}

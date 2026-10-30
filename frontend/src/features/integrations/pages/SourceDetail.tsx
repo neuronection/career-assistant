@@ -47,6 +47,83 @@ function fmtWhen(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
+/**
+ * One pacing row: presets stay one click away, and a numeric knob's bounded
+ * range is reachable through the trailing Custom entry (plan 154 — role
+ * groups 1-6, budget 20-90). A stored value outside the presets opens the
+ * custom input prefilled, never a verdict against an invisible number.
+ */
+function PacingRow({
+  label,
+  items,
+  value,
+  onChange,
+  hint,
+  custom,
+  testId,
+}: {
+  label: string;
+  items: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  custom?: { min: number; max: number };
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const outsidePresets = custom != null && value !== "" && !items.some((item) => item.value === value);
+  const customShown = custom != null && (customOpen || outsidePresets);
+  const tabs = custom
+    ? [...items, { value: "__custom__", label: t("sourceDetail.customValue") }]
+    : items;
+
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <div className="text-sm">{label}</div>
+      <SegmentedTabs
+        items={tabs}
+        value={customShown ? "__custom__" : value}
+        onValueChange={(next) => {
+          if (next === "__custom__") {
+            setDraft(value);
+            setCustomOpen(true);
+            return;
+          }
+          setCustomOpen(false);
+          onChange(next);
+        }}
+        ariaLabel={label}
+      />
+      {customShown && custom ? (
+        <input
+          type="number"
+          className="w-28 rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm"
+          min={custom.min}
+          max={custom.max}
+          step={1}
+          value={customOpen ? draft : value}
+          aria-label={t("sourceDetail.customValueFor", { label })}
+          placeholder={t("sourceDetail.customRange", { min: custom.min, max: custom.max })}
+          data-testid={`${testId}-custom`}
+          onChange={(event) => {
+            const raw = event.target.value;
+            setDraft(raw);
+            // emit only in-range integers — a half-typed value never
+            // commits a nonsense knob (plan 154 custom range)
+            const parsed = Number(raw);
+            if (raw.trim() !== "" && Number.isFinite(parsed) && parsed >= custom.min && parsed <= custom.max) {
+              onChange(String(Math.trunc(parsed)));
+            }
+          }}
+        />
+      ) : null}
+      {hint ? <p className="text-xs text-[var(--as-muted-fg)]">{hint}</p> : null}
+    </div>
+  );
+}
+
 export function SourceDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -90,6 +167,21 @@ export function SourceDetailPage() {
     }
   }, [source]);
 
+  const configFields = useMemo(() => {
+    if (!source?.tool_config_schema) return [];
+    const customLabel = t("sourceDetail.customValue");
+    return parseIntegrationConfigSchema(source.tool_config_schema as IntegrationConfigSchema)
+      .filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")
+      .map((field) =>
+        field.type === "number" &&
+        field.choices &&
+        field.minimum != null &&
+        field.maximum != null
+          ? { ...field, customLabel }
+          : field,
+      );
+  }, [source?.tool_config_schema, t]);
+
   const reload = useCallback(async () => {
     const [rows, runRows] = await Promise.all([
       fetchAdminSources(),
@@ -110,7 +202,7 @@ export function SourceDetailPage() {
       .catch(() => setCadenceEvery(null));
   }, [reload, t]);
 
-  const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 1);
+  const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 2);
   useEffect(() => {
     if (source?.query_batch_size && !dirtyRef.current) setLocalBatch(source.query_batch_size);
   }, [source?.query_batch_size]);
@@ -425,7 +517,7 @@ export function SourceDetailPage() {
                       { value: "smart", label: t("sourceDetail.fetchSmart") },
                       { value: "all", label: t("sourceDetail.fetchAll") },
                     ],
-                    selected: String(configValues.detail_mode ?? "off"),
+                    selected: String(configValues.detail_mode ?? "all"),
                     select: (value: string) =>
                       updateValues({ ...configValues, detail_mode: value }),
                     hint: {
@@ -433,7 +525,7 @@ export function SourceDetailPage() {
                       sample: t("sourceDetail.fetchSampleHint"),
                       smart: t("sourceDetail.fetchSmartHint"),
                       all: t("sourceDetail.fetchAllHint"),
-                    }[String(configValues.detail_mode ?? "off")],
+                    }[String(configValues.detail_mode ?? "all")],
                   },
                   {
                     label: t("sourceDetail.queriesPerSync"),
@@ -444,32 +536,20 @@ export function SourceDetailPage() {
                     selected: String(localBatch),
                     select: (value: string) => updateBatch(Number(value)),
                     hint: t("sourceDetail.batchHint"),
+                    custom: { min: 1, max: 6 },
                   },
                   {
                     label: t("sourceDetail.timeBudget"),
-                    items: (() => {
-                      const stored = String(configValues.budget_seconds ?? 80);
-                      const presets = [
-                        { value: "30", label: t("sourceDetail.budgetQuick") },
-                        { value: "60", label: t("sourceDetail.budgetBalanced") },
-                        { value: "90", label: t("sourceDetail.budgetThorough") },
-                      ];
-                      // a stored value outside the presets stays visible —
-                      // never a verdict against an invisible number
-                      return presets.some((item) => item.value === stored)
-                        ? presets
-                        : [
-                            {
-                              value: stored,
-                              label: t("sourceDetail.budgetCustom", { seconds: stored }),
-                            },
-                            ...presets,
-                          ];
-                    })(),
-                    selected: String(configValues.budget_seconds ?? 80),
+                    items: [
+                      { value: "30", label: t("sourceDetail.budgetQuick") },
+                      { value: "60", label: t("sourceDetail.budgetBalanced") },
+                      { value: "90", label: t("sourceDetail.budgetThorough") },
+                    ],
+                    selected: String(configValues.budget_seconds ?? 90),
                     select: (value: string) =>
                       updateValues({ ...configValues, budget_seconds: Number(value) }),
                     hint: t("sourceDetail.budgetHint"),
+                    custom: { min: 20, max: 90 },
                   },
                 ] as {
                   label: string;
@@ -477,26 +557,25 @@ export function SourceDetailPage() {
                   selected: string;
                   select: (value: string) => void;
                   hint: string;
+                  custom?: { min: number; max: number };
                 }[]
               ).map((row) => (
-                <div key={row.label} className="space-y-1.5">
-                  <div className="text-sm">{row.label}</div>
-                  <SegmentedTabs
-                    items={row.items}
-                    value={row.selected}
-                    onValueChange={row.select}
-                    ariaLabel={row.label}
-                  />
-                  {row.hint ? (
-                    <p className="text-xs text-[var(--as-muted-fg)]">{row.hint}</p>
-                  ) : null}
-                </div>
+                <PacingRow
+                  key={row.label}
+                  label={row.label}
+                  items={row.items}
+                  value={row.selected}
+                  onChange={row.select}
+                  hint={row.hint}
+                  custom={row.custom}
+                  testId={`pacing-${row.label}`}
+                />
               ))}
               {(() => {
                 const pages = Number(configValues.max_pages ?? 2);
                 const nav = Number(configValues.nav_delay_seconds ?? 2.5);
                 const detailLimit = Number(configValues.detail_limit ?? 5);
-                const mode = String(configValues.detail_mode ?? "off");
+                const mode = String(configValues.detail_mode ?? "all");
                 const perGroup = pages * (nav + 7) + 5;
                 let estimate = Math.round(
                   localBatch * perGroup + (localBatch > 1 ? (localBatch - 1) * 8 : 0),
@@ -504,7 +583,7 @@ export function SourceDetailPage() {
                 // sample visits detail pages inline — the only mode that
                 // lengthens the sync itself (smart/all run in the background)
                 if (mode === "sample") estimate += detailLimit * 12;
-                const budget = Number(configValues.budget_seconds ?? 80);
+                const budget = Number(configValues.budget_seconds ?? 90);
                 const [tone, key] =
                   estimate <= budget * 0.75
                     ? ["text-[var(--as-success)]", "sourceDetail.paceFits"]
@@ -528,9 +607,7 @@ export function SourceDetailPage() {
               presets={integrationConfigPresets(
                 source.tool_config_schema as IntegrationConfigSchema,
               )}
-              fields={parseIntegrationConfigSchema(
-                source.tool_config_schema as IntegrationConfigSchema,
-              ).filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")}
+              fields={configFields}
               values={configValues}
               onValuesChange={updateValues}
               onSave={({ secrets }) =>

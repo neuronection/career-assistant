@@ -89,8 +89,10 @@ ALLOWED_FILTER_KEYS = frozenset(
         "mapped_family",
         "saved",
         "seen",
+        "seen_exclude",
         "applied",
-        "hidden",
+        "applied_exclude",
+        "hidden_exclude",
         "extracted_only",
         "contract",
         "contract_exclude",
@@ -290,9 +292,12 @@ def parse_explore_filters(params: dict) -> dict:
     if sources_excluded:
         filters["source_exclude"] = sources_excluded[:10]
 
-    for key in ("saved", "seen", "applied", "hidden", "extracted_only"):
+    for key in ("saved", "seen", "applied", "extracted_only"):
         if params.get(key) not in (None, ""):
             filters[key] = _as_bool(params.get(key))
+    for key in ("seen_exclude", "applied_exclude", "hidden_exclude"):
+        if params.get(key) not in (None, "") and _as_bool(params[key]):
+            filters[key] = True
     return filters
 
 
@@ -603,10 +608,9 @@ def _conditions_for(
     elif dimension == "state":
         if filters.get("saved"):
             conditions.append(PostingInteraction.saved_at.is_not(None))
-        seen = filters.get("seen")
-        if seen is True:
+        if filters.get("seen"):
             conditions.append(PostingInteraction.seen_at.is_not(None))
-        elif seen is False:
+        if filters.get("seen_exclude"):
             conditions.append(
                 JobPosting.id.not_in(
                     select(PostingInteraction.posting_id).where(
@@ -615,23 +619,19 @@ def _conditions_for(
                     )
                 )
             )
-        applied = filters.get("applied")
-        if applied is True:
+        if filters.get("applied"):
             conditions.append(
                 JobPosting.id.in_(
                     select(Application.posting_id).where(Application.user_id == user_id)
                 )
             )
-        elif applied is False:
+        if filters.get("applied_exclude"):
             conditions.append(
                 JobPosting.id.not_in(
                     select(Application.posting_id).where(Application.user_id == user_id)
                 )
             )
-        hidden = filters.get("hidden")
-        if hidden is True:
-            conditions.append(PostingInteraction.hidden_at.is_not(None))
-        elif hidden is False:
+        if filters.get("hidden_exclude"):
             conditions.append(
                 JobPosting.id.not_in(
                     select(PostingInteraction.posting_id).where(
@@ -1112,6 +1112,13 @@ async def explore(
             frontier,
             limit,
         )
+
+    if sort != "fit" and page:
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in page])
+        for entry in page:
+            entry["fit"] = fits[entry["posting"].id]["score"]
 
     result: dict = {
         "items": [

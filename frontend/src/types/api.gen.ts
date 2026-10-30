@@ -1406,6 +1406,11 @@ export interface paths {
          * List Source Runs
          * @description The run ledger (plan 134): newest first — when it ran, trigger,
          *     duration, status, items synced and the bounded error.
+         *
+         *     Ghost healing on read: a crash can leave a ``running`` row behind and
+         *     the page would claim "Running now" for hours (the next sync only
+         *     closes it later). Rows past the same staleness cutoff the next run
+         *     uses close as interrupted here, so the banner tells the truth.
          */
         get: operations["list_source_runs_api_v1_admin_postings_sources__source_id__runs_get"];
         put?: never;
@@ -1800,6 +1805,26 @@ export interface paths {
          * @description proposed → active; the vocabulary stays clean via admin review.
          */
         post: operations["promote_skill_api_v1_admin_skills__skill_id__promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/taxonomy/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taxonomy Queue Stats
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        get: operations["taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16562,6 +16587,42 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** TaxonomyQueueStats */
+        TaxonomyQueueStats: {
+            /** Enrichment */
+            enrichment: number;
+            /** Paths */
+            paths: number;
+            /** Relations */
+            relations: number;
+            /** Total */
+            total: number;
+            /** Translations */
+            translations: number;
+        };
+        /** TaxonomySkillStats */
+        TaxonomySkillStats: {
+            /** Active */
+            active: number;
+            /** Auto Promoted */
+            auto_promoted: number;
+            /** Deprecated */
+            deprecated: number;
+            /** Promoted 7D */
+            promoted_7d: number;
+            /** Proposed */
+            proposed: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * TaxonomyStatsOut
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        TaxonomyStatsOut: {
+            queue: components["schemas"]["TaxonomyQueueStats"];
+            skills: components["schemas"]["TaxonomySkillStats"];
+        };
         /** TemplateDraftAiIn */
         TemplateDraftAiIn: {
             /** Brief */
@@ -20483,6 +20544,26 @@ export interface operations {
             };
         };
     };
+    taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyStatsOut"];
+                };
+            };
+        };
+    };
     list_users_api_v1_admin_users_get: {
         parameters: {
             query?: never;
@@ -23641,6 +23722,8 @@ export interface operations {
                 industry?: string | null;
                 /** @description Matches open-posting city or country */
                 location?: string | null;
+                /** @description open_postings (busiest first) | name (A-Z) | recent (latest open posting) */
+                sort?: string;
                 /** @description Include the per-axis company-count facets */
                 facets?: boolean;
             };

@@ -223,7 +223,7 @@ export function AddSourceWizard({
                     label={t("toolsSettings.connectors.sources.queryBatch")}
                     value={draft.query_batch_size}
                     min={1}
-                    max={3}
+                    max={6}
                     onChange={(query_batch_size) =>
                       onDraftChange({ ...draft, query_batch_size })
                     }
