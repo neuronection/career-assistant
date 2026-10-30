@@ -66,6 +66,7 @@ export interface AutopilotRunWithFindings extends AutopilotRunSummary {
 export interface TimelineEntry {
   step: string;
   query?: string;
+  queries?: string[];
   filters?: Record<string, unknown>;
   rationale?: string;
   found?: number;

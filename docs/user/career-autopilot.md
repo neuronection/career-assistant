@@ -20,6 +20,9 @@ Open it at `/autopilot`.
    deterministic gates before it can reach the shortlist.
 3. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
+   If the filtered pool is thinner than your shortlist size, it **broadens
+   once** — relaxing the wording and widening the scope, never the terms you
+   banned — before it settles for what it has.
 4. **Ranks** by your must-terms first and your deterministic fit score
    second — constraints are promises, fit is preference (see
    [Matching and rankings](matching-and-rankings.md)). Every finding states

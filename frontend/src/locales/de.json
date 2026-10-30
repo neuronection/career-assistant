@@ -916,7 +916,8 @@
       "seen": "{{count}} gesehen",
       "neverTerms": "{{count}} nie-Terms",
       "cooldown": "{{count}} im Wartezustand",
-      "examined": "{{count}} geprüft"
+      "examined": "{{count}} geprüft",
+      "replanned": "Suche erweitert"
     },
     "modal": {
       "editTitle": "Ziel bearbeiten",

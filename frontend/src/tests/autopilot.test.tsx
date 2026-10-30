@@ -84,6 +84,7 @@ function runWithFindings(
         error: "",
       },
       { step: "filter", seen: 2, never: 1, cooldown: 0, kept: 9 },
+      { step: "replan", queries: ["data analyst"], rationale: "thin pass", found: 0 },
     ],
     error: "",
     created_at: "2026-09-05T08:00:00Z",
@@ -202,6 +203,7 @@ describe("Autopilot page", () => {
     );
     expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("kept 9");
     expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("40 examined");
+    expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("broadened the search");
   });
 
   it("creates a goal through the modal", async () => {

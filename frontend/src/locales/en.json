@@ -916,7 +916,8 @@
       "seen": "{{count}} seen",
       "neverTerms": "{{count}} never-terms",
       "cooldown": "{{count}} in cooldown",
-      "examined": "{{count}} examined"
+      "examined": "{{count}} examined",
+      "replanned": "broadened the search"
     },
     "modal": {
       "editTitle": "Edit goal",

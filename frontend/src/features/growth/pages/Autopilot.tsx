@@ -7,6 +7,7 @@ import {
   CirclePlay,
   ExternalLink,
   Pencil,
+  RotateCcw,
   Search,
   Sparkles,
   ThumbsDown,
@@ -457,6 +458,22 @@ function Timeline({ runId, entries }: { runId: string; entries: AutopilotRunWith
                   : ""}
                 {entry.examined != null
                   ? ` · ${t("autopilot.timeline.examined", { count: entry.examined })}`
+                  : ""}
+                {entry.error
+                  ? ` · ${t("autopilot.timeline.skipped", { error: entry.error })}`
+                  : ""}
+              </span>
+            </div>
+          );
+        }
+        if (entry.step === "replan") {
+          return (
+            <div key={index} className="flex items-start gap-2">
+              <RotateCcw className="mt-0.5 h-3 w-3 shrink-0 text-[var(--as-muted-fg)]" />
+              <span>
+                <span className="font-medium">{t("autopilot.timeline.replanned")}</span>
+                {entry.queries && entry.queries.length
+                  ? ` — ${entry.queries.map((query) => `“${query}”`).join(", ")}`
                   : ""}
                 {entry.error
                   ? ` · ${t("autopilot.timeline.skipped", { error: entry.error })}`

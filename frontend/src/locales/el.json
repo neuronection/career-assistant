@@ -916,7 +916,8 @@
       "seen": "{{count}} είδε",
       "neverTerms": "{{count}} δεν ταιριάζουν",
       "cooldown": "{{count}} σε αναμονή",
-      "examined": "{{count}} εξετάστηκαν"
+      "examined": "{{count}} εξετάστηκαν",
+      "replanned": "διεύρυνα την αναζήτηση"
     },
     "modal": {
       "editTitle": "Επεξεργασία στόχου",

@@ -219,6 +219,19 @@ def _autopilot_planner_prompt() -> tuple[str, str]:
     return _plan_system(), _plan_user_prompt(_AUTOPILOT_STATE, _AUTOPILOT_VOCABULARY)
 
 
+def _autopilot_replan_prompt() -> tuple[str, str]:
+    from app.ai.graphs.autopilot import _replan_system, _replan_user_prompt
+
+    previous = [
+        {
+            "query": "",
+            "filters": {"keywords": ["zzz-no-such-role"]},
+            "found": 0,
+        }
+    ]
+    return _replan_system(), _replan_user_prompt(_AUTOPILOT_STATE, previous, _AUTOPILOT_VOCABULARY)
+
+
 def _autopilot_curator_prompt() -> tuple[str, str]:
     from app.ai.graphs.autopilot import _curate_system, _curate_user_prompt
 
@@ -244,6 +257,18 @@ def _check_autopilot_plan(plan: SearchPlan) -> None:
     assert any("skills" in (v.filters or {}) for v in plan.variants), (
         "the user's skill neighbourhood is used"
     )
+
+
+def _check_autopilot_replan(plan: SearchPlan) -> None:
+    """A thin pass broadens instead of giving up: valid keys, at least one
+    filterless variant, same never-terms (plan 158 S5.2)."""
+    from app.services.postings.explore_service import ALLOWED_FILTER_KEYS
+
+    assert plan.variants
+    assert len(plan.variants) <= 3
+    for variant in plan.variants:
+        assert set(variant.filters or {}) <= ALLOWED_FILTER_KEYS
+    assert any(not (variant.filters or {}) for variant in plan.variants), "a widened net"
 
 
 def _check_autopilot_curation(curation: Curation) -> None:
@@ -505,6 +530,7 @@ def _build_cases() -> list[GoldenCase]:
         ),
     ]
     planner_system, planner_user = _autopilot_planner_prompt()
+    replan_system, replan_user = _autopilot_replan_prompt()
     curator_system, curator_user = _autopilot_curator_prompt()
     cases.extend(
         [
@@ -515,6 +541,14 @@ def _build_cases() -> list[GoldenCase]:
                 user=planner_user,
                 prompt_version=_blessed(AITaskType.AUTOPILOT_RUN.value),
                 check=_check_autopilot_plan,
+            ),
+            GoldenCase(
+                task=AITaskType.AUTOPILOT_RUN.value,
+                schema=SearchPlan,
+                system=replan_system,
+                user=replan_user,
+                prompt_version=_blessed(AITaskType.AUTOPILOT_RUN.value),
+                check=_check_autopilot_replan,
             ),
             GoldenCase(
                 task=AITaskType.AUTOPILOT_RUN.value,

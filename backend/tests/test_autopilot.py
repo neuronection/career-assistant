@@ -1047,3 +1047,135 @@ async def test_candidate_cap_bounds_the_checkpoint(
         snapshot.values.get("candidates") or [] for snapshot in graph.get_state_history(config)
     ]
     assert max(len(candidates) for candidates in snapshots) == CANDIDATE_CAP
+
+
+# --------------------------------------------------- S5 replan once on empty
+
+
+def _empty_then_broad():
+    """First plan finds nothing; the replan broadens to a filterless net."""
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            ctx = json.loads(user_prompt)
+            if ctx.get("previous_variants") is not None:
+                return {
+                    "variants": [
+                        {"rationale": "widened net", "query": "", "filters": {}},
+                    ]
+                }
+            return {
+                "variants": [
+                    {
+                        "rationale": "narrow lexical probe",
+                        "query": "",
+                        "filters": {"keywords": ["zzz-no-such-role"]},
+                    }
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    return scripted
+
+
+def _never_broad():
+    """Both passes stay narrow: nothing is ever found."""
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {
+                        "rationale": "narrow lexical probe",
+                        "query": "",
+                        "filters": {"keywords": ["zzz-no-such-role"]},
+                    }
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    return scripted
+
+
+async def _autopilot_calls(db, auth_headers) -> int:
+    from app.models.ai_model import AIGeneration
+
+    rows = await db.execute(
+        select(AIGeneration).where(
+            AIGeneration.user_id == _uid(auth_headers),
+            AIGeneration.task_type == "autopilot_run",
+        )
+    )
+    return len(rows.scalars().all())
+
+
+async def test_replan_recovers_a_thin_first_pass(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """All variants come back empty → one broaden pass → findings ship
+    (plan 158 S5.1/S5.5)."""
+    autopilot_mock(_empty_then_broad())
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert result["findings"], "the widen pass delivers"
+    steps = [entry.get("step") for entry in result["searches"]]
+    assert steps.count("replan") == 1
+    replan_entry = next(entry for entry in result["searches"] if entry.get("step") == "replan")
+    assert replan_entry["rationale"]
+    assert await _autopilot_calls(db, auth_headers) == 3, "plan + one replan + curate"
+
+
+async def test_replan_stays_single_when_both_passes_are_empty(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """Two empty passes still mean exactly one replan (plan 158 S5.5)."""
+    autopilot_mock(_never_broad())
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert result["findings"] == []
+    assert [entry.get("step") for entry in result["searches"]].count("replan") == 1
+    assert await _autopilot_calls(db, auth_headers) == 2
+
+
+async def test_budget_cap_suppresses_the_replan(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """An already-spent run budget skips the replan call entirely
+    (plan 158 S5.2)."""
+    autopilot_mock(_empty_then_broad())
+    created = await _goal(client, auth_headers, budget={"max_calls": 1})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert result["status"] == "budget_aborted"
+    assert await _autopilot_calls(db, auth_headers) == 1, "no replan gateway call"
+
+
+async def test_replan_then_budget_abort_still_ships_partials(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """Plan + replan exhaust a 2-call cap before curate: deterministic
+    findings still ship (plan 158 S5.6b)."""
+    autopilot_mock(_empty_then_broad())
+    created = await _goal(client, auth_headers, budget={"max_calls": 2})
+    service, user_id = _service(db, auth_headers)
+
+    first = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+    assert await _autopilot_calls(db, auth_headers) == 2
+    assert first["findings"], "partials by design"
+    assert first["findings"][0]["why"].startswith("Fit ")
+    assert first["status"] == "budget_aborted"

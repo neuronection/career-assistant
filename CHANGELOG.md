@@ -28,6 +28,12 @@ All notable changes to **Career Assistant** are documented here.
   longer consume slots before the filters drop them. Runs also stop
   computing the explore sidebar facets they never render, and the timeline
   shows how many postings each search examined next to its total.
+- **Autopilot broadens once instead of coming back empty** (plan 158): when
+  a run's filtered pool is thinner than the shortlist size, one bounded
+  replan relaxes the wording and widens the scope (never-terms stay
+  respected) and searches again; the timeline shows the broaden step with
+  the queries it chose. A run whose budget is already spent skips the extra
+  call, so a capped goal still ships its deterministic findings.
 - **Autopilot also searches by meaning** (plan 158): one semantic pass over
   the posting embeddings already stored adds vacancies whose wording never
   matches a keyword variant. It is a recall source, never a bypass — every

@@ -53,6 +53,7 @@ SEARCH_LIMIT = 40
 SNIPPET_CHARS = 600
 SEMANTIC_K = 60
 SEARCH_VARIANTS = 6
+REPLAN_LIMIT = 1
 
 PROFILE_SKILL_LIMIT = 12
 PLAN_SKILL_LIMIT = 40
@@ -87,6 +88,9 @@ class AutopilotState(TypedDict, total=False):
     plan: dict
     searches: list
     candidates: list
+    replan_attempts: int
+    replans: list
+    progress_pct: int
     curation: dict
     findings: list
     abort_reason: str
@@ -278,6 +282,49 @@ async def plan_vocabulary(db: AsyncSession, user_id: UUID) -> dict:
         "families": families[:PLAN_FAMILY_LIMIT],
         "sources": sources[:PLAN_SOURCE_LIMIT],
     }
+
+
+def _replan_system() -> str:
+    return (
+        "You are a career-search planner recovering from a thin first pass. "
+        "Broaden: relax or drop the text query, widen family/seniority scope, "
+        "and keep every never-term (never search for it). Filters stay inside "
+        "the explore vocabulary listed here: "
+        f"{', '.join(sorted(ALLOWED_FILTER_KEYS))}. Put multi-word concepts in "
+        "`keywords` (a LIST — any may match a title or employer), never in `q`. "
+        "Design 1-3 genuinely different variants for the SAME goal. Respond "
+        "with JSON only."
+    )
+
+
+def _replan_user_prompt(
+    state: AutopilotState, previous: list[dict], vocabulary: dict | None = None
+) -> str:
+    c = _constraints(state)
+    vocab = vocabulary or {}
+    return json.dumps(
+        {
+            "goal": state.get("goal_text", ""),
+            "previous_variants": [
+                {
+                    "query": entry.get("query") or "",
+                    "filters": entry.get("filters") or {},
+                    "found": int(entry.get("found") or 0),
+                }
+                for entry in previous
+            ],
+            "must_terms": c.get("must_terms") or [],
+            "never_terms": c.get("never_terms") or [],
+            "target_families": c.get("family_keys") or [],
+            "seniority": c.get("seniority") or [],
+            "profile_context": state.get("profile_context") or {},
+            "valid_filter_keys": sorted(ALLOWED_FILTER_KEYS),
+            "skill_keys": vocab.get("skills") or [],
+            "family_keys": vocab.get("families") or [],
+            "source_keys": vocab.get("sources") or [],
+        },
+        ensure_ascii=False,
+    )
 
 
 def _curate_system(top_n: int) -> str:
@@ -651,8 +698,12 @@ def make_search_node(deps: GraphDeps):
         posting embeddings; every source feeds the same candidate pool."""
         variants = (state.get("plan") or {}).get("variants") or []
         exclude_seen = _constraints(state).get("exclude_seen", True)
-        timeline: list[dict] = []
-        best: dict[str, dict] = {}
+        timeline: list[dict] = list(state.get("searches") or [])
+        best: dict[str, dict] = {
+            str(candidate["posting_id"]): candidate for candidate in state.get("candidates") or []
+        }
+        progress = int(state.get("progress_pct") or 0)
+        searched = 0
         for variant in variants[:SEARCH_VARIANTS]:
             if await _is_cancelled(deps):
                 return {"abort_reason": "cancelled"}
@@ -698,13 +749,22 @@ def make_search_node(deps: GraphDeps):
                 logger.warning("autopilot candidate evaluation failed", exc_info=True)
                 entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
             timeline.append(entry)
+            searched += 1
+            progress = max(
+                progress,
+                min(55, 15 + int(40 * searched / max(len(variants), 1))),
+            )
             await _report(
                 deps,
-                min(55, 15 + int(40 * len(timeline) / max(len(variants), 1))),
-                f"searched {len(timeline)}/{max(len(variants), 1)} variants",
+                progress,
+                f"searched {searched}/{max(len(variants), 1)} variants",
             )
         timeline.append(await _semantic_sweep(deps, state, best))
-        return {"searches": timeline, "candidates": _cap_candidates(list(best.values()))}
+        return {
+            "searches": timeline,
+            "candidates": _cap_candidates(list(best.values())),
+            "progress_pct": progress,
+        }
 
     return search
 
@@ -806,6 +866,78 @@ def make_evaluate_node(deps: GraphDeps):
         return {"candidates": enriched[: curator_pool(state.get("top_n"))]}
 
     return evaluate
+
+
+def make_replan_node(deps: GraphDeps):
+    async def replan(state: AutopilotState) -> dict:
+        """LLM step: one bounded broaden after a thin pass. Returns ONLY the
+        new variants (the search node keeps the merged pool); a budget that
+        is already spent skips the call instead of overspending."""
+        previous = [entry for entry in state.get("searches") or [] if entry.get("step") == "search"]
+        entry = {
+            "step": "replan",
+            "queries": [],
+            "rationale": "broadened the search after a thin first pass",
+            "found": 0,
+            "error": "",
+        }
+        record = {"previous_variants": entry["queries"], "reason": ""}
+        budget = state.get("budget") or {}
+        max_tokens = int(budget.get("max_tokens") or 0)
+        max_calls = int(budget.get("max_calls") or 0)
+        spent = 0
+        if max_tokens or max_calls:
+            try:
+                since = datetime.fromisoformat(state["started_at"])
+                tokens, calls = await _ledger_usage(deps.db, state["user_id"], since)
+                spent = tokens if max_tokens and tokens > max_tokens else 0
+                if max_calls and calls >= max_calls:
+                    spent = spent or 1
+            except (KeyError, ValueError):
+                spent = 0
+        if spent:
+            record["reason"] = "run budget reached"
+            return {
+                "replan_attempts": 1,
+                "plan": {"variants": []},
+                "replans": [*(state.get("replans") or []), record],
+                "searches": [*(state.get("searches") or []), entry],
+            }
+        try:
+            try:
+                vocabulary = await plan_vocabulary(deps.db, UUID(state["user_id"]))
+            except Exception:
+                logger.warning("autopilot vocabulary collection failed", exc_info=True)
+                vocabulary = {}
+            result = await ainvoke_structured(
+                deps.db,
+                AITaskType.AUTOPILOT_RUN,
+                SearchPlan,
+                system=_replan_system(),
+                user=_replan_user_prompt(state, previous, vocabulary),
+                user_id=UUID(state["user_id"]),
+            )
+            variants = [variant.model_dump(mode="json") for variant in result.variants]
+        except Exception as exc:
+            logger.warning("autopilot replan failed", exc_info=True)
+            entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+            variants = []
+        entry["queries"] = [
+            str(variant.get("query") or "")
+            or ", ".join(str(k) for k in (variant.get("filters") or {}).get("keywords") or [])
+            for variant in variants
+        ]
+        record["previous_variants"] = [item.get("query") or "" for item in previous]
+        record["new_variants"] = entry["queries"]
+        return {
+            "replan_attempts": int(state.get("replan_attempts") or 0) + 1,
+            "plan": {"variants": variants},
+            "replans": [*(state.get("replans") or []), record],
+            "searches": [*(state.get("searches") or []), entry],
+            "progress_pct": int(state.get("progress_pct") or 0),
+        }
+
+    return replan
 
 
 def make_curate_node(deps: GraphDeps):
@@ -961,6 +1093,18 @@ def route_by_abort(state: AutopilotState) -> str:
     return "deliver" if state.get("abort_reason") else "continue"
 
 
+def route_after_filter(state: AutopilotState) -> str:
+    """A pool thinner than the shortlist gets ONE broaden pass — never
+    after an abort, and never more than ``REPLAN_LIMIT`` times."""
+    if state.get("abort_reason"):
+        return "evaluate"
+    kept = len(state.get("candidates") or [])
+    attempts = int(state.get("replan_attempts") or 0)
+    if kept < int(state.get("top_n") or DEFAULT_TOP_N) and attempts < REPLAN_LIMIT:
+        return "replan"
+    return "evaluate"
+
+
 def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     """Compile plan → search → filter → evaluate → guard → curate →
     deliver. The guard sits between the deterministic pipeline and the
@@ -974,6 +1118,7 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     builder.add_node("budget_guard", make_guard_node(deps))
     builder.add_node("search", make_search_node(deps))
     builder.add_node("filter", make_filter_node(deps))
+    builder.add_node("replan", make_replan_node(deps), retry_policy=retry)
     builder.add_node("evaluate", make_evaluate_node(deps))
     builder.add_node("curate", make_curate_node(deps), retry_policy=retry)
     builder.add_node("deliver", make_deliver_node(deps))
@@ -983,7 +1128,12 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
         "plan", route_by_abort, {"deliver": "deliver", "continue": "search"}
     )
     builder.add_edge("search", "filter")
-    builder.add_edge("filter", "evaluate")
+    builder.add_conditional_edges(
+        "filter",
+        route_after_filter,
+        {"replan": "replan", "evaluate": "evaluate"},
+    )
+    builder.add_edge("replan", "search")
     builder.add_conditional_edges(
         "evaluate", route_by_abort, {"deliver": "deliver", "continue": "budget_guard"}
     )
@@ -1025,6 +1175,9 @@ def initial_state(
         profile_context=profile_context or {},
         searches=[],
         candidates=[],
+        replan_attempts=0,
+        replans=[],
+        progress_pct=0,
     )
 
 
@@ -1042,6 +1195,22 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
         ctx = json.loads(user_prompt)
     except json.JSONDecodeError:
         ctx = {}
+    if schema is SearchPlan and ctx.get("previous_variants") is not None:
+        goal = str(ctx.get("goal") or "matching roles")
+        tokens = [
+            token for token in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]+", goal) if len(token) > 3
+        ][:2]
+        variants = [{"rationale": "broadened to every open posting", "query": "", "filters": {}}]
+        if tokens:
+            variants.insert(
+                0,
+                {
+                    "rationale": "relaxed keyword variant for the same goal",
+                    "query": "",
+                    "filters": {"keywords": tokens},
+                },
+            )
+        return {"variants": variants[:3]}
     if schema is SearchPlan:
         goal = str(ctx.get("goal") or "matching roles")
         tokens = [
