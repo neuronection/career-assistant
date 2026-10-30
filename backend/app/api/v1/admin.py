@@ -775,9 +775,9 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     query_mode = str(payload.get("query_mode") or "static").strip()
     if query_mode not in {"static", "radar"}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {query_mode}")
-    query_batch_size = int(payload.get("query_batch_size") or 1)
-    if query_batch_size not in (1, 2, 3):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 3")
+    query_batch_size = int(payload.get("query_batch_size") or 2)
+    if query_batch_size not in (1, 2, 3, 4, 5, 6):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 6")
     if kind not in ("posting", "market"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
@@ -856,9 +856,9 @@ async def update_posting_source(
             source.query_cache = None
     if "query_batch_size" in payload and payload["query_batch_size"] is not None:
         batch = int(payload["query_batch_size"])
-        if batch not in (1, 2, 3):
+        if batch not in (1, 2, 3, 4, 5, 6):
             raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 3"
+                status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 6"
             )
         source.query_batch_size = batch
     if "enabled" in payload and payload["enabled"] is not None:

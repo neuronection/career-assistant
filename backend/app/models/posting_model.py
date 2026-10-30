@@ -67,7 +67,7 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="query_mode_allowed",
         ),
         CheckConstraint(
-            "query_batch_size BETWEEN 1 AND 3",
+            "query_batch_size BETWEEN 1 AND 6",
             name="query_batch_size_allowed",
         ),
     )
@@ -116,8 +116,8 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query_batch_size: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=1,
-        server_default="1",
+        default=2,
+        server_default="2",
     )
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 

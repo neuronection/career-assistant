@@ -325,6 +325,11 @@ async def test_sync_enqueues_demand_first_without_blocking(
     assert rule.status_code == 200
 
     # The synthetic connector's posting maps onto the catalog (fast pass).
+    # Detail mode is pinned off here: this test covers the inline
+    # extraction ordering (plan 154 made "all" the default, which defers
+    # extraction to the enrichment pass instead).
+    source.config = {**source.config, "detail_mode": "off"}
+    await db.commit()
     result = await sync_source(db, source)
     await db.commit()
     assert result["synced"] == 1

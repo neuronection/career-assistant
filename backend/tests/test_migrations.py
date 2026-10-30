@@ -128,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0076"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0077"], (
         "revision chain stays linear on one head"
     )
 
@@ -3460,13 +3460,17 @@ def test_0076_alert_manage_urls_roundtrip():
             async with engine.begin() as conn:
                 for index, key in enumerate(("digest_ready", "background_failed", "checkin_due")):
                     await conn.execute(
+                        sa.text("DELETE FROM notification_kinds WHERE key = :key"),
+                        {"key": key},
+                    )
+                    await conn.execute(
                         sa.text(
                             "INSERT INTO notification_kinds "
                             '(id, key, label, "group", severity, default_enabled, '
                             "default_channels, mutable, manage_url, created_at, updated_at) "
                             "VALUES "
-                            f"('{index + 1:0>32}', :key, :key, 'career', 'info', 1, "
-                            '\'["in_app"]\', 1, \'/settings/scheduler\', '
+                            f"('{index + 1:0>32}', :key, :key, 'career', 'info', TRUE, "
+                            "'[\"in_app\"]', TRUE, '/settings/scheduler', "
                             "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
                         ),
                         {"key": key},
@@ -3511,3 +3515,24 @@ def test_0076_alert_manage_urls_roundtrip():
     assert all(url == "/settings/automations" for url in asyncio.run(_urls()).values()), (
         "re-upgrade re-applies the Automations links"
     )
+
+    async def _cleanup() -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    sa.text(
+                        "DELETE FROM notification_kinds "
+                        "WHERE id IN ('00000000000000000000000000000001', "
+                        "'00000000000000000000000000000002', "
+                        "'00000000000000000000000000000003')"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_cleanup())

@@ -154,7 +154,11 @@ async def test_sync_overlay_follows_radar_rotation(
 ):
     src = await _radar_source(db, "dyn-radar", "radar")
     skip = await sync_source(db, src)
-    assert skip == {"synced": 0, "note": "radar has no keywords yet — nothing to search"}
+    assert skip == {
+        "synced": 0,
+        "note": "radar has no keywords yet — nothing to search",
+        "detail_queued": 1,
+    }
 
     put = await client.put(
         "/api/v1/me/job-radar",
@@ -162,6 +166,16 @@ async def test_sync_overlay_follows_radar_rotation(
         headers=auth_headers,
     )
     assert put.status_code == 200, put.text
+    # pin batch 1 for the first phase — the plan-154 default is 2, and the
+    # test's own update below exercises the batch change explicitly
+    pin = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"query_batch_size": 1},
+        headers=auth_headers,
+    )
+    assert pin.status_code == 200, pin.text
+    await db.refresh(src)  # the pin commits in the app session — resync the ORM object
+    assert pin.status_code == 200, pin.text
 
     DynamicSynthetic.last_config = {}
     report = await sync_source(db, src)
@@ -232,7 +246,11 @@ async def test_sync_overlay_static_mode_passes_no_query(db, dynamic_connector):
 async def test_sync_skips_radar_source_without_keywords(db, dynamic_connector):
     src = await _radar_source(db, "dyn-empty", "radar")
     report = await sync_source(db, src)
-    assert report == {"synced": 0, "note": "radar has no keywords yet — nothing to search"}
+    assert report == {
+        "synced": 0,
+        "note": "radar has no keywords yet — nothing to search",
+        "detail_queued": 1,
+    }
 
 
 async def test_traffic_law_one_fetch_and_one_query_per_sync(
@@ -257,7 +275,7 @@ async def test_traffic_law_one_fetch_and_one_query_per_sync(
     assert DynamicSynthetic.calls == calls_before + 1, "exactly ONE fetch call per sync"
     query = DynamicSynthetic.last_config.get("query") or {}
     groups = query.get("groups") or []
-    assert len(groups) == 1, "default batch = one focused group, never one call per keyword"
+    assert len(groups) == 2, "default batch = 2 focused groups per sync (plan 154), never one call per keyword"
 
     await sync_source(db, src)
     assert DynamicSynthetic.calls == calls_before + 2

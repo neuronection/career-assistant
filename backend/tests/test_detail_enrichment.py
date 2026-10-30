@@ -43,11 +43,11 @@ def test_detail_mode_reads_the_options_layer():
     source = _source({"options": json.dumps({"detail_mode": "smart"})})
     assert detail_service.detail_mode(source) == "smart"
     source.config = {"options": "{not json"}
-    assert detail_service.detail_mode(source) == "off"
+    assert detail_service.detail_mode(source) == "all"
     source.config = {"detail_mode": "nonsense"}
-    assert detail_service.detail_mode(source) == "off"
+    assert detail_service.detail_mode(source) == "all"
     source.config = {}
-    assert detail_service.detail_mode(source) == "off"
+    assert detail_service.detail_mode(source) == "all"
 
 
 def test_score_candidate_radar_match_wins():

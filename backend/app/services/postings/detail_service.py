@@ -63,8 +63,8 @@ def detail_mode(source: JobSource) -> str:
             options = json.loads(options)
         except ValueError:
             options = {}
-    mode = str(config.get("detail_mode") or (options or {}).get("detail_mode") or "off")
-    return mode if mode in ("off", "sample", "smart", "all") else "off"
+    mode = str(config.get("detail_mode") or (options or {}).get("detail_mode") or "all")
+    return mode if mode in ("off", "sample", "smart", "all") else "all"
 
 
 async def _radar_terms(db: AsyncSession) -> tuple[set[str], object | None]:
