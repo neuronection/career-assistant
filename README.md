@@ -97,8 +97,8 @@ fails when a claim here drifts from the code.
 | Surface | Route | State | Documented in |
 |---|---|---|---|
 | First-run AI setup | `/onboarding/setup` | on | [user/ai-setup.md](docs/user/ai-setup.md) |
-| Live postings | `/postings` | beta | [user/postings-and-search.md](docs/user/postings-and-search.md) |
-| Companies | `/companies` | beta | [user/companies.md](docs/user/companies.md) |
+| Live postings | `/postings` | shipped | [user/postings-and-search.md](docs/user/postings-and-search.md) |
+| Companies | `/companies` | shipped | [user/companies.md](docs/user/companies.md) |
 | Application tracker | `/applications` | on | [user/applications.md](docs/user/applications.md) |
 | Career Autopilot | `/autopilot` | beta | [user/career-autopilot.md](docs/user/career-autopilot.md) |
 | Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |

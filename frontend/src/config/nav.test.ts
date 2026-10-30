@@ -68,14 +68,14 @@ describe("resolveActiveId", () => {
       "/settings/companies",
       "/settings/taxonomy",
     ]);
-    // Every registered surface is beta (un-gated 2026-10-21) except the
-    // shipped first-run AI setup step; none are hidden. /companies joins
-    // beta with plan 129 (its own docs page + tour scene).
+    // Postings and Companies graduate to shipped on 2026-10-30; the
+    // remaining registered surfaces stay beta (un-gated 2026-10-21)
+    // except the shipped first-run AI setup step; none are hidden.
     expect(
       FEATURES.filter((feature) => feature.state === "beta")
         .map((feature) => feature.key)
         .sort()
-    ).toEqual(["/autopilot", "/companies", "/growth", "/interviews", "/paths", "/postings"]);
+    ).toEqual(["/autopilot", "/growth", "/interviews", "/paths"]);
     expect(FEATURES.every((feature) => feature.state !== "hidden")).toBe(true);
     // Deep links still resolve against the registry.
     expect(resolveActiveId("/postings/search")).toBe("/postings");
@@ -94,10 +94,10 @@ describe("toNavItem", () => {
     expect(toNavItem(chat, t).label).toBe("nav.chat");
   });
 
-  it("marks beta destinations with the discreet beta pill", () => {
+  it("graduated surfaces carry no beta pill", () => {
     const t = (key: string) => key;
     const postings = NAV.find((item) => item.to === "/postings")!;
-    expect(toNavItem(postings, t).badge).toBe("featureState.betaChip");
+    expect(toNavItem(postings, t).badge).toBeUndefined();
     const catalog = NAV.find((item) => item.to === "/catalog")!;
     expect(toNavItem(catalog, t).badge).toBeUndefined();
     const profile = NAV.find((item) => item.to === "/profile")!;

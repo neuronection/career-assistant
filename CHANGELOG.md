@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (postings + companies graduate from beta, 2026-10-30)
+- **Live postings (`/postings`) and Companies (`/companies`) are
+  shipped** — the beta chips leave the navigation; the feature
+  registry, README status table and banner tests reflect the
+  graduation.
+
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
 ### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
 - **The Tools tab grows a third section: Web search | MCP | Sources.**
   The old connectors view stacked six differently-scoped surfaces in
