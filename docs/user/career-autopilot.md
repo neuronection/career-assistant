@@ -53,11 +53,11 @@ postings it found in total and how many it actually examined, and the windows
 it scans hold **fresh** postings only — ones you have not seen, applied to or
 hidden — so a long browsing history never crowds new vacancies out of a run.
 
-Semantic coverage grows as your postings get embedded: an admin recompute
-(Settings → AI Configuration) embeds them today, so a fresh board's postings
-join the by-meaning pass only once they have an embedding. Keyword search and
-related-role expansion work immediately — an embedding failure, an unmapped
-board or a catalog without relations never breaks a run.
+Semantic coverage grows as your postings get embedded: an admin re-runs the
+embeddings recompute today, so a fresh board's postings join the by-meaning
+pass only once they have an embedding. Keyword search and related-role
+expansion work immediately — an embedding failure, an unmapped board or a
+catalog without relations never breaks a run.
 
 ## Cadence and budgets
 

@@ -176,6 +176,15 @@ degrades:
 | Semantic sweep (embeddings) | wording and description-level meaning no keyword shares | stored posting embeddings + an assigned `embed` task | timeline entry with a sanitized note; lexical candidates unaffected |
 | Curated job-relation sweep | role adjacency (`similar_to`/`alternative_to`) no text encodes | postings mapped to catalog jobs + curated relations | no-op timeline entry; no embeddings, no AI, desktop-safe |
 
+All three sources share one recall contract (ADR-0012 §13 addendum): a
+candidate is only *proposed* — every one of them passes the same deterministic
+gates in code before entering the pool, so a vector hit can never resurrect a
+gated-out row; ordering stays deterministic (`(must_hits, fit)`) with cosine
+absent from it; any embedding failure degrades to lexical-only. Semantic
+candidates whose cosine is zero or negative carry no signal and are dropped
+before gating (`_semantic_sweep`) — that cutoff decides recall only, never
+rank.
+
 **Budget and abort routing** — every `abort_reason`, where it fires, and what
 still ships:
 
