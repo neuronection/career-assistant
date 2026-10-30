@@ -60,6 +60,40 @@ All notable changes to **Career Assistant** are documented here.
   semantic candidate passes the same open/seen/never-term/cooldown gates, and
   a missing or failing embedding simply leaves the keyword results intact.
   Coverage grows as postings get embedded (admin recompute today).
+### Changed (filters — excluded picker chips, 2026-10-30)
+- **Excluded skills and organizations now look excluded**: the chips of
+  the "Excluded skills" and "Exclude organization" pickers render in the
+  same rose as the tri-state exclude chips (with the `−` marker) instead
+  of the picker's default accent, so one value reads the same however it
+  was excluded.
+
+### Added (postings — presets, 2026-10-30)
+- **Saved views are one click away**: a preset bar above `/postings`
+  results saves the whole search (text, facets, state toggles, sort) as a
+  named chip. Chips re-apply on click and highlight when active; the `⋯`
+  menu shows what the preset holds and offers **Update with current
+  filters**, **Rename** and **Delete** (confirmed). Saving a view that
+  already exists updates it instead of duplicating; names are unique per
+  user.
+- Presets are **saved searches** (`search_history.name`, new
+  `PATCH /me/searches/{id}`), so the existing scheduler, digest and RSS
+  surfaces can run them; the old "Save this search" button is replaced
+  by the bar.
+
+### Changed (filter chips — one cycle, one clear, 2026-10-30)
+- **Every filter chip now cycles off → include → exclude → off.** The
+  rails on `/postings` and `/companies` previously bounced between
+  include and exclude forever on click (clearing needed a right-click);
+  a third click now clears, and right-click still jumps straight to
+  exclude.
+- **Selected chips carry their own ×**: one click clears the value
+  without cycling through the other state. The remove control is a
+  sibling button (a nested button would be invalid markup), with a
+  "Remove …" accessible name.
+- **Companies industries can now be excluded** too (`industry_exclude`
+  on `GET /companies`), so the last include-only facet axis follows the
+  same tri-state rule as work mode, seniority and employment.
+
 ### Added (taxonomy backlog bar, 2026-10-30)
 - **`/settings/taxonomy` shows the backlog**: a work-queue bar over the
   skill ontology (active, proposed, deprecated, auto-promoted all-time and
@@ -192,6 +226,10 @@ All notable changes to **Career Assistant** are documented here.
   installer — check-only by family law. Accepted by the shared
   cross-language fixture wall
   (`backend/tests/fixtures/version_check.fixtures.json`).
+- **The badge anchors the sidebar footer's version text** (compact and
+  full layouts), and the About page names the installed version with
+  direct links to the new release and its notes whenever an update is
+  out.
 
 ### Changed (AI-call detail drawer, 2026-10-30)
 - **AI activity rows open a detail drawer instead of inline expansion**

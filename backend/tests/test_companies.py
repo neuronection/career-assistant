@@ -64,6 +64,37 @@ async def test_list_orders_by_open_postings_and_excludes_empty(
     assert rows[0]["has_profile"] is False
 
 
+async def test_list_industry_include_and_exclude(db, client, auth_headers, seeded_catalog, source):
+    fintech = await _seed_company(db, source, name="FinCo", count=1)
+    retail = await _seed_company(db, source, name="ShopCo", count=1)
+    both = await _seed_company(db, source, name="MixedCo", count=1)
+    db.add_all(
+        [
+            CompanyProfile(organization_id=fintech.id, industry_tags=["fintech"]),
+            CompanyProfile(organization_id=retail.id, industry_tags=["retail"]),
+            CompanyProfile(organization_id=both.id, industry_tags=["fintech", "retail"]),
+        ]
+    )
+    await db.commit()
+
+    included = await client.get(
+        "/api/v1/companies", params={"industry": "fintech"}, headers=auth_headers
+    )
+    assert {row["name"] for row in included.json()["items"]} == {"FinCo", "MixedCo"}
+
+    excluded = await client.get(
+        "/api/v1/companies", params={"industry_exclude": "retail"}, headers=auth_headers
+    )
+    assert {row["name"] for row in excluded.json()["items"]} == {"FinCo"}
+
+    both_axes = await client.get(
+        "/api/v1/companies",
+        params={"industry": "fintech", "industry_exclude": "retail"},
+        headers=auth_headers,
+    )
+    assert [row["name"] for row in both_axes.json()["items"]] == ["FinCo"]
+
+
 async def test_list_sorts_by_name_and_recency(db, client, auth_headers, seeded_catalog, source):
     from datetime import UTC, datetime, timedelta
 

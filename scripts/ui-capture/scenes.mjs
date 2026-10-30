@@ -190,7 +190,8 @@ export const scenes = [
     narration: "CV Studio builds your CV three ways — from your profile, from an import, or with AI variants.",
     path: "/cv",
     interactions: [
-      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 20000 },
+      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 30000 },
+      { action: "wait", ms: 500 },
     ],
     viewports: ["desktop"],
     waitForSelector: "[data-testid='cv-studio']",
@@ -253,6 +254,56 @@ export const scenes = [
     path: "/radar",
     viewports: ["desktop"],
     waitForSelector: "[data-testid='job-radar']",
+  },
+  // ---- Component captures (plan 48) — element crops for the hub feature rows.
+  // `tour: false` keeps them out of the manifest/GIF; `outDir: "components"`
+  // writes docs/images/components/<capability-id>.png.
+  {
+    name: "job-catalog",
+    group: "Discovery",
+    caption: "Job catalog — role cards with fit signals.",
+    path: "/catalog",
+    interactions: [{ action: "wait", ms: 3000 }],
+    tour: false,
+    capture: "element",
+    selector: ':nth-match([data-testid="job-card"], 1)',
+    outDir: "components",
+    viewports: ["desktop2x"],
+    waitForSelector: '[data-testid="job-card"]',
+  },
+  {
+    name: "cv-studio-panel",
+    group: "Working life",
+    caption: "A CV card — title, status, dates and the rendered page thumbnail.",
+    path: "/cv",
+    interactions: [
+      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 20000 },
+    ],
+    tour: false,
+    capture: "element",
+    selector: ':nth-match([data-capture="cv-studio"], 1)',
+    outDir: "components",
+    viewports: ["desktop2x"],
+    waitForSelector: '[data-capture="cv-studio"]',
+  },
+  {
+    name: "assistant-chat",
+    group: "AI assistant",
+    caption: "Assistant answer grounded in the profile, with job reference chips.",
+    path: "/chat",
+    interactions: [
+      { action: "waitFor", selector: "[data-as='chat-composer'] textarea", timeout: 20000 },
+      { action: "fill", selector: "[data-as='chat-composer'] textarea", value: "Which roles fit my profile best?" },
+      { action: "press", key: "Enter" },
+      { action: "waitFor", selector: '[data-role="assistant"]', timeout: 20000 },
+      { action: "wait", ms: 6000 },
+    ],
+    tour: false,
+    capture: "element",
+    selector: '[data-role="assistant"]',
+    outDir: "components",
+    viewports: ["desktop"],
+    waitForSelector: "[data-as='chat-composer'] textarea",
   },
 ];
 

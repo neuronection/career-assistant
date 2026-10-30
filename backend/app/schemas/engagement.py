@@ -21,6 +21,15 @@ class SearchRecordIn(BaseModel):
     query: str = Field(default="", max_length=300)
     filters: dict = Field(default_factory=dict)
     result_count: int = Field(default=0, ge=0)
+    saved: bool = False
+    name: str | None = Field(default=None, max_length=80)
+
+
+class SearchUpdateIn(BaseModel):
+    name: str | None = Field(default=None, max_length=80)
+    query: str | None = Field(default=None, max_length=300)
+    filters: dict | None = None
+    result_count: int | None = Field(default=None, ge=0)
 
 
 class SearchOut(BaseModel):
@@ -30,6 +39,7 @@ class SearchOut(BaseModel):
     filters: dict
     result_count: int
     saved: bool
+    name: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

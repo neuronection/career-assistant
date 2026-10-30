@@ -5,8 +5,8 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
 import { explorePostings } from "@/api/postings";
+import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
-import { recordSearch, saveSearch } from "@/api/engagement";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 
@@ -45,8 +45,10 @@ vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();
   return {
     ...mod,
-    recordSearch: vi.fn().mockResolvedValue({ id: "s9" }),
-    saveSearch: vi.fn().mockResolvedValue({ id: "s9", saved: true }),
+    fetchSearches: vi.fn().mockResolvedValue([]),
+    recordSearch: vi.fn().mockResolvedValue({ id: "s9", saved: true }),
+    updateSearch: vi.fn().mockResolvedValue({ id: "s9" }),
+    deleteSearch: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -70,9 +72,8 @@ class MockIntersectionObserver {
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
 
 const mockExplore = vi.mocked(explorePostings);
-const mockCompanies = vi.mocked(fetchCompanies);
 const mockRecord = vi.mocked(recordSearch);
-const mockSave = vi.mocked(saveSearch);
+const mockCompanies = vi.mocked(fetchCompanies);
 
 async function pickFromPlaceholder(placeholder: string, query: string, optionName: RegExp | string) {
   const input = screen.getByPlaceholderText(placeholder);
@@ -269,6 +270,36 @@ describe("Explore page", () => {
     );
     const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
     expect(call.seniority).toBeUndefined();
+
+    // third click clears the value entirely (off → include → exclude → off)
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() => {
+      const cleared = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(cleared.seniority).toBeUndefined();
+      expect(cleared.seniority_exclude).toBeUndefined();
+    });
+  });
+
+  it("clears a selected chip from its remove button", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    openSection("Seniority");
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() =>
+      expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "true")
+    );
+    await user.click(screen.getByTestId("seniority-mid-clear"));
+    await waitFor(() => {
+      const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(call.seniority).toBeUndefined();
+      expect(call.seniority_exclude).toBeUndefined();
+    });
+    expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("excludes skills, sources and organizations", async () => {
@@ -304,28 +335,55 @@ describe("Explore page", () => {
     );
   });
 
-  it("saves the current filter set as a saved search", async () => {
+  it("renders excluded skills and organizations as excluded chips", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={["/postings?skill_exclude=java&org_exclude=Acme%2C+Inc."]}
+      >
         <Explore />
       </MemoryRouter>
     );
+    await screen.findByTestId("explore");
+    const excludedPickers = document.querySelectorAll(".ca-picker-exclude");
+    expect(excludedPickers).toHaveLength(2);
+    const skillChip = screen.getByText("java").closest("li");
+    expect(skillChip).toHaveTextContent("−java");
+    expect(excludedPickers[0]).toContainElement(skillChip as HTMLElement);
+    const orgChip = screen.getByText("Acme, Inc.").closest("li");
+    expect(orgChip).toHaveTextContent("−Acme, Inc.");
+    expect(excludedPickers[1]).toContainElement(orgChip as HTMLElement);
+  });
+
+  it("shows the preset bar and saves the current view", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("preset-bar");
     fireEvent.change(await screen.findByTestId("explore-q"), {
       target: { value: "engineer" },
     });
-    const button = await screen.findByTestId("save-search");
-    await waitFor(() => expect(button).not.toBeDisabled());
-    fireEvent.click(button);
+    const save = screen.getByTestId("preset-save");
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+    fireEvent.change(await screen.findByTestId("preset-name-input"), {
+      target: { value: "Engineer" },
+    });
+    fireEvent.click(screen.getByTestId("preset-save-confirm"));
     await waitFor(() =>
       expect(mockRecord).toHaveBeenCalledWith(
         expect.objectContaining({
           scope: "postings",
           query: "engineer",
+          saved: true,
+          name: "Engineer",
+          filters: expect.objectContaining({ q: "engineer" }),
         })
       )
     );
-    expect(mockSave).toHaveBeenCalledWith("s9");
-    expect(await screen.findByTestId("saved-note")).toBeInTheDocument();
+    expect(await screen.findByTestId("preset-note")).toHaveTextContent("Preset saved");
   });
 
   it("clears all filters", async () => {

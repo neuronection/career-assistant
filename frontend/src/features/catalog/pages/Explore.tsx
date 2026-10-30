@@ -1,15 +1,15 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowUpDown, Bookmark, Radar, Search, X } from "lucide-react";
+import { ArrowUpDown, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
-import { recordSearch, saveSearch } from "@/api/engagement";
 import { fetchRadar, previewRadar } from "@/api/radar";
 import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
+import { PresetBar } from "@/features/postings/components/postings/PresetBar";
 import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
@@ -142,21 +142,6 @@ export function Explore() {
     patch({ skills: [...filters.skills, { key, level: null }] });
   };
 
-  const saveThisSearch = () => {
-    void recordSearch({
-      scope: "postings",
-      query: filters.q,
-      filters: paramsFrom(filters) as unknown as Record<string, unknown>,
-      result_count: total,
-    })
-      .then((record) => saveSearch(record.id))
-      .then(() => {
-        setSavedNote(t("explore.searchSaved"));
-        setTimeout(() => setSavedNote(""), 4000);
-      })
-      .catch(() => setError(t("explore.saveFailed")));
-  };
-
   const applyRadar = async () => {
     setError("");
     try {
@@ -232,17 +217,15 @@ export function Explore() {
               <Radar className="w-3.5 h-3.5" /> {t("explore.radarApply")}
             </button>
           )}
-          <button
-            onClick={saveThisSearch}
-            disabled={!active}
-            className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40"
-            data-testid="save-search"
-          >
-            <Bookmark className="w-3.5 h-3.5" /> {t("explore.saveSearch")}
-          </button>
         </div>
       </div>
       {savedNote && <p className="text-sm text-emerald-600" data-testid="saved-note">{savedNote}</p>}
+
+      <PresetBar
+        filters={filters}
+        total={total}
+        onApply={(next) => setSearchParams(toSearchParams(next), { replace: true })}
+      />
 
       <div className="flex gap-6">
         <aside
@@ -360,6 +343,7 @@ export function Explore() {
                 {t("explore.excludeSkills")}
               </p>
               <SkillPicker
+                exclude
                 value={filters.skillsExclude}
                 onChange={(keys) => patch({ skillsExclude: keys })}
                 placeholder={t("explore.excludeSkillPlaceholder")}
@@ -393,8 +377,8 @@ export function Explore() {
                 }))}
                 include={filters.postedWithin ? [filters.postedWithin] : []}
                 exclude={[]}
-                onToggle={(value) =>
-                  patch({ postedWithin: filters.postedWithin === value ? "" : value })
+                onToggle={(value, mode) =>
+                  patch({ postedWithin: mode === "clear" ? "" : value })
                 }
               />
             </Section>
@@ -537,6 +521,7 @@ export function Explore() {
                 {t("explore.excludeOrganizations")}
               </p>
               <OrgPicker
+                exclude
                 value={filters.orgsExclude}
                 onChange={(names) => patch({ orgsExclude: names })}
                 placeholder={t("explore.excludeOrgPlaceholder")}

@@ -70,37 +70,6 @@ export function emptyFilterSpec(): FilterSpec {
 }
 
 
-export interface FilterPreset {
-  id: string;
-  name: string;
-  tags: string[];
-  filters: FilterSpec;
-  updated_at: string | null;
-}
-
-export async function fetchFilterPresets(): Promise<FilterPreset[]> {
-  const { data } = await api.get<FilterPreset[]>("/me/posting-filters");
-  return data;
-}
-
-export async function saveFilterPreset(
-  name: string,
-  tags: string[],
-  filters: FilterSpec,
-): Promise<FilterPreset> {
-  const { data } = await api.post<FilterPreset>("/me/posting-filters", {
-    name,
-    tags,
-    filters,
-  });
-  return data;
-}
-
-export async function deleteFilterPreset(presetId: string): Promise<void> {
-  await api.delete(`/me/posting-filters/${presetId}`);
-}
-
-
 export async function explorePostings(
   params: ExploreParams
 ): Promise<ExploreResponse> {

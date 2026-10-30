@@ -114,6 +114,8 @@ export {
   MenuTrigger,
   MenuContent,
   MenuItem,
+  MenuLabel,
+  MenuSeparator,
   type MenuItemProps,
 } from "@/components/ui/menu";
 export { SwitchRow, type SwitchRowProps } from "@/components/ui/switch-row";

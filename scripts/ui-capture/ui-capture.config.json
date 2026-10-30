@@ -42,7 +42,8 @@
     "headless": true,
     "viewports": {
       "desktop": { "width": 1440, "height": 1200, "deviceScaleFactor": 1 },
-      "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 2 }
+      "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 2 },
+      "desktop2x": { "width": 1440, "height": 900, "deviceScaleFactor": 2 }
     }
   },
   "gallery": {

@@ -26,6 +26,7 @@ import {
   toSearchParams,
   type CompanyFilters,
 } from "@/features/companies/companiesParams";
+import type { TriStateMode } from "@/components/filters/filterBits";
 
 const STATUS_FILTERS: CompanyFilters["status"][] = ["all", "new"];
 
@@ -61,7 +62,7 @@ export function Companies() {
       includeKey: keyof CompanyFilters,
       excludeKey: keyof CompanyFilters,
       value: string,
-      mode: "include" | "exclude"
+      mode: TriStateMode
     ) => {
       const next = triStateToggle(
         filters[includeKey] as string[],
@@ -116,6 +117,7 @@ export function Companies() {
         value,
         label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
         count,
+        testId: `company-${facet}-${value}`,
       })),
     [facets, t]
   );
@@ -222,18 +224,14 @@ export function Companies() {
           </Section>
           <Section
             title={t("companies.facetTitle.industries")}
-            active={filters.industries.length > 0}
+            active={filters.industries.length + filters.industriesExclude.length > 0}
           >
             <TriStateChips
               values={facetChips("industries")}
               include={filters.industries}
-              exclude={[]}
-              onToggle={(value) =>
-                patch({
-                  industries: filters.industries.includes(value)
-                    ? filters.industries.filter((v) => v !== value)
-                    : [...filters.industries, value],
-                })
+              exclude={filters.industriesExclude}
+              onToggle={(value, mode) =>
+                toggleAxis("industries", "industriesExclude", value, mode)
               }
               showCounts
             />

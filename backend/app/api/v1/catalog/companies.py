@@ -43,6 +43,9 @@ async def list_companies(
     industry: str | None = Query(
         default=None, description="CSV match-any over profile industry tags"
     ),
+    industry_exclude: str | None = Query(
+        default=None, description="CSV exclude companies carrying any of these industry tags"
+    ),
     location: str | None = Query(default=None, description="Matches open-posting city or country"),
     sort: str = Query(
         default="open_postings",
@@ -66,6 +69,7 @@ async def list_companies(
         employment_exclude=_csv(employment_exclude),
         min_open=min_open,
         industry=_csv(industry),
+        industry_exclude=_csv(industry_exclude),
         location=location,
         sort=sort,
         facets=facets,

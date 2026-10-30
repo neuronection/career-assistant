@@ -14,7 +14,7 @@ describe("companies URL params", () => {
       new URLSearchParams(
         "q=acme&status=new&work_mode=remote,hybrid&work_mode_exclude=onsite" +
           "&seniority=mid&seniority_exclude=junior&employment=full_time" +
-          "&employment_exclude=internship&industry=fintech&min_open=5" +
+          "&employment_exclude=internship&industry=fintech&industry_exclude=retail&min_open=5" +
           "&location=Athens&sort=recent"
       )
     );
@@ -28,6 +28,7 @@ describe("companies URL params", () => {
       employment: ["full_time"],
       employmentExclude: ["internship"],
       industries: ["fintech"],
+      industriesExclude: ["retail"],
       minOpen: 5,
       location: "Athens",
       sort: "recent",

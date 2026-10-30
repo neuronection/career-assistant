@@ -15,6 +15,7 @@ from app.schemas.engagement import (
     SaveIn,
     SearchOut,
     SearchRecordIn,
+    SearchUpdateIn,
     SeenIn,
     UnseenCountOut,
 )
@@ -38,9 +39,16 @@ async def record_search(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> SearchOut:
-    """Remember a search (debounced: same query+filters inside 30 min updates)."""
+    """Remember a search (debounced: same query+filters inside 30 min
+    updates). `saved` + `name` create a preset in one call."""
     row = await EngagementService(db).record_search(
-        user.id, data.scope, data.query, data.filters, data.result_count
+        user.id,
+        data.scope,
+        data.query,
+        data.filters,
+        data.result_count,
+        saved=data.saved,
+        name=data.name,
     )
     return SearchOut.model_validate(row)
 
@@ -65,6 +73,20 @@ async def delete_search(
 ) -> None:
     """Drop one remembered search."""
     await EngagementService(db).delete_search(user.id, search_id)
+
+
+@router.patch("/me/searches/{search_id}", response_model=SearchOut)
+async def update_search(
+    search_id: UUID,
+    data: SearchUpdateIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SearchOut:
+    """Edit a preset: rename it, re-point its filters at the current view or
+    refresh its result count (renaming or re-pointing saves the row)."""
+    fields = data.model_dump(exclude_unset=True)
+    row = await EngagementService(db).update_search(user.id, search_id, **fields)
+    return SearchOut.model_validate(row)
 
 
 @router.post("/me/searches/{search_id}/save", response_model=SearchOut)

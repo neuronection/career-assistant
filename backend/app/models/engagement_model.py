@@ -64,6 +64,9 @@ class SearchHistory(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     filters_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     saved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    # A named saved search is a *preset* (plan 165): the Explore preset bar
+    # lists and applies these by name; unnamed rows are remembered searches.
+    name: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class NotificationKind(UUIDPrimaryKeyMixin, TimestampMixin, Base):

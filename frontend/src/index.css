@@ -109,6 +109,18 @@ body {
   }
 }
 
+/* Excluded pickers (plan 166): the skills/organizations exclude lists keep
+   the library picker, but their selected chips must read as excluded
+   values — the same rose as the tri-state exclude chips — not as the
+   picker's default accent selection. Scoped to the wrapper the exclude
+   pickers carry (`ca-picker-exclude`) so include pickers are untouched. */
+.ca-picker-exclude [data-as="picker-chips"] > li {
+  @apply bg-rose-50 text-rose-700;
+}
+.ca-picker-exclude [data-as="picker-chips"] > li > button {
+  color: inherit;
+}
+
 /* Item cards (plan 140): width-aware by the card's own container — the
    chat dock narrows the column, not the viewport, so no lg: here. */
 .ca-item-card {

@@ -92,6 +92,77 @@ async def test_search_history_filters_round_trip(client, auth_headers):
     assert rows[0]["scope"] == "rankings"
 
 
+async def test_saved_search_presets_create_rename_update_and_delete(client, auth_headers):
+    payload = {
+        "scope": "postings",
+        "query": "",
+        "filters": {"seniority": "senior", "seen_exclude": True},
+        "result_count": 12,
+        "saved": True,
+        "name": "  Senior,   unseen ",
+    }
+    created = await client.post("/api/v1/me/searches", json=payload, headers=auth_headers)
+    assert created.status_code == 201, created.text
+    preset = created.json()
+    assert preset["name"] == "Senior, unseen", "names are whitespace-normalized"
+    assert preset["saved"] is True
+
+    saved = (
+        await client.get("/api/v1/me/searches", params={"saved": True}, headers=auth_headers)
+    ).json()
+    assert [row["name"] for row in saved] == ["Senior, unseen"]
+
+    renamed = await client.patch(
+        f"/api/v1/me/searches/{preset['id']}",
+        json={"name": "Senior only"},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["name"] == "Senior only"
+
+    updated = await client.patch(
+        f"/api/v1/me/searches/{preset['id']}",
+        json={"filters": {"seniority": "lead"}, "result_count": 4},
+        headers=auth_headers,
+    )
+    assert updated.status_code == 200, updated.text
+    body = updated.json()
+    assert body["filters"] == {"seniority": "lead"}
+    assert body["result_count"] == 4
+    assert body["name"] == "Senior only"
+
+    deleted = await client.delete(f"/api/v1/me/searches/{preset['id']}", headers=auth_headers)
+    assert deleted.status_code == 204
+    assert (
+        await client.get("/api/v1/me/searches", params={"saved": True}, headers=auth_headers)
+    ).json() == []
+
+
+async def test_preset_names_are_unique_per_user(client, auth_headers):
+    base = {"scope": "postings", "filters": {}, "result_count": 1, "saved": True}
+    first = await client.post(
+        "/api/v1/me/searches",
+        json={**base, "name": "Remote"},
+        headers=auth_headers,
+    )
+    assert first.status_code == 201, first.text
+    clash = await client.post(
+        "/api/v1/me/searches",
+        json={**base, "filters": {"seen_exclude": True}, "name": "remote"},
+        headers=auth_headers,
+    )
+    assert clash.status_code == 400
+    assert "already exists" in clash.json()["detail"]
+
+    # the owner's own row may keep its name while being updated
+    keep = await client.patch(
+        f"/api/v1/me/searches/{first.json()['id']}",
+        json={"name": "Remote"},
+        headers=auth_headers,
+    )
+    assert keep.status_code == 200, keep.text
+
+
 async def test_search_history_cap_prunes_oldest(db, auth_headers, client):
     user_id = _user_id(client, auth_headers)
     service = EngagementService(db)
