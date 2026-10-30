@@ -49,6 +49,7 @@ DEFAULT_TOP_N = 5
 DEFAULT_COOLDOWN_DAYS = 7
 SEARCH_LIMIT = 25
 SNIPPET_CHARS = 600
+SEMANTIC_K = 60
 
 PROFILE_SKILL_LIMIT = 12
 PLAN_SKILL_LIMIT = 40
@@ -436,6 +437,137 @@ def _serialize_candidate(item: dict) -> dict | None:
 # -------------------------------------------------------------------- nodes
 
 
+async def _gated_rows(
+    deps: GraphDeps,
+    state: AutopilotState,
+    *,
+    posting_ids: list[UUID] | None = None,
+    catalog_job_ids: list[UUID] | None = None,
+    exclude_ids: set[str] | None = None,
+) -> list[tuple]:
+    """Postings (with the caller's interaction/application) that pass the
+    deterministic gates every recall source shares: open status, the
+    exclude-seen axes, the per-goal cooldown. Never-terms are judged on
+    the serialized candidate text (``_candidate_texts``).
+    """
+    from app.models.application_model import Application
+    from app.models.posting_model import JobPosting, PostingInteraction
+
+    if not posting_ids and not catalog_job_ids:
+        return []
+    user_id = UUID(state["user_id"])
+    exclude_seen = _constraints(state).get("exclude_seen", True)
+    query = select(JobPosting, PostingInteraction, Application).outerjoin(
+        PostingInteraction,
+        (PostingInteraction.posting_id == JobPosting.id) & (PostingInteraction.user_id == user_id),
+    )
+    query = query.outerjoin(
+        Application,
+        (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+    )
+    if posting_ids:
+        query = query.where(JobPosting.id.in_(posting_ids))
+    if catalog_job_ids:
+        query = query.where(JobPosting.catalog_job_id.in_(catalog_job_ids))
+    rows = (await deps.db.execute(query)).all()
+    excluded = exclude_ids or set()
+    fresh: list[tuple] = []
+    for posting, interaction, application in rows:
+        if posting.status not in OPEN_STATUSES:
+            continue
+        if str(posting.id) in excluded or str(posting.id) in deps.cooldown_ids:
+            continue
+        if exclude_seen and (
+            (interaction is not None and (interaction.seen_at or interaction.hidden_at))
+            or application is not None
+        ):
+            continue
+        fresh.append((posting, interaction, application))
+    return fresh
+
+
+async def _scored_candidates(
+    deps: GraphDeps, state: AutopilotState, rows: list[tuple]
+) -> list[dict]:
+    """Serialize loaded rows into candidates: batch-cached fit, no
+    never-term hits, must-term coverage."""
+    from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+    if not rows:
+        return []
+    fits = await get_posting_fits_batch(deps.db, UUID(state["user_id"]), [row[0] for row in rows])
+    never_terms = [str(term).casefold() for term in _constraints(state).get("never_terms") or []]
+    must_terms = _must_terms(state)
+    scored: list[dict] = []
+    for posting, interaction, application in rows:
+        fit = fits.get(posting.id) or {}
+        candidate = _serialize_candidate(
+            {
+                "posting": posting,
+                "interaction": interaction,
+                "application": application,
+                "fit": fit.get("score"),
+            }
+        )
+        if candidate is None:
+            continue
+        if fit.get("breakdown") is not None:
+            candidate["breakdown"] = fit["breakdown"]
+        haystack = _candidate_texts(candidate)
+        if any(term and term in haystack for term in never_terms):
+            continue
+        candidate["must_hits"] = sum(1 for term in must_terms if term in haystack)
+        scored.append(candidate)
+    return scored
+
+
+def _merge_candidates(best: dict[str, dict], candidates: list[dict]) -> int:
+    """Dedupe by posting id, keeping the higher fit; returns the number of
+    newly added postings."""
+    merged = 0
+    for candidate in candidates:
+        key = str(candidate["posting_id"])
+        existing = best.get(key)
+        if existing is None:
+            best[key] = candidate
+            merged += 1
+        elif float(candidate.get("fit") or 0) > float(existing.get("fit") or 0):
+            best[key] = candidate
+    return merged
+
+
+async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str, dict]) -> dict:
+    """One prediction-free recall pass over the stored posting embeddings.
+
+    A candidate GENERATOR, never a filter: every hit passes the same
+    deterministic gates as the lexical variants before it enters the pool,
+    and any embedding failure degrades to lexical-only (ADR-0012 §13).
+    """
+    entry = {
+        "step": "search",
+        "query": "",
+        "filters": {},
+        "rationale": "semantic sweep over stored posting embeddings",
+        "found": 0,
+        "error": "",
+    }
+    try:
+        from app.services.embedding_service import KIND_POSTING, EmbeddingService
+
+        query = " ".join([state.get("goal_text") or "", *_must_terms(state)]).strip()
+        hits = await EmbeddingService(deps.db).search_similar(
+            query, kind=KIND_POSTING, limit=SEMANTIC_K
+        )
+        ids = [UUID(hit["entity_id"]) for hit in hits if float(hit.get("score") or 0) > 0]
+        rows = await _gated_rows(deps, state, posting_ids=ids)
+        candidates = await _scored_candidates(deps, state, rows)
+        entry["found"] = _merge_candidates(best, candidates)
+    except Exception as exc:
+        logger.warning("autopilot semantic sweep degraded", exc_info=True)
+        entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+    return entry
+
+
 def make_plan_node(deps: GraphDeps):
     async def plan(state: AutopilotState) -> dict:
         """LLM step 1: goal + constraints + profile context + the explore
@@ -537,6 +669,7 @@ def make_search_node(deps: GraphDeps):
                 min(55, 15 + int(40 * len(timeline) / max(len(variants), 1))),
                 f"searched {len(timeline)}/{max(len(variants), 1)} variants",
             )
+        timeline.append(await _semantic_sweep(deps, state, best))
         return {"searches": timeline, "candidates": list(best.values())}
 
     return search

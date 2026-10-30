@@ -14,17 +14,26 @@ Open it at `/autopilot`.
    education level, your location, and the seniority you asked for. Each
    variant searches by **keyword**, so multi-word concepts match titles and
    employers instead of being treated as one exact phrase.
-2. **Filters noise** — postings you have seen or applied to, terms you never
+2. **Searches two ways** — by keyword variants and **by meaning** over the
+   posting embeddings already stored. The semantic pass is a recall source,
+   not a shortcut: every posting it proposes still passes the same
+   deterministic gates before it can reach the shortlist.
+3. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
-3. **Ranks** by your must-terms first and your deterministic fit score
+4. **Ranks** by your must-terms first and your deterministic fit score
    second — constraints are promises, fit is preference (see
    [Matching and rankings](matching-and-rankings.md)). Every finding states
    how many of your must-terms it covers.
-4. **Explains** the shortlist: every explanation cites verbatim quotes
+5. **Explains** the shortlist: every explanation cites verbatim quotes
    verified against the posting's own text.
 
 A **"what I searched & why"** timeline shows each run's work, so the agent's
 reasoning is inspectable rather than opaque.
+
+Semantic coverage grows as your postings get embedded: an admin recompute
+(Settings → AI Configuration) embeds them today, so a fresh board's postings
+join the by-meaning pass only once they have an embedding. Keyword search
+works immediately — an embedding failure never breaks a run.
 
 ## Cadence and budgets
 

@@ -793,3 +793,138 @@ def test_curate_prompt_carries_must_coverage():
     assert prompt["candidates"][0]["must_hits"] == 2
     assert prompt["candidates"][0]["must_total"] == 2
     assert prompt["candidates"][1]["must_hits"] == 0
+
+
+# ------------------------------------------------------- S3 semantic recall
+
+
+def _narrow_planner(extra: dict | None = None):
+    """A scripted planner whose variants match no posting by text, so only
+    a recall sweep can surface one."""
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {
+                        "rationale": "narrow lexical probe",
+                        "query": "",
+                        "filters": {"keywords": ["zzz-no-such-role"]},
+                        **(extra or {}),
+                    }
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    return scripted
+
+
+async def _embed_for(db, posting, text: str) -> None:
+    """Store the deterministic mock embedding of `text` on one posting."""
+    from app.ai.gateway import embed_texts
+    from app.services.embedding_service import KIND_POSTING, EmbeddingService
+
+    vector = (await embed_texts(db, [text]))[0]
+    await EmbeddingService(db).upsert_embedding(
+        KIND_POSTING, posting.id, f"embedding fixture for {posting.ref}", vector=vector
+    )
+
+
+async def test_semantic_sweep_surfaces_a_posting_no_variant_matches(
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+):
+    """Embedding recall adds postings the lexical variants cannot see
+    (plan 158 S3.1/S3.4)."""
+    from tests.conftest import _make_posting
+
+    autopilot_mock(_narrow_planner())
+    goal_text = "junior data analyst role, remote, where I can use programming"
+    posting = await _make_posting(
+        db,
+        source,
+        external_id="ex-embed",
+        title="Zebra wrangler",
+        org="Zoological Hotel",
+        skills_raw=[],
+        raw={"description": "Wrangling striped animals at the hotel lobby."},
+    )
+    await _embed_for(db, posting, goal_text)
+
+    created = await _goal(client, auth_headers, goal_text=goal_text, constraints={})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert str(posting.id) in [finding["posting_id"] for finding in result["findings"]]
+    sweep = next(
+        entry
+        for entry in result["searches"]
+        if entry.get("rationale") == "semantic sweep over stored posting embeddings"
+    )
+    assert sweep["step"] == "search" and sweep["query"] == ""
+    assert sweep["found"] == 1
+    assert sweep["error"] == ""
+
+
+async def test_semantic_sweep_degrades_without_embeddings(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """No stored vectors → no error, no crash, lexical results unaffected
+    (plan 158 S3.2)."""
+    autopilot_mock(_narrow_planner())
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    sweep = next(
+        entry
+        for entry in result["searches"]
+        if entry.get("rationale") == "semantic sweep over stored posting embeddings"
+    )
+    assert sweep["found"] == 0 and sweep["error"] == ""
+    assert result["status"] == "completed"
+
+
+async def test_semantic_sweep_skips_gated_postings(
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+):
+    """A seen posting is excluded from the sweep like everywhere else
+    (plan 158 S3.4, S4.7)."""
+    from app.models.posting_model import PostingInteraction
+    from tests.conftest import _make_posting
+
+    autopilot_mock(_narrow_planner())
+    goal_text = "junior data analyst role, remote, where I can use programming"
+    posting = await _make_posting(
+        db,
+        source,
+        external_id="ex-embed-seen",
+        title="Zebra wrangler",
+        org="Zoological Hotel",
+        skills_raw=[],
+        raw={"description": "Wrangling striped animals at the hotel lobby."},
+    )
+    await _embed_for(db, posting, goal_text)
+    db.add(
+        PostingInteraction(
+            user_id=_uid(auth_headers), posting_id=posting.id, seen_at=datetime.now(UTC)
+        )
+    )
+    await db.commit()
+
+    created = await _goal(client, auth_headers, goal_text=goal_text, constraints={})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert result["findings"] == []
+    sweep = next(
+        entry
+        for entry in result["searches"]
+        if entry.get("rationale") == "semantic sweep over stored posting embeddings"
+    )
+    assert sweep["found"] == 0

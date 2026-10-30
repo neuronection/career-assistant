@@ -21,6 +21,12 @@ All notable changes to **Career Assistant** are documented here.
   matches what you said you must have always outranks a higher-scoring one
   that matches none. Each finding's evidence records its coverage, and the
   curator weighs it when writing the explanation.
+- **Autopilot also searches by meaning** (plan 158): one semantic pass over
+  the posting embeddings already stored adds vacancies whose wording never
+  matches a keyword variant. It is a recall source, never a bypass — every
+  semantic candidate passes the same open/seen/never-term/cooldown gates, and
+  a missing or failing embedding simply leaves the keyword results intact.
+  Coverage grows as postings get embedded (admin recompute today).
 
 ### Changed (audit auto-refresh + export coverage, 2026-10-30)
 - **Overview gains an auto-refresh toggle** (plan 157): a 30-second
