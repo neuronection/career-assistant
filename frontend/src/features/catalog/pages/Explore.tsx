@@ -20,7 +20,7 @@ import {
   Section,
   TriStateChips,
   triStateToggle,
-} from "@/features/postings/components/postings/filterBits";
+} from "@/components/filters/filterBits";
 
 const POSTED_WINDOWS = [
   { value: "24h", labelKey: "explore.posted.h24" },

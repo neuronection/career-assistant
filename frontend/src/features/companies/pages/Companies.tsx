@@ -1,20 +1,33 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Building2, Globe, MapPin, Search } from "lucide-react";
-import { fetchCompanies } from "@/api/companies";
+import { fetchCompanies, type CompanyQuery } from "@/api/companies";
 import { Badge, EmptyState } from "@/components/ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
 import { ItemCardShell } from "@/components/cards/ItemCardShell";
+import {
+  Section,
+  TriStateChips,
+  triStateToggle,
+  type FacetChip,
+} from "@/components/filters/filterBits";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
-import type { Company } from "@/types/wire";
+import type { Company, CompanyFacets } from "@/types/wire";
 
 type StatusFilter = "all" | "new";
 
 const FILTERS: StatusFilter[] = ["all", "new"];
+
+const MIN_OPEN_OPTIONS = [1, 3, 5, 10];
+
+const EMPTY_AXIS: { include: string[]; exclude: string[] } = {
+  include: [],
+  exclude: [],
+};
 
 function employeesRange(company: Company): string | null {
   const parts = [company.employees_min, company.employees_max].filter(
@@ -23,31 +36,96 @@ function employeesRange(company: Company): string | null {
   return parts.length > 0 ? parts.join("–") : null;
 }
 
+/** Companies directory (plan 154): the postings-derived filter language —
+ * tri-state chips with facet counts computed over the active positions
+ * the companies are hiring with — on top of the busiest-first list.
+ * One filter language with Explore via the shared filter bits. */
 export function Companies() {
   const { t } = useTranslation();
   const [companies, setCompanies] = useState<Company[]>([]);
+  const [facets, setFacets] = useState<CompanyFacets | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<StatusFilter>("all");
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [workMode, setWorkMode] = useState(EMPTY_AXIS);
+  const [seniority, setSeniority] = useState(EMPTY_AXIS);
+  const [employment, setEmployment] = useState(EMPTY_AXIS);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [minOpen, setMinOpen] = useState(0);
+  const [location, setLocation] = useState("");
+
+  const axisParams = useMemo(
+    () => ({
+      work_mode: workMode.include,
+      work_mode_exclude: workMode.exclude,
+      seniority: seniority.include,
+      seniority_exclude: seniority.exclude,
+      employment: employment.include,
+      employment_exclude: employment.exclude,
+      industry: industries,
+      min_open: minOpen || undefined,
+      location: location || undefined,
+    }),
+    [workMode, seniority, employment, industries, minOpen, location]
+  );
+
+  const fetchWith = useCallback(
+    (params: CompanyQuery) => {
+      void fetchCompanies({ ...params, facets: true })
+        .then((result) => {
+          setCompanies(result.items ?? []);
+          setFacets(result.facets ?? null);
+          setError("");
+        })
+        .catch(() => setError(t("companies.loadError")))
+        .finally(() => setLoaded(true));
+    },
+    [t]
+  );
 
   useEffect(() => {
     const handle = setTimeout(() => {
-      const params = query.trim() ? { q: query.trim() } : {};
-      void fetchCompanies(params)
-        .then(setCompanies)
-        .catch(() => setError(t("companies.loadError")))
-        .finally(() => setLoaded(true));
+      fetchWith({ q: query, ...axisParams });
     }, 250);
     return () => clearTimeout(handle);
-  }, [query, t]);
+  }, [query, axisParams, fetchWith]);
 
   const visible =
     filter === "new" ? companies.filter((c) => c.status === "proposed") : companies;
   const searching = query.trim().length > 0;
+  const filtersActive =
+    workMode.include.length +
+    workMode.exclude.length +
+    seniority.include.length +
+    seniority.exclude.length +
+    employment.include.length +
+    employment.exclude.length +
+    industries.length +
+    (minOpen ? 1 : 0) +
+    (location ? 1 : 0);
+
+  const facetChips = useCallback(
+    (facet: keyof CompanyFacets): FacetChip[] =>
+      Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
+        value,
+        label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
+        count,
+      })),
+    [facets, t]
+  );
+
+  const clearAll = () => {
+    setWorkMode(EMPTY_AXIS);
+    setSeniority(EMPTY_AXIS);
+    setEmployment(EMPTY_AXIS);
+    setIndustries([]);
+    setMinOpen(0);
+    setLocation("");
+  };
 
   return (
-    <div className="ca-card-page max-w-4xl mx-auto space-y-6" data-testid="companies">
+    <div className="ca-card-page max-w-6xl mx-auto space-y-6" data-testid="companies">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -81,6 +159,118 @@ export function Companies() {
           ))}
         </div>
       </div>
+
+      <div className="space-y-2" data-testid="company-filter-rail">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+            {t("companies.railTitle")}
+          </p>
+          {filtersActive > 0 ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-xs text-[var(--as-accent)] underline decoration-transparent transition-colors hover:decoration-current"
+              data-testid="company-filters-clear"
+            >
+              {t("companies.clearFilters", { count: filtersActive })}
+            </button>
+          ) : null}
+        </div>
+        <div className="grid gap-2 lg:grid-cols-2">
+          <Section
+            title={t("companies.facetTitle.work_mode")}
+            active={workMode.include.length + workMode.exclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("work_mode")}
+              include={workMode.include}
+              exclude={workMode.exclude}
+              onToggle={(value, mode) =>
+                setWorkMode((prev) => triStateToggle(prev.include, prev.exclude, value, mode))
+              }
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.seniority")}
+            active={seniority.include.length + seniority.exclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("seniority")}
+              include={seniority.include}
+              exclude={seniority.exclude}
+              onToggle={(value, mode) =>
+                setSeniority((prev) => triStateToggle(prev.include, prev.exclude, value, mode))
+              }
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.employment")}
+            active={employment.include.length + employment.exclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("employment")}
+              include={employment.include}
+              exclude={employment.exclude}
+              onToggle={(value, mode) =>
+                setEmployment((prev) => triStateToggle(prev.include, prev.exclude, value, mode))
+              }
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.industries")}
+            active={industries.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("industries")}
+              include={industries}
+              exclude={[]}
+              onToggle={(value) =>
+                setIndustries((prev) =>
+                  prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+                )
+              }
+              showCounts
+            />
+          </Section>
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-[var(--as-muted-fg)]">
+            <span className="mb-1 block font-semibold uppercase tracking-wide">
+              {t("companies.facetTitle.locations")}
+            </span>
+            <input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder={t("companies.locationPlaceholder")}
+              aria-label={t("companies.facetTitle.locations")}
+              className="w-44 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+              data-testid="company-filter-location"
+            />
+          </label>
+          <label className="text-xs text-[var(--as-muted-fg)]">
+            <span className="mb-1 block font-semibold uppercase tracking-wide">
+              {t("companies.facetTitle.minOpen")}
+            </span>
+            <select
+              value={String(minOpen)}
+              onChange={(e) => setMinOpen(Number(e.target.value))}
+              aria-label={t("companies.facetTitle.minOpen")}
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2.5 py-1.5 text-sm text-[var(--as-fg)]"
+              data-testid="company-filter-min-open"
+            >
+              {MIN_OPEN_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {t("companies.minOpenN", { count: option })}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </div>
+
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
 
       {!loaded ? (
@@ -93,9 +283,13 @@ export function Companies() {
         <EmptyState
           icon={Building2}
           compact
-          title={searching || filter === "new" ? t("companies.noMatchTitle") : t("companies.noneYetTitle")}
+          title={
+            searching || filtersActive > 0 || filter === "new"
+              ? t("companies.noMatchTitle")
+              : t("companies.noneYetTitle")
+          }
           description={
-            searching || filter === "new"
+            searching || filtersActive > 0 || filter === "new"
               ? t("companies.noMatchBody")
               : t("companies.noneYetBody")
           }

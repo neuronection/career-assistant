@@ -45,6 +45,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Changes
+         * @description The cross-entity data-change journal (plan 152).
+         */
+        get: operations["audit_changes_api_v1_admin_audit_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit/events": {
         parameters: {
             query?: never;
@@ -65,6 +85,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Export
+         * @description The filtered ledger as CSV (plan 152), capped at 10 000 rows —
+         *     carries the same filters as the stream's list endpoint.
+         */
+        get: operations["audit_export_api_v1_admin_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Jobs
+         * @description The admin-wide background-jobs view (plan 152).
+         */
+        get: operations["audit_jobs_api_v1_admin_audit_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Job Facets
+         * @description job_type counts for the jobs filter dropdown (plan 152).
+         */
+        get: operations["audit_job_facets_api_v1_admin_audit_jobs_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit/overview": {
         parameters: {
             query?: never;
@@ -74,9 +155,51 @@ export interface paths {
         };
         /**
          * Audit Overview
-         * @description Dashboard KPIs + recent failures, aggregated server-side.
+         * @description Dashboard KPIs + recent failures, aggregated server-side. An
+         *     explicit ``from``/``to`` range overrides the preset window.
          */
         get: operations["audit_overview_api_v1_admin_audit_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/production": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Production
+         * @description Content-production throughput (plan 153): postings, skills,
+         *     companies and catalog jobs created/processed in the range.
+         */
+        get: operations["audit_production_api_v1_admin_audit_production_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/source-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Source Runs
+         * @description The cross-source ingestion run ledger (plan 152).
+         */
+        get: operations["audit_source_runs_api_v1_admin_audit_source_runs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -94,7 +217,8 @@ export interface paths {
         };
         /**
          * Audit Timeseries
-         * @description Time-bucketed call/error/token series (dialect-aware bucketing).
+         * @description Time-bucketed call/error/token series (dialect-aware bucketing;
+         *     custom ranges bucket hourly up to 48h, then daily).
          */
         get: operations["audit_timeseries_api_v1_admin_audit_timeseries_get"];
         put?: never;
@@ -3426,7 +3550,8 @@ export interface paths {
         };
         /**
          * List Companies
-         * @description Companies with open postings, busiest first.
+         * @description Companies with open postings, busiest first — filterable by the
+         *     hiring those postings prove (plan 154).
          */
         get: operations["list_companies_api_v1_companies_get"];
         put?: never;
@@ -9733,6 +9858,16 @@ export interface components {
             text: string;
         };
         /**
+         * CompaniesOut
+         * @description The companies list envelope: rows plus the optional facet
+         *     distribution computed from the active postings behind them.
+         */
+        CompaniesOut: {
+            facets?: components["schemas"]["CompanyFacets"] | null;
+            /** Items */
+            items?: components["schemas"]["CompanyOut"][];
+        };
+        /**
          * CompanyDerivedStats
          * @description What the postings prove about this company — computed, never stored.
          */
@@ -9808,6 +9943,34 @@ export interface components {
              * @default active
              */
             status: string;
+        };
+        /**
+         * CompanyFacets
+         * @description Per-value COMPANY counts over the filtered set's active postings —
+         *     the filter options literally describe the hiring those companies are
+         *     doing right now (plan 154).
+         */
+        CompanyFacets: {
+            /** Employment */
+            employment?: {
+                [key: string]: number;
+            };
+            /** Industries */
+            industries?: {
+                [key: string]: number;
+            };
+            /** Locations */
+            locations?: {
+                [key: string]: number;
+            };
+            /** Seniority */
+            seniority?: {
+                [key: string]: number;
+            };
+            /** Work Mode */
+            work_mode?: {
+                [key: string]: number;
+            };
         };
         /** CompanyLink */
         CompanyLink: {
@@ -17120,6 +17283,8 @@ export interface operations {
                 q?: string | null;
                 limit?: number;
                 offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17154,6 +17319,50 @@ export interface operations {
             query?: {
                 dimension?: string;
                 window?: string;
+                limit?: number;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_changes_api_v1_admin_audit_changes_get: {
+        parameters: {
+            query?: {
+                entity?: string;
+                actor_kind?: string | null;
+                outcome?: string | null;
+                event?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17192,6 +17401,125 @@ export interface operations {
                 window?: string;
                 limit?: number;
                 offset?: number;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_export_api_v1_admin_audit_export_get: {
+        parameters: {
+            query?: {
+                stream?: string;
+                window?: string | null;
+                from?: string | null;
+                to?: string | null;
+                task?: string | null;
+                provider?: string | null;
+                status?: string | null;
+                q?: string | null;
+                group?: string;
+                outcome?: string | null;
+                actor?: string | null;
+                job_type?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_jobs_api_v1_admin_audit_jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                job_type?: string | null;
+                user_id?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_facets_api_v1_admin_audit_jobs_facets_get: {
+        parameters: {
+            query?: {
+                window?: string | null;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17225,6 +17553,82 @@ export interface operations {
         parameters: {
             query?: {
                 window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_production_api_v1_admin_audit_production_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_source_runs_api_v1_admin_audit_source_runs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                trigger?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17258,6 +17662,8 @@ export interface operations {
         parameters: {
             query?: {
                 window?: string;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -23175,6 +23581,26 @@ export interface operations {
             query?: {
                 q?: string | null;
                 limit?: number;
+                /** @description CSV match-any over open postings' work mode */
+                work_mode?: string | null;
+                /** @description CSV match-any over open postings' seniority */
+                seniority?: string | null;
+                /** @description CSV match-any over open postings' employment type */
+                employment?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                work_mode_exclude?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                seniority_exclude?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                employment_exclude?: string | null;
+                /** @description At least N open postings */
+                min_open?: number | null;
+                /** @description CSV match-any over profile industry tags */
+                industry?: string | null;
+                /** @description Matches open-posting city or country */
+                location?: string | null;
+                /** @description Include the per-axis company-count facets */
+                facets?: boolean;
             };
             header?: never;
             path?: never;
@@ -23188,7 +23614,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CompanyOut"][];
+                    "application/json": components["schemas"]["CompaniesOut"];
                 };
             };
             /** @description Validation Error */

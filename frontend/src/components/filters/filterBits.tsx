@@ -1,8 +1,9 @@
 /**
- * Shared filter-rail bits (plan 141): the collapsible section and the
- * tri-state include/exclude chip row with optional facet counts. The
- * feed's FilterRail (plan 136) and the Explore rail both consume them —
- * one filter language across the two Postings tabs.
+ * Shared filter-rail bits (plan 141; promoted app-level for Companies in
+ * plan 154): the collapsible section and the tri-state include/exclude
+ * chip row with optional facet counts. The feed's FilterRail (plan 136),
+ * the Explore rail and the Companies page all consume them — one filter
+ * language across the product.
  */
 
 import { useState } from "react";

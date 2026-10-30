@@ -19,7 +19,7 @@ import {
   Section,
   TriStateChips,
   triStateToggle,
-} from "@/features/postings/components/postings/filterBits";
+} from "@/components/filters/filterBits";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 
 interface FilterRailProps {

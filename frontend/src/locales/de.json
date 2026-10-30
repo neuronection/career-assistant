@@ -4361,7 +4361,26 @@
       "new": "Neu"
     },
     "noMatchTitle": "Keine passenden Unternehmen",
-    "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter."
+    "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter.",
+    "railTitle": "Nach aktiver Stellenlage filtern",
+    "clearFilters": "Filter löschen ({count})",
+    "locationPlaceholder": "Stadt oder Land",
+    "minOpenN": "≥ {count} offene Stellen",
+    "facetTitle": {
+      "work_mode": "Arbeitsmodus",
+      "seniority": "Erfahrungslevel",
+      "employment": "Anstellungsart",
+      "industries": "Branchen",
+      "locations": "Wo die Stellen sind",
+      "minOpen": "Offene Stellen"
+    },
+    "facet": {
+      "work_mode": {},
+      "seniority": {},
+      "employment": {},
+      "industries": {},
+      "locations": {}
+    }
   },
   "companyDetail": {
     "back": "Alle Unternehmen",
@@ -4807,12 +4826,18 @@
     "tab": {
       "overview": "Überblick",
       "ai": "KI-Aktivität",
-      "security": "Sicherheit & Zugriff"
+      "security": "Sicherheit & Zugriff",
+      "jobs": "Jobs & Läufe",
+      "changes": "Datenänderungen",
+      "usage": "Nutzung & Durchsatz"
     },
     "window": {
       "24h": "24h",
       "7d": "7d",
-      "30d": "30d"
+      "30d": "30d",
+      "custom": "benutzerdefiniert…",
+      "fromLabel": "Von",
+      "toLabel": "Bis"
     },
     "kpi": {
       "calls": "KI-Aufrufe",
@@ -4906,6 +4931,113 @@
       "colOutcome": "Ergebnis",
       "colResource": "Ressource",
       "empty": "Keine Ereignisse in diesem Zeitraum"
+    },
+    "export": {
+      "csv": "CSV exportieren",
+      "exporting": "Exportiere…"
+    },
+    "jobs": {
+      "schedulesFailing": "{{count}} Zeitpläne fehlerhaft",
+      "manageSchedules": "In Automatisierungen verwalten",
+      "statusFilter": "Status",
+      "allStatuses": "Alle Status",
+      "status": {
+        "queued": "in Warteschlange",
+        "running": "läuft",
+        "succeeded": "erfolgreich",
+        "failed": "fehlgeschlagen",
+        "cancelled": "abgebrochen"
+      },
+      "typeFilter": "Job-Typ",
+      "allTypes": "Alle Typen",
+      "colStatus": "Status",
+      "colType": "Typ",
+      "colUser": "Benutzer",
+      "colAttempts": "Versuche",
+      "colWhen": "Zeitpunkt",
+      "empty": "Keine Jobs in diesem Zeitraum",
+      "sourceRuns": "Quellen-Läufe (letzte 7 Tage)",
+      "runStatusFilter": "Laufstatus",
+      "runStatus": {
+        "running": "läuft",
+        "ok": "ok",
+        "degraded": "beeinträchtigt",
+        "failed": "fehlgeschlagen",
+        "skipped": "übersprungen"
+      },
+      "trigger": {
+        "manual": "manuell",
+        "scheduled": "geplant"
+      },
+      "noRuns": "Keine Abruf-Läufe",
+      "runTotal": "{{total}} Läufe insgesamt",
+      "failureStreak_one": "{{count}} Fehler in Folge",
+      "failureStreak_other": "{{count}} Fehler in Folge"
+    },
+    "changes": {
+      "entityAria": "Journal-Entität",
+      "entity": {
+        "postings": "Stellenangebote",
+        "skills": "Skills"
+      },
+      "actorFilter": "Akteur",
+      "allActors": "Alle Akteure",
+      "actor": {
+        "sync_run": "Synchronisierung",
+        "extract_llm": "Extraktion",
+        "detail_fetch": "Detailabruf",
+        "company_match": "Firmenabgleich",
+        "retag": "Neu-Tagging",
+        "manual": "manuell",
+        "expiry": "Ablauf",
+        "admin": "Admin",
+        "system": "System",
+        "sync": "Sync",
+        "job": "Job",
+        "user": "Benutzer"
+      },
+      "resultFilter": "Ergebnis",
+      "allOutcomes": "Alle Ergebnisse",
+      "allEvents": "Alle Ereignisse",
+      "result": {
+        "ok": "ok",
+        "partial": "teilweise",
+        "error": "Fehler",
+        "created": "erstellt",
+        "updated": "aktualisiert",
+        "promoted": "befördert",
+        "auto_promoted": "autom. befördert",
+        "deprecated": "deprefiert",
+        "restored": "wiederhergestellt",
+        "merged": "zusammengeführt",
+        "deleted": "gelöscht"
+      },
+      "colOutcome": "Ergebnis",
+      "colEvent": "Ereignis",
+      "colSubject": "Objekt",
+      "colActor": "Akteur",
+      "postingRef": "Angebot {{id}}",
+      "operationLabel": "Operation — ",
+      "noDiff": "Kein Diff aufgezeichnet",
+      "empty": "Keine Änderungen in diesem Zeitraum"
+    },
+    "usage": {
+      "models": "Modellnutzung",
+      "tokenTrend": "Tokenverbrauch im Zeitverlauf",
+      "tokensIn": "Tokens rein",
+      "tokensOut": "Tokens raus",
+      "tokensShort": "{{tin}} → {{tout}} Tok",
+      "errors": "{{count}} Fehler",
+      "postingsIngested": "Stellenangebote aufgenommen",
+      "itemsSynced": "{{count}} Elemente synchronisiert",
+      "skillsCreated": "Skills erstellt",
+      "skillsPromoted": "{{count}} befördert (inkl. auto)",
+      "companiesCreated": "Firmen erstellt",
+      "jobsPublished": "Katalog-Jobs veröffentlicht",
+      "jobsCreated": "{{count}} erstellt",
+      "postingActivity": "Verarbeitungsaktivität (Angebote)",
+      "skillEvents": "Skill-Lebenszyklus-Ereignisse",
+      "noActivity": "Keine Aktivität in diesem Zeitraum"
     }
   }
 }

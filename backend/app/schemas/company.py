@@ -59,6 +59,26 @@ class CompanyOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CompanyFacets(BaseModel):
+    """Per-value COMPANY counts over the filtered set's active postings —
+    the filter options literally describe the hiring those companies are
+    doing right now (plan 154)."""
+
+    work_mode: dict[str, int] = Field(default_factory=dict)
+    seniority: dict[str, int] = Field(default_factory=dict)
+    employment: dict[str, int] = Field(default_factory=dict)
+    industries: dict[str, int] = Field(default_factory=dict)
+    locations: dict[str, int] = Field(default_factory=dict)
+
+
+class CompaniesOut(BaseModel):
+    """The companies list envelope: rows plus the optional facet
+    distribution computed from the active postings behind them."""
+
+    items: list[CompanyOut] = Field(default_factory=list)
+    facets: CompanyFacets | None = None
+
+
 class LocationCount(BaseModel):
     city: str | None = None
     country: str | None = None

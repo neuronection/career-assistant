@@ -4361,7 +4361,26 @@
       "new": "Νέα"
     },
     "noMatchTitle": "Καμία αντίστοιχη εταιρεία",
-    "noMatchBody": "Δοκίμασε άλλο όνομα ή αφαίρεσε το φίλτρο «Νέα»."
+    "noMatchBody": "Δοκίμασε άλλο όνομα ή αφαίρεσε το φίλτρο «Νέα».",
+    "railTitle": "Φίλτρο ανά ενεργή πρόσληψη",
+    "clearFilters": "Καθαρισμός φίλτρων ({count})",
+    "locationPlaceholder": "Πόλη ή χώρα",
+    "minOpenN": "≥ {count} ανοιχτές θέσεις",
+    "facetTitle": {
+      "work_mode": "Τρόπος εργασίας",
+      "seniority": "Επίπεδο εμπειρίας",
+      "employment": "Τύπος απασχόλησης",
+      "industries": "Κλάδοι",
+      "locations": "Πού είναι οι θέσεις",
+      "minOpen": "Ανοιχτές θέσεις"
+    },
+    "facet": {
+      "work_mode": {},
+      "seniority": {},
+      "employment": {},
+      "industries": {},
+      "locations": {}
+    }
   },
   "companyDetail": {
     "back": "Όλες οι εταιρείες",
@@ -4807,12 +4826,18 @@
     "tab": {
       "overview": "Επισκόπηση",
       "ai": "Δραστηριότητα AI",
-      "security": "Ασφάλεια & πρόσβαση"
+      "security": "Ασφάλεια & πρόσβαση",
+      "jobs": "Εργασίες & εκτελέσεις",
+      "changes": "Αλλαγές δεδομένων",
+      "usage": "Χρήση & απόδοση"
     },
     "window": {
       "24h": "24ω",
       "7d": "7η",
-      "30d": "30η"
+      "30d": "30η",
+      "custom": "προσαρμοσμένο…",
+      "fromLabel": "Από",
+      "toLabel": "Έως"
     },
     "kpi": {
       "calls": "Κλήσεις AI",
@@ -4906,6 +4931,113 @@
       "colOutcome": "Αποτέλεσμα",
       "colResource": "Πόρος",
       "empty": "Κανένα γεγονός στο διάστημα"
+    },
+    "export": {
+      "csv": "Εξαγωγή CSV",
+      "exporting": "Εξαγωγή…"
+    },
+    "jobs": {
+      "schedulesFailing": "{{count}} προγράμματα αποτυγχάνουν",
+      "manageSchedules": "Διαχείριση στις Αυτοματισμούς",
+      "statusFilter": "Κατάσταση",
+      "allStatuses": "Όλες οι καταστάσεις",
+      "status": {
+        "queued": "σε ουρά",
+        "running": "εκτελείται",
+        "succeeded": "επιτυχής",
+        "failed": "απέτυχε",
+        "cancelled": "ακυρώθηκε"
+      },
+      "typeFilter": "Τύπος εργασίας",
+      "allTypes": "Όλοι οι τύποι",
+      "colStatus": "Κατάσταση",
+      "colType": "Τύπος",
+      "colUser": "Χρήστης",
+      "colAttempts": "Προσπάθειες",
+      "colWhen": "Πότε",
+      "empty": "Καμία εργασία στο διάστημα",
+      "sourceRuns": "Εκτελέσεις πηγών (τελευταίες 7 ημέρες)",
+      "runStatusFilter": "Κατάσταση εκτέλεσης",
+      "runStatus": {
+        "running": "εκτελείται",
+        "ok": "οκ",
+        "degraded": "υποβαθμισμένη",
+        "failed": "απέτυχε",
+        "skipped": "παραλείφθηκε"
+      },
+      "trigger": {
+        "manual": "χειροκίνητα",
+        "scheduled": "προγραμματισμένα"
+      },
+      "noRuns": "Καμία εκτέλεση λήψης",
+      "runTotal": "{{total}} εκτελέσεις συνολικά",
+      "failureStreak_one": "{{count}} διαδοχική αποτυχία",
+      "failureStreak_other": "{{count}} διαδοχικές αποτυχίες"
+    },
+    "changes": {
+      "entityAria": "Οντότητα ημερολογίου",
+      "entity": {
+        "postings": "Αγγελίες",
+        "skills": "Δεξιότητες"
+      },
+      "actorFilter": "Δράστης",
+      "allActors": "Όλοι οι δράστες",
+      "actor": {
+        "sync_run": "συγχρονισμός",
+        "extract_llm": "εξαγωγή",
+        "detail_fetch": "λήψη λεπτομερειών",
+        "company_match": "ταίριασμα εταιρειών",
+        "retag": "επανασήμανση",
+        "manual": "χειροκίνητα",
+        "expiry": "λήξη",
+        "admin": "διαχειριστής",
+        "system": "σύστημα",
+        "sync": "συγχρονισμός",
+        "job": "εργασία",
+        "user": "χρήστης"
+      },
+      "resultFilter": "Αποτέλεσμα",
+      "allOutcomes": "Όλα τα αποτελέσματα",
+      "allEvents": "Όλα τα γεγονότα",
+      "result": {
+        "ok": "οκ",
+        "partial": "μερικό",
+        "error": "σφάλμα",
+        "created": "δημιουργήθηκε",
+        "updated": "ενημερώθηκε",
+        "promoted": "προήχθη",
+        "auto_promoted": "αυτόματη προαγωγή",
+        "deprecated": "καταργήθηκε",
+        "restored": "επαναφέρθηκε",
+        "merged": "συγχωνεύτηκε",
+        "deleted": "διαγράφηκε"
+      },
+      "colOutcome": "Αποτέλεσμα",
+      "colEvent": "Γεγονός",
+      "colSubject": "Αντικείμενο",
+      "colActor": "Δράστης",
+      "postingRef": "αγγελία {{id}}",
+      "operationLabel": "Λειτουργία — ",
+      "noDiff": "Χωρίς καταγεγραμμένο diff",
+      "empty": "Καμία αλλαγή στο διάστημα"
+    },
+    "usage": {
+      "models": "Χρήση μοντέλων",
+      "tokenTrend": "Κατανάλωση tokens στο χρόνο",
+      "tokensIn": "tokens εισόδου",
+      "tokensOut": "tokens εξόδου",
+      "tokensShort": "{{tin}} → {{tout}} tok",
+      "errors": "{{count}} σφάλματα",
+      "postingsIngested": "Αγγελίες που εισήχθησαν",
+      "itemsSynced": "{{count}} στοιχεία συγχρονίστηκαν",
+      "skillsCreated": "Δεξιότητες που δημιουργήθηκαν",
+      "skillsPromoted": "{{count}} προβιβάστηκαν (incl. auto)",
+      "companiesCreated": "Εταιρείες που δημιουργήθηκαν",
+      "jobsPublished": "Εργασίες καταλόγου δημοσιευμένες",
+      "jobsCreated": "{{count}} δημιουργήθηκαν",
+      "postingActivity": "Δραστηριότητα επεξεργασίας αγγελιών",
+      "skillEvents": "Γεγονότα κύκλου ζωής δεξιοτήτων",
+      "noActivity": "Καμία δραστηριότητα στο διάστημα"
     }
   }
 }

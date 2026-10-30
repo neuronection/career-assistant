@@ -95,7 +95,7 @@ describe("Companies browsing (plan 135)", () => {
   });
 
   it("shows the proposed badge for posting-born companies", async () => {
-    mocked.fetchCompanies.mockResolvedValue([COMPANY, PROPOSED]);
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY, PROPOSED], facets: null });
     render(
       <MemoryRouter>
         <Companies />
@@ -137,7 +137,7 @@ describe("Companies browsing (plan 135)", () => {
   });
 
   it("the New filter shows only posting-born companies", async () => {
-    mocked.fetchCompanies.mockResolvedValue([COMPANY, PROPOSED]);
+    mocked.fetchCompanies.mockResolvedValue({ items: [COMPANY, PROPOSED], facets: null });
     render(
       <MemoryRouter>
         <Companies />

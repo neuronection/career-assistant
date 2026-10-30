@@ -24,7 +24,13 @@ app's item-card grammar:
   (when known) — plus headquarters and website domain,
 - industry tags and the number of open postings.
 
-The search box filters by company name; the **New** filter narrows the
+Filter by the hiring the companies are doing right now (plan 154): a
+filter rail over the **active postings** — work mode, seniority,
+employment type and industries as tri-state chips with live counts
+("12 companies hiring remote"), plus a location box and a minimum
+open-roles floor. The chips reuse the Explore filter language; the
+counts recompute as you filter. The search box filters by company
+name; the **New** filter narrows the
 list to posting-born companies (created from a job post and not yet
 reviewed — they carry a New badge until an admin promotes them).
 

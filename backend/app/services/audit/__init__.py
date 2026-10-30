@@ -1,11 +1,29 @@
-"""Cross-stream audit & monitoring reads (plan 151)."""
+"""Cross-stream audit & monitoring reads (plans 151-152)."""
 
 from app.services.audit.queries import (
     breakdown,
+    changes,
     events,
+    export_csv,
     generations,
+    job_facets,
+    jobs,
     overview,
+    production,
+    source_runs,
     timeseries,
 )
 
-__all__ = ["breakdown", "events", "generations", "overview", "timeseries"]
+__all__ = [
+    "breakdown",
+    "changes",
+    "events",
+    "export_csv",
+    "generations",
+    "job_facets",
+    "jobs",
+    "overview",
+    "production",
+    "source_runs",
+    "timeseries",
+]

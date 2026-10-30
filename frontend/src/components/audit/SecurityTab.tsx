@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { fetchAuditEvents, type AuditEventRow, type AuditWindow } from "@/api/audit";
+import {
+  exportAuditCsv,
+  fetchAuditEvents,
+  type AuditEventRow,
+  type AuditRangeQuery,
+} from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
+import { downloadCsv } from "@/components/audit/download";
 
 const PAGE_SIZE = 50;
 
@@ -13,24 +19,28 @@ interface Filters {
   group: "" | "auth" | "admin";
   outcome: string;
   actor: string;
-  window: AuditWindow;
 }
 
-const DEFAULT_FILTERS: Filters = { group: "", outcome: "", actor: "", window: "7d" };
+const DEFAULT_FILTERS: Filters = { group: "", outcome: "", actor: "" };
 
 /** The security & access tab: the identity ``audit_events`` trail
- * (logins, denials, admin acts) — its first read surface (plan 151 D5). */
-export function SecurityTab() {
+ * (logins, denials, admin acts) — its first read surface (plan 151 D5).
+ * The time range is the page-level control, shared with Overview. */
+export function SecurityTab({ range }: { range: AuditRangeQuery }) {
   const { t } = useTranslation();
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const [actorDraft, setActorDraft] = useState("");
   const [rows, setRows] = useState<AuditEventRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const requestId = useRef(0);
 
   const load = useCallback(
-    async (current: Filters, currentPage: number) => {
+    async (current: Filters, currentRange: AuditRangeQuery, currentPage: number) => {
+      const id = ++requestId.current;
       setLoading(true);
       setError("");
       try {
@@ -38,28 +48,51 @@ export function SecurityTab() {
           group: current.group || "all",
           outcome: current.outcome || undefined,
           actor: current.actor || undefined,
-          window: current.window,
+          ...currentRange,
           limit: PAGE_SIZE,
           offset: currentPage * PAGE_SIZE,
         });
+        if (id !== requestId.current) return;
         setRows(result.items);
         setTotal(result.total);
       } catch (err) {
-        setError(apiDetail(err));
+        if (id === requestId.current) setError(apiDetail(err));
       } finally {
-        setLoading(false);
+        if (id === requestId.current) setLoading(false);
       }
     },
     [],
   );
 
   useEffect(() => {
-    void load(filters, page);
-  }, [load, filters, page]);
+    void load(filters, range, page);
+  }, [load, filters, range, page]);
 
   const patch = (part: Partial<Filters>) => {
     setFilters({ ...filters, ...part });
+    setActorDraft(part.actor ?? actorDraft);
     setPage(0);
+  };
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      downloadCsv(
+        await exportAuditCsv("events", {
+          window: range.window,
+          from: range.from,
+          to: range.to,
+          group: filters.group || "all",
+          outcome: filters.outcome || undefined,
+          actor: filters.actor || undefined,
+        }),
+        "events",
+      );
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setExporting(false);
+    }
   };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -93,32 +126,31 @@ export function SecurityTab() {
           </option>
           <option value="coerced">{t("audit.security.outcome.coerced")}</option>
         </select>
-        <select
-          aria-label={t("audit.ai.windowFilter")}
-          className={selectClass}
-          value={filters.window}
-          onChange={(e) => patch({ window: e.target.value as AuditWindow })}
-        >
-          <option value="24h">{t("audit.window.24h")}</option>
-          <option value="7d">{t("audit.window.7d")}</option>
-          <option value="30d">{t("audit.window.30d")}</option>
-        </select>
         <form
           className="min-w-[12rem] flex-1"
           onSubmit={(e) => {
             e.preventDefault();
-            patch({ actor: filters.actor });
+            patch({ actor: actorDraft });
           }}
         >
           <input
             aria-label={t("audit.security.actorFilter")}
             className={`${selectClass} w-full`}
             placeholder={t("audit.security.actorPlaceholder")}
-            value={filters.actor}
-            onChange={(e) => setFilters({ ...filters, actor: e.target.value })}
+            value={actorDraft}
+            onChange={(e) => setActorDraft(e.target.value)}
             data-testid="audit-filter-actor"
           />
         </form>
+        <button
+          type="button"
+          className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm disabled:opacity-40"
+          disabled={exporting}
+          onClick={() => void exportCsv()}
+          data-testid="audit-events-export"
+        >
+          {exporting ? t("audit.export.exporting") : t("audit.export.csv")}
+        </button>
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}

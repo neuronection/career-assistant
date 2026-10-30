@@ -9,12 +9,18 @@ import {
   parseAuditTab,
   parseAuditWindow,
 } from "@/pages/settings/Audit";
-import { categoryRollup } from "@/config/auditVocab";
+import {
+  AUDIT_CATEGORIES,
+  categoryRollup,
+} from "@/config/auditVocab";
 import type {
+  AuditChangeRow,
   AuditEventRow,
+  AuditJobRow,
   AIGenerationRow,
   AuditOverview,
   AuditSeries,
+  AuditSourceRunRow,
 } from "@/api/audit";
 
 vi.mock("@/api/audit", () => ({
@@ -23,13 +29,25 @@ vi.mock("@/api/audit", () => ({
   fetchAuditBreakdown: vi.fn(),
   fetchAuditEvents: vi.fn(),
   fetchAuditGenerations: vi.fn(),
+  fetchAuditJobs: vi.fn(),
+  fetchAuditJobFacets: vi.fn(),
+  fetchAuditSourceRuns: vi.fn(),
+  fetchAuditChanges: vi.fn(),
+  exportAuditCsv: vi.fn(),
+  fetchAuditProduction: vi.fn(),
 }));
 
 import {
+  exportAuditCsv,
   fetchAuditBreakdown,
+  fetchAuditChanges,
   fetchAuditEvents,
   fetchAuditGenerations,
+  fetchAuditJobFacets,
+  fetchAuditJobs,
   fetchAuditOverview,
+  fetchAuditProduction,
+  fetchAuditSourceRuns,
   fetchAuditTimeseries,
 } from "@/api/audit";
 
@@ -140,6 +158,55 @@ const EVENTS: AuditEventRow[] = [
   },
 ];
 
+const JOBS: AuditJobRow[] = [
+  {
+    id: "job-1",
+    job_type: "posting_sync",
+    status: "failed",
+    stage: "fetch",
+    progress: 40,
+    attempts: 2,
+    max_attempts: 3,
+    error: "timeout after 120s",
+    created_at: "2026-10-30T09:58:00Z",
+    finished_at: "2026-10-30T10:00:00Z",
+    user_id: null,
+    user_email: "admin@example.com",
+    payload: { source: "board-postings" },
+    result: { items: 3 },
+  },
+];
+
+const RUNS: AuditSourceRunRow[] = [
+  {
+    id: "run-1",
+    source_id: "src-1",
+    source_key: "board-postings",
+    connector_key: "demo",
+    trigger: "scheduled",
+    status: "failed",
+    started_at: "2026-10-30T09:58:00Z",
+    finished_at: "2026-10-30T10:00:00Z",
+    duration_ms: 120000,
+    items_synced: 0,
+    error: "boom",
+  },
+];
+
+const CHANGES: AuditChangeRow[] = [
+  {
+    id: "chg-1",
+    occurred_at: "2026-10-30T09:00:00Z",
+    actor_kind: "sync_run",
+    outcome: "ok",
+    posting_id: "11111111-1111-1111-1111-111111111111",
+    duration_ms: 900,
+    actor_ref: { run_id: "r-1" },
+    operation: null,
+    diff: { title: { from: "Old", to: "New" } },
+  },
+];
+
 function LocationProbe() {
   const location = useLocation();
   return <span data-testid="location-probe">{location.pathname + location.search}</span>;
@@ -158,7 +225,14 @@ const probe = () => screen.getByTestId("location-probe").textContent;
 
 describe("audit tab helpers", () => {
   it("AUDIT_TABS is overview-first", () => {
-    expect([...AUDIT_TABS]).toEqual(["overview", "ai", "security"]);
+    expect([...AUDIT_TABS]).toEqual([
+      "overview",
+      "ai",
+      "usage",
+      "security",
+      "jobs",
+      "changes",
+    ]);
   });
 
   it("parseAuditTab falls back to overview on unknown values", () => {
@@ -184,6 +258,9 @@ describe("categoryRollup", () => {
     ]);
     expect(rollup.map((r) => r.category)).toEqual(["chat", "cv", "ops"]);
     expect(rollup[0]).toMatchObject({ category: "chat", calls: 14, errors: 1 });
+    for (const row of rollup) {
+      expect(AUDIT_CATEGORIES).toContain(row.category);
+    }
   });
 });
 
@@ -205,6 +282,32 @@ describe("audit page tabs", () => {
       items: GENERATIONS,
     });
     vi.mocked(fetchAuditEvents).mockResolvedValue({ total: 2, items: EVENTS });
+    vi.mocked(fetchAuditJobs).mockResolvedValue({ total: 1, items: JOBS });
+    vi.mocked(fetchAuditJobFacets).mockResolvedValue({
+      rows: [{ key: "posting_sync", count: 1 }],
+    });
+    vi.mocked(fetchAuditSourceRuns).mockResolvedValue({ total: 1, items: RUNS });
+    vi.mocked(fetchAuditChanges).mockResolvedValue({
+      entity: "postings",
+      total: 1,
+      items: CHANGES,
+    });
+    vi.mocked(exportAuditCsv).mockResolvedValue(new Blob(["csv"]));
+    vi.mocked(fetchAuditProduction).mockResolvedValue({
+      postings: {
+        ingested: 5,
+        by_status: { mapped: 5 },
+        ingested_items: 42,
+        activity: { sync_run: 3, extract_llm: 2 },
+      },
+      skills: { created: 4, promoted: 1 },
+      companies: { created: 2, by_source: { manual: 2 } },
+      catalog_jobs: {
+        created: 3,
+        by_status: { published: 3 },
+        by_source: { ai: 3 },
+      },
+    });
   });
 
   it("renders the overview KPIs, categories and failure feed", async () => {
@@ -215,7 +318,7 @@ describe("audit page tabs", () => {
     expect(screen.getAllByTestId("audit-category-row").length).toBe(2);
     expect(screen.getAllByTestId("audit-failure-row").length).toBe(2);
     expect(screen.getByText("match_score")).toBeTruthy();
-    expect(fetchAuditOverview).toHaveBeenCalledWith("24h");
+    expect(fetchAuditOverview).toHaveBeenCalledWith({ window: "24h" });
   });
 
   it("canonicalizes an unknown tab param", async () => {
@@ -267,7 +370,97 @@ describe("audit page tabs", () => {
     expect(screen.getAllByTestId("audit-event-row").length).toBe(2);
     expect(screen.getByText("admin@example.com")).toBeTruthy();
     expect(fetchAuditEvents).toHaveBeenCalledWith(
-      expect.objectContaining({ group: "all", window: "7d" }),
+      expect.objectContaining({ group: "all", window: "24h" }),
+    );
+  });
+
+  it("renders the usage tab with model rows, token trend and throughput", async () => {
+    renderPage("/settings/audit?tab=usage");
+    expect(await screen.findByTestId("audit-usage-tab")).toBeTruthy();
+    expect(screen.getAllByTestId("audit-model-row").length).toBe(2);
+    expect(screen.getByText("openai/gpt-4o-mini")).toBeTruthy();
+    expect(await screen.findByTestId("audit-throughput-tiles")).toBeTruthy();
+    expect(screen.getAllByTestId("stat-tile").length).toBe(4);
+    expect(await screen.findByTestId("audit-posting-activity")).toBeTruthy();
+    expect(screen.getAllByTestId("audit-skill-events")).toBeTruthy();
+    expect(fetchAuditProduction).toHaveBeenCalledWith(
+      expect.objectContaining({ window: "24h" }),
+    );
+  });
+
+  it("renders the jobs tab with facets, expandable rows and source runs", async () => {
+    renderPage("/settings/audit?tab=jobs");
+    expect(await screen.findByTestId("audit-jobs-tab")).toBeTruthy();
+    expect(screen.getByTestId("audit-job-row-job-1")).toBeTruthy();
+    expect(screen.getByText("admin@example.com")).toBeTruthy();
+
+    await userEvent.click(screen.getByTestId("audit-job-row-job-1"));
+    expect(screen.getByTestId("audit-job-detail-job-1")).toBeTruthy();
+
+    expect(screen.getAllByTestId("audit-source-run-row").length).toBe(1);
+    expect(screen.getByText("board-postings")).toBeTruthy();
+    expect(fetchAuditJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50, offset: 0 }),
+    );
+  });
+
+  it("exports the jobs CSV from the jobs tab with the active filters", async () => {
+    renderPage("/settings/audit?tab=jobs");
+    await screen.findByTestId("audit-jobs-tab");
+    await userEvent.click(screen.getByTestId("audit-jobs-export"));
+    await waitFor(() =>
+      expect(exportAuditCsv).toHaveBeenCalledWith(
+        "jobs",
+        expect.objectContaining({ window: "7d" }),
+      ),
+    );
+  });
+
+  it("exports the events CSV from the security tab", async () => {
+    renderPage("/settings/audit?tab=security");
+    await screen.findByTestId("audit-security-tab");
+    await userEvent.click(screen.getByTestId("audit-events-export"));
+    await waitFor(() =>
+      expect(exportAuditCsv).toHaveBeenCalledWith(
+        "events",
+        expect.objectContaining({ group: "all" }),
+      ),
+    );
+  });
+
+  it("renders the changes tab and switches journal entity", async () => {
+    renderPage("/settings/audit?tab=changes");
+    expect(await screen.findByTestId("audit-changes-tab")).toBeTruthy();
+    expect(screen.getAllByTestId("audit-change-row").length).toBe(1);
+    expect(fetchAuditChanges).toHaveBeenCalledWith(
+      expect.objectContaining({ entity: "postings", window: "7d" }),
+    );
+
+    await userEvent.click(screen.getByRole("tab", { name: "Skills" }));
+    await waitFor(() =>
+      expect(fetchAuditChanges).toHaveBeenLastCalledWith(
+        expect.objectContaining({ entity: "skills" }),
+      ),
+    );
+  });
+
+  it("sends a custom from/to range on the AI tab", async () => {
+    renderPage("/settings/audit?tab=ai");
+    await screen.findByTestId("audit-gen-range-filter");
+
+    await userEvent.selectOptions(
+      screen.getByTestId("audit-gen-range-filter"),
+      "custom",
+    );
+    await userEvent.type(screen.getByTestId("audit-gen-range-filter-from"), "2026-10-01");
+    await userEvent.type(screen.getByTestId("audit-gen-range-filter-to"), "2026-10-20");
+    await waitFor(() =>
+      expect(fetchAuditGenerations).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          from: "2026-10-01T00:00:00",
+          to: "2026-10-21T00:00:00",
+        }),
+      ),
     );
   });
 });

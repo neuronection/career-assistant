@@ -2,17 +2,27 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
-import type { AuditWindow } from "@/api/audit";
 import { SegmentedTabs } from "@/components/ui";
 import { SettingsPage } from "@/components/settings/SettingsPage";
+import { RangeFilter, rangeParams, type RangeValue } from "@/components/audit/RangeFilter";
 import { OverviewTab } from "@/components/audit/OverviewTab";
 import { AiActivityTab } from "@/components/audit/AiActivityTab";
 import { SecurityTab } from "@/components/audit/SecurityTab";
+import { JobsTab } from "@/components/audit/JobsTab";
+import { ChangesTab } from "@/components/audit/ChangesTab";
+import { UsageTab } from "@/components/audit/UsageTab";
 
-export type AuditTab = "overview" | "ai" | "security";
+export type AuditTab = "overview" | "ai" | "usage" | "security" | "jobs" | "changes";
 
 // Exported for the tab-param tests (the repo-wide ?tab= pattern).
-export const AUDIT_TABS: readonly AuditTab[] = ["overview", "ai", "security"];
+export const AUDIT_TABS: readonly AuditTab[] = [
+  "overview",
+  "ai",
+  "usage",
+  "security",
+  "jobs",
+  "changes",
+];
 
 export function parseAuditTab(raw: string | null): AuditTab {
   return (AUDIT_TABS as readonly string[]).includes(raw ?? "")
@@ -20,24 +30,31 @@ export function parseAuditTab(raw: string | null): AuditTab {
     : "overview";
 }
 
-export function parseAuditWindow(raw: string | null): AuditWindow {
-  return raw === "7d" || raw === "30d" ? raw : "24h";
+export function parseAuditWindow(raw: string | null): RangeValue["window"] {
+  if (raw === "7d" || raw === "30d") return raw;
+  return "24h";
 }
 
-/** The audit & monitoring surface (plan 151): overview metrics, the AI
- * ledger and the security trail — tabs URL-synced via `?tab=`. */
+/** The audit & monitoring surface (plans 151-152): overview metrics, the
+ * AI ledger, the security trail, jobs & runs and the data-change journal
+ * — tabs URL-synced via `?tab=`. */
 export function Audit() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const activeTab = parseAuditTab(tabFromUrl);
-  const [window, setWindow] = useState<AuditWindow>(
-    parseAuditWindow(searchParams.get("window")),
-  );
+  const [range, setRange] = useState<RangeValue>({
+    window: parseAuditWindow(searchParams.get("window")),
+    from: "",
+    to: "",
+  });
 
   useEffect(() => {
     const expectedTab = activeTab === "overview" ? null : activeTab;
-    const expectedWindow = window !== "24h" && activeTab !== "ai" ? window : null;
+    const expectedWindow =
+      range.window !== "24h" && range.window !== "custom" && activeTab !== "ai"
+        ? range.window
+        : null;
     if (tabFromUrl === expectedTab && searchParams.get("window") === expectedWindow) return;
     const next = new URLSearchParams(searchParams);
     if (expectedTab) next.set("tab", expectedTab);
@@ -45,7 +62,7 @@ export function Audit() {
     if (expectedWindow) next.set("window", expectedWindow);
     else next.delete("window");
     setSearchParams(next, { replace: true });
-  }, [tabFromUrl, activeTab, window, searchParams, setSearchParams]);
+  }, [tabFromUrl, activeTab, range, searchParams, setSearchParams]);
 
   const setActive = (tab: AuditTab) => {
     const next = new URLSearchParams(searchParams);
@@ -71,25 +88,23 @@ export function Audit() {
             value={activeTab}
             onValueChange={(next) => setActive(next as AuditTab)}
           />
-          {activeTab !== "ai" && (
-            <SegmentedTabs
-              ariaLabel={t("audit.windowAria")}
-              items={
-                [
-                  { value: "24h", label: t("audit.window.24h") },
-                  { value: "7d", label: t("audit.window.7d") },
-                  { value: "30d", label: t("audit.window.30d") },
-                ] as const
-              }
-              value={window}
-              onValueChange={(next) => setWindow(next as AuditWindow)}
+          {(activeTab === "overview" || activeTab === "security") && (
+            <RangeFilter
+              value={range}
+              onChange={setRange}
+              testId="audit-page-range"
             />
           )}
         </div>
 
-        {activeTab === "overview" && <OverviewTab window={window} />}
+        {activeTab === "overview" && <OverviewTab range={rangeParams(range)} />}
         {activeTab === "ai" && <AiActivityTab />}
-        {activeTab === "security" && <SecurityTab window={window} />}
+        {activeTab === "usage" && <UsageTab range={rangeParams(range)} />}
+        {activeTab === "security" && (
+          <SecurityTab range={rangeParams(range)} />
+        )}
+        {activeTab === "jobs" && <JobsTab />}
+        {activeTab === "changes" && <ChangesTab />}
       </section>
     </SettingsPage>
   );

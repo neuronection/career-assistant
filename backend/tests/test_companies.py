@@ -20,8 +20,9 @@ async def _org_postings(db: AsyncSession, org_id: UUID) -> list[JobPosting]:
 
 
 async def _seed_company(db, source, *, name="SynthCo", count=2, **posting_kw) -> Organization:
+    posting = None
     for index in range(count):
-        await upsert_posting(
+        posting = await upsert_posting(
             db,
             source,
             _raw_posting(
@@ -32,9 +33,9 @@ async def _seed_company(db, source, *, name="SynthCo", count=2, **posting_kw) ->
         )
     await db.commit()
     org = (
-        (await db.execute(select(Organization).where(Organization.name.ilike(f"%{name}%"))))
+        (await db.execute(select(Organization).where(Organization.id == posting.org_id)))
         .scalars()
-        .first()
+        .one()
     )
     org.status = "active"
     await db.commit()
@@ -54,7 +55,7 @@ async def test_list_orders_by_open_postings_and_excludes_empty(
 
     res = await client.get("/api/v1/companies", headers=auth_headers)
     assert res.status_code == 200
-    rows = res.json()
+    rows = res.json()["items"]
     keys = [row["key"] for row in rows]
     assert busy.key in keys and ghost.key in keys
     assert quiet.key not in keys, "a company with no open postings is not a company entry yet"
@@ -69,7 +70,7 @@ async def test_list_q_filters_by_name(db, client, auth_headers, seeded_catalog, 
 
     res = await client.get("/api/v1/companies", params={"q": "alpha"}, headers=auth_headers)
     assert res.status_code == 200
-    assert [row["name"] for row in res.json()] == ["AlphaSoft"]
+    assert [row["name"] for row in res.json()["items"]] == ["AlphaSoft"]
 
 
 async def test_detail_merges_reviewed_facts_with_derived_stats(
@@ -253,7 +254,7 @@ async def test_proposed_companies_with_live_postings_are_visible(
     await _seed_company(db, source, name="SeedCo", count=1)
 
     listing = (await client.get("/api/v1/companies", headers=auth_headers)).json()
-    rows = {row["key"]: row for row in listing}
+    rows = {row["key"]: row for row in listing["items"]}
     assert "seedco" in rows
     assert rows["newborn-works"]["status"] == "proposed", "proposed is visible with live postings"
     assert rows["newborn-works"]["open_postings"] >= 1
@@ -276,3 +277,106 @@ async def test_company_detail_lists_aliases(db, client, auth_headers, seeded_cat
         await client.get("/api/v1/companies/alias-heavy-industries", headers=auth_headers)
     ).json()
     assert "AHI" in detail["aliases"]
+
+
+async def test_hiring_filters_match_open_postings(db, client, auth_headers, seeded_catalog, source):
+    remote = await _seed_company(
+        db,
+        source,
+        name="RemoteFirst",
+        count=2,
+        onsite_policy="remote",
+        seniority="senior",
+        employment_type="full_time",
+        location={"city": "Berlin", "country": "Germany", "remote": True},
+    )
+    await _seed_company(
+        db,
+        source,
+        name="OnsiteOnly",
+        count=2,
+        onsite_policy="onsite",
+        seniority="junior",
+        employment_type="internship",
+        location={"city": "Munich", "country": "Germany", "remote": False},
+    )
+
+    async def keys(params):
+        res = await client.get("/api/v1/companies", params=params, headers=auth_headers)
+        assert res.status_code == 200
+        return [row["key"] for row in res.json()["items"]]
+
+    assert remote.key in (await keys({"work_mode": "remote"}))
+    assert "onsiteonly" not in (await keys({"work_mode": "remote"}))
+    assert remote.key in (await keys({"seniority": "senior"}))
+    assert remote.key in (await keys({"seniority": "senior,lead"}))
+    assert "onsiteonly" not in (await keys({"seniority": "senior"}))
+    assert remote.key in (await keys({"employment": "full_time"}))
+    assert remote.key in (await keys({"location": "berlin"}))
+    assert "onsiteonly" not in (await keys({"location": "berlin"}))
+    assert remote.key in (await keys({"min_open": 2}))
+    assert "onsiteonly" in (await keys({"min_open": 1}))
+    combined = await keys({"work_mode": "remote", "seniority": "junior"})
+    assert remote.key not in combined, "axes AND together"
+
+
+async def test_facets_count_companies_per_value(db, client, auth_headers, seeded_catalog, source):
+    await _seed_company(
+        db,
+        source,
+        name="Aurora Labs",
+        count=3,
+        onsite_policy="remote",
+        seniority="mid",
+        employment_type="full_time",
+        location={"city": "Berlin", "country": "Germany", "remote": True},
+    )
+    await _seed_company(
+        db,
+        source,
+        name="Baltic Systems",
+        count=1,
+        onsite_policy="remote",
+        seniority="senior",
+        employment_type="part_time",
+        location={"city": "Munich", "country": "Germany", "remote": True},
+    )
+
+    res = await client.get("/api/v1/companies", params={"facets": True}, headers=auth_headers)
+    assert res.status_code == 200
+    facets = res.json()["facets"]
+    assert facets["work_mode"]["remote"] == 2
+    assert facets["work_mode"].get("onsite") in (None, 0)
+    assert facets["seniority"]["mid"] == 1
+    assert facets["seniority"]["senior"] == 1
+    assert facets["employment"]["full_time"] == 1
+    assert facets["employment"]["part_time"] == 1
+    assert facets["locations"]["Berlin"] == 1
+
+    filtered = await client.get(
+        "/api/v1/companies", params={"facets": True, "seniority": "mid"}, headers=auth_headers
+    )
+    items = filtered.json()["items"]
+    assert [row["name"] for row in items] == ["Aurora Labs"], "facets ride the filtered set"
+
+
+async def test_employment_exclude_removes_internship_only_companies(
+    db, client, auth_headers, seeded_catalog, source
+):
+    await _seed_company(
+        db, source, name="ProShop", count=1, employment_type="full_time",
+        onsite_policy="remote",
+    )
+    await _seed_company(
+        db, source, name="InternMill", count=1, employment_type="internship",
+        onsite_policy="remote",
+    )
+
+    res = await client.get(
+        "/api/v1/companies",
+        params={"employment": "full_time", "employment_exclude": "internship"},
+        headers=auth_headers,
+    )
+    names = [row["name"] for row in res.json()["items"]]
+    assert "ProShop" in names
+    assert "InternMill" not in names

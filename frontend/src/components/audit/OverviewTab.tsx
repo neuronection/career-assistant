@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Bar,
@@ -15,8 +15,8 @@ import {
   fetchAuditTimeseries,
   type AuditBreakdownRow,
   type AuditOverview,
+  type AuditRangeQuery,
   type AuditSeries,
-  type AuditWindow,
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
@@ -31,7 +31,7 @@ import {
 
 const CHART_COLORS = {
   calls: "var(--as-accent, #6172f3)",
-  errors: "#e11d48",
+  errors: "var(--as-danger, #e11d48)",
 } as const;
 
 function KpiTiles({ overview }: { overview: AuditOverview }) {
@@ -238,33 +238,37 @@ function RecentFailures({ overview }: { overview: AuditOverview }) {
 }
 
 /** The audit Overview tab: KPI tiles, volume/errors chart, category
- * breakdown and the recent-failure feed — all server-aggregated. */
-export function OverviewTab({ window }: { window: AuditWindow }) {
+ * breakdown and the recent-failure feed — all server-aggregated. The
+ * time range is the page-level control (preset or custom). */
+export function OverviewTab({ range }: { range: AuditRangeQuery }) {
   const { t } = useTranslation();
   const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [series, setSeries] = useState<AuditSeries | null>(null);
   const [taskRows, setTaskRows] = useState<AuditBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const requestId = useRef(0);
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError("");
     try {
       const [overviewData, seriesData, taskBreakdown] = await Promise.all([
-        fetchAuditOverview(window),
-        fetchAuditTimeseries(window),
-        fetchAuditBreakdown("task", window),
+        fetchAuditOverview(range),
+        fetchAuditTimeseries(range),
+        fetchAuditBreakdown("task", range),
       ]);
+      if (id !== requestId.current) return;
       setOverview(overviewData);
       setSeries(seriesData);
       setTaskRows(taskBreakdown.rows);
     } catch (err) {
-      setError(apiDetail(err));
+      if (id === requestId.current) setError(apiDetail(err));
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [window]);
+  }, [range]);
 
   useEffect(() => {
     void load();

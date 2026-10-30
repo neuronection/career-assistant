@@ -4,6 +4,29 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (companies — postings-derived filters, 2026-10-30)
+- **The companies directory filters by the hiring those companies are
+  doing right now**: work mode, seniority, employment type and
+  industries as tri-state chips with live facet counts (company counts
+  computed over their active postings), plus a location box and a
+  minimum open-roles floor — `GET /api/v1/companies` grows the filter
+  params and an optional facet envelope (plan 154). The chips reuse
+  the Explore filter language (the filter bits moved to
+  `components/filters/`, app-level shared).
+
+### Changed (audit & monitoring slice 2, 2026-10-30)
+- **Two new audit tabs + drill-down affordances** (plan 152).
+  **Jobs & runs** shows every user's background jobs (status, owner,
+  attempts, expandable payload/result, job-type facets) and the
+  cross-source ingestion ledger with deep links into each source, plus a
+  failing-schedules strip that links to Automations for management.
+  **Data changes** unifies the append-only `posting_changes` and
+  `skill_changes` journals into one cross-entity "who changed what" view
+  with actor/outcome filters. Every read endpoint accepts a custom
+  `from`/`to` range alongside the presets, and the AI ledger, security
+  trail and jobs views export the filtered rows as CSV
+  (`GET /admin/audit/export`, capped at 10k rows).
+
 ### Changed (audit & monitoring surface, 2026-10-30)
 - **`/settings/audit` is now "Audit & monitoring"** — the page grows
   from an AI-ledger viewer into the cross-stream observability surface

@@ -355,9 +355,9 @@
       "proofs": [
         "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
         "The identity audit trail (logins, denials, admin acts) has a first-class read surface",
-        "Overview KPIs, volume/error trends and category splits aggregate server-side",
-        "Facet-driven ledger filters, pagination and row detail with prompt, output and pack governance",
-        "Identical surface on PostgreSQL web/self-host and the SQLite desktop profile"
+        "Admin-wide job, source-run and schedule-failure observability with deep links to management",
+        "The posting and skill change journals render as one cross-entity who-changed-what view",
+        "Custom date ranges on every view; filtered ledgers export as CSV"
       ],
       "links": [
         {

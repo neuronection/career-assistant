@@ -4362,7 +4362,26 @@
       "new": "New"
     },
     "noMatchTitle": "No companies match",
-    "noMatchBody": "Try a different name or clear the New filter."
+    "noMatchBody": "Try a different name or clear the New filter.",
+    "railTitle": "Filter by active hiring",
+    "clearFilters": "Clear filters ({count})",
+    "locationPlaceholder": "City or country",
+    "minOpenN": "≥ {count} open roles",
+    "facetTitle": {
+      "work_mode": "Work mode",
+      "seniority": "Seniority",
+      "employment": "Employment type",
+      "industries": "Industries",
+      "locations": "Where the jobs are",
+      "minOpen": "Open roles"
+    },
+    "facet": {
+      "work_mode": {},
+      "seniority": {},
+      "employment": {},
+      "industries": {},
+      "locations": {}
+    }
   },
   "companyDetail": {
     "back": "All companies",
@@ -4808,12 +4827,18 @@
     "tab": {
       "overview": "Overview",
       "ai": "AI activity",
-      "security": "Security & access"
+      "security": "Security & access",
+      "jobs": "Jobs & runs",
+      "changes": "Data changes",
+      "usage": "Usage & throughput"
     },
     "window": {
       "24h": "24h",
       "7d": "7d",
-      "30d": "30d"
+      "30d": "30d",
+      "custom": "custom…",
+      "fromLabel": "From",
+      "toLabel": "To"
     },
     "kpi": {
       "calls": "AI calls",
@@ -4907,6 +4932,113 @@
       "colOutcome": "Outcome",
       "colResource": "Resource",
       "empty": "No events in this window"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "exporting": "Exporting…"
+    },
+    "jobs": {
+      "schedulesFailing": "{{count}} schedules failing",
+      "manageSchedules": "Manage in Automations",
+      "statusFilter": "Status",
+      "allStatuses": "All statuses",
+      "status": {
+        "queued": "queued",
+        "running": "running",
+        "succeeded": "succeeded",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      },
+      "typeFilter": "Job type",
+      "allTypes": "All types",
+      "colStatus": "Status",
+      "colType": "Type",
+      "colUser": "User",
+      "colAttempts": "Attempts",
+      "colWhen": "When",
+      "empty": "No jobs in this window",
+      "sourceRuns": "Source runs (last 7 days)",
+      "runStatusFilter": "Run status",
+      "runStatus": {
+        "running": "running",
+        "ok": "ok",
+        "degraded": "degraded",
+        "failed": "failed",
+        "skipped": "skipped"
+      },
+      "trigger": {
+        "manual": "manual",
+        "scheduled": "scheduled"
+      },
+      "noRuns": "No ingestion runs",
+      "runTotal": "{{total}} runs total",
+      "failureStreak_one": "{{count}} consecutive failure",
+      "failureStreak_other": "{{count}} consecutive failures"
+    },
+    "changes": {
+      "entityAria": "Journal entity",
+      "entity": {
+        "postings": "Postings",
+        "skills": "Skills"
+      },
+      "actorFilter": "Actor",
+      "allActors": "All actors",
+      "actor": {
+        "sync_run": "sync run",
+        "extract_llm": "extraction",
+        "detail_fetch": "detail fetch",
+        "company_match": "company match",
+        "retag": "re-tag",
+        "manual": "manual",
+        "expiry": "expiry",
+        "admin": "admin",
+        "system": "system",
+        "sync": "sync",
+        "job": "job",
+        "user": "user"
+      },
+      "resultFilter": "Result",
+      "allOutcomes": "All outcomes",
+      "allEvents": "All events",
+      "result": {
+        "ok": "ok",
+        "partial": "partial",
+        "error": "error",
+        "created": "created",
+        "updated": "updated",
+        "promoted": "promoted",
+        "auto_promoted": "auto-promoted",
+        "deprecated": "deprecated",
+        "restored": "restored",
+        "merged": "merged",
+        "deleted": "deleted"
+      },
+      "colOutcome": "Outcome",
+      "colEvent": "Event",
+      "colSubject": "Subject",
+      "colActor": "Actor",
+      "postingRef": "posting {{id}}",
+      "operationLabel": "Operation — ",
+      "noDiff": "No recorded diff",
+      "empty": "No changes in this window"
+    },
+    "usage": {
+      "models": "Model usage",
+      "tokenTrend": "Token usage over time",
+      "tokensIn": "tokens in",
+      "tokensOut": "tokens out",
+      "tokensShort": "{{tin}} → {{tout}} tok",
+      "errors": "{{count}} errors",
+      "postingsIngested": "Postings ingested",
+      "itemsSynced": "{{count}} items synced",
+      "skillsCreated": "Skills created",
+      "skillsPromoted": "{{count}} promoted (incl. auto)",
+      "companiesCreated": "Companies created",
+      "jobsPublished": "Catalog jobs published",
+      "jobsCreated": "{{count}} created",
+      "postingActivity": "Posting processing activity",
+      "skillEvents": "Skill lifecycle events",
+      "noActivity": "No activity in this range"
     }
   }
 }

@@ -125,7 +125,8 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
 
 beforeEach(() => {
   mockExplore.mockResolvedValue(exploreResponse());
-  mockCompanies.mockResolvedValue([
+  mockCompanies.mockResolvedValue({
+    items: [
     {
       key: "acme",
       name: "Acme Corp",
@@ -134,7 +135,9 @@ beforeEach(() => {
       open_postings: 4,
       has_profile: false,
     },
-  ]);
+    ],
+    facets: null,
+  });
 });
 
 function openSection(title: string) {

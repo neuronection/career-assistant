@@ -1,14 +1,21 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  exportAuditCsv,
   fetchAuditBreakdown,
   fetchAuditGenerations,
   type AIGenerationRow,
   type AuditBreakdownRow,
-  type AuditWindow,
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
+import {
+  EMPTY_RANGE,
+  RangeFilter,
+  rangeParams,
+  type RangeValue,
+} from "@/components/audit/RangeFilter";
+import { downloadCsv } from "@/components/audit/download";
 import { formatLatency } from "@/config/auditVocab";
 
 const PAGE_SIZE = 50;
@@ -21,7 +28,7 @@ interface Filters {
   provider: string;
   status: string;
   tier: string;
-  window: "" | AuditWindow;
+  range: RangeValue;
   q: string;
 }
 
@@ -30,7 +37,7 @@ const EMPTY_FILTERS: Filters = {
   provider: "",
   status: "",
   tier: "",
-  window: "",
+  range: EMPTY_RANGE,
   q: "",
 };
 
@@ -93,8 +100,16 @@ function GenerationRow({
   return (
     <>
       <tr
-        className="cursor-pointer border-b border-[var(--as-border)] hover:bg-[var(--as-muted)]"
+        className="cursor-pointer border-b border-[var(--as-border)] hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
         onClick={onToggle}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onToggle();
+          }
+        }}
+        tabIndex={0}
+        aria-expanded={expanded}
         data-testid={`audit-gen-row-${row.id}`}
       >
         <td className="px-3 py-2">
@@ -161,13 +176,14 @@ export function AiActivityTab() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     const loadFacets = async () => {
       try {
         const [tasks, providers] = await Promise.all([
-          fetchAuditBreakdown("task", "30d"),
-          fetchAuditBreakdown("provider", "30d"),
+          fetchAuditBreakdown("task", { window: "30d", limit: 60 }),
+          fetchAuditBreakdown("provider", { window: "30d", limit: 60 }),
         ]);
         setTaskFacets(tasks.rows);
         setProviderFacets(providers.rows);
@@ -179,8 +195,11 @@ export function AiActivityTab() {
     void loadFacets();
   }, []);
 
+  const requestId = useRef(0);
+
   const load = useCallback(
     async (current: Filters, currentPage: number) => {
+      const id = ++requestId.current;
       setLoading(true);
       setError("");
       try {
@@ -192,15 +211,16 @@ export function AiActivityTab() {
         if (current.provider) params.provider = current.provider;
         if (current.status) params.status = current.status;
         if (current.tier) params.tier = current.tier;
-        if (current.window) params.window = current.window;
+        Object.assign(params, rangeParams(current.range));
         if (current.q) params.q = current.q;
         const result = await fetchAuditGenerations(params);
+        if (id !== requestId.current) return;
         setRows(result.items);
         setTotal(result.total);
       } catch (err) {
-        setError(apiDetail(err));
+        if (id === requestId.current) setError(apiDetail(err));
       } finally {
-        setLoading(false);
+        if (id === requestId.current) setLoading(false);
       }
     },
     [],
@@ -218,6 +238,26 @@ export function AiActivityTab() {
   };
 
   const patch = (part: Partial<Filters>) => applyFilters({ ...filters, ...part });
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      downloadCsv(
+        await exportAuditCsv("ai", {
+          ...rangeParams(applied.range),
+          task: applied.task || undefined,
+          provider: applied.provider || undefined,
+          status: applied.status || undefined,
+          q: applied.q || undefined,
+        }),
+        "ai",
+      );
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
@@ -277,17 +317,21 @@ export function AiActivityTab() {
           <option value="fast">{t("audit.ai.tier.fast")}</option>
           <option value="strong">{t("audit.ai.tier.strong")}</option>
         </select>
-        <select
-          aria-label={t("audit.ai.windowFilter")}
-          className={selectClass}
-          value={filters.window}
-          onChange={(e) => patch({ window: e.target.value as Filters["window"] })}
+        <RangeFilter
+          value={filters.range}
+          onChange={(next) => patch({ range: next })}
+          allowAllTime
+          testId="audit-gen-range-filter"
+        />
+        <button
+          type="button"
+          className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm disabled:opacity-40"
+          disabled={exporting}
+          onClick={() => void exportCsv()}
+          data-testid="audit-gen-export"
         >
-          <option value="">{t("audit.ai.allTime")}</option>
-          <option value="24h">{t("audit.window.24h")}</option>
-          <option value="7d">{t("audit.window.7d")}</option>
-          <option value="30d">{t("audit.window.30d")}</option>
-        </select>
+          {exporting ? t("audit.export.exporting") : t("audit.export.csv")}
+        </button>
         <form
           className="min-w-[12rem] flex-1"
           onSubmit={(e) => {

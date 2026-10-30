@@ -28,7 +28,10 @@ export function OrgPicker({ value, onChange, placeholder, className }: OrgPicker
   const search = useCallback(
     async (query: string): Promise<PickerOption[]> => {
       const companies = await fetchCompanies(query ? { q: query, limit: 25 } : { limit: 25 });
-      return companies.map((company) => ({ value: company.name, label: company.name }));
+      return (companies.items ?? []).map((company) => ({
+        value: company.name,
+        label: company.name,
+      }));
     },
     [],
   );

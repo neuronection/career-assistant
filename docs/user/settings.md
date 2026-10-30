@@ -175,8 +175,9 @@ they are saved. See
 ## Audit & monitoring (`/settings/audit`)
 
 The observability surface for administrators — on desktop the owner is
-their instance's admin, so the page is always reachable there. Three
-tabs over the system's audit streams, with a shared 24h/7d/30d window:
+their instance's admin, so the page is always reachable there. Five
+tabs over the system's audit streams; the overview and security views
+share a 24h/7d/30d or custom range:
 
 - **Overview** — the health snapshot: AI calls (with the change vs the
   previous window), error rate, token usage, average latency, failed
@@ -192,9 +193,20 @@ tabs over the system's audit streams, with a shared 24h/7d/30d window:
 - **Security & access** — the identity audit trail: sign-ins, denied
   attempts, refresh-reuse detections, admin actions and instance-mode
   transitions, filterable by group, outcome and actor.
+- **Jobs & runs** — every user's background jobs (status, owner,
+  attempts, expandable payload/result) with status/type filters, the
+  cross-source ingestion ledger with deep links into each source, and a
+  failing-schedules strip that deep-links to Automations for management.
+- **Data changes** — the append-only journals in one cross-entity view:
+  posting mutations (sync runs, extractions, re-tags, manual edits) and
+  skill lifecycle events (created, promoted, deprecated, merged, deleted)
+  with actor and outcome filters.
 
-All aggregation happens server-side and works identically on PostgreSQL
-(web/self-host) and the SQLite desktop profile.
+Every tab can narrow to a custom date range, and the AI activity,
+security and jobs views export the current filtered ledger as CSV
+(capped at 10,000 rows). All aggregation happens server-side and works
+identically on PostgreSQL (web/self-host) and the SQLite desktop
+profile.
 
 ## Related
 

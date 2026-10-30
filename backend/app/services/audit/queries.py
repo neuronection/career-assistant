@@ -1,16 +1,21 @@
-"""Cross-stream audit & monitoring reads (plan 151).
+"""Cross-stream audit & monitoring reads (plans 151-152).
 
 Server-side aggregation over the append-only ledgers (``ai_generations``,
-``audit_events``, ``background_jobs``, ``schedules``) — the dashboard never
-charts raw rows client-side. Time bucketing is dialect-aware: the desktop
-profile runs SQLite (``strftime``), web runs PostgreSQL (``date_trunc``).
+``audit_events``, ``background_jobs``, ``source_runs``, ``posting_changes``,
+``skill_changes``, ``schedules``) — the dashboard never charts raw rows
+client-side. Time bucketing is dialect-aware: the desktop profile runs
+SQLite (``strftime``), web runs PostgreSQL (``date_trunc``).
 
-Read-only by design: every writer keeps its own seam (the AI gateway, the
-auth-kit sink, the job worker, the scheduler).
+Every reader accepts a preset ``window`` OR an explicit ``from``/``to``
+range (the explicit range wins). Read-only by design: every writer keeps
+its own seam (the AI gateway, the auth-kit sink, the job worker, the
+scheduler, the journals).
 """
 
 from __future__ import annotations
 
+import csv
+import io
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -19,8 +24,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.ai_model import AIGeneration
 from app.models.background_job_model import BackgroundJob
+from app.models.company_model import CompanyProfile
 from app.models.identity_model import AuditEvent
+from app.models.job_model import Job
+from app.models.posting_model import JobPosting, JobSource, PostingChange, SourceRun
 from app.models.schedule_model import Schedule
+from app.models.taxonomy_model import SkillChange
 from app.models.user_model import User
 
 WINDOWS: dict[str, timedelta] = {
@@ -32,6 +41,7 @@ WINDOWS: dict[str, timedelta] = {
 BUCKETS: dict[str, str] = {"24h": "hour", "7d": "day", "30d": "day"}
 
 FAILURES_LIMIT = 8
+EXPORT_LIMIT = 10_000
 
 
 def window_bounds(window: str, now: datetime | None = None) -> tuple[datetime, datetime]:
@@ -39,6 +49,42 @@ def window_bounds(window: str, now: datetime | None = None) -> tuple[datetime, d
     span = WINDOWS[window]
     current = (now or datetime.now(UTC)).astimezone(UTC)
     return current - span, current - span * 2
+
+
+def _as_utc(moment: datetime) -> datetime:
+    """Query params may arrive tz-naive (`?from=2026-10-01T00:00:00`) —
+    normalize before any arithmetic against aware 'now'."""
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
+
+
+def _range_bounds(
+    window: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> tuple[datetime, datetime, datetime | None]:
+    """(start, prev_start, end) — an explicit ``from`` overrides the
+    preset; ``end`` is None for open-ended presets. The prev window is the
+    equal-length range before ``from`` (delta math for custom ranges)."""
+    if date_from is not None:
+        date_from = _as_utc(date_from)
+        end = _as_utc(date_to) if date_to is not None else datetime.now(UTC)
+        span = max(end - date_from, timedelta(seconds=1))
+        return date_from, date_from - span, end
+    start, prev_start = window_bounds(window or "24h")
+    return start, prev_start, None
+
+
+def _range_conditions(
+    column: Any,
+    window: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> list[Any]:
+    start, _, end = _range_bounds(window, date_from, date_to)
+    conditions = [column >= start]
+    if end is not None:
+        conditions.append(column < end)
+    return conditions
 
 
 def _bucket_expr(dialect_name: str, column: Any, bucket: str) -> Any:
@@ -79,16 +125,22 @@ async def _ai_window_stats(
     }
 
 
-async def overview(db: AsyncSession, window: str) -> dict[str, Any]:
+async def overview(
+    db: AsyncSession,
+    window: str,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> dict[str, Any]:
     """One round trip of dashboard KPIs + the recent-failure feed."""
-    start, prev_start = window_bounds(window)
-    current = await _ai_window_stats(db, start)
+    start, prev_start, end = _range_bounds(window, date_from, date_to)
+    upper = [BackgroundJob.created_at < end] if end is not None else []
+    current = await _ai_window_stats(db, start, end)
     previous = await _ai_window_stats(db, prev_start, start)
 
     job_rows = (
         await db.execute(
             select(BackgroundJob.status, func.count(BackgroundJob.id))
-            .where(BackgroundJob.created_at >= start)
+            .where(BackgroundJob.created_at >= start, *upper)
             .group_by(BackgroundJob.status)
         )
     ).all()
@@ -102,24 +154,26 @@ async def overview(db: AsyncSession, window: str) -> dict[str, Any]:
         )
     ).scalar() or 0
 
+    auth_conditions = [AuditEvent.created_at >= start]
+    if end is not None:
+        auth_conditions.append(AuditEvent.created_at < end)
     auth_total = (
-        await db.execute(select(func.count(AuditEvent.id)).where(AuditEvent.created_at >= start))
+        await db.execute(select(func.count(AuditEvent.id)).where(*auth_conditions))
     ).scalar() or 0
     auth_denied = (
         await db.execute(
-            select(func.count(AuditEvent.id)).where(
-                AuditEvent.created_at >= start,
-                AuditEvent.outcome != "ok",
-            )
+            select(func.count(AuditEvent.id)).where(*auth_conditions, AuditEvent.outcome != "ok")
         )
     ).scalar() or 0
 
     failures: list[dict[str, Any]] = []
-
+    ai_conditions = [AIGeneration.status == "error", AIGeneration.created_at >= start]
+    if end is not None:
+        ai_conditions.append(AIGeneration.created_at < end)
     ai_failures = (
         await db.execute(
             select(AIGeneration)
-            .where(AIGeneration.status == "error", AIGeneration.created_at >= start)
+            .where(*ai_conditions)
             .order_by(AIGeneration.created_at.desc())
             .limit(FAILURES_LIMIT)
         )
@@ -137,7 +191,7 @@ async def overview(db: AsyncSession, window: str) -> dict[str, Any]:
     job_failures = (
         await db.execute(
             select(BackgroundJob)
-            .where(BackgroundJob.status == "failed", BackgroundJob.created_at >= start)
+            .where(BackgroundJob.status == "failed", BackgroundJob.created_at >= start, *upper)
             .order_by(BackgroundJob.created_at.desc())
             .limit(FAILURES_LIMIT)
         )
@@ -155,7 +209,7 @@ async def overview(db: AsyncSession, window: str) -> dict[str, Any]:
     auth_failures = (
         await db.execute(
             select(AuditEvent)
-            .where(AuditEvent.outcome != "ok", AuditEvent.created_at >= start)
+            .where(AuditEvent.outcome != "ok", *auth_conditions)
             .order_by(AuditEvent.created_at.desc())
             .limit(FAILURES_LIMIT)
         )
@@ -201,13 +255,23 @@ def _key_for(moment: datetime, bucket: str) -> str:
     return moment.strftime("%Y-%m-%d")
 
 
-async def timeseries(db: AsyncSession, window: str) -> dict[str, Any]:
+async def timeseries(
+    db: AsyncSession,
+    window: str,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> dict[str, Any]:
     """Time-bucketed call/error/token series for the volume chart,
     zero-filled across the whole window so sparse activity does not
-    compress the timeline."""
-    now = datetime.now(UTC)
-    start, _ = window_bounds(window, now)
-    bucket = BUCKETS[window]
+    compress the timeline. Custom ranges bucket hourly up to 48h, then
+    daily."""
+    start, _, end = _range_bounds(window, date_from, date_to)
+    span = (end or datetime.now(UTC)) - start
+    if date_from is not None:
+        bucket = "hour" if span <= timedelta(hours=48) else "day"
+    else:
+        bucket = BUCKETS.get(window or "24h", "hour")
+    stop = end or datetime.now(UTC)
     bucket_expr = _bucket_expr(db.get_bind().dialect.name, AIGeneration.created_at, bucket)
     rows = (
         await db.execute(
@@ -218,7 +282,7 @@ async def timeseries(db: AsyncSession, window: str) -> dict[str, Any]:
                 func.coalesce(func.sum(AIGeneration.tokens_in), 0),
                 func.coalesce(func.sum(AIGeneration.tokens_out), 0),
             )
-            .where(AIGeneration.created_at >= start)
+            .where(*_range_conditions(AIGeneration.created_at, window, date_from, date_to))
             .group_by(bucket_expr)
             .order_by(bucket_expr)
         )
@@ -238,11 +302,9 @@ async def timeseries(db: AsyncSession, window: str) -> dict[str, Any]:
     if bucket == "day":
         cursor = cursor.replace(hour=0)
     points: list[dict[str, Any]] = []
-    while cursor <= now:
+    while cursor <= stop:
         key = _key_for(cursor, bucket)
-        point = by_key.pop(
-            key, {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0}
-        )
+        point = by_key.pop(key, {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0})
         points.append({"bucket": key, **point})
         cursor += step
     for key in sorted(by_key):
@@ -271,11 +333,50 @@ def _like_needle(term: str) -> str:
 
 
 async def breakdown(
-    db: AsyncSession, dimension: str, window: str, limit: int = 20
+    db: AsyncSession,
+    dimension: str,
+    window: str,
+    limit: int = 20,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> dict[str, Any]:
-    """Per-key call/error/token splits — the source for both the category
-    chart and the facet-driven filter options."""
-    start, _ = window_bounds(window)
+    """Per-key call/error/token splits — the source for the category
+    chart, the facet-driven filter options and the model-usage view."""
+    if dimension == "model":
+        provider = AIGeneration.provider
+        model = AIGeneration.model
+        column = func.concat(provider, "/", model)
+        rows = (
+            await db.execute(
+                select(
+                    column,
+                    func.count(AIGeneration.id),
+                    func.sum(case((AIGeneration.status == "error", 1), else_=0)),
+                    func.coalesce(func.sum(AIGeneration.tokens_in), 0),
+                    func.coalesce(func.sum(AIGeneration.tokens_out), 0),
+                    func.avg(AIGeneration.latency_ms),
+                )
+                .where(*_range_conditions(AIGeneration.created_at, window, date_from, date_to))
+                .group_by(provider, model)
+                .order_by(func.count(AIGeneration.id).desc())
+                .limit(limit)
+            )
+        ).all()
+        return {
+            "dimension": dimension,
+            "window": window,
+            "rows": [
+                {
+                    "key": key,
+                    "calls": int(calls or 0),
+                    "errors": int(errors or 0),
+                    "tokens_in": int(tokens_in or 0),
+                    "tokens_out": int(tokens_out or 0),
+                    "avg_latency_ms": round(float(avg or 0), 1) if avg is not None else None,
+                }
+                for key, calls, errors, tokens_in, tokens_out, avg in rows
+            ],
+        }
     column = {
         "task": AIGeneration.task_type,
         "provider": AIGeneration.provider,
@@ -289,7 +390,7 @@ async def breakdown(
                 func.coalesce(func.sum(AIGeneration.tokens_in), 0),
                 func.coalesce(func.sum(AIGeneration.tokens_out), 0),
             )
-            .where(AIGeneration.created_at >= start)
+            .where(*_range_conditions(AIGeneration.created_at, window, date_from, date_to))
             .group_by(column)
             .order_by(func.count(AIGeneration.id).desc())
             .limit(limit)
@@ -311,6 +412,93 @@ async def breakdown(
     }
 
 
+async def production(
+    db: AsyncSession,
+    window: str,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> dict[str, Any]:
+    """Content-production throughput (plan 153): what the system *made*
+    in the range — postings ingested and processed, skill lifecycle
+    events, company profiles created, catalog jobs by status and origin.
+    Reads over the domain tables and the two append-only journals."""
+    posting_range = _range_conditions(JobPosting.created_at, window, date_from, date_to)
+    posting_rows = (
+        await db.execute(
+            select(JobPosting.status, func.count(JobPosting.id))
+            .where(*posting_range)
+            .group_by(JobPosting.status)
+        )
+    ).all()
+    by_status = {status: int(count) for status, count in posting_rows}
+
+    items_sum = (
+        await db.execute(
+            select(func.coalesce(func.sum(SourceRun.items_synced), 0)).where(
+                *_range_conditions(SourceRun.started_at, window, date_from, date_to)
+            )
+        )
+    ).scalar() or 0
+
+    activity_rows = (
+        await db.execute(
+            select(PostingChange.actor_kind, func.count(PostingChange.id))
+            .where(*_range_conditions(PostingChange.occurred_at, window, date_from, date_to))
+            .group_by(PostingChange.actor_kind)
+        )
+    ).all()
+
+    skill_rows = (
+        await db.execute(
+            select(SkillChange.event, func.count(SkillChange.id))
+            .where(*_range_conditions(SkillChange.occurred_at, window, date_from, date_to))
+            .group_by(SkillChange.event)
+        )
+    ).all()
+
+    company_range = _range_conditions(CompanyProfile.created_at, window, date_from, date_to)
+    company_rows = (
+        await db.execute(
+            select(CompanyProfile.source, func.count(CompanyProfile.id))
+            .where(*company_range)
+            .group_by(CompanyProfile.source)
+        )
+    ).all()
+    companies = {source: int(count) for source, count in company_rows}
+
+    job_rows = (
+        await db.execute(
+            select(Job.status, Job.source, func.count(Job.id))
+            .where(*_range_conditions(Job.created_at, window, date_from, date_to))
+            .group_by(Job.status, Job.source)
+        )
+    ).all()
+    jobs_by_status: dict[str, int] = {}
+    jobs_by_source: dict[str, int] = {}
+    for status, source, count in job_rows:
+        jobs_by_status[status] = jobs_by_status.get(status, 0) + int(count)
+        jobs_by_source[source] = jobs_by_source.get(source, 0) + int(count)
+
+    return {
+        "postings": {
+            "ingested": sum(by_status.values()),
+            "by_status": by_status,
+            "ingested_items": int(items_sum),
+            "activity": {kind: int(count) for kind, count in activity_rows},
+        },
+        "skills": {event: int(count) for event, count in skill_rows},
+        "companies": {
+            "created": sum(companies.values()),
+            "by_source": companies,
+        },
+        "catalog_jobs": {
+            "created": sum(jobs_by_status.values()),
+            "by_status": jobs_by_status,
+            "by_source": jobs_by_source,
+        },
+    }
+
+
 async def events(
     db: AsyncSession,
     window: str,
@@ -319,11 +507,12 @@ async def events(
     actor: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> tuple[int, list[dict[str, Any]]]:
     """Filtered ``audit_events`` rows with a best-effort actor email —
     the identity trail's first read surface (plan 151 D5)."""
-    start, _ = window_bounds(window)
-    conditions = [AuditEvent.created_at >= start]
+    conditions = _range_conditions(AuditEvent.created_at, window, date_from, date_to)
     if group == "auth":
         conditions.append(AuditEvent.action.like("auth.%"))
     elif group == "admin":
@@ -384,6 +573,8 @@ async def generations(
     query: str | None = None,
     limit: int = 50,
     offset: int = 0,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> tuple[int, list[AIGeneration]]:
     """The AI ledger with the full filter matrix (plan 151 D7)."""
     conditions = []
@@ -401,9 +592,8 @@ async def generations(
         conditions.append(AIGeneration.run_id == run_id)
     if tier:
         conditions.append(AIGeneration.task_tier == tier)
-    if window:
-        start, _ = window_bounds(window)
-        conditions.append(AIGeneration.created_at >= start)
+    if window or date_from is not None:
+        conditions.extend(_range_conditions(AIGeneration.created_at, window, date_from, date_to))
     if query:
         needle = _like_needle(query)
         conditions.append(
@@ -427,3 +617,367 @@ async def generations(
         .all()
     )
     return int(total), list(rows)
+
+
+async def jobs(
+    db: AsyncSession,
+    *,
+    status: str | None = None,
+    job_type: str | None = None,
+    user_id: str | None = None,
+    window: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[int, list[dict[str, Any]]]:
+    """The admin-wide background-jobs view (plan 152): every user's jobs,
+    with a best-effort owner email."""
+    conditions = []
+    if status:
+        conditions.append(BackgroundJob.status == status)
+    if job_type:
+        conditions.append(BackgroundJob.job_type == job_type)
+    if user_id:
+        conditions.append(BackgroundJob.user_id == user_id)
+    if window or date_from is not None:
+        conditions.extend(_range_conditions(BackgroundJob.created_at, window, date_from, date_to))
+
+    total = (
+        await db.execute(select(func.count(BackgroundJob.id)).where(*conditions))
+    ).scalar() or 0
+    rows = (
+        await db.execute(
+            select(BackgroundJob, User.email)
+            .outerjoin(User, User.id == BackgroundJob.user_id)
+            .where(*conditions)
+            .order_by(BackgroundJob.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+    ).all()
+    items = [
+        {
+            "id": job.id,
+            "job_type": job.job_type,
+            "status": job.status,
+            "stage": job.stage,
+            "progress": job.progress,
+            "attempts": job.attempts,
+            "max_attempts": job.max_attempts,
+            "error": job.error or "",
+            "created_at": job.created_at,
+            "finished_at": job.finished_at,
+            "user_id": job.user_id,
+            "user_email": email,
+            "payload": job.payload,
+            "result": job.result,
+        }
+        for job, email in rows
+    ]
+    return int(total), items
+
+
+async def job_facets(
+    db: AsyncSession,
+    window: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+) -> list[dict[str, Any]]:
+    """job_type counts for the filter dropdown. No window and no explicit
+    range means all time."""
+    conditions = (
+        _range_conditions(BackgroundJob.created_at, window, date_from, date_to)
+        if window or date_from is not None
+        else []
+    )
+    rows = (
+        await db.execute(
+            select(BackgroundJob.job_type, func.count(BackgroundJob.id))
+            .where(*conditions)
+            .group_by(BackgroundJob.job_type)
+            .order_by(func.count(BackgroundJob.id).desc())
+        )
+    ).all()
+    return [{"key": key, "count": int(count or 0)} for key, count in rows]
+
+
+async def source_runs(
+    db: AsyncSession,
+    *,
+    status: str | None = None,
+    trigger: str | None = None,
+    window: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[int, list[dict[str, Any]]]:
+    """The cross-source ingestion run ledger (plan 152)."""
+    conditions = []
+    if status:
+        conditions.append(SourceRun.status == status)
+    if trigger:
+        conditions.append(SourceRun.trigger == trigger)
+    if window or date_from is not None:
+        conditions.extend(_range_conditions(SourceRun.started_at, window, date_from, date_to))
+
+    total = (await db.execute(select(func.count(SourceRun.id)).where(*conditions))).scalar() or 0
+    rows = (
+        await db.execute(
+            select(SourceRun, JobSource.key, JobSource.connector_key)
+            .outerjoin(JobSource, JobSource.id == SourceRun.source_id)
+            .where(*conditions)
+            .order_by(SourceRun.started_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+    ).all()
+    items = [
+        {
+            "id": run.id,
+            "source_id": run.source_id,
+            "source_key": source_key,
+            "connector_key": connector_key,
+            "trigger": run.trigger,
+            "status": run.status,
+            "started_at": run.started_at,
+            "finished_at": run.finished_at,
+            "duration_ms": run.duration_ms,
+            "items_synced": run.items_synced,
+            "error": run.error or "",
+        }
+        for run, source_key, connector_key in rows
+    ]
+    return int(total), items
+
+
+async def changes(
+    db: AsyncSession,
+    *,
+    entity: str,
+    actor_kind: str | None = None,
+    outcome: str | None = None,
+    event: str | None = None,
+    window: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[int, list[dict[str, Any]]]:
+    """The cross-entity data-change journal (plan 152): posting_changes
+    or skill_changes rows, newest first."""
+    range_filter = (
+        _range_conditions(PostingChange.occurred_at, window, date_from, date_to)
+        if window or date_from is not None
+        else []
+    )
+    if entity == "postings":
+        conditions = list(range_filter)
+        if actor_kind:
+            conditions.append(PostingChange.actor_kind == actor_kind)
+        if outcome:
+            conditions.append(PostingChange.outcome == outcome)
+        total = (
+            await db.execute(select(func.count(PostingChange.id)).where(*conditions))
+        ).scalar() or 0
+        rows = (
+            await db.execute(
+                select(PostingChange)
+                .where(*conditions)
+                .order_by(PostingChange.occurred_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars()
+        items = [
+            {
+                "id": row.id,
+                "occurred_at": row.occurred_at,
+                "actor_kind": row.actor_kind,
+                "outcome": row.outcome,
+                "posting_id": row.posting_id,
+                "duration_ms": row.duration_ms,
+                "actor_ref": row.actor_ref,
+                "operation": row.operation,
+                "diff": row.diff,
+            }
+            for row in rows
+        ]
+    else:
+        conditions = (
+            _range_conditions(SkillChange.occurred_at, window, date_from, date_to)
+            if window or date_from is not None
+            else []
+        )
+        if actor_kind:
+            conditions.append(SkillChange.actor_kind == actor_kind)
+        if event:
+            conditions.append(SkillChange.event == event)
+        total = (
+            await db.execute(select(func.count(SkillChange.id)).where(*conditions))
+        ).scalar() or 0
+        rows = (
+            await db.execute(
+                select(SkillChange)
+                .where(*conditions)
+                .order_by(SkillChange.occurred_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+        ).scalars()
+        items = [
+            {
+                "id": row.id,
+                "occurred_at": row.occurred_at,
+                "actor_kind": row.actor_kind,
+                "event": row.event,
+                "skill_id": row.skill_id,
+                "skill_key": row.skill_key,
+                "skill_label": row.skill_label,
+                "actor_ref": row.actor_ref,
+                "detail": row.detail,
+            }
+            for row in rows
+        ]
+    return int(total), items
+
+
+EXPORT_COLUMNS = {
+    "ai": [
+        "created_at",
+        "task_type",
+        "provider",
+        "model",
+        "status",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "error",
+        "run_id",
+        "user_id",
+    ],
+    "events": ["created_at", "action", "actor", "actor_email", "outcome", "resource"],
+    "jobs": [
+        "created_at",
+        "job_type",
+        "status",
+        "user_email",
+        "attempts",
+        "stage",
+        "finished_at",
+        "error",
+    ],
+}
+
+
+def _csv_safe(value: Any) -> str:
+    """Neutralize spreadsheet formula injection: a cell whose first
+    character is `=`, `+`, `-` or `@` is prefixed with an apostrophe so
+    Excel/Sheets renders it as text instead of executing it."""
+    text = "" if value is None else str(value)
+    if text[:1] in {"=", "+", "-", "@"}:
+        return f"'{text}"
+    return text
+
+
+async def export_csv(
+    db: AsyncSession,
+    stream: str,
+    *,
+    window: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    task: str | None = None,
+    provider: str | None = None,
+    status: str | None = None,
+    query: str | None = None,
+    group: str = "all",
+    outcome: str | None = None,
+    actor: str | None = None,
+    job_type: str | None = None,
+) -> tuple[str, bool]:
+    """The filtered ledger as CSV (plan 152), capped at EXPORT_LIMIT rows.
+    Returns (csv_text, truncated)."""
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(EXPORT_COLUMNS[stream])
+    truncated = False
+    if stream == "ai":
+        _, rows = await generations(
+            db,
+            task=task,
+            provider=provider,
+            status=status,
+            query=query,
+            window=window,
+            date_from=date_from,
+            date_to=date_to,
+            limit=EXPORT_LIMIT,
+        )
+        truncated = len(rows) >= EXPORT_LIMIT
+        for row in rows:
+            writer.writerow(
+                [
+                    _csv_safe(row.created_at.isoformat()),
+                    _csv_safe(row.task_type),
+                    _csv_safe(row.provider),
+                    _csv_safe(row.model),
+                    _csv_safe(row.status),
+                    row.tokens_in if row.tokens_in is not None else "",
+                    row.tokens_out if row.tokens_out is not None else "",
+                    row.latency_ms if row.latency_ms is not None else "",
+                    _csv_safe(row.error),
+                    _csv_safe(row.run_id),
+                    _csv_safe(row.user_id),
+                ]
+            )
+    elif stream == "events":
+        window = window or "7d"
+        _, rows = await events(
+            db,
+            window=window,
+            group=group,
+            outcome=outcome,
+            actor=actor,
+            date_from=date_from,
+            date_to=date_to,
+            limit=EXPORT_LIMIT,
+        )
+        truncated = len(rows) >= EXPORT_LIMIT
+        for row in rows:
+            writer.writerow(
+                [
+                    _csv_safe(row["created_at"].isoformat()),
+                    _csv_safe(row["action"]),
+                    _csv_safe(row["actor"]),
+                    _csv_safe(row["actor_email"] or ""),
+                    _csv_safe(row["outcome"]),
+                    _csv_safe(row["resource"]),
+                ]
+            )
+    else:
+        _, rows = await jobs(
+            db,
+            status=status,
+            job_type=job_type,
+            window=window,
+            date_from=date_from,
+            date_to=date_to,
+            limit=EXPORT_LIMIT,
+        )
+        truncated = len(rows) >= EXPORT_LIMIT
+        for row in rows:
+            writer.writerow(
+                [
+                    _csv_safe(row["created_at"].isoformat()),
+                    _csv_safe(row["job_type"]),
+                    _csv_safe(row["status"]),
+                    _csv_safe(row["user_email"] or ""),
+                    row["attempts"],
+                    _csv_safe(row["stage"] or ""),
+                    _csv_safe(row["finished_at"].isoformat() if row["finished_at"] else ""),
+                    _csv_safe(row["error"]),
+                ]
+            )
+    return buffer.getvalue(), truncated
