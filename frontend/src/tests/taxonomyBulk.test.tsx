@@ -12,6 +12,7 @@ vi.mock("@/api/taxonomy", async (importOriginal) => {
     ...actual,
     fetchInterests: vi.fn(),
     fetchSkillRows: vi.fn(),
+    fetchTaxonomyStats: vi.fn().mockResolvedValue(null),
     bulkSkillAction: vi.fn(),
   };
 });

@@ -38,10 +38,34 @@ export interface SkillInput {
   aliases?: string[];
 }
 
+export interface TaxonomyStats {
+  skills: {
+    total: number;
+    active: number;
+    proposed: number;
+    deprecated: number;
+    auto_promoted: number;
+    promoted_7d: number;
+  };
+  queue: {
+    relations: number;
+    enrichment: number;
+    paths: number;
+    translations: number;
+    total: number;
+  };
+}
+
 export async function fetchInterests(includeDeprecated = true): Promise<Tag[]> {
   const { data } = await api.get<Tag[]>("/taxonomy/interests", {
     params: { include_deprecated: includeDeprecated },
   });
+  return data;
+}
+
+/** Backlog counts behind the taxonomy work-queue bar (plan 161). */
+export async function fetchTaxonomyStats(): Promise<TaxonomyStats> {
+  const { data } = await api.get<TaxonomyStats>("/admin/taxonomy/stats");
   return data;
 }
 

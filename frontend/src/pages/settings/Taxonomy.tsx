@@ -10,6 +10,7 @@ import {
   deleteTag,
   fetchInterests,
   fetchSkillRows,
+  fetchTaxonomyStats,
   mergeSkill,
   promoteSkill,
   updateTag,
@@ -17,6 +18,7 @@ import {
   type SkillBulkFailure,
   type SkillRow,
   type Tag,
+  type TaxonomyStats,
 } from "@/api/taxonomy";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
@@ -40,6 +42,7 @@ import {
   type EnrichmentRow,
 } from "@/components/settings/TaxonomyEnrichmentCards";
 import { categoryIcon, STATUS_GROUP_ICONS } from "@/components/settings/taxonomyIcons";
+import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import {
   parseRelationSection,
   SkillRelationsPanel,
@@ -132,6 +135,7 @@ export function Taxonomy() {
   const section = parseRelationSection(searchParams.get("section"));
   const [tags, setTags] = useState<Tag[]>([]);
   const [skills, setSkills] = useState<SkillRow[]>([]);
+  const [stats, setStats] = useState<TaxonomyStats | null>(null);
   const [paths, setPaths] = useState<PathRow[]>([]);
   const [enrichment, setEnrichment] = useState<EnrichmentRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,6 +202,12 @@ export function Taxonomy() {
       setError(apiDetail(err));
     } finally {
       setLoading(false);
+    }
+    try {
+      const loaded = await fetchTaxonomyStats();
+      setStats(loaded?.skills && loaded?.queue ? loaded : null);
+    } catch {
+      setStats(null);
     }
   }, [kind]);
 
@@ -348,6 +358,54 @@ export function Taxonomy() {
   const mergeableIds = selectedSkills.filter((s) => s.status !== "active").map((s) => s.id);
   const mergeTargets = activeSkills.filter((s) => !selected.has(s.id));
 
+  /** Queue backlog per tab — server counts only (plan 161), so a tab
+   * label and the stats bar can never disagree. */
+  const queueCount = (tab: TaxonomyTab): number => {
+    if (!stats) return 0;
+    if (tab === "relations") return stats.queue.relations;
+    if (tab === "enrichment") return stats.queue.enrichment;
+    if (tab === "paths") return stats.queue.paths;
+    if (tab === "translations") return stats.queue.translations;
+    return 0;
+  };
+
+  const skillTiles: StatTile[] = stats
+    ? [
+        {
+          label: t("taxonomy.stats.active"),
+          value: stats.skills.active,
+          hint: t("taxonomy.stats.hint.active"),
+        },
+        {
+          label: t("taxonomy.stats.proposed"),
+          value: stats.skills.proposed,
+          hint:
+            stats.skills.promoted_7d > 0
+              ? t("taxonomy.stats.hint.promoted", { count: stats.skills.promoted_7d })
+              : t("taxonomy.stats.hint.awaiting"),
+        },
+        {
+          label: t("taxonomy.stats.deprecated"),
+          value: stats.skills.deprecated,
+          hint: t("taxonomy.stats.hint.deprecated"),
+        },
+        {
+          label: t("taxonomy.stats.autoPromoted"),
+          value: stats.skills.auto_promoted,
+          hint: t("taxonomy.stats.hint.allTime"),
+        },
+      ]
+    : [];
+
+  const queueTiles: StatTile[] = stats
+    ? [
+        { label: t("taxonomy.stats.relations"), value: stats.queue.relations },
+        { label: t("taxonomy.stats.enrichment"), value: stats.queue.enrichment },
+        { label: t("taxonomy.stats.paths"), value: stats.queue.paths },
+        { label: t("taxonomy.stats.translations"), value: stats.queue.translations },
+      ]
+    : [];
+
   const newTagButton = (
     <button
       onClick={() => setCreating((v) => !v)}
@@ -384,7 +442,7 @@ export function Taxonomy() {
             className="min-w-[36rem] max-w-xl"
             items={TAXONOMY_TABS.map((k) => ({
               value: k,
-              label: t(`taxonomy.kind.${k}`),
+              label: `${t(`taxonomy.kind.${k}`)}${queueCount(k) ? ` · ${queueCount(k)}` : ""}`,
               icon: TAB_ICONS[k],
             }))}
             value={kind}
@@ -427,6 +485,23 @@ export function Taxonomy() {
             </div>
           )}
       </div>
+
+      {stats && (
+        <section className="space-y-2" data-testid="taxonomy-stats">
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {t("taxonomy.stats.skillsGroup", { total: stats.skills.total })}
+            </p>
+            <StatTiles tiles={skillTiles} layout="auto" testId="taxonomy-stats-skills" />
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {t("taxonomy.stats.queueGroup", { total: stats.queue.total })}
+            </p>
+            <StatTiles tiles={queueTiles} layout="auto" testId="taxonomy-stats-queue" />
+          </div>
+        </section>
+      )}
 
       {creating &&
         kind !== "paths" &&

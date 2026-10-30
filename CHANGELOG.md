@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (taxonomy backlog bar, 2026-10-30)
+- **`/settings/taxonomy` shows the backlog**: a work-queue bar over the
+  skill ontology (active, proposed, deprecated, auto-promoted all-time and
+  the last seven days) plus every review queue's live count — relations,
+  enrichment, draft paths, translations. Queue tabs carry their counts, so
+  pending work is visible without opening each section. Counts come from
+  one server-side aggregation (`GET /admin/taxonomy/stats`), so the bar and
+  the tabs can never disagree, and the enrichment moderation queue now
+  filters its proposals in SQL instead of loading every published job.
+
 ### Changed (URL state + company sorting, 2026-10-30)
 - **A `/postings` search now lives in the URL**: the search text, every
   facet (includes, excludes, skills with their levels, organizations,

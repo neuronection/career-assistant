@@ -20503,6 +20503,94 @@
         "title": "TargetJobRef",
         "type": "object"
       },
+      "TaxonomyQueueStats": {
+        "properties": {
+          "enrichment": {
+            "title": "Enrichment",
+            "type": "integer"
+          },
+          "paths": {
+            "title": "Paths",
+            "type": "integer"
+          },
+          "relations": {
+            "title": "Relations",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "translations": {
+            "title": "Translations",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "relations",
+          "enrichment",
+          "paths",
+          "translations",
+          "total"
+        ],
+        "title": "TaxonomyQueueStats",
+        "type": "object"
+      },
+      "TaxonomySkillStats": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "auto_promoted": {
+            "title": "Auto Promoted",
+            "type": "integer"
+          },
+          "deprecated": {
+            "title": "Deprecated",
+            "type": "integer"
+          },
+          "promoted_7d": {
+            "title": "Promoted 7D",
+            "type": "integer"
+          },
+          "proposed": {
+            "title": "Proposed",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "active",
+          "proposed",
+          "deprecated",
+          "auto_promoted",
+          "promoted_7d"
+        ],
+        "title": "TaxonomySkillStats",
+        "type": "object"
+      },
+      "TaxonomyStatsOut": {
+        "description": "Backlog counts behind the taxonomy work-queue bar (plan 161).",
+        "properties": {
+          "queue": {
+            "$ref": "#/components/schemas/TaxonomyQueueStats"
+          },
+          "skills": {
+            "$ref": "#/components/schemas/TaxonomySkillStats"
+          }
+        },
+        "required": [
+          "skills",
+          "queue"
+        ],
+        "title": "TaxonomyStatsOut",
+        "type": "object"
+      },
       "TemplateDraftAiIn": {
         "properties": {
           "brief": {
@@ -27692,6 +27780,28 @@
           }
         },
         "summary": "Promote Skill",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/taxonomy/stats": {
+      "get": {
+        "description": "Backlog counts behind the taxonomy work-queue bar (plan 161).",
+        "operationId": "taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Taxonomy Queue Stats",
         "tags": [
           "admin"
         ]

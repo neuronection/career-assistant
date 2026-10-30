@@ -1231,6 +1231,25 @@
       "translations": "Translations",
       "relations": "Relations"
     },
+    "stats": {
+      "skillsGroup": "Skills ontology · {{total}} total",
+      "queueGroup": "Review queue · {{total}} actionable",
+      "active": "Active",
+      "proposed": "Proposed",
+      "deprecated": "Deprecated",
+      "autoPromoted": "Auto-promoted",
+      "relations": "Relations",
+      "enrichment": "Enrichment",
+      "paths": "Draft paths",
+      "translations": "Translations",
+      "hint": {
+        "active": "curated, in pickers",
+        "awaiting": "awaiting review",
+        "promoted": "+{{count}} promoted in 7d",
+        "deprecated": "resolvable, hidden",
+        "allTime": "all time"
+      }
+    },
     "newTag": "New tag",
     "keyPlaceholder": "key (stable slug, e.g. renewable-energy)",
     "labelPlaceholder": "label",

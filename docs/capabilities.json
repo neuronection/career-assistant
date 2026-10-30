@@ -292,6 +292,30 @@
       "order": 57
     },
     {
+      "id": "taxonomy-backlog",
+      "verb": "See the whole taxonomy backlog at a glance",
+      "summary": "The Taxonomy page opens with one bar over the work you own: skill lifecycle counts and every review queue's live total, plus the seven-day promotion delta that reveals a stalled auto-promoter.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Proposed, active and deprecated skills sit beside the promoter's all-time and 7-day counts — a shrinking delta is the stall signal",
+        "Every review queue shows its live count in the bar and on its tab: relations, enrichment, draft paths, translations",
+        "Counts are computed server-side in one aggregation, so the tile and the tab never disagree — on the SQLite desktop profile too"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 58
+    },
+    {
       "id": "taxonomy-translations",
       "verb": "Review every catalog translation before it renders",
       "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",

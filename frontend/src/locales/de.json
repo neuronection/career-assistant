@@ -1231,6 +1231,25 @@
       "translations": "Übersetzungen",
       "relations": "Relationen"
     },
+    "stats": {
+      "skillsGroup": "Skill-Ontologie · {{total}} gesamt",
+      "queueGroup": "Prüf-Warteschlange · {{total}} offen",
+      "active": "Aktiv",
+      "proposed": "Vorgeschlagen",
+      "deprecated": "Veraltet",
+      "autoPromoted": "Auto-befördert",
+      "relations": "Relationen",
+      "enrichment": "Ergänzung",
+      "paths": "Entwurfs-Pfade",
+      "translations": "Übersetzungen",
+      "hint": {
+        "active": "kuratiert, in Auswahllisten",
+        "awaiting": "wartet auf Prüfung",
+        "promoted": "+{{count}} in 7 T. befördert",
+        "deprecated": "auflösbar, ausgeblendet",
+        "allTime": "gesamt"
+      }
+    },
     "newTag": "Neuer Tag",
     "keyPlaceholder": "Schlüssel (stabiler Slug, z.B. renewable-energy)",
     "labelPlaceholder": "Label",

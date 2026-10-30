@@ -35,9 +35,10 @@ from app.schemas.scheduler import (
     ScheduleRunNowOut,
     ScheduleToggleOut,
 )
-from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut
+from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut, TaxonomyStatsOut
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
+from app.services.catalog.taxonomy_stats import collect_taxonomy_stats
 from app.services.deps import get_current_user, require_admin
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,12 @@ async def bulk_skill_action(
         body.ids, body.action, body.target_id, actor_ref={"user_id": str(admin.id)}
     )
     return SkillBulkOut.model_validate(result)
+
+
+@router.get("/taxonomy/stats", response_model=TaxonomyStatsOut)
+async def taxonomy_queue_stats(db: AsyncSession = Depends(get_db)) -> TaxonomyStatsOut:
+    """Backlog counts behind the taxonomy work-queue bar (plan 161)."""
+    return TaxonomyStatsOut.model_validate(await collect_taxonomy_stats(db))
 
 
 @router.get("/paths")

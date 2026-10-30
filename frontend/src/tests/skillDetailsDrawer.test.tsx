@@ -9,6 +9,7 @@ import type { SkillDetail, SkillHistoryResponse } from "@/types/wire";
 
 vi.mock("@/api/taxonomy", () => ({
   fetchInterests: vi.fn().mockResolvedValue([]),
+  fetchTaxonomyStats: vi.fn().mockResolvedValue(null),
   fetchSkillRows: vi.fn().mockResolvedValue([
     {
       id: "s-sql",

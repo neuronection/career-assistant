@@ -1811,6 +1811,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/taxonomy/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taxonomy Queue Stats
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        get: operations["taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users": {
         parameters: {
             query?: never;
@@ -16567,6 +16587,42 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** TaxonomyQueueStats */
+        TaxonomyQueueStats: {
+            /** Enrichment */
+            enrichment: number;
+            /** Paths */
+            paths: number;
+            /** Relations */
+            relations: number;
+            /** Total */
+            total: number;
+            /** Translations */
+            translations: number;
+        };
+        /** TaxonomySkillStats */
+        TaxonomySkillStats: {
+            /** Active */
+            active: number;
+            /** Auto Promoted */
+            auto_promoted: number;
+            /** Deprecated */
+            deprecated: number;
+            /** Promoted 7D */
+            promoted_7d: number;
+            /** Proposed */
+            proposed: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * TaxonomyStatsOut
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        TaxonomyStatsOut: {
+            queue: components["schemas"]["TaxonomyQueueStats"];
+            skills: components["schemas"]["TaxonomySkillStats"];
+        };
         /** TemplateDraftAiIn */
         TemplateDraftAiIn: {
             /** Brief */
@@ -20484,6 +20540,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyStatsOut"];
                 };
             };
         };
