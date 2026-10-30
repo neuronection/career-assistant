@@ -7,6 +7,11 @@ exactly what you're installing, and updates never apply on their own.
 The surface lives at **Settings → Tools → Connectors → Import
 connectors from git sources** (admin).
 
+A source is one **origin + subpath** pair: a multi-bundle repository
+(several `*/src/` bundles in one repo) registers one source per bundle
+subpath, and each source discovers and offers only the manifests under
+its own subpath.
+
 ## Import a bundle (.zip)
 
 Handy when the bundle lives on your machine instead of a remote: the

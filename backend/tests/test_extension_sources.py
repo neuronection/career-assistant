@@ -1515,8 +1515,9 @@ async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sour
     never guessed."""
     from app.models.extension_model import ExtensionInstall
 
-    repo = make_repo(local_roots, name="multi-gitops", subpath="a/src", tag="v1.0.0")
+    repo = make_repo(local_roots, name="multi-gitops", subpath="a/src", tag=None)
     _second_bundle(repo, "b/src", "second-posting-fetcher")
+    _git(repo, "tag", "v1.0.0")
     fake = FakeHttpsTransport(repo)
     set_git_transport(fake)
     try:
@@ -1562,8 +1563,8 @@ async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sour
         assert set(drifted) == {
             "example-posting-fetcher",
             "second-posting-fetcher",
-        }
-        assert all("install once manually" in reason for reason in drifted.values())
+        }, drifted
+        assert all("install once manually" in reason for reason in drifted.values()), drifted
 
         # The human installs once on the hosting source — reconcile follows.
         sources = (await db.execute(select(ExtensionSource))).scalars().all()
@@ -1580,7 +1581,7 @@ async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sour
         assert report["drift"] == [] or all(
             entry["extensionId"] == "example-posting-fetcher" for entry in report["drift"]
         ), "the hosted extension reconciles clean; only the still-uninstalled one drifts"
-        pinned = await db.execute(select(ExtensionInstall)).scalars().all()
+        pinned = (await db.execute(select(ExtensionInstall))).scalars().all()
         [second_install] = [
             install for install in pinned if install.extension_id == "second-posting-fetcher"
         ]

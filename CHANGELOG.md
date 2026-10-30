@@ -4,6 +4,33 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (extensions — one source per origin+subpath, 2026-10-30)
+- **Multi-bundle repositories can register one source per bundle.** The
+  "source already exists" rule now keys on origin **+ subpath**: the
+  same repo at different subpaths (the integrations shape — several
+  `*/src/` bundles side by side) registers cleanly, each source
+  discovering and offering only its own subpath's manifests. A new
+  `extension_sources.subpath` column backs the rule (migration 0075,
+  backfilled from the descriptors); GitOps reconcile disambiguates
+  same-origin sources by the install they host (an uninstalled
+  extension drifts typed instead of guessing); and the sources list
+  shows each row's subpath. Discovery hardening included: a declared
+  subpath that is missing from the fetched ref is a typed `not-found`
+  instead of a raw crash.
+
+### Added (update checks — family version API, plan 48 W6)
+- **A passive "new version available" banner** in the app shell, backed by
+  `GET /api/v1/instance/update-check`: a public, 6 h-cached endpoint over
+  the synced family version-check contract
+  (`backend/app/core/version_check.py`, canonical in `dev/contracts/` —
+  ADR-0048) that checks the neuronection.com version API with real semver
+  ordering and the stable-channel law (prereleases are never offered to
+  stable clients; validation before use; failures read as "no update",
+  never a blocker; no telemetry). Dismissing remembers the offered
+  version. Updates still install through the package manager or installer
+  — check-only by family law. Accepted by the shared cross-language
+  fixture wall (`backend/tests/fixtures/version_check.fixtures.json`).
+
 ### Changed (AI-call detail drawer, 2026-10-30)
 - **AI activity rows open a detail drawer instead of inline expansion**
   (plan 154): parsed and raw views over one call — parsed renders the

@@ -3403,6 +3403,9 @@ def test_0075_extension_source_subpath_uniqueness():
 
         command.downgrade(config, "0074")
         assert not _column_present("extension_sources", "subpath")
+        # ...then restore the chain head for the tests that follow this one.
+        command.upgrade(config, "head")
+        assert _column_present("extension_sources", "subpath")
         # The downgrade folds each survivor's subpath into its descriptor.
         # These two rows carry DIFFERENT origins, so both survive — the
         # dedupe keeps one row per origin only.

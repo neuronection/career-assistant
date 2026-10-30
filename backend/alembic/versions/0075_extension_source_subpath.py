@@ -6,6 +6,7 @@ Downgrade folds the column back into each descriptor, keeps one row per
 origin, and restores the origin-only unique."""
 
 import sqlalchemy as sa
+
 from alembic import op
 
 revision = "0075"
@@ -21,28 +22,19 @@ def upgrade() -> None:
     )
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
-    extractor = (
-        "json_extract(descriptor, '$.subpath')" if is_sqlite else "descriptor->>'subpath'"
-    )
+    extractor = "json_extract(descriptor, '$.subpath')" if is_sqlite else "descriptor->>'subpath'"
     bind.execute(
-        sa.text(
-            "UPDATE extension_sources SET subpath = COALESCE("
-            f"NULLIF({extractor}, ''), '')"
-        )
+        sa.text(f"UPDATE extension_sources SET subpath = COALESCE(NULLIF({extractor}, ''), '')")
     )
     with op.batch_alter_table("extension_sources") as batch:
         batch.drop_constraint("uq_extension_sources_origin", type_="unique")
-        batch.create_unique_constraint(
-            "uq_extension_sources_origin_subpath", ["origin", "subpath"]
-        )
+        batch.create_unique_constraint("uq_extension_sources_origin_subpath", ["origin", "subpath"])
 
 
 def downgrade() -> None:
     bind = op.get_bind()
     is_sqlite = bind.dialect.name == "sqlite"
-    extractor = (
-        "json_extract(descriptor, '$.subpath')" if is_sqlite else "descriptor->>'subpath'"
-    )
+    extractor = "json_extract(descriptor, '$.subpath')" if is_sqlite else "descriptor->>'subpath'"
     # Fold each row's subpath back into its descriptor (data survives the
     # fold), then keep exactly ONE row per origin — the origin-only unique
     # cannot apply while the multi-bundle rows exist. The keeper is the

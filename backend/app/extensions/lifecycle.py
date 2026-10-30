@@ -607,6 +607,10 @@ def discover_manifests(tree: Path, subpath: str) -> list[dict]:
         base.relative_to(tree.resolve())
     except ValueError as exc:
         raise LifecycleError("path-denied", "subpath escapes the cloned tree") from exc
+    if not base.is_dir():
+        # A ref older/newer than the declared bundle layout (e.g. a release
+        # tag predating the bundle's dir) — typed, never a raw crash.
+        raise LifecycleError("not-found", f"subpath {subpath!r} is not present in the fetched tree")
     schema = _load_json("extension-manifest.schema.json")
     found: list[dict] = []
     candidates = [base, *(child for child in sorted(base.iterdir()) if child.is_dir())]
@@ -2142,11 +2146,7 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
             )
         install = by_extension.get(extension_id)
         same_origin = (
-            (
-                await db.execute(
-                    select(ExtensionSource).where(ExtensionSource.origin == source_url)
-                )
-            )
+            (await db.execute(select(ExtensionSource).where(ExtensionSource.origin == source_url)))
             .scalars()
             .all()
         )
@@ -2165,28 +2165,26 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
                 continue
             add_error: str | None = None
             for desired_source in declared:
+                sub = str(desired_source.get("subpath") or "")
+                if any(s.subpath == sub for s in same_origin):
+                    continue
                 try:
                     view = await add_source(db, dict(desired_source))
                 except LifecycleError as exc:
                     add_error = exc.detail
-                    report["failures"].append(
-                        {"extensionId": extension_id, "error": exc.detail}
-                    )
+                    report["failures"].append({"extensionId": extension_id, "error": exc.detail})
                     continue
                 source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
                 same_origin.append(source)
+            source, ambiguity = _pick_gitops_source(same_origin, install, declared)
             if source is None:
                 report["drift"].append(
                     {
                         "extensionId": extension_id,
-                        "reason": add_error or f"desired source not declared: {source_url}",
+                        "reason": ambiguity
+                        or add_error
+                        or f"desired source not declared: {source_url}",
                     }
-                )
-                continue
-            source, ambiguity = _pick_gitops_source(same_origin, install, declared)
-            if source is None:
-                report["drift"].append(
-                    {"extensionId": extension_id, "reason": ambiguity}
                 )
                 continue
         assert source is not None
