@@ -915,7 +915,8 @@
       "kept": "filtered noise · kept {{count}}",
       "seen": "{{count}} seen",
       "neverTerms": "{{count}} never-terms",
-      "cooldown": "{{count}} in cooldown"
+      "cooldown": "{{count}} in cooldown",
+      "examined": "{{count}} examined"
     },
     "modal": {
       "editTitle": "Edit goal",

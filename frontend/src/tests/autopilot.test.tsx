@@ -80,6 +80,7 @@ function runWithFindings(
         query: "qa automation",
         rationale: "broad sweep",
         found: 12,
+        examined: 40,
         error: "",
       },
       { step: "filter", seen: 2, never: 1, cooldown: 0, kept: 9 },
@@ -200,6 +201,7 @@ describe("Autopilot page", () => {
       "What I searched"
     );
     expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("kept 9");
+    expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("40 examined");
   });
 
   it("creates a goal through the modal", async () => {

@@ -69,6 +69,7 @@ export interface TimelineEntry {
   filters?: Record<string, unknown>;
   rationale?: string;
   found?: number;
+  examined?: number;
   error?: string;
   seen?: number;
   never?: number;

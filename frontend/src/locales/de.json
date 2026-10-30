@@ -915,7 +915,8 @@
       "kept": "Rauschen gefiltert · {{count}} beibehalten",
       "seen": "{{count}} gesehen",
       "neverTerms": "{{count}} nie-Terms",
-      "cooldown": "{{count}} im Wartezustand"
+      "cooldown": "{{count}} im Wartezustand",
+      "examined": "{{count}} geprüft"
     },
     "modal": {
       "editTitle": "Ziel bearbeiten",

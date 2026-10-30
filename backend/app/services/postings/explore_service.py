@@ -86,6 +86,7 @@ ALLOWED_FILTER_KEYS = frozenset(
         "saved",
         "seen",
         "applied",
+        "hidden",
         "extracted_only",
         "contract",
         "contract_exclude",
@@ -130,6 +131,17 @@ _EPOCH = datetime.fromtimestamp(0, tz=UTC)
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _as_bool(value: Any) -> bool:
+    """Parse a filter flag from JSON/LLM input and query-string text.
+
+    Explore's flags are three-valued at the axis level (absent = don't
+    care); a present flag must not read ``"false"`` as truthy.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "0", "false", "no", "off")
+    return bool(value)
 
 
 # ------------------------------------------------------------ filter parser
@@ -215,7 +227,7 @@ def parse_explore_filters(params: dict) -> dict:
         except ValueError as exc:
             raise ValidationError("posted_after must be an ISO date") from exc
     if params.get("fresh_only") not in (None, ""):
-        filters["fresh_only"] = bool(params.get("fresh_only"))
+        filters["fresh_only"] = _as_bool(params.get("fresh_only"))
 
     if params.get("salary_min") not in (None, ""):
         try:
@@ -269,9 +281,9 @@ def parse_explore_filters(params: dict) -> dict:
     if sources_excluded:
         filters["source_exclude"] = sources_excluded[:10]
 
-    for key in ("saved", "seen", "applied", "extracted_only"):
+    for key in ("saved", "seen", "applied", "hidden", "extracted_only"):
         if params.get(key) not in (None, ""):
-            filters[key] = bool(params.get(key))
+            filters[key] = _as_bool(params.get(key))
     return filters
 
 
@@ -514,12 +526,41 @@ def _conditions_for(
     elif dimension == "state":
         if filters.get("saved"):
             conditions.append(PostingInteraction.saved_at.is_not(None))
-        if filters.get("seen"):
+        seen = filters.get("seen")
+        if seen is True:
             conditions.append(PostingInteraction.seen_at.is_not(None))
-        if filters.get("applied"):
+        elif seen is False:
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(PostingInteraction.posting_id).where(
+                        PostingInteraction.user_id == user_id,
+                        PostingInteraction.seen_at.is_not(None),
+                    )
+                )
+            )
+        applied = filters.get("applied")
+        if applied is True:
             conditions.append(
                 JobPosting.id.in_(
                     select(Application.posting_id).where(Application.user_id == user_id)
+                )
+            )
+        elif applied is False:
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(Application.posting_id).where(Application.user_id == user_id)
+                )
+            )
+        hidden = filters.get("hidden")
+        if hidden is True:
+            conditions.append(PostingInteraction.hidden_at.is_not(None))
+        elif hidden is False:
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(PostingInteraction.posting_id).where(
+                        PostingInteraction.user_id == user_id,
+                        PostingInteraction.hidden_at.is_not(None),
+                    )
                 )
             )
         if filters.get("extracted_only"):
@@ -948,13 +989,15 @@ async def explore(
     sort: str = "fit",
     cursor: str | None = None,
     limit: int = 20,
+    with_facets: bool = True,
 ) -> dict:
     """The explore query: SQL filters → count → keyset page → facets.
 
     `fresh`/`salary` page entirely in SQL. `fit`/`relevance` rank a
     bounded recency window (page size times a small multiplier) because a global fit
     order would require scoring every posting; `total` stays the exact
-    filtered count.
+    filtered count. ``with_facets=False`` skips the (grouped, self-excluding)
+    facet queries and omits the key — agent callers never render them.
     """
     if sort not in ("fit", "fresh", "salary", "relevance"):
         raise ValidationError("sort must be fit|fresh|salary|relevance")
@@ -992,7 +1035,7 @@ async def explore(
             limit,
         )
 
-    return {
+    result: dict = {
         "items": [
             {
                 "posting": entry["posting"],
@@ -1006,8 +1049,10 @@ async def explore(
         ],
         "total": total,
         "next_cursor": next_cursor,
-        "facets": await facets(db, user_id, filters),
     }
+    if with_facets:
+        result["facets"] = await facets(db, user_id, filters)
+    return result
 
 
 # ------------------------------------------------------------------- facets

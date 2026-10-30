@@ -455,6 +455,9 @@ function Timeline({ runId, entries }: { runId: string; entries: AutopilotRunWith
                 {entry.found != null
                   ? ` · ${t("autopilot.timeline.found", { count: entry.found })}`
                   : ""}
+                {entry.examined != null
+                  ? ` · ${t("autopilot.timeline.examined", { count: entry.examined })}`
+                  : ""}
                 {entry.error
                   ? ` · ${t("autopilot.timeline.skipped", { error: entry.error })}`
                   : ""}

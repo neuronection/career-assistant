@@ -803,3 +803,92 @@ async def test_explore_keywords_are_any_match_and_escaped(
     assert await ids(keywords="zzz") == set()
     assert await ids(keywords="100%") == set(), "a % is a literal, never a wildcard"
     assert await ids(q="100%") == set(), "the phrase axis escapes wildcards too"
+
+
+async def test_explore_with_facets_off_skips_them(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, search_fixtures
+):
+    """`with_facets=False` omits the key and skips the grouped queries —
+    the agent path never renders facets (plan 158 S4.2)."""
+    from app.services.postings.explore_service import explore, parse_explore_filters
+
+    user_id = _uid(auth_headers)
+    lean = await explore(
+        db, user_id, parse_explore_filters({}), sort="fit", limit=5, with_facets=False
+    )
+    assert "facets" not in lean
+    assert lean["total"] == 3 and lean["items"]
+
+    full = await explore(db, user_id, parse_explore_filters({}), sort="fit", limit=5)
+    assert "facets" in full
+
+    chat = await search_postings_tool(db, user_id, "analyst", n=3)
+    assert chat["facets"], "the chat tool keeps facets"
+
+
+def test_ranked_window_math_is_pinned():
+    """The fit window is page size times the multiplier, inside [100, 500]
+    (plan 158 S4.1/S4.4: limit 40 gives a 200-posting window)."""
+    from app.services.postings.explore_service import (
+        RANKED_WINDOW_MAX,
+        RANKED_WINDOW_MIN,
+        _ranked_window,
+    )
+
+    assert _ranked_window(40) == 200
+    assert _ranked_window(5) == RANKED_WINDOW_MIN
+    assert _ranked_window(500) == RANKED_WINDOW_MAX
+
+
+async def test_explore_state_axes_exclude_when_false(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """`seen=False`, `applied=False`, `hidden=False` exclude the marked
+    rows and keep postings with no interaction row at all (plan 158 S4.7)."""
+    from app.models.application_model import Application
+    from app.models.posting_model import PostingInteraction
+
+    user_id = _uid(auth_headers)
+    clean = await _make_posting(db, source, external_id="ex-clean", title="Clean Role")
+    seen = await _make_posting(db, source, external_id="ex-seen", title="Seen Role")
+    untouched = await _make_posting(db, source, external_id="ex-row", title="Row Only Role")
+    applied = await _make_posting(db, source, external_id="ex-applied", title="Applied Role")
+    hidden = await _make_posting(db, source, external_id="ex-hidden", title="Hidden Role")
+    db.add(PostingInteraction(user_id=user_id, posting_id=seen.id, seen_at=datetime.now(UTC)))
+    db.add(PostingInteraction(user_id=user_id, posting_id=untouched.id))
+    db.add(PostingInteraction(user_id=user_id, posting_id=hidden.id, hidden_at=datetime.now(UTC)))
+    db.add(Application(user_id=user_id, posting_id=applied.id))
+    await db.commit()
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(seen="false") == {
+        str(clean.id),
+        str(untouched.id),
+        str(applied.id),
+        str(hidden.id),
+    }
+    assert await ids(applied="false") == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(hidden.id),
+    }
+    assert await ids(hidden="false") == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(applied.id),
+    }
+    assert await ids(seen="true") == {str(seen.id)}
+    assert await ids(applied="true") == {str(applied.id)}
+    assert await ids() == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(applied.id),
+        str(hidden.id),
+    }, "absent axis = don't care"

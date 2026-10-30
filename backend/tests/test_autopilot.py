@@ -928,3 +928,122 @@ async def test_semantic_sweep_skips_gated_postings(
         if entry.get("rationale") == "semantic sweep over stored posting embeddings"
     )
     assert sweep["found"] == 0
+
+
+# --------------------------------------------- S4 recall depth + performance
+
+
+async def test_search_timeline_reports_examined(client, auth_headers, db, search_fixtures):
+    """Each search entry says how many postings it actually examined, next
+    to the filtered total (plan 158 S4.3)."""
+    from app.ai.graphs.autopilot import SEARCH_LIMIT
+
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    searches = [entry for entry in result["searches"] if entry.get("step") == "search"]
+    assert searches
+    for entry in searches:
+        assert "examined" in entry
+        assert 0 <= entry["examined"] <= SEARCH_LIMIT
+
+
+async def test_search_windows_hold_fresh_candidates_only(
+    client, auth_headers, db, seeded_catalog, source, kinds
+):
+    """The fit window excludes seen/applied/hidden postings in SQL, so a
+    mostly-seen catalog still fills its slots with fresh candidates
+    (plan 158 S4.7)."""
+    from app.models.posting_model import PostingInteraction
+    from tests.conftest import _make_posting
+
+    user_id = _uid(auth_headers)
+    postings = []
+    for index in range(6):
+        postings.append(
+            await _make_posting(
+                db, source, external_id=f"fresh-{index}", title=f"Fresh Role {index}"
+            )
+        )
+    fresh = postings[-1]
+    for posting in postings[:-1]:
+        db.add(
+            PostingInteraction(user_id=user_id, posting_id=posting.id, seen_at=datetime.now(UTC))
+        )
+    await db.commit()
+
+    created = await _goal(client, auth_headers, constraints={"top_n": 3})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    assert [finding["posting_id"] for finding in result["findings"]] == [str(fresh.id)]
+    filter_entry = next(entry for entry in result["searches"] if entry.get("step") == "filter")
+    assert filter_entry["seen"] == 0, "seen postings never reach the filter node"
+
+
+async def test_candidate_cap_bounds_the_checkpoint(
+    db, auth_headers, seeded_catalog, source, kinds, autopilot_mock
+):
+    """A run that merges more than CANDIDATE_CAP postings checkpoints at
+    most CANDIDATE_CAP of them (plan 158 S4.6)."""
+    from app.ai.graphs.autopilot import (
+        CANDIDATE_CAP,
+        GraphDeps,
+        build_autopilot_graph,
+        initial_state,
+    )
+    from app.ai.schemas import SearchPlan
+    from tests.conftest import _make_posting
+
+    names = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot"]
+    for index in range(CANDIDATE_CAP + 12):
+        await _make_posting(
+            db,
+            source,
+            external_id=f"cap-{index}",
+            title=f"{names[index % len(names)].title()} Capped Role {index}",
+        )
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {"rationale": f"sweep {name}", "query": "", "filters": {"keywords": [name]}}
+                    for name in names
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    autopilot_mock(scripted)
+    user_id = _uid(auth_headers)
+    goal = AutopilotGoal(user_id=user_id, goal_text="capped sweep", constraints={}, budget={})
+    db.add(goal)
+    await db.flush()
+    run = AutopilotRun(goal_id=goal.id)
+    db.add(run)
+    await db.commit()
+
+    graph = build_autopilot_graph(GraphDeps(db=db), InMemorySaver())
+    config = {"configurable": {"thread_id": str(run.id)}}
+    await graph.ainvoke(
+        initial_state(
+            user_id=user_id,
+            goal_id=goal.id,
+            run_id=run.id,
+            goal_text="capped sweep",
+            constraints={},
+            budget={},
+        ),
+        config,
+    )
+    await db.commit()
+
+    snapshots = [
+        snapshot.values.get("candidates") or [] for snapshot in graph.get_state_history(config)
+    ]
+    assert max(len(candidates) for candidates in snapshots) == CANDIDATE_CAP

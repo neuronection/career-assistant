@@ -28,7 +28,10 @@ Open it at `/autopilot`.
    verified against the posting's own text.
 
 A **"what I searched & why"** timeline shows each run's work, so the agent's
-reasoning is inspectable rather than opaque.
+reasoning is inspectable rather than opaque. Each search reports how many
+postings it found in total and how many it actually examined, and the windows
+it scans hold **fresh** postings only — ones you have not seen, applied to or
+hidden — so a long browsing history never crowds new vacancies out of a run.
 
 Semantic coverage grows as your postings get embedded: an admin recompute
 (Settings → AI Configuration) embeds them today, so a fresh board's postings

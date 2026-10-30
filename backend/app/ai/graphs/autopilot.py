@@ -44,18 +44,28 @@ from app.services.postings.explore_service import (
 
 logger = logging.getLogger(__name__)
 
-CURATOR_POOL = 12
+CURATOR_POOL_MIN = 12
+CURATOR_POOL_FACTOR = 3
+CANDIDATE_CAP = 120
 DEFAULT_TOP_N = 5
 DEFAULT_COOLDOWN_DAYS = 7
-SEARCH_LIMIT = 25
+SEARCH_LIMIT = 40
 SNIPPET_CHARS = 600
 SEMANTIC_K = 60
+SEARCH_VARIANTS = 6
 
 PROFILE_SKILL_LIMIT = 12
 PLAN_SKILL_LIMIT = 40
 PLAN_FAMILY_LIMIT = 40
 PLAN_SOURCE_LIMIT = 20
 SKILL_GRAPH_HOPS = 1
+
+
+def curator_pool(top_n: int | None = None) -> int:
+    """The curated pool size: wide enough that a must-term-perfect
+    candidate at fit-rank 13 is still visible."""
+    return max(CURATOR_POOL_MIN, CURATOR_POOL_FACTOR * int(top_n or DEFAULT_TOP_N))
+
 
 ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelCb = Callable[[], Awaitable[bool]]
@@ -536,6 +546,20 @@ def _merge_candidates(best: dict[str, dict], candidates: list[dict]) -> int:
     return merged
 
 
+def _cap_candidates(candidates: list[dict]) -> list[dict]:
+    """Bound the checkpointed working set: the merge pool can reach a few
+    hundred postings, and candidates ride every checkpoint write. The cap
+    sits far above the curator pool, so the cut is invisible to curation."""
+    if len(candidates) <= CANDIDATE_CAP:
+        return candidates
+    ordered = sorted(
+        candidates,
+        key=lambda c: (float(c.get("fit") or 0), str(c.get("posting_id") or "")),
+        reverse=True,
+    )
+    return ordered[:CANDIDATE_CAP]
+
+
 async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str, dict]) -> dict:
     """One prediction-free recall pass over the stored posting embeddings.
 
@@ -549,6 +573,7 @@ async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str
         "filters": {},
         "rationale": "semantic sweep over stored posting embeddings",
         "found": 0,
+        "examined": 0,
         "error": "",
     }
     try:
@@ -560,6 +585,7 @@ async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str
         )
         ids = [UUID(hit["entity_id"]) for hit in hits if float(hit.get("score") or 0) > 0]
         rows = await _gated_rows(deps, state, posting_ids=ids)
+        entry["examined"] = len(rows)
         candidates = await _scored_candidates(deps, state, rows)
         entry["found"] = _merge_candidates(best, candidates)
     except Exception as exc:
@@ -624,20 +650,26 @@ def make_search_node(deps: GraphDeps):
         explore code the API uses, then one semantic sweep over the stored
         posting embeddings; every source feeds the same candidate pool."""
         variants = (state.get("plan") or {}).get("variants") or []
+        exclude_seen = _constraints(state).get("exclude_seen", True)
         timeline: list[dict] = []
         best: dict[str, dict] = {}
-        for variant in variants[:6]:
+        for variant in variants[:SEARCH_VARIANTS]:
             if await _is_cancelled(deps):
                 return {"abort_reason": "cancelled"}
             raw_filters = dict(variant.get("filters") or {})
             if variant.get("query"):
                 raw_filters["q"] = variant["query"]
+            if exclude_seen:
+                raw_filters.setdefault("seen", False)
+                raw_filters.setdefault("applied", False)
+                raw_filters.setdefault("hidden", False)
             entry = {
                 "step": "search",
                 "query": variant.get("query") or "",
                 "filters": raw_filters,
                 "rationale": (variant.get("rationale") or "")[:400],
                 "found": 0,
+                "examined": 0,
                 "error": "",
             }
             try:
@@ -648,8 +680,10 @@ def make_search_node(deps: GraphDeps):
                     filters,
                     sort="fit",
                     limit=SEARCH_LIMIT,
+                    with_facets=False,
                 )
                 entry["found"] = int(result.get("total") or 0)
+                entry["examined"] = len(result.get("items") or [])
                 for item in result.get("items") or []:
                     candidate = _serialize_candidate(item)
                     if candidate is None:
@@ -670,7 +704,7 @@ def make_search_node(deps: GraphDeps):
                 f"searched {len(timeline)}/{max(len(variants), 1)} variants",
             )
         timeline.append(await _semantic_sweep(deps, state, best))
-        return {"searches": timeline, "candidates": list(best.values())}
+        return {"searches": timeline, "candidates": _cap_candidates(list(best.values()))}
 
     return search
 
@@ -769,7 +803,7 @@ def make_evaluate_node(deps: GraphDeps):
             )
         enriched.sort(key=_pool_order, reverse=True)
         await _report(deps, 70, "evaluated fit")
-        return {"candidates": enriched[:CURATOR_POOL]}
+        return {"candidates": enriched[: curator_pool(state.get("top_n"))]}
 
     return evaluate
 
@@ -777,7 +811,7 @@ def make_evaluate_node(deps: GraphDeps):
 def make_curate_node(deps: GraphDeps):
     async def curate(state: AutopilotState) -> dict:
         """LLM step 2: top candidates → explained shortlist (audited)."""
-        pool = (state.get("candidates") or [])[:CURATOR_POOL]
+        pool = (state.get("candidates") or [])[: curator_pool(state.get("top_n"))]
         if not pool:
             return {}
         try:

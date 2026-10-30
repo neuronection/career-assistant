@@ -21,6 +21,13 @@ All notable changes to **Career Assistant** are documented here.
   matches what you said you must have always outranks a higher-scoring one
   that matches none. Each finding's evidence records its coverage, and the
   curator weighs it when writing the explanation.
+- **Autopilot looks deeper and wastes less work** (plan 158): each search
+  variant now ranks a 200-posting window (40 examined per variant) instead
+  of 125, the curated pool widens with the goal's shortlist size, and the
+  windows hold fresh postings only — seen, applied and hidden vacancies no
+  longer consume slots before the filters drop them. Runs also stop
+  computing the explore sidebar facets they never render, and the timeline
+  shows how many postings each search examined next to its total.
 - **Autopilot also searches by meaning** (plan 158): one semantic pass over
   the posting embeddings already stored adds vacancies whose wording never
   matches a keyword variant. It is a recall source, never a bypass — every

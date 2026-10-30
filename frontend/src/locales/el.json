@@ -915,7 +915,8 @@
       "kept": "αφαίρεσε περιττές πληροφορίες · διατήρησε {{count}}",
       "seen": "{{count}} είδε",
       "neverTerms": "{{count}} δεν ταιριάζουν",
-      "cooldown": "{{count}} σε αναμονή"
+      "cooldown": "{{count}} σε αναμονή",
+      "examined": "{{count}} εξετάστηκαν"
     },
     "modal": {
       "editTitle": "Επεξεργασία στόχου",
