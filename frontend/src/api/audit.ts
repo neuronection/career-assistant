@@ -54,7 +54,7 @@ export interface AuditBreakdownRow {
 }
 
 export interface AuditBreakdown {
-  dimension: "task" | "provider";
+  dimension: "task" | "provider" | "model";
   window: AuditWindow;
   rows: AuditBreakdownRow[];
 }

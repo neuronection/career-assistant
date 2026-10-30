@@ -986,7 +986,7 @@ def _source_view(source: ExtensionSource, installs: list[ExtensionInstall]) -> d
             "url": descriptor.get("url"),
             "local": descriptor.get("local"),
             "ref": descriptor.get("ref"),
-            "subpath": descriptor.get("subpath"),
+            "subpath": source.subpath or descriptor.get("subpath"),
             "credentialSlots": [c.get("slot") for c in descriptor.get("credentials") or []],
         },
         "status": source.status,
@@ -1178,16 +1178,24 @@ async def add_source(
     https root or the gated local variant). No fetch happens here: a
     failed fetch must be a *status*, never a failed add."""
     parsed = validate_source_descriptor(descriptor)
-    existing = await db.execute(
-        select(ExtensionSource).where(ExtensionSource.origin == parsed.origin)
+    clash = await db.execute(
+        select(ExtensionSource).where(
+            ExtensionSource.origin == parsed.origin, ExtensionSource.subpath == parsed.subpath
+        )
     )
-    if existing.scalars().first() is not None:
-        raise LifecycleError("invalid", f"source already exists: {parsed.origin}")
+    if clash.scalars().first() is not None:
+        where = parsed.subpath or "the repo root"
+        raise LifecycleError(
+            "invalid",
+            f"source already exists: {parsed.origin} at {where} — one source per "
+            "origin+subpath; a different subpath on the same origin is fine",
+        )
     from app.core.encryption import encrypt_secret
 
     source = ExtensionSource(
         origin=parsed.origin,
         kind=parsed.kind,
+        subpath=parsed.subpath,
         descriptor=parsed.document,
         secrets={
             slot: encrypt_secret(str(value))
@@ -1218,13 +1226,21 @@ async def update_source(
         parsed = validate_source_descriptor(descriptor)
         clash = await db.execute(
             select(ExtensionSource).where(
-                ExtensionSource.origin == parsed.origin, ExtensionSource.id != source.id
+                ExtensionSource.origin == parsed.origin,
+                ExtensionSource.subpath == parsed.subpath,
+                ExtensionSource.id != source.id,
             )
         )
         if clash.scalars().first() is not None:
-            raise LifecycleError("invalid", f"source already exists: {parsed.origin}")
+            where = parsed.subpath or "the repo root"
+            raise LifecycleError(
+                "invalid",
+                f"source already exists: {parsed.origin} at {where} — one source per "
+                "origin+subpath; a different subpath on the same origin is fine",
+            )
         source.origin = parsed.origin
         source.kind = parsed.kind
+        source.subpath = parsed.subpath
         source.descriptor = parsed.document
         source.status = "stale"
         source.error = ""
@@ -2047,6 +2063,46 @@ async def put_desired_state(db: AsyncSession, document: dict) -> dict:
     return document
 
 
+def _pick_gitops_source(
+    same_origin: list[ExtensionSource],
+    install: ExtensionInstall | None,
+    desired_entries: list[dict],
+) -> tuple[ExtensionSource | None, str | None]:
+    """Reconcile's source resolution under origin+subpath uniqueness
+    (2026-10-30): the source hosting this install wins outright; else the
+    desired entry whose subpath matches a registered source; else a lone
+    same-origin source. ``(None, None)`` means nothing registered — the
+    caller adds from the desired entries; ``(None, reason)`` means
+    ambiguous — the caller reports drift."""
+    if not same_origin:
+        return None, None
+    if install is not None and install.source_id is not None:
+        hosted = [source for source in same_origin if source.id == install.source_id]
+        if hosted:
+            return hosted[0], None
+    if len(same_origin) == 1:
+        return same_origin[0], None
+    if install is None:
+        return (
+            None,
+            f"desired source is ambiguous: {len(same_origin)} sources share this origin "
+            "(different subpaths) and no install identifies this extension's home — "
+            "install once manually and reconcile again",
+        )
+    # A foreign-hosted install plus multiple same-origin sources: the
+    # registered subpaths decide.
+    for entry in desired_entries:
+        sub = str(entry.get("subpath") or "")
+        matches = [source for source in same_origin if source.subpath == sub]
+        if len(matches) == 1:
+            return matches[0], None
+    return (
+        None,
+        f"desired source is ambiguous: {len(same_origin)} sources share this origin "
+        "(different subpaths) and none can be disambiguated for this install",
+    )
+
+
 async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
     """GitOps reconcile (D13/D22) — installs and moves pins ONLY for the
     extensions the list names; never auto-enables; never deletes data.
@@ -2070,7 +2126,9 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
     entries = desired.get("extensions") or []
     if not desired:
         return report
-    named_sources = {str(entry.get("url") or ""): entry for entry in desired.get("sources") or []}
+    named_sources: dict[str, list[dict]] = {}
+    for source_entry in desired.get("sources") or []:
+        named_sources.setdefault(str(source_entry.get("url") or ""), []).append(source_entry)
     installs = (await db.execute(select(ExtensionInstall))).scalars().all()
     by_extension = {install.extension_id: install for install in installs}
 
@@ -2082,14 +2140,22 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
             report["ignoredEnableIntent"].append(
                 {"extensionId": extension_id, "reason": "reconcile never auto-enables (D22)"}
             )
-        source = (
-            (await db.execute(select(ExtensionSource).where(ExtensionSource.origin == source_url)))
+        install = by_extension.get(extension_id)
+        same_origin = (
+            (
+                await db.execute(
+                    select(ExtensionSource).where(ExtensionSource.origin == source_url)
+                )
+            )
             .scalars()
-            .first()
+            .all()
+        )
+        source, ambiguity = _pick_gitops_source(
+            same_origin, install, named_sources.get(source_url) or []
         )
         if source is None:
-            descriptor = named_sources.get(source_url)
-            if descriptor is None:
+            declared = named_sources.get(source_url) or []
+            if not declared:
                 report["drift"].append(
                     {
                         "extensionId": extension_id,
@@ -2097,18 +2163,37 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
                     }
                 )
                 continue
-            try:
-                view = await add_source(db, dict(descriptor))
-            except LifecycleError as exc:
-                report["failures"].append({"extensionId": extension_id, "error": exc.detail})
+            add_error: str | None = None
+            for desired_source in declared:
+                try:
+                    view = await add_source(db, dict(desired_source))
+                except LifecycleError as exc:
+                    add_error = exc.detail
+                    report["failures"].append(
+                        {"extensionId": extension_id, "error": exc.detail}
+                    )
+                    continue
+                source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
+                same_origin.append(source)
+            if source is None:
+                report["drift"].append(
+                    {
+                        "extensionId": extension_id,
+                        "reason": add_error or f"desired source not declared: {source_url}",
+                    }
+                )
                 continue
-            source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
+            source, ambiguity = _pick_gitops_source(same_origin, install, declared)
+            if source is None:
+                report["drift"].append(
+                    {"extensionId": extension_id, "reason": ambiguity}
+                )
+                continue
         assert source is not None
         try:
             # Serialize with install/apply/sync on this source (Phase 3.7);
             # a losing reconcile reports typed, mutating nothing.
             async with _exclusive(f"source:{source.id}"):
-                install = by_extension.get(extension_id)
                 if install is None:
                     await _reconcile_missing_install(
                         db, source, extension_id, pin, report, data_dir=data_dir

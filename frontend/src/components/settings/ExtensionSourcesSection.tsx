@@ -105,7 +105,9 @@ function mapSource(view: ExtensionSourceView): IntegrationSourceRowView {
   return {
     id: view.id,
     kind: view.kind,
-    origin: view.origin,
+    origin: view.descriptor.subpath
+      ? `${view.origin} · ${view.descriptor.subpath}`
+      : view.origin,
     status: view.status,
     error: view.error || null,
     refStrategy: view.descriptor.ref?.strategy ?? null,

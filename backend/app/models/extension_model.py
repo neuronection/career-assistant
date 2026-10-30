@@ -69,7 +69,7 @@ class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "extension_sources"
     __table_args__ = (
-        UniqueConstraint("origin", name="uq_extension_sources_origin"),
+        UniqueConstraint("origin", "subpath", name="uq_extension_sources_origin_subpath"),
         CheckConstraint("kind IN ('git', 'local')", name="source_kind_allowed"),
         CheckConstraint(
             "status IN ('ok', 'degraded', 'failing', 'stale')",
@@ -79,6 +79,7 @@ class ExtensionSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     origin: Mapped[str] = mapped_column(String(600), nullable=False)
+    subpath: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     kind: Mapped[str] = mapped_column(String(10), nullable=False, default="git")
     descriptor: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     candidates: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)

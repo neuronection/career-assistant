@@ -27,6 +27,7 @@ import {
   formatDelta,
   formatLatency,
   formatTokens,
+  formatTokensExact,
 } from "@/config/auditVocab";
 
 const CHART_COLORS = {
@@ -53,6 +54,7 @@ function KpiTiles({ overview }: { overview: AuditOverview }) {
       label: t("audit.kpi.tokens"),
       value: `${formatTokens(overview.ai.tokens_in)} → ${formatTokens(overview.ai.tokens_out)}`,
       hint: t("audit.kpi.tokensHint"),
+      title: `${formatTokensExact(overview.ai.tokens_in)} → ${formatTokensExact(overview.ai.tokens_out)}`,
     },
     {
       label: t("audit.kpi.latency"),

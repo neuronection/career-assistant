@@ -354,9 +354,9 @@
       "status": "shipped",
       "proofs": [
         "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
+        "Per-model usage view (calls, tokens, latency by provider/model) plus token trends",
+        "Production throughput: postings ingested, skill lifecycle events, companies, catalog jobs by origin",
         "The identity audit trail (logins, denials, admin acts) has a first-class read surface",
-        "Admin-wide job, source-run and schedule-failure observability with deep links to management",
-        "The posting and skill change journals render as one cross-entity who-changed-what view",
         "Custom date ranges on every view; filtered ledgers export as CSV"
       ],
       "links": [

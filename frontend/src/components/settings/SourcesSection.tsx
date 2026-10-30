@@ -15,19 +15,18 @@ import type { IntegrationExtensionGroupView } from "@/components/ui/integrations
 import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
-import { McpServerSection } from "@/components/settings/McpServerSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
 
 /**
- * Tools → connectors (ADR-0033 domain tools.connectors): MCP server +
- * chat-tools credentials, posting-source connector instances and Git
- * extension sources (plan 148 phase 2). Source rows follow the family
- * provider-card grammar — status + enable toggle on the row, Test as the
- * primary action, everything else in the ⋯ overflow; add-source is a
- * catalog-tiles wizard in a modal.
+ * Tools → Sources (ADR-0033 domain tools.sources, plan 154): posting-source
+ * connector instances and Git extension sources. Source rows follow the
+ * family provider-card grammar — status + enable toggle on the row, Test as
+ * the primary action, everything else in the ⋯ overflow; add-source is a
+ * catalog-tiles wizard in a modal. The MCP server surface lives in its own
+ * ?section=mcp view.
  */
 
 function sourceStatus(source: PostingSource) {
@@ -37,10 +36,9 @@ function sourceStatus(source: PostingSource) {
   return "ok" as const;
 }
 
-export function ConnectorsSection() {
+export function SourcesSection() {
   return (
-    <div className="space-y-5" data-testid="connectors-section">
-      <McpServerSection />
+    <div className="space-y-5" data-testid="sources-section">
       <JobSourceConnectors />
       <ExtensionSourcesSection />
     </div>

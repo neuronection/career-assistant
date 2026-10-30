@@ -1645,7 +1645,8 @@
     "sectionsAria": "Tools-Bereiche",
     "section": {
       "web-search": "Websuche",
-      "connectors": "Verbindungen"
+      "mcp": "MCP",
+      "sources": "Quellen"
     },
     "webSearch": {
       "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. SearXNG nutzt den SSRF-geschützten Client; Anbieter mit Schlüssel (Tavily, Brave, Exa, Serper, Google PSE) nutzen den geschützten POST-Transport.",

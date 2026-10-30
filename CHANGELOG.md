@@ -4,6 +4,31 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
+- **The Tools tab grows a third section: Web search | MCP | Sources.**
+  The old connectors view stacked six differently-scoped surfaces in
+  one scroll; the MCP server subsystem (endpoint, tokens, live tools,
+  call audit, GitHub credential) now has its own URL
+  (`?section=mcp`), and data ingestion — job-source connectors plus
+  extension sources — has another (`?section=sources`). Legacy
+  `?section=connectors` deep links land on MCP. The settings-map
+  contract narrows `tools.connectors` to the MCP surface and adds
+  `tools.sources` for ingestion (canonical + re-vendored).
+
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+- **The audit surface gains a Usage & throughput tab** (plan 153): a
+  per-model usage view (calls, tokens in/out, average latency and errors
+  grouped by provider/model), a token-usage trend chart, and production
+  throughput metrics — postings ingested (with processing activity by
+  actor: sync runs, extractions, detail fetches, re-tags), skill
+  lifecycle events (created/promoted/merged/deprecated), company
+  profiles created and catalog jobs created split by status and origin
+  (seed/AI/user), tying content production back to the AI ledger. New
+  `GET /admin/audit/production` endpoint; `/admin/audit/breakdown` gains
+  `dimension=model`. No schema change — aggregation over existing tables
+  and journals.
+
 ### Changed (companies — postings-derived filters, 2026-10-30)
 - **The companies directory filters by the hiring those companies are
   doing right now**: work mode, seniority, employment type and

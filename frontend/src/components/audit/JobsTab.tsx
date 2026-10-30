@@ -42,12 +42,12 @@ function JobDetail({ job }: { job: AuditJobRow }) {
         {job.attempts}/{job.max_attempts} · {job.finished_at ? new Date(job.finished_at).toLocaleString() : "—"}
       </p>
       {job.payload && (
-        <pre className="max-h-40 overflow-auto rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
+        <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
           {JSON.stringify(job.payload, null, 2)}
         </pre>
       )}
       {job.result && (
-        <pre className="mt-1 max-h-40 overflow-auto rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
+        <pre className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
           {JSON.stringify(job.result, null, 2)}
         </pre>
       )}

@@ -1645,7 +1645,8 @@
     "sectionsAria": "Tools sections",
     "section": {
       "web-search": "Web search",
-      "connectors": "Connectors"
+      "mcp": "MCP",
+      "sources": "Sources"
     },
     "webSearch": {
       "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. SearXNG rides the SSRF-guarded client; keyed providers (Tavily, Brave, Exa, Serper, Google PSE) ride the guarded POST transport.",

@@ -12,6 +12,8 @@ import {
 import {
   AUDIT_CATEGORIES,
   categoryRollup,
+  formatTokens,
+  formatTokensExact,
 } from "@/config/auditVocab";
 import type {
   AuditChangeRow,
@@ -100,8 +102,8 @@ const GENERATIONS: AIGenerationRow[] = [
     model: "gpt-4o-mini",
     prompt: "hello",
     output: { reply: "hi" },
-    tokens_in: 100,
-    tokens_out: 20,
+    tokens_in: 5329,
+    tokens_out: 356,
     latency_ms: 900,
     status: "ok",
     error: "",
@@ -248,6 +250,20 @@ describe("audit tab helpers", () => {
   });
 });
 
+describe("formatTokens", () => {
+  it("abbreviates with one decimal below 10k and integers above", () => {
+    expect(formatTokens(5329)).toBe("5.3k");
+    expect(formatTokens(5_000)).toBe("5k");
+    expect(formatTokens(12_400)).toBe("12k");
+    expect(formatTokens(1_200_000)).toBe("1.2M");
+    expect(formatTokens(950)).toBe("950");
+  });
+
+  it("formatTokensExact always renders the locale number", () => {
+    expect(formatTokensExact(5329)).toBe("5,329");
+  });
+});
+
 describe("categoryRollup", () => {
   it("groups task rows into categories ordered by calls", () => {
     const rollup = categoryRollup([
@@ -333,6 +349,12 @@ describe("audit page tabs", () => {
     expect(screen.getByTestId("audit-gen-simulated-gen-mock")).toBeTruthy();
     expect(screen.queryByTestId("audit-gen-detail-gen-ok")).toBeNull();
 
+    const tokensCell = screen.getByTitle("5,329 → 356");
+    expect(tokensCell.textContent).toBe("5.3k → 356");
+    const mockRow = screen.getByTestId("audit-gen-row-gen-mock");
+    expect(mockRow.textContent).toContain("—");
+    expect(mockRow.textContent).not.toContain("?");
+
     await userEvent.click(screen.getByTestId("audit-gen-row-gen-ok"));
     expect(screen.getByTestId("audit-gen-detail-gen-ok")).toBeTruthy();
     expect(screen.getByText(/run #11111111/)).toBeTruthy();
@@ -375,6 +397,28 @@ describe("audit page tabs", () => {
   });
 
   it("renders the usage tab with model rows, token trend and throughput", async () => {
+    vi.mocked(fetchAuditBreakdown).mockResolvedValue({
+      dimension: "model",
+      window: "24h",
+      rows: [
+        {
+          key: "openai/gpt-4o-mini",
+          calls: 2,
+          errors: 0,
+          tokens_in: 200,
+          tokens_out: 40,
+          avg_latency_ms: 850,
+        },
+        {
+          key: "google/gemini-2.5-flash",
+          calls: 1,
+          errors: 0,
+          tokens_in: 100,
+          tokens_out: 10,
+          avg_latency_ms: 900,
+        },
+      ],
+    });
     renderPage("/settings/audit?tab=usage");
     expect(await screen.findByTestId("audit-usage-tab")).toBeTruthy();
     expect(screen.getAllByTestId("audit-model-row").length).toBe(2);

@@ -16,7 +16,11 @@ import {
   type RangeValue,
 } from "@/components/audit/RangeFilter";
 import { downloadCsv } from "@/components/audit/download";
-import { formatLatency } from "@/config/auditVocab";
+import {
+  formatLatency,
+  formatTokens,
+  formatTokensExact,
+} from "@/config/auditVocab";
 
 const PAGE_SIZE = 50;
 
@@ -79,7 +83,7 @@ function GenerationDetail({ row }: { row: AIGenerationRow }) {
         )}
       </div>
       {row.output && (
-        <pre className="max-h-60 overflow-auto rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px] leading-relaxed text-[var(--as-fg)]">
+        <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px] leading-relaxed text-[var(--as-fg)]">
           {JSON.stringify(row.output, null, 2)}
         </pre>
       )}
@@ -139,7 +143,16 @@ function GenerationRow({
           {row.provider}/{row.model}
         </td>
         <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
-          {row.tokens_in ?? "?"} → {row.tokens_out ?? "?"}
+          {row.tokens_in == null && row.tokens_out == null ? (
+            <span>—</span>
+          ) : (
+            <span
+              title={`${formatTokensExact(row.tokens_in ?? 0)} → ${formatTokensExact(row.tokens_out ?? 0)}`}
+            >
+              {row.tokens_in == null ? "—" : formatTokens(row.tokens_in)} →{" "}
+              {row.tokens_out == null ? "—" : formatTokens(row.tokens_out)}
+            </span>
+          )}
         </td>
         <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
           {formatLatency(row.latency_ms)}

@@ -52,8 +52,9 @@ until an admin adds a provider.
 
 ## Tools (`/settings/tools`)
 
-Admin-only, two tabs. **Web search** ships SearXNG plus five keyed
-providers — Tavily, Brave, Exa, Serper and Google Programmable Search;
+Admin-only, three URL-addressable sections. **Web search** ships
+SearXNG plus five keyed providers — Tavily, Brave, Exa, Serper and
+Google Programmable Search;
 the first enabled provider that answers wins. Each provider renders as a
 card with its priority badge and connection status; the card's **⋯ menu**
 carries enable/disable, reorder, test, edit and delete, and **Add
@@ -61,7 +62,15 @@ provider** opens a choose-then-configure wizard. See
 [Add a job source](add-a-job-source.md) and
 [Import extensions from git](import-extensions-from-git.md).
 
-**Connectors** hosts the job-source instances: grouped by what they feed —
+**MCP** hosts the MCP server surface as section cards: the endpoint
+URL with the write-access switch, the token lifecycle (mint shown
+once, rotate, revoke), copy-ready client setup snippets, the live tool
+catalog collapsed behind a searchable disclosure, the recent-call
+audit and the chat-tools GitHub credential. While the write switch is
+off, MCP clients see read tools only. See
+[MCP access](assistant-chat.md#mcp-access).
+
+**Sources** hosts the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and
 **Inbound webhooks** — with a health strip (active count, failing /
 degraded badges, last sync) over the rows. Each row shows a health badge
@@ -78,13 +87,7 @@ run on the daily demand schedule. Extension sources (git import) render
 as their own card — **Install from Git** — digest-pinned and
 consent-gated.
 
-Connectors also hosts the **MCP server** surface as section cards: the
-endpoint URL with the write-access switch, the token lifecycle (mint
-shown once, rotate, revoke), copy-ready client setup snippets, the live
-tool catalog collapsed behind a searchable disclosure, and the
-recent-call audit. The chat-tools GitHub credential sits in the same
-card as a disclosure. While the write switch is off, MCP clients see
-read tools only. See [MCP access](assistant-chat.md#mcp-access).
+
 
 ## Taxonomy (`/settings/taxonomy`)
 
@@ -175,7 +178,7 @@ they are saved. See
 ## Audit & monitoring (`/settings/audit`)
 
 The observability surface for administrators — on desktop the owner is
-their instance's admin, so the page is always reachable there. Five
+their instance's admin, so the page is always reachable there. Six
 tabs over the system's audit streams; the overview and security views
 share a 24h/7d/30d or custom range:
 
@@ -193,6 +196,12 @@ share a 24h/7d/30d or custom range:
 - **Security & access** — the identity audit trail: sign-ins, denied
   attempts, refresh-reuse detections, admin actions and instance-mode
   transitions, filterable by group, outcome and actor.
+- **Usage & throughput** — per-model AI usage (calls, tokens in/out,
+  average latency, errors per provider/model), a token-usage trend
+  chart, and production throughput: postings ingested (with processing
+  activity by actor), skill lifecycle events, company profiles created
+  and catalog jobs created — split by status and origin (seed/AI/user),
+  tying content production back to the AI ledger.
 - **Jobs & runs** — every user's background jobs (status, owner,
   attempts, expandable payload/result) with status/type filters, the
   cross-source ingestion ledger with deep links into each source, and a

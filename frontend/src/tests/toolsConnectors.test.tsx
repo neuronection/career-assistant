@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { ConnectorsSection } from "@/components/settings/ConnectorsSection";
+import { SourcesSection } from "@/components/settings/SourcesSection";
 import * as aiApi from "@/api/ai";
 import * as sourcesApi from "@/api/sources";
 
@@ -122,12 +122,12 @@ const sources = [
 function renderSection() {
   return render(
     <MemoryRouter>
-      <ConnectorsSection />
+      <SourcesSection />
     </MemoryRouter>,
   );
 }
 
-describe("ConnectorsSection job sources", () => {
+describe("SourcesSection job sources", () => {
   it("lists sources as kit instance rows with the sealed-secret condition badge, never values", async () => {
     vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
     vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);

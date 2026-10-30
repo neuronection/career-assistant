@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0074"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0075"], (
         "revision chain stays linear on one head"
     )
 
@@ -3275,3 +3275,149 @@ def test_0073_skill_changes_roundtrip():
 
     command.upgrade(config, "head")
     assert asyncio.run(_shape())[0] == columns, "re-upgrade restores the same shape"
+
+
+def test_0075_extension_source_subpath_uniqueness():
+    """Origin+subpath uniqueness (the multi-bundle repo): the column
+    backfills from the descriptor JSONB, the origin-only unique becomes
+    (origin, subpath), and the downgrade folds the column back."""
+    config = _configured()
+
+    async def seed(origin: str, subpath: str, descriptor: dict):
+        import json
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO extension_sources (id, origin, subpath, kind, "
+                        "descriptor, candidates, secrets, status, consecutive_failures) "
+                        "VALUES (:id, :origin, :subpath, 'git', :descriptor::jsonb, "
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', 0)"
+                    ).bindparams(
+                        id=origin.replace("https://", "00000000-0000-4000-8000-")
+                        .replace("/", "-")[:36]
+                        .ljust(36, "0"),
+                        origin=origin,
+                        subpath=subpath,
+                        descriptor=json.dumps(descriptor),
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    async def read_subpath(origin: str):
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                return (
+                    await conn.execute(
+                        text("SELECT subpath FROM extension_sources WHERE origin = :o"),
+                        {"o": origin},
+                    )
+                ).scalar()
+        finally:
+            await engine.dispose()
+
+    async def insert_same_origin_other_subpath():
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO extension_sources (id, origin, subpath, kind, "
+                        "descriptor, candidates, secrets, status, consecutive_failures) "
+                        "VALUES ('11111111-1111-4111-8111-111111111111', "
+                        "'https://git.example.com/multi', 'a/src', 'git', '{}'::jsonb, "
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', 0)"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    async def read_folded_descriptor(origin: str):
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                return (
+                    await conn.execute(
+                        text("SELECT descriptor FROM extension_sources WHERE origin = :o"),
+                        {"o": origin},
+                    )
+                ).scalar()
+        finally:
+            await engine.dispose()
+
+    try:
+        command.upgrade(config, "0074")
+        assert not _column_present("extension_sources", "subpath")
+        asyncio.run(_es_cleanup())
+        asyncio.run(
+            seed("https://git.example.com/multi", "", {"url": "https://git.example.com/multi"})
+        )
+        asyncio.run(
+            seed(
+                "https://git.example.com/multi-b",
+                "b/src",
+                {"url": "https://git.example.com/multi-b", "subpath": "b/src"},
+            )
+        )
+
+        command.upgrade(config, "head")
+        assert _column_present("extension_sources", "subpath")
+        assert asyncio.run(read_subpath("https://git.example.com/multi")) == ""
+        assert asyncio.run(read_subpath("https://git.example.com/multi-b")) == "b/src"
+
+        # The composite unique admits the same origin at a different
+        # subpath and refuses the same origin+subpath.
+        asyncio.run(insert_same_origin_other_subpath())
+
+        command.downgrade(config, "0074")
+        assert not _column_present("extension_sources", "subpath")
+        folded = asyncio.run(read_folded_descriptor("https://git.example.com/multi-b"))
+        assert (folded or {}).get("subpath") == "b/src", "the downgrade folds back"
+    finally:
+        _es_cleanup()
+
+
+def _es_cleanup() -> None:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def _run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "DELETE FROM extension_sources "
+                        "WHERE origin LIKE 'https://git.example.com/multi%'"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())

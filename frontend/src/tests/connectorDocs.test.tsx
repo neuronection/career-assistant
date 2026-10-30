@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { ConnectorsSection } from "@/components/settings/ConnectorsSection";
+import { SourcesSection } from "@/components/settings/SourcesSection";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorDocs } from "@/api/sources";
 
@@ -144,7 +144,7 @@ const sources = [
 function renderSection() {
   return render(
     <MemoryRouter>
-      <ConnectorsSection />
+      <SourcesSection />
     </MemoryRouter>,
   );
 }

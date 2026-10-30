@@ -45,13 +45,13 @@ function ChangeDetail({ row, entity }: { row: AuditChangeRow; entity: ChangeEnti
         </div>
       )}
       {row.operation && (
-        <p className="mb-2 text-[var(--as-muted-fg)]">
+        <p className="mb-2 break-all text-[var(--as-muted-fg)]">
           {t("audit.changes.operationLabel")}
           {JSON.stringify(row.operation)}
         </p>
       )}
       {payload ? (
-        <pre className="max-h-60 overflow-auto rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
+        <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px]">
           {JSON.stringify(payload, null, 2)}
         </pre>
       ) : (

@@ -6,6 +6,9 @@ export interface StatTile {
   label: string;
   value: ReactNode;
   hint?: string;
+  /** Hover text for the value (e.g. the exact number behind an
+   * abbreviated one). */
+  title?: string;
   /** Distribution bar share 0–100 (reuses the skill heat ramp tokens). */
   distribution?: number;
 }
@@ -50,6 +53,7 @@ export function StatTiles({
           <p
             className="mt-0.5 text-lg font-semibold tabular-nums text-[var(--as-fg)]"
             data-testid="stat-tile-value"
+            title={tile.title}
           >
             {tile.value}
           </p>

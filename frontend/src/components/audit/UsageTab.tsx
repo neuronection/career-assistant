@@ -21,7 +21,12 @@ import {
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
-import { formatBucketLabel, formatLatency, formatTokens } from "@/config/auditVocab";
+import {
+  formatBucketLabel,
+  formatLatency,
+  formatTokens,
+  formatTokensExact,
+} from "@/config/auditVocab";
 
 function ModelUsageCard({
   rows,
@@ -48,7 +53,10 @@ function ModelUsageCard({
             <li key={row.key} className="text-xs" data-testid="audit-model-row">
               <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3">
                 <span className="font-medium text-[var(--as-fg)]">{row.key}</span>
-                <span className="tabular-nums text-[var(--as-muted-fg)]">
+                <span
+                  className="tabular-nums text-[var(--as-muted-fg)]"
+                  title={`${formatTokensExact(row.tokens_in)} → ${formatTokensExact(row.tokens_out)} tokens`}
+                >
                   {row.calls.toLocaleString()} ·{" "}
                   {t("audit.usage.tokensShort", {
                     tin: formatTokens(row.tokens_in),

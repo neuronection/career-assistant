@@ -1460,3 +1460,130 @@ async def test_install_mints_the_bundle_venv_interpreter(
     )
     await db.refresh(minted)
     assert minted.config["command"].startswith(f'"{_sys.executable}"')
+
+
+# ------------------------------------------------ origin+subpath uniqueness
+
+
+def _descriptor_at(repo: Path, subpath: str) -> dict:
+    return {**local_descriptor(repo), "subpath": subpath}
+
+
+def _second_bundle(repo: Path, subpath: str, extension_id: str) -> None:
+    """A second bundle inside the SAME repo — the integrations-repo shape."""
+    manifest = template_manifest()
+    manifest["id"] = extension_id
+    bundle_dir = repo / subpath
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURE_SERVER, bundle_dir / "server.py")
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _copy_docs(bundle_dir)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "second bundle")
+
+
+async def test_same_origin_different_subpath_is_a_second_source(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The multi-bundle repo shape: one origin, one source PER bundle
+    subpath — same origin + a different subpath adds a second source and
+    each sync discovers only its own bundle; the same origin+subpath
+    refuses typed."""
+    repo = make_repo(local_roots, name="multi-bundle", subpath="a/src")
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+
+    first = await _add(db, _descriptor_at(repo, "a/src"))
+    second = await _add(db, _descriptor_at(repo, "b/src"))
+    assert first.id != second.id
+
+    with pytest.raises(LifecycleError) as exc:
+        await add_source(db, _descriptor_at(repo, "a/src"))
+    assert "already exists" in exc.value.detail and "a/src" in exc.value.detail
+
+    first_report = await sync_source(db, first.id)
+    second_report = await sync_source(db, second.id)
+    assert [c["extensionId"] for c in first_report["candidates"]] == ["example-posting-fetcher"]
+    assert [c["extensionId"] for c in second_report["candidates"]] == ["second-posting-fetcher"]
+
+
+async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sources(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """Two same-origin sources (the multi-bundle shape): bootstrap adds BOTH
+    declared sources; a missing install drifts typed (its home is not
+    knowable); an install hosted on one source pins on THAT source —
+    never guessed."""
+    from app.models.extension_model import ExtensionInstall
+
+    repo = make_repo(local_roots, name="multi-gitops", subpath="a/src", tag="v1.0.0")
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+    fake = FakeHttpsTransport(repo)
+    set_git_transport(fake)
+    try:
+        url = "https://git.example.com/example/multi-gitops"
+        digest = lifecycle.digest_tree(repo)
+        await put_desired_state(
+            db,
+            {
+                "schema": 1,
+                "sources": [
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "a/src",
+                    },
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "b/src",
+                    },
+                ],
+                "extensions": [
+                    {
+                        "id": "second-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                    {
+                        "id": "example-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                ],
+            },
+        )
+        report = await reconcile(db)
+        # Both declared sources bootstrap (installs are consent-gated); the
+        # two extensions drift once — no install identifies their homes yet.
+        assert len((await db.execute(select(ExtensionSource))).scalars().all()) == 2
+        drifted = {entry["extensionId"]: entry["reason"] for entry in report["drift"]}
+        assert set(drifted) == {
+            "example-posting-fetcher",
+            "second-posting-fetcher",
+        }
+        assert all("install once manually" in reason for reason in drifted.values())
+
+        # The human installs once on the hosting source — reconcile follows.
+        sources = (await db.execute(select(ExtensionSource))).scalars().all()
+        host = next(s for s in sources if s.subpath == "b/src")
+        await sync_source(db, host.id)
+        await install_extension(
+            db,
+            host.id,
+            "second-posting-fetcher",
+            consent=await _echo_for(db, host.id, "second-posting-fetcher"),
+            managed_by="gitops",
+        )
+        report = await reconcile(db)
+        assert report["drift"] == [] or all(
+            entry["extensionId"] == "example-posting-fetcher" for entry in report["drift"]
+        ), "the hosted extension reconciles clean; only the still-uninstalled one drifts"
+        pinned = await db.execute(select(ExtensionInstall)).scalars().all()
+        [second_install] = [
+            install for install in pinned if install.extension_id == "second-posting-fetcher"
+        ]
+        assert second_install.source_id == host.id, "the pin never leaves the hosting source"
+    finally:
+        set_git_transport(fake)

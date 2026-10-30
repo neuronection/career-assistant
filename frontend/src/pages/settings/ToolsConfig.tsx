@@ -3,27 +3,34 @@ import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { SegmentedTabs } from "@/components/ui";
 import { WebSearchSection } from "@/components/settings/WebSearchSection";
-import { ConnectorsSection } from "@/components/settings/ConnectorsSection";
+import { McpServerSection } from "@/components/settings/McpServerSection";
+import { SourcesSection } from "@/components/settings/SourcesSection";
 
-type ToolsSection = "web-search" | "connectors";
+type ToolsSection = "web-search" | "mcp" | "sources";
 
 // Settings structure follows the family contract (contracts/settings-map.json,
 // ADR-0033): tools.* domains live in the tools tab, never under AI
 // configuration. Exported for the settings-map conformance test.
+// Plan 154: the former connectors section split into mcp (the MCP server
+// surface) and sources (job-source + extension ingestion); legacy
+// ?section=connectors deep links resolve to mcp.
 export const TOOLS_TAB_SECTIONS: readonly ToolsSection[] = [
   "web-search",
-  "connectors",
+  "mcp",
+  "sources",
 ];
 
 export function parseToolsSection(raw: string | null): ToolsSection {
+  if (raw === "connectors") return "mcp";
   return (TOOLS_TAB_SECTIONS as readonly string[]).includes(raw ?? "")
     ? (raw as ToolsSection)
     : "web-search";
 }
 
 /**
- * Tools configuration with URL-synced sections (?section=web-search|connectors).
- * Admin-only (same gate the former AI-config `web` tab had, plan 27 Phase 3).
+ * Tools configuration with URL-synced sections
+ * (?section=web-search|mcp|sources). Admin-only (same gate the former
+ * AI-config `web` tab had, plan 27 Phase 3).
  */
 export function ToolsConfig() {
   const { t } = useTranslation();
@@ -68,7 +75,8 @@ export function ToolsConfig() {
       />
 
       {activeSection === "web-search" && <WebSearchSection />}
-      {activeSection === "connectors" && <ConnectorsSection />}
+      {activeSection === "mcp" && <McpServerSection />}
+      {activeSection === "sources" && <SourcesSection />}
     </div>
   );
 }
