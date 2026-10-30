@@ -54,9 +54,9 @@ _Job insights — fit score, AI explanations, skill gaps and university paths fo
 
 ### postings
 
-_Live postings feed from connected sources._
+_Search live postings from connected sources — filters over the hiring those companies prove._
 
-![postings — Live postings feed from connected sources.](images/postings-desktop.png)
+![postings — Search live postings from connected sources — filters over the hiring those companies prove.](images/postings-desktop.png)
 
 ### posting-detail
 
@@ -69,6 +69,12 @@ _Posting detail — extracted skills, provenance and fit for a seeded demo posti
 _Universities and pathways — funding, deadlines and degree-to-job routes._
 
 ![universities — Universities and pathways — funding, deadlines and degree-to-job routes.](images/universities-desktop.png)
+
+### companies
+
+_Companies hiring now — reviewed facts, sourced financials, every open posting._
+
+> ⚠️ No desktop screenshot yet for **companies**. Run `./scripts/capture_ui.sh -- --scene companies --viewport desktop`.
 
 ## Working life
 
@@ -137,3 +143,9 @@ _HITL proposals — the assistant drafts profile edits as review cards with befo
 _Settings — account pane of the settings shell._
 
 ![settings-account — Settings — account pane of the settings shell.](images/settings-account-desktop.png)
+
+### settings-job-radar
+
+_Settings — the job radar: configure your search once, preview matches._
+
+> ⚠️ No desktop screenshot yet for **settings-job-radar**. Run `./scripts/capture_ui.sh -- --scene settings-job-radar --viewport desktop`.

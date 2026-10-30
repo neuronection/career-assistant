@@ -63,6 +63,14 @@ def capabilities_semantics(
                 f"$.capabilities[{cap.get('id')!r}]: status {cap.get('status')!r} "
                 "claims metrics/proofs — only shipped capabilities may"
             )
+        visual = cap.get("visual")
+        if isinstance(visual, str) and (
+            visual.startswith("/") or "\\" in visual or ".." in visual.split("/")
+        ):
+            problems.append(
+                f"$.capabilities[{cap.get('id')!r}]: visual {visual!r} "
+                "escapes the manifest directory"
+            )
     return problems
 
 
@@ -84,6 +92,59 @@ def test_capabilities_pass_the_host_semantics() -> None:
     doc = json.loads(CAPABILITIES.read_text(encoding="utf-8"))
     problems = capabilities_semantics(doc)
     assert not problems, f"{MUST_MOVE_WITH_FEATURES}: {problems}"
+
+
+def test_capability_visuals_resolve_beside_the_manifest() -> None:
+    """A `visual` capture is a real file beside ``docs/capabilities.json``
+    (the hub vendors it by this path)."""
+    doc = json.loads(CAPABILITIES.read_text(encoding="utf-8"))
+    missing = [
+        cap["visual"]
+        for cap in doc.get("capabilities") or []
+        if isinstance(cap, dict)
+        and cap.get("visual")
+        and not (CAPABILITIES.parent / cap["visual"]).is_file()
+    ]
+    assert not missing, f"{MUST_MOVE_WITH_FEATURES}: visual capture(s) missing: {missing}"
+
+
+# -------------------------------------------- the contract's own fixture suite
+
+
+def test_contract_fixtures_stay_honest() -> None:
+    """The vendored fixture wall (mirror of dev wall 14 / the sibling
+    suites): every valid case passes schema + semantics, every invalid
+    case is rejected by schema or semantics."""
+    fixtures = json.loads(
+        (CONTRACTS_DIR / "product-capabilities.fixtures.json").read_text(encoding="utf-8")
+    )
+    for case in fixtures["valid"]:
+        assert contract.validate(CAPABILITIES_SCHEMA, case["doc"], CAPABILITIES_SCHEMA) is None, (
+            f"fixture {case['name']!r} must stay valid against the contract"
+        )
+        assert not capabilities_semantics(
+            case["doc"], expected_project=case["doc"].get("project", "")
+        ), f"fixture {case['name']!r} must stay semantically clean"
+    for case in fixtures["invalid"]:
+        rejected = contract.validate(
+            CAPABILITIES_SCHEMA, case["doc"], CAPABILITIES_SCHEMA
+        ) is not None or bool(
+            capabilities_semantics(
+                case["doc"],
+                expected_project=case.get("expectProject", case["doc"].get("project", "")),
+            )
+        )
+        assert rejected, f"fixture {case['name']!r} must stay invalid against the contract"
+
+
+def test_semantics_reject_a_visual_escaping_the_manifest() -> None:
+    """The schema pattern is the first wall; the semantics must reject the
+    escape independently of it (the fixture wall short-circuits on the
+    schema channel and never reaches this branch)."""
+    problems = capabilities_semantics(
+        _doc(capabilities=[_capability(visual="../backend/secret.png")])
+    )
+    assert any("escapes the manifest directory" in problem for problem in problems), problems
 
 
 # ------------------------------------- the semantics helper's own self-checks

@@ -156,8 +156,8 @@
     {
       "name": "postings",
       "group": "Career exploration",
-      "caption": "Live postings feed from connected sources.",
-      "narration": "Live postings arrive from connected boards, deduplicated and linked to catalog roles.",
+      "caption": "Search live postings from connected sources — filters over the hiring those companies prove.",
+      "narration": "Live postings arrive from connected boards, deduplicated and linked to catalog roles — searchable and filterable.",
       "viewports": [
         "desktop"
       ],

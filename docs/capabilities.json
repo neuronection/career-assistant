@@ -14,7 +14,10 @@
         "Real semver ordering with the stable-channel law (prereleases never offered to stable clients)",
         "The check is a plain anonymous GET — no telemetry, failures read as 'no update'"
       ],
-      "platforms": ["selfhosted", "desktop"],
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
       "links": [
         {
           "kind": "website",
@@ -46,7 +49,8 @@
         "web",
         "desktop"
       ],
-      "order": 10
+      "order": 10,
+      "visual": "images/components/job-catalog-desktop2x.png"
     },
     {
       "id": "profile-matching",
@@ -107,7 +111,8 @@
         "web",
         "desktop"
       ],
-      "order": 30
+      "order": 30,
+      "visual": "images/components/cv-studio-panel-desktop2x.png"
     },
     {
       "id": "assistant-chat",
@@ -137,7 +142,8 @@
         "web",
         "desktop"
       ],
-      "order": 33
+      "order": 33,
+      "visual": "images/components/assistant-chat-desktop.png"
     },
     {
       "id": "application-tracker",

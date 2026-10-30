@@ -258,6 +258,7 @@ export function CvStudio() {
                 key={cv.id}
                 className="flex cursor-pointer gap-3 p-4 transition-colors hover:border-[var(--as-accent)]"
                 onClick={() => navigate(`/cv/${cv.id}`)}
+                data-capture="cv-studio"
               >
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between gap-2">
