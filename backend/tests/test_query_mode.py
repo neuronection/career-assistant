@@ -275,7 +275,9 @@ async def test_traffic_law_one_fetch_and_one_query_per_sync(
     assert DynamicSynthetic.calls == calls_before + 1, "exactly ONE fetch call per sync"
     query = DynamicSynthetic.last_config.get("query") or {}
     groups = query.get("groups") or []
-    assert len(groups) == 2, "default batch = 2 focused groups per sync (plan 154), never one call per keyword"
+    assert len(groups) == 2, (
+        "default batch = 2 focused groups per sync (plan 154), never one call per keyword"
+    )
 
     await sync_source(db, src)
     assert DynamicSynthetic.calls == calls_before + 2
