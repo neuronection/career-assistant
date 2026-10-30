@@ -260,9 +260,7 @@ async def audit_changes(
 
 @router.get("/export")
 async def audit_export(
-    stream: str = Query(
-        default="ai", pattern="^(ai|events|jobs|source_runs|changes)$"
-    ),
+    stream: str = Query(default="ai", pattern="^(ai|events|jobs|source_runs|changes)$"),
     entity: str = Query(default="postings", pattern="^(postings|skills)$"),
     window: str | None = Query(default=None, pattern="^(24h|7d|30d)$"),
     date_from: datetime | None = Query(default=None, alias="from"),
