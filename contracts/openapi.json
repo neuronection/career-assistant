@@ -26742,7 +26742,7 @@
     },
     "/api/v1/admin/postings/sources/{source_id}/runs": {
       "get": {
-        "description": "The run ledger (plan 134): newest first \u2014 when it ran, trigger,\nduration, status, items synced and the bounded error.",
+        "description": "The run ledger (plan 134): newest first \u2014 when it ran, trigger,\nduration, status, items synced and the bounded error.\n\nGhost healing on read: a crash can leave a ``running`` row behind and\nthe page would claim \"Running now\" for hours (the next sync only\ncloses it later). Rows past the same staleness cutoff the next run\nuses close as interrupted here, so the banner tells the truth.",
         "operationId": "list_source_runs_api_v1_admin_postings_sources__source_id__runs_get",
         "parameters": [
           {

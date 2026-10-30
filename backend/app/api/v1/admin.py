@@ -927,8 +927,37 @@ async def list_source_runs(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """The run ledger (plan 134): newest first — when it ran, trigger,
-    duration, status, items synced and the bounded error."""
+    duration, status, items synced and the bounded error.
+
+    Ghost healing on read: a crash can leave a ``running`` row behind and
+    the page would claim "Running now" for hours (the next sync only
+    closes it later). Rows past the same staleness cutoff the next run
+    uses close as interrupted here, so the banner tells the truth."""
+    from datetime import UTC, datetime, timedelta
+
     from app.models.posting_model import SourceRun
+    from app.services.postings.postings_service import STALE_RUN_MINUTES
+
+    now = datetime.now(UTC)
+    stale = (
+        (
+            await db.execute(
+                select(SourceRun).where(
+                    SourceRun.source_id == source_id,
+                    SourceRun.status == "running",
+                    SourceRun.started_at < now - timedelta(minutes=STALE_RUN_MINUTES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in stale:
+        row.status = "failed"
+        row.error = "interrupted — the run never finished"
+        row.finished_at = now
+    if stale:
+        await db.commit()
 
     rows = (
         (

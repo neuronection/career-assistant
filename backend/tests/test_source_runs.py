@@ -211,3 +211,55 @@ async def test_stale_running_rows_close_as_interrupted(db, synthetic_connector):
     await db.refresh(stale)
     assert stale.status == "failed"
     assert "interrupted" in stale.error
+
+
+async def test_runs_endpoint_closes_a_ghost_running_row_on_read(
+    db, synthetic_connector, client, auth_headers
+):
+    """A crashed run must not make the page claim "Running now" until the
+    next sync — reading the ledger closes the ghost (same cutoff the next
+    run uses)."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.posting_model import SourceRun
+    from app.services.postings.postings_service import STALE_RUN_MINUTES
+
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={"key": "runs-ghost", "connector_key": "synthetic", "config": {}},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+    src = (await db.execute(select(JobSource).where(JobSource.key == "runs-ghost"))).scalars().one()
+
+    ghost = SourceRun(
+        source_id=src.id,
+        trigger="scheduled",
+        status="running",
+        started_at=datetime.now(UTC) - timedelta(minutes=STALE_RUN_MINUTES + 10),
+        report={"stage": "ingesting"},
+    )
+    db.add(ghost)
+    await db.commit()
+
+    rows = (
+        await client.get(f"/api/v1/admin/postings/sources/{source_id}/runs", headers=auth_headers)
+    ).json()
+    assert rows[0]["status"] == "failed"
+    assert "interrupted" in rows[0]["error"]
+    assert rows[0]["finished_at"] is not None
+
+    fresh = SourceRun(
+        source_id=src.id,
+        trigger="scheduled",
+        status="running",
+        started_at=datetime.now(UTC),
+        report={"stage": "fetching"},
+    )
+    db.add(fresh)
+    await db.commit()
+    rows = (
+        await client.get(f"/api/v1/admin/postings/sources/{source_id}/runs", headers=auth_headers)
+    ).json()
+    assert rows[0]["status"] == "running", "a live run is never healed away"
