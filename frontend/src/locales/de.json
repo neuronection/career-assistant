@@ -6,6 +6,14 @@
     "badge": "Demo — synthetische Daten",
     "description": "Diese Instanz läuft auf fiktiven Daten und wird periodisch zurückgesetzt."
   },
+  "update": {
+    "tooltip": "Version {{version}} ist verfügbar",
+    "releaseNotes": "Versionshinweise",
+    "allReleases": "Alle Versionen",
+    "installed": "installiert",
+    "availableSuffix": "verfügbar",
+    "title": "Update verfügbar"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "chat": "Chat",
@@ -5050,6 +5058,7 @@
       "postingActivity": "Verarbeitungsaktivität (Angebote)",
       "skillEvents": "Skill-Lebenszyklus-Ereignisse",
       "noActivity": "Keine Aktivität in diesem Zeitraum"
-    }
+    },
+    "autoRefresh": "Auto-Aktualisierung 30s"
   }
 }

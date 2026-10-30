@@ -1,10 +1,15 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { fetchAuditChanges, type AuditChangeRow } from "@/api/audit";
+import {
+  exportAuditCsv,
+  fetchAuditChanges,
+  type AuditChangeRow,
+} from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
 import { RangeFilter, rangeParams, type RangeValue } from "@/components/audit/RangeFilter";
+import { downloadCsv } from "@/components/audit/download";
 
 const PAGE_SIZE = 50;
 
@@ -188,6 +193,31 @@ export function ChangesTab() {
           }}
           allowAllTime
         />
+        <button
+          type="button"
+          className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm disabled:opacity-40"
+          onClick={() =>
+            void (async () => {
+              try {
+                downloadCsv(
+                  await exportAuditCsv("changes", {
+                    ...rangeParams(range),
+                    entity,
+                    actor_kind: actorKind || undefined,
+                    outcome: entity === "postings" && result ? result : undefined,
+                    event: entity === "skills" && result ? result : undefined,
+                  }),
+                  `changes_${entity}`,
+                );
+              } catch (err) {
+                setError(apiDetail(err));
+              }
+            })()
+          }
+          data-testid="audit-changes-export"
+        >
+          {t("audit.export.csv")}
+        </button>
       </div>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}

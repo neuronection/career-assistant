@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (audit auto-refresh + export coverage, 2026-10-30)
+- **Overview gains an auto-refresh toggle** (plan 157): a 30-second
+  cadence refetches the KPIs, charts and failure feed in place — the
+  monitoring console no longer needs manual reloads. **CSV export covers
+  every stream**: source runs and the data-change journals
+  (`stream=changes&entity=postings|skills`) join the existing AI,
+  security and jobs exports, with export buttons on the Jobs tab's
+  source-runs card and the Changes tab.
+
 ### Fixed (failure-alert deep links, 2026-10-30)
 - **Scheduler failure notifications and the seeded notification kinds
   follow the Automations move** (plan 156): the failure-alert payload and

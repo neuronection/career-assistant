@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RefreshCw } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -29,6 +30,8 @@ import {
   formatTokens,
   formatTokensExact,
 } from "@/config/auditVocab";
+
+const AUTO_REFRESH_MS = 30_000;
 
 const CHART_COLORS = {
   calls: "var(--as-accent, #6172f3)",
@@ -242,13 +245,21 @@ function RecentFailures({ overview }: { overview: AuditOverview }) {
 /** The audit Overview tab: KPI tiles, volume/errors chart, category
  * breakdown and the recent-failure feed — all server-aggregated. The
  * time range is the page-level control (preset or custom). */
-export function OverviewTab({ range }: { range: AuditRangeQuery }) {
+export function OverviewTab({
+  range,
+  refreshMs = AUTO_REFRESH_MS,
+}: {
+  range: AuditRangeQuery;
+  /** Injectable for tests (repo poll-injection pattern). */
+  refreshMs?: number;
+}) {
   const { t } = useTranslation();
   const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [series, setSeries] = useState<AuditSeries | null>(null);
   const [taskRows, setTaskRows] = useState<AuditBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(false);
   const requestId = useRef(0);
 
   const load = useCallback(async () => {
@@ -276,7 +287,15 @@ export function OverviewTab({ range }: { range: AuditRangeQuery }) {
     void load();
   }, [load]);
 
-  if (loading) {
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(() => {
+      void load();
+    }, refreshMs);
+    return () => clearInterval(timer);
+  }, [autoRefresh, load, refreshMs]);
+
+  if (loading && !overview) {
     return (
       <div className="flex w-full flex-col items-center justify-center py-24">
         <Spinner size="lg" />
@@ -284,11 +303,29 @@ export function OverviewTab({ range }: { range: AuditRangeQuery }) {
       </div>
     );
   }
-  if (error) return <p className="text-sm text-rose-600">{error}</p>;
+  if (error && !overview) {
+    return <p className="text-sm text-rose-600">{error}</p>;
+  }
   if (!overview || !series) return <EmptyState title={t("audit.empty")} />;
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+            autoRefresh
+              ? "border-[var(--as-accent,var(--chart-1,#6172f3))] text-[var(--as-accent,var(--chart-1,#6172f3))]"
+              : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)]"
+          }`}
+          aria-pressed={autoRefresh}
+          onClick={() => setAutoRefresh((value) => !value)}
+          data-testid="audit-auto-refresh"
+        >
+          <RefreshCw className="size-3" aria-hidden />
+          {t("audit.autoRefresh")}
+        </button>
+      </div>
       <KpiTiles overview={overview} />
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <VolumeChart series={series} />

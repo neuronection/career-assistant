@@ -5059,6 +5059,7 @@
       "postingActivity": "Posting processing activity",
       "skillEvents": "Skill lifecycle events",
       "noActivity": "No activity in this range"
-    }
+    },
+    "autoRefresh": "Auto-refresh 30s"
   }
 }

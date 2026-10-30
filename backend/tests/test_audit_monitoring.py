@@ -399,6 +399,55 @@ async def test_export_csv_streams(client, db, _admin_and_user):
     assert denied.status_code == 403
 
 
+async def test_export_source_runs_and_changes(client, db, _admin_and_user, source):
+    admin, _ = _admin_and_user
+    from app.models.posting_model import SourceRun
+    from app.models.taxonomy_model import SkillChange
+    from tests.conftest import _make_posting
+
+    await _make_posting(db, source)
+    db.add_all(
+        [
+            SourceRun(
+                source_id=source.id,
+                trigger="scheduled",
+                status="ok",
+                started_at=datetime.now(UTC),
+                duration_ms=800,
+                items_synced=4,
+            ),
+            SkillChange(
+                skill_key="python",
+                skill_label="Python",
+                event="created",
+                actor_kind="system",
+            ),
+        ]
+    )
+    await db.flush()
+
+    runs = await client.get(
+        "/api/v1/admin/audit/export?stream=source_runs&window=24h", headers=admin
+    )
+    assert runs.status_code == 200
+    assert runs.text.startswith("started_at,source_key,trigger,status")
+    assert "synth" in runs.text
+
+    skills = await client.get(
+        "/api/v1/admin/audit/export?stream=changes&entity=skills&window=24h",
+        headers=admin,
+    )
+    assert skills.status_code == 200
+    assert "python" in skills.text
+
+    postings = await client.get(
+        "/api/v1/admin/audit/export?stream=changes&entity=postings&window=24h",
+        headers=admin,
+    )
+    assert postings.status_code == 200
+    assert postings.text.startswith("occurred_at,actor_kind,outcome,posting_id,duration_ms")
+
+
 async def test_custom_date_range(client, db, _admin_and_user):
     admin, _ = _admin_and_user
     cutoff = datetime.now(UTC) - timedelta(days=3)

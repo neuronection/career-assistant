@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
@@ -9,6 +9,7 @@ import {
   parseAuditTab,
   parseAuditWindow,
 } from "@/pages/settings/Audit";
+import { OverviewTab } from "@/components/audit/OverviewTab";
 import {
   AUDIT_CATEGORIES,
   categoryRollup,
@@ -346,6 +347,7 @@ describe("audit page tabs", () => {
     expect(screen.getAllByTestId("audit-failure-row").length).toBe(2);
     expect(screen.getByText("match_score")).toBeTruthy();
     expect(fetchAuditOverview).toHaveBeenCalledWith({ window: "24h" });
+    expect(screen.getByTestId("audit-auto-refresh")).toBeTruthy();
   });
 
   it("canonicalizes an unknown tab param", async () => {
@@ -468,6 +470,26 @@ describe("audit page tabs", () => {
     );
   });
 
+  it("auto-refresh refetches on the interval when enabled", async () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <MemoryRouter initialEntries={["/settings/audit"]}>
+          <OverviewTab range={{ window: "24h" }} refreshMs={50} />
+        </MemoryRouter>,
+      );
+      await vi.advanceTimersByTimeAsync(5);
+      const initial = vi.mocked(fetchAuditOverview).mock.calls.length;
+      expect(initial).toBeGreaterThanOrEqual(1);
+
+      fireEvent.click(screen.getByTestId("audit-auto-refresh"));
+      await vi.advanceTimersByTimeAsync(120);
+      expect(vi.mocked(fetchAuditOverview).mock.calls.length).toBeGreaterThan(initial);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("renders the jobs tab with facets, expandable rows and source runs", async () => {
     renderPage("/settings/audit?tab=jobs");
     expect(await screen.findByTestId("audit-jobs-tab")).toBeTruthy();
@@ -492,6 +514,28 @@ describe("audit page tabs", () => {
       expect(exportAuditCsv).toHaveBeenCalledWith(
         "jobs",
         expect.objectContaining({ window: "7d" }),
+      ),
+    );
+  });
+
+  it("exports the source runs and changes CSVs", async () => {
+    renderPage("/settings/audit?tab=jobs");
+    await screen.findByTestId("audit-jobs-tab");
+    await userEvent.click(screen.getByTestId("audit-runs-export"));
+    await waitFor(() =>
+      expect(exportAuditCsv).toHaveBeenCalledWith(
+        "source_runs",
+        expect.objectContaining({ window: "7d" }),
+      ),
+    );
+
+    renderPage("/settings/audit?tab=changes");
+    await screen.findByTestId("audit-changes-tab");
+    await userEvent.click(screen.getByTestId("audit-changes-export"));
+    await waitFor(() =>
+      expect(exportAuditCsv).toHaveBeenCalledWith(
+        "changes",
+        expect.objectContaining({ entity: "postings", window: "7d" }),
       ),
     );
   });

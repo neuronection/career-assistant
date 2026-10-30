@@ -213,9 +213,10 @@ share a 24h/7d/30d or custom range:
   skill lifecycle events (created, promoted, deprecated, merged, deleted)
   with actor and outcome filters.
 
-Every tab can narrow to a custom date range, and the AI activity,
-security and jobs views export the current filtered ledger as CSV
-(capped at 10,000 rows). All aggregation happens server-side and works
+Every tab can narrow to a custom date range, the overview supports an
+auto-refresh toggle (30-second cadence), and the AI activity, security,
+jobs (including source runs) and data-changes views export the current
+filtered ledger as CSV (capped at 10,000 rows). All aggregation happens server-side and works
 identically on PostgreSQL (web/self-host) and the SQLite desktop
 profile.
 

@@ -355,19 +355,43 @@ export function JobsTab() {
           <h3 className="text-sm font-semibold text-[var(--as-fg)]">
             {t("audit.jobs.sourceRuns")}
           </h3>
-          <select
-            aria-label={t("audit.jobs.runStatusFilter")}
-            className={selectClass}
-            value={runStatus}
-            onChange={(e) => setRunStatus(e.target.value)}
-          >
-            <option value="">{t("audit.jobs.allStatuses")}</option>
-            {RUN_STATUSES.map((value) => (
-              <option key={value} value={value}>
-                {t(`audit.jobs.runStatus.${value}`, { defaultValue: value })}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <select
+              aria-label={t("audit.jobs.runStatusFilter")}
+              className={selectClass}
+              value={runStatus}
+              onChange={(e) => setRunStatus(e.target.value)}
+            >
+              <option value="">{t("audit.jobs.allStatuses")}</option>
+              {RUN_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {t(`audit.jobs.runStatus.${value}`, { defaultValue: value })}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm disabled:opacity-40"
+              onClick={() =>
+                void (async () => {
+                  try {
+                    downloadCsv(
+                      await exportAuditCsv("source_runs", {
+                        window: "7d",
+                        status: runStatus || undefined,
+                      }),
+                      "source_runs",
+                    );
+                  } catch (err) {
+                    setError(apiDetail(err));
+                  }
+                })()
+              }
+              data-testid="audit-runs-export"
+            >
+              {t("audit.export.csv")}
+            </button>
+          </div>
         </div>
         {runs.length === 0 ? (
           <p className="py-6 text-center text-sm text-[var(--as-muted-fg)]">

@@ -260,7 +260,10 @@ async def audit_changes(
 
 @router.get("/export")
 async def audit_export(
-    stream: str = Query(default="ai", pattern="^(ai|events|jobs)$"),
+    stream: str = Query(
+        default="ai", pattern="^(ai|events|jobs|source_runs|changes)$"
+    ),
+    entity: str = Query(default="postings", pattern="^(postings|skills)$"),
     window: str | None = Query(default=None, pattern="^(24h|7d|30d)$"),
     date_from: datetime | None = Query(default=None, alias="from"),
     date_to: datetime | None = Query(default=None, alias="to"),
@@ -272,9 +275,11 @@ async def audit_export(
     outcome: str | None = Query(default=None),
     actor: str | None = Query(default=None),
     job_type: str | None = Query(default=None),
+    trigger: str | None = Query(default=None, pattern="^(manual|scheduled)$"),
+    event: str | None = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """The filtered ledger as CSV (plan 152), capped at 10 000 rows —
+    """The filtered ledger as CSV (plans 152/157), capped at 10 000 rows —
     carries the same filters as the stream's list endpoint."""
     csv_text, truncated = await audit.export_csv(
         db,
@@ -290,6 +295,9 @@ async def audit_export(
         outcome=outcome,
         actor=actor,
         job_type=job_type,
+        trigger=trigger,
+        entity=entity,
+        event=event,
     )
     headers = {"Content-Disposition": f'attachment; filename="audit-{stream}.csv"'}
     if truncated:

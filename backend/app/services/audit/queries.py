@@ -872,6 +872,29 @@ EXPORT_COLUMNS = {
         "finished_at",
         "error",
     ],
+    "source_runs": [
+        "started_at",
+        "source_key",
+        "trigger",
+        "status",
+        "duration_ms",
+        "items_synced",
+        "error",
+    ],
+    "changes_postings": [
+        "occurred_at",
+        "actor_kind",
+        "outcome",
+        "posting_id",
+        "duration_ms",
+    ],
+    "changes_skills": [
+        "occurred_at",
+        "event",
+        "actor_kind",
+        "skill_key",
+        "skill_label",
+    ],
 }
 
 
@@ -900,12 +923,16 @@ async def export_csv(
     outcome: str | None = None,
     actor: str | None = None,
     job_type: str | None = None,
+    trigger: str | None = None,
+    entity: str = "postings",
+    event: str | None = None,
 ) -> tuple[str, bool]:
-    """The filtered ledger as CSV (plan 152), capped at EXPORT_LIMIT rows.
-    Returns (csv_text, truncated)."""
+    """The filtered ledger as CSV (plans 152/157), capped at EXPORT_LIMIT
+    rows. Returns (csv_text, truncated)."""
     buffer = io.StringIO()
     writer = csv.writer(buffer)
-    writer.writerow(EXPORT_COLUMNS[stream])
+    columns_key = f"changes_{entity}" if stream == "changes" else stream
+    writer.writerow(EXPORT_COLUMNS[columns_key])
     truncated = False
     if stream == "ai":
         _, rows = await generations(
@@ -960,7 +987,7 @@ async def export_csv(
                     _csv_safe(row["resource"]),
                 ]
             )
-    else:
+    elif stream == "jobs":
         _, rows = await jobs(
             db,
             status=status,
@@ -984,4 +1011,61 @@ async def export_csv(
                     _csv_safe(row["error"]),
                 ]
             )
+    elif stream == "source_runs":
+        _, rows = await source_runs(
+            db,
+            status=status,
+            trigger=trigger,
+            window=window,
+            date_from=date_from,
+            date_to=date_to,
+            limit=EXPORT_LIMIT,
+        )
+        truncated = len(rows) >= EXPORT_LIMIT
+        for row in rows:
+            writer.writerow(
+                [
+                    _csv_safe(row["started_at"].isoformat() if row["started_at"] else ""),
+                    _csv_safe(row["source_key"] or ""),
+                    _csv_safe(row["trigger"]),
+                    _csv_safe(row["status"]),
+                    row["duration_ms"],
+                    row["items_synced"],
+                    _csv_safe(row["error"]),
+                ]
+            )
+    elif stream == "changes":
+        _, rows = await changes(
+            db,
+            entity=entity,
+            actor_kind=status,
+            outcome=outcome,
+            event=event,
+            window=window,
+            date_from=date_from,
+            date_to=date_to,
+            limit=EXPORT_LIMIT,
+        )
+        truncated = len(rows) >= EXPORT_LIMIT
+        for row in rows:
+            if entity == "postings":
+                writer.writerow(
+                    [
+                        row["occurred_at"].isoformat(),
+                        _csv_safe(row["actor_kind"]),
+                        _csv_safe(row.get("outcome") or ""),
+                        _csv_safe(str(row.get("posting_id") or "")),
+                        row.get("duration_ms") if row.get("duration_ms") is not None else "",
+                    ]
+                )
+            else:
+                writer.writerow(
+                    [
+                        row["occurred_at"].isoformat(),
+                        _csv_safe(row.get("event") or ""),
+                        _csv_safe(row["actor_kind"]),
+                        _csv_safe(row.get("skill_key") or ""),
+                        _csv_safe(row.get("skill_label") or ""),
+                    ]
+                )
     return buffer.getvalue(), truncated

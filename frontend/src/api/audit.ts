@@ -317,7 +317,12 @@ export async function fetchAuditProduction(
 }
 
 export async function exportAuditCsv(
-  stream: "ai" | "events" | "jobs",
+  stream:
+    | "ai"
+    | "events"
+    | "jobs"
+    | "source_runs"
+    | "changes",
   params: {
     window?: AuditWindow;
     from?: string;
@@ -330,6 +335,10 @@ export async function exportAuditCsv(
     outcome?: string;
     actor?: string;
     job_type?: string;
+    actor_kind?: string;
+    trigger?: string;
+    entity?: "postings" | "skills";
+    event?: string;
   } = {},
 ): Promise<Blob> {
   const response = await api.get(`/admin/audit/export`, {
