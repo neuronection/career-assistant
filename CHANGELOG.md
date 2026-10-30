@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (failure-alert deep links, 2026-10-30)
+- **Scheduler failure notifications and the seeded notification kinds
+  follow the Automations move** (plan 156): the failure-alert payload and
+  the `manage_url` of `digest_ready`, `background_failed` and
+  `checkin_due` now point at `/settings/automations` instead of the
+  legacy `/settings/scheduler` redirect; existing databases heal via
+  migration `0076`. The scheduler's failure alerting itself (threshold 3,
+  deduped re-alerts, admin/owner routing, recovery reset) was already in
+  place and is now link-pinned by a test.
+
 ### Changed (connectors — full-length job descriptions, 2026-10-30)
 - **The 8 KB raw-bag cap for MCP-script sources is now 64 KB** — job
   descriptions arrive complete instead of trimmed around ~6,000

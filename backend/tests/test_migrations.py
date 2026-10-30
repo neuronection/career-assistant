@@ -7,6 +7,7 @@ import os
 from datetime import UTC, datetime
 
 import pytest
+import sqlalchemy as sa
 from alembic.config import Config
 
 from alembic import command
@@ -127,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0075"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0076"], (
         "revision chain stays linear on one head"
     )
 
@@ -3441,3 +3442,72 @@ def _es_cleanup() -> None:
             await engine.dispose()
 
     asyncio.run(_run())
+
+
+def test_0076_alert_manage_urls_roundtrip():
+    """Plan 156: the three scheduler-era kinds follow the Automations move
+    on upgrade; the downgrade restores the legacy links so the fold is
+    reversible. The kinds are boot-seeded, not migration-seeded, so the
+    test inserts the legacy rows itself on the downlevel schema."""
+
+    async def _seed_legacy() -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for index, key in enumerate(("digest_ready", "background_failed", "checkin_due")):
+                    await conn.execute(
+                        sa.text(
+                            "INSERT INTO notification_kinds "
+                            '(id, key, label, "group", severity, default_enabled, '
+                            "default_channels, mutable, manage_url, created_at, updated_at) "
+                            "VALUES "
+                            f"('{index + 1:0>32}', :key, :key, 'career', 'info', 1, "
+                            '\'["in_app"]\', 1, \'/settings/scheduler\', '
+                            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                        ),
+                        {"key": key},
+                    )
+        finally:
+            await engine.dispose()
+
+    async def _urls() -> dict[str, str | None]:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        sa.text(
+                            "SELECT key, manage_url FROM notification_kinds "
+                            "WHERE key IN ('digest_ready', 'background_failed', 'checkin_due')"
+                        )
+                    )
+                ).all()
+        finally:
+            await engine.dispose()
+        return dict(rows)
+
+    config = _configured()
+    command.downgrade(config, "0075")
+    asyncio.run(_seed_legacy())
+
+    command.upgrade(config, "head")
+    urls = asyncio.run(_urls())
+    assert len(urls) == 3, urls
+    assert all(url == "/settings/automations" for url in urls.values()), urls
+
+    command.downgrade(config, "0075")
+    restored = asyncio.run(_urls())
+    assert all(url == "/settings/scheduler" for url in restored.values()), restored
+
+    command.upgrade(config, "head")
+    assert all(url == "/settings/automations" for url in asyncio.run(_urls()).values()), (
+        "re-upgrade re-applies the Automations links"
+    )

@@ -547,7 +547,7 @@ class SchedulerService:
         payload = {
             "schedule_id": str(schedule.id),
             "kind": schedule.kind,
-            "link": "/settings/scheduler",
+            "link": "/settings/automations",
         }
         if schedule.owner_user_id is None:
             from app.models.user_model import User

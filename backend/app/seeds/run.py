@@ -264,7 +264,7 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop", "browser"],
         "mutable": True,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8005",
@@ -275,7 +275,7 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop"],
         "mutable": False,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8006",
@@ -308,7 +308,7 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop", "browser"],
         "mutable": True,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8009",
