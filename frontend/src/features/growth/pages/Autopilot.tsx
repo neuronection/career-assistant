@@ -368,12 +368,25 @@ function FindingCard({
       data-testid={`finding-${finding.id}`}
     >
       <div className="flex items-start gap-3">
-        <span
-          className={`rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${scoreStyle(finding.score)}`}
-          title={t("autopilot.fitScore")}
-        >
-          {finding.score.toFixed(1)}
-        </span>
+        <div className="flex shrink-0 flex-col items-start gap-1">
+          <span
+            className={`rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${scoreStyle(finding.score)}`}
+            title={t("autopilot.fitScore")}
+          >
+            {finding.score.toFixed(1)}
+          </span>
+          {finding.evidence?.must_coverage && finding.evidence.must_coverage.total > 0 && (
+            <span
+              className="rounded-lg bg-[var(--as-muted)] px-2 py-0.5 text-xs font-medium tabular-nums text-[var(--as-muted-fg)]"
+              data-testid={`coverage-${finding.id}`}
+            >
+              {t("autopilot.mustHaves", {
+                hits: finding.evidence.must_coverage.hits,
+                total: finding.evidence.must_coverage.total,
+              })}
+            </span>
+          )}
+        </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             {finding.url ? (

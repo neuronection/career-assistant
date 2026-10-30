@@ -864,6 +864,7 @@
     "deleteBody": "Its runs and findings go with it. This cannot be undone.",
     "delete": "Delete",
     "fitScore": "Fit score",
+  "mustHaves": "Must-haves {{hits}}/{{total}}",
     "moreLikeThis": "More like this",
     "hideLikeThis": "Hide like this — the goal learns to skip these",
     "status": {

@@ -19,8 +19,9 @@ All notable changes to **Career Assistant** are documented here.
 - **Your must-terms are a guarantee, not a hint** (plan 158): a shortlist
   is ordered by must-term coverage first and fit second, so a posting that
   matches what you said you must have always outranks a higher-scoring one
-  that matches none. Each finding's evidence records its coverage, and the
-  curator weighs it when writing the explanation.
+  that matches none. Each finding's card shows its coverage (for example
+  "Must-haves 2/3"), its evidence records it, and the curator weighs it when
+  writing the explanation.
 - **Autopilot looks deeper and wastes less work** (plan 158): each search
   variant now ranks a 200-posting window (40 examined per variant) instead
   of 125, the curated pool widens with the goal's shortlist size, and the

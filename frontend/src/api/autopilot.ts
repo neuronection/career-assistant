@@ -52,7 +52,12 @@ export interface AutopilotFinding {
   url: string;
   score: number;
   why: string;
-  evidence: { quotes?: string[]; breakdown?: Record<string, unknown>; verified?: boolean };
+  evidence: {
+    quotes?: string[];
+    breakdown?: Record<string, unknown>;
+    verified?: boolean;
+    must_coverage?: { hits: number; total: number };
+  };
   feedback: "more_like_this" | "hide_like_this" | null;
   dismissed_at: string | null;
   created_at: string;

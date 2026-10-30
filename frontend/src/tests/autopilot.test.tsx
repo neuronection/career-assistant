@@ -99,7 +99,11 @@ function runWithFindings(
         url: "https://syn.example/1",
         score: 7.8,
         why: "Strong skills overlap with programming at SynthCo.",
-        evidence: { quotes: ["We need programming and problem-solving"], verified: true },
+        evidence: {
+          quotes: ["We need programming and problem-solving"],
+          verified: true,
+          must_coverage: { hits: 1, total: 2 },
+        },
         feedback: null,
         dismissed_at: null,
         created_at: "2026-09-05T08:00:10Z",
@@ -165,6 +169,24 @@ describe("Autopilot page", () => {
       screen.getByText(/We need programming and problem-solving/)
     ).toBeInTheDocument();
     expect(screen.getByText("7.8")).toBeInTheDocument();
+    expect(screen.getByText("Must-haves 1/2")).toBeInTheDocument();
+  });
+
+  it("hides must-have coverage when the goal has no must terms", async () => {
+    mockRuns.mockResolvedValue([
+      runWithFindings({
+        findings: [
+          {
+            ...runWithFindings().findings[0],
+            id: "f3",
+            evidence: { must_coverage: { hits: 0, total: 0 } },
+          },
+        ],
+      }),
+    ]);
+    renderPage();
+    await screen.findByText("QA Automation Engineer");
+    expect(screen.queryByTestId("coverage-f3")).toBeNull();
   });
 
   it("run now refreshes and reports the outcome", async () => {

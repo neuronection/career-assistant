@@ -864,6 +864,7 @@
     "deleteBody": "Es wird und die Ergebnisse gehen mit. Dies kann nicht rückgängig gemacht werden.",
     "delete": "Löschen",
     "fitScore": "Passungsgrad",
+ "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
     "moreLikeThis": "Mehr wie das",
     "hideLikeThis": "Ausblenden — das Ziel lernt, diese zu überspringen",
     "status": {
