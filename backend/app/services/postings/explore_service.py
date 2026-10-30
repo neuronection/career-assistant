@@ -43,8 +43,61 @@ POSTED_WINDOWS: dict[str, timedelta] = {
 
 SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 REMOTE_VALUES = ("onsite", "hybrid", "remote")
+SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
+BENEFIT_KIND_VALUES = (
+    "healthcare",
+    "pension",
+    "leave",
+    "remote_budget",
+    "learning",
+    "equity",
+    "meals",
+    "transport",
+    "other",
+)
 SKILL_FACET_SIZE = 15
 OPEN_STATUSES = ("mapped", "new")
+
+ALLOWED_FILTER_KEYS = frozenset(
+    {
+        "q",
+        "skills",
+        "skill_exclude",
+        "skill_mode",
+        "skill_priority",
+        "education_min",
+        "languages",
+        "posted_within",
+        "posted_after",
+        "fresh_only",
+        "salary_min",
+        "salary_currency",
+        "keywords",
+        "seniority",
+        "seniority_exclude",
+        "employment_type",
+        "remote_policy",
+        "remote_policy_exclude",
+        "city",
+        "country",
+        "source",
+        "source_exclude",
+        "mapped_family",
+        "saved",
+        "seen",
+        "applied",
+        "extracted_only",
+        "contract",
+        "contract_exclude",
+        "travel",
+        "travel_exclude",
+        "schedule",
+        "schedule_exclude",
+        "benefits",
+        "org",
+        "org_exclude",
+    }
+)
 
 DIMENSIONS = (
     "q",
@@ -88,44 +141,7 @@ def parse_explore_filters(params: dict) -> dict:
     chatbot tools (LLM-provided dict) and saved searches (stored JSONB).
     Unknown keys are rejected — the filter set is data, never free text.
     """
-    allowed = {
-        "q",
-        "skills",
-        "skill_exclude",
-        "skill_mode",
-        "skill_priority",
-        "education_min",
-        "languages",
-        "posted_within",
-        "posted_after",
-        "fresh_only",
-        "salary_min",
-        "salary_currency",
-        "keywords",
-        "seniority",
-        "seniority_exclude",
-        "employment_type",
-        "remote_policy",
-        "remote_policy_exclude",
-        "city",
-        "country",
-        "source",
-        "source_exclude",
-        "mapped_family",
-        "saved",
-        "seen",
-        "applied",
-        "extracted_only",
-        "contract",
-        "contract_exclude",
-        "travel",
-        "travel_exclude",
-        "schedule",
-        "schedule_exclude",
-        "benefits",
-        "org",
-        "org_exclude",
-    }
+    allowed = ALLOWED_FILTER_KEYS
     unknown = set(params or {}) - allowed
     if unknown:
         raise ValidationError(f"Unknown explore filters: {', '.join(sorted(unknown))}")
@@ -221,7 +237,6 @@ def parse_explore_filters(params: dict) -> dict:
         if excluded:
             filters[f"{key}_exclude"] = excluded[:12]
 
-    SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
     schedule = [cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES]
     if schedule:
         filters["schedule"] = schedule[:5]
@@ -231,17 +246,6 @@ def parse_explore_filters(params: dict) -> dict:
     if schedule_excluded:
         filters["schedule_exclude"] = schedule_excluded[:5]
 
-    BENEFIT_KIND_VALUES = (
-        "healthcare",
-        "pension",
-        "leave",
-        "remote_budget",
-        "learning",
-        "equity",
-        "meals",
-        "transport",
-        "other",
-    )
     benefits = [kind for kind in _as_list(params.get("benefits")) if kind in BENEFIT_KIND_VALUES]
     if benefits:
         filters["benefits"] = benefits[:9]
@@ -308,8 +312,13 @@ def _conditions_for(
     conditions: list = []
 
     if dimension == "q" and filters.get("q"):
-        pattern = f"%{filters['q']}%"
-        conditions.append(or_(JobPosting.title.ilike(pattern), JobPosting.org.ilike(pattern)))
+        pattern = f"%{_like_literal(filters['q'])}%"
+        conditions.append(
+            or_(
+                JobPosting.title.ilike(pattern, escape="\\"),
+                JobPosting.org.ilike(pattern, escape="\\"),
+            )
+        )
 
     elif dimension == "keywords" and filters.get("keywords"):
         # ANY keyword hitting title or employer, each escaped — the job

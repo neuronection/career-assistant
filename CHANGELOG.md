@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (autopilot retrieval quality, 2026-10-30)
+- **Autopilot plans from your profile and searches by keyword** (plan 158):
+  the planner now sees your skills (plus the taxonomy skills around them),
+  education level, location and target seniority, and it writes keyword
+  variants that match titles and employers — instead of one
+  natural-language phrase that matched almost nothing. The plan prompt also
+  lists the real explore vocabulary, so variants stop inventing filter keys
+  and being dropped. A literal `%` or `_` in a search phrase is matched
+  literally instead of acting as a wildcard.
+
 ### Changed (audit auto-refresh + export coverage, 2026-10-30)
 - **Overview gains an auto-refresh toggle** (plan 157): a 30-second
   cadence refetches the KPIs, charts and failure feed in place — the

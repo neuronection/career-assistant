@@ -13,6 +13,7 @@ stays a user click.
 
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -28,8 +29,18 @@ from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import Curation, SearchPlan
 from app.core.errors import sanitize_error_detail
 from app.models.ai_model import AIGeneration
-from app.models.enums import AITaskType, AutopilotRunStatus
-from app.services.postings.explore_service import explore, parse_explore_filters
+from app.models.enums import AITaskType, AutopilotRunStatus, SkillExpandMode
+from app.services.postings.explore_service import (
+    ALLOWED_FILTER_KEYS,
+    BENEFIT_KIND_VALUES,
+    OPEN_STATUSES,
+    POSTED_WINDOWS,
+    REMOTE_VALUES,
+    SCHEDULE_CUE_VALUES,
+    SENIORITY_VALUES,
+    explore,
+    parse_explore_filters,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +49,12 @@ DEFAULT_TOP_N = 5
 DEFAULT_COOLDOWN_DAYS = 7
 SEARCH_LIMIT = 25
 SNIPPET_CHARS = 600
+
+PROFILE_SKILL_LIMIT = 12
+PLAN_SKILL_LIMIT = 40
+PLAN_FAMILY_LIMIT = 40
+PLAN_SOURCE_LIMIT = 20
+SKILL_GRAPH_HOPS = 1
 
 ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelCb = Callable[[], Awaitable[bool]]
@@ -127,15 +144,27 @@ def _plan_system() -> str:
     return (
         "You are a career-search planner. Design 2-5 diverse search "
         "variants to find vacancies matching the user's goal. Each variant "
-        "has a short query plus optional explore filters drawn ONLY from "
-        "the allowed filter keys. Vary scope (broad vs niche, different "
-        "skill emphases). Honor every never-term (never search for it) "
-        "and must-term. Respond with JSON only."
+        "has optional explore filters drawn ONLY from the allowed filter "
+        "keys, and its text goes in `keywords` (a LIST — any of them may "
+        "match a title or employer) or `q` (ONE exact phrase matched "
+        "against title and employer only); multi-word concepts always go "
+        "to `keywords`, never to `q`. "
+        f"Allowed filter keys: {', '.join(sorted(ALLOWED_FILTER_KEYS))}. "
+        f"seniority values: {', '.join(SENIORITY_VALUES)}; "
+        f"remote_policy values: {', '.join(REMOTE_VALUES)}; "
+        f"posted_within values: {', '.join(POSTED_WINDOWS)}; "
+        f"schedule cues: {', '.join(SCHEDULE_CUE_VALUES)}; "
+        f"benefit kinds: {', '.join(BENEFIT_KIND_VALUES)}. "
+        "Vary scope (broad vs niche, different skill emphases) and prefer "
+        "skill keys from the user's own skill neighbourhood. Honor every "
+        "never-term (never search for it) and must-term. Respond with JSON "
+        "only."
     )
 
 
-def _plan_user_prompt(state: AutopilotState) -> str:
+def _plan_user_prompt(state: AutopilotState, vocabulary: dict | None = None) -> str:
     c = _constraints(state)
+    vocab = vocabulary or {}
     return json.dumps(
         {
             "goal": state.get("goal_text", ""),
@@ -146,9 +175,98 @@ def _plan_user_prompt(state: AutopilotState) -> str:
             "salary_min": c.get("salary_min"),
             "seniority": c.get("seniority") or [],
             "profile_context": state.get("profile_context") or {},
+            "valid_filter_keys": sorted(ALLOWED_FILTER_KEYS),
+            "skill_keys": vocab.get("skills") or [],
+            "family_keys": vocab.get("families") or [],
+            "source_keys": vocab.get("sources") or [],
         },
         ensure_ascii=False,
     )
+
+
+async def collect_profile_context(db: AsyncSession, user_id: UUID, constraints: dict) -> dict:
+    """The planner's small profile dict: skills with levels, education,
+    location and the goal's target seniority.
+
+    A dict composer over existing queries — no new profile modeling, the
+    same ``SkillService.user_skills`` the profile surfaces read.
+    """
+    from app.services.catalog.skills_service import SkillService
+    from app.services.deps import get_profile_for_user
+
+    profile = await get_profile_for_user(db, user_id)
+    basics = profile.basics or {}
+    skills = [
+        {"key": row.skill.key, "level": int(row.level)}
+        for row in await SkillService(db).user_skills(user_id)
+        if row.skill is not None
+    ][:PROFILE_SKILL_LIMIT]
+    return {
+        "skills": skills,
+        "education_level": basics.get("education_level"),
+        "country": basics.get("country") or None,
+        "city": basics.get("city") or None,
+        "target_seniority": [str(value) for value in constraints.get("seniority") or []],
+    }
+
+
+async def plan_vocabulary(db: AsyncSession, user_id: UUID) -> dict:
+    """The planner's skill/family/source vocabulary (plan 158 S1.2).
+
+    The user's own skills and their 1-hop curated graph neighbourhood
+    (synonyms + subtree + ``is_a`` children, ``down`` mode) come FIRST,
+    then top-by-posting-frequency keys pad the list to ``PLAN_SKILL_LIMIT``.
+    """
+    from app.models.job_model import JobFamily
+    from app.models.posting_model import JobPosting, JobSource, PostingSkill
+    from app.models.taxonomy_model import Skill
+    from app.services.catalog.skill_relations import SkillRelationService
+    from app.services.catalog.skills_service import SkillService
+
+    keys: list[str] = []
+    for row in await SkillService(db).user_skills(user_id):
+        key = row.skill.key if row.skill is not None else None
+        if key and key not in keys:
+            keys.append(key)
+    own_ids = set((await db.execute(select(Skill.id).where(Skill.key.in_(keys)))).scalars().all())
+    if own_ids:
+        graph = await SkillRelationService(db).load_graph()
+        reached = graph.expand(own_ids, mode=SkillExpandMode.DOWN, hops=SKILL_GRAPH_HOPS)
+        for key in sorted(graph.keys_for(reached)):
+            if key not in keys:
+                keys.append(key)
+    families = list(
+        (await db.execute(select(JobFamily.key).order_by(JobFamily.key))).scalars().all()
+    )
+    sources = list(
+        (
+            await db.execute(
+                select(JobSource.key).where(JobSource.enabled.is_(True)).order_by(JobSource.key)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(keys) < PLAN_SKILL_LIMIT:
+        open_postings = select(JobPosting.id).where(JobPosting.status.in_(OPEN_STATUSES))
+        frequent = await db.execute(
+            select(Skill.key)
+            .join(PostingSkill, PostingSkill.skill_id == Skill.id)
+            .where(PostingSkill.posting_id.in_(open_postings))
+            .group_by(Skill.key)
+            .order_by(func.count(PostingSkill.posting_id).desc(), Skill.key)
+            .limit(PLAN_SKILL_LIMIT)
+        )
+        for key in frequent.scalars().all():
+            if len(keys) >= PLAN_SKILL_LIMIT:
+                break
+            if key not in keys:
+                keys.append(key)
+    return {
+        "skills": keys[:PLAN_SKILL_LIMIT],
+        "families": families[:PLAN_FAMILY_LIMIT],
+        "sources": sources[:PLAN_SOURCE_LIMIT],
+    }
 
 
 def _curate_system(top_n: int) -> str:
@@ -307,14 +425,20 @@ def _serialize_candidate(item: dict) -> dict | None:
 
 def make_plan_node(deps: GraphDeps):
     async def plan(state: AutopilotState) -> dict:
-        """LLM step 1: goal + constraints + profile context → SearchPlan."""
+        """LLM step 1: goal + constraints + profile context + the explore
+        vocabulary → SearchPlan."""
         try:
+            try:
+                vocabulary = await plan_vocabulary(deps.db, UUID(state["user_id"]))
+            except Exception:
+                logger.warning("autopilot vocabulary collection failed", exc_info=True)
+                vocabulary = {}
             result = await ainvoke_structured(
                 deps.db,
                 AITaskType.AUTOPILOT_RUN,
                 SearchPlan,
                 system=_plan_system(),
-                user=_plan_user_prompt(state),
+                user=_plan_user_prompt(state, vocabulary),
                 user_id=UUID(state["user_id"]),
             )
             return {"plan": result.model_dump(mode="json")}
@@ -682,6 +806,7 @@ def initial_state(
     budget: dict,
     top_n: int | None = None,
     cooldown_days: int | None = None,
+    profile_context: dict | None = None,
 ) -> AutopilotState:
     """The first checkpoint's payload (everything a resumed run needs)."""
     now = _utcnow()
@@ -696,6 +821,7 @@ def initial_state(
         started_at=now.isoformat(),
         cooldown_cutoff=(now - timedelta(days=max(days, 0))).isoformat(),
         top_n=int(top_n or DEFAULT_TOP_N),
+        profile_context=profile_context or {},
         searches=[],
         candidates=[],
     )
@@ -717,21 +843,34 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
         ctx = {}
     if schema is SearchPlan:
         goal = str(ctx.get("goal") or "matching roles")
-        words = " ".join(goal.split())[:60]
-        variants: list[dict] = [
-            {
-                "rationale": "broad sweep matching the goal text",
-                "query": words,
-                "filters": {},
-            }
-        ]
+        tokens = [
+            token for token in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]+", goal) if len(token) > 3
+        ][:4]
+        variants: list[dict] = []
+        if tokens:
+            variants.append(
+                {
+                    "rationale": "keyword sweep over the goal's core terms",
+                    "query": "",
+                    "filters": {"keywords": tokens},
+                }
+            )
+        skills = [str(key) for key in (ctx.get("skill_keys") or [])][:2]
+        if skills:
+            variants.append(
+                {
+                    "rationale": "skill keys from the user's own neighbourhood",
+                    "query": "",
+                    "filters": {"skills": skills},
+                }
+            )
         must = [str(t) for t in (ctx.get("must_terms") or [])][:2]
         if must:
             variants.append(
                 {
                     "rationale": "focused on must-have terms",
-                    "query": " ".join(must),
-                    "filters": {},
+                    "query": "",
+                    "filters": {"keywords": must},
                 }
             )
         if ctx.get("seniority"):

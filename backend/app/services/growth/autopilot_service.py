@@ -418,6 +418,7 @@ class AutopilotService:
         from app.ai.graphs.autopilot import (
             GraphDeps,
             build_autopilot_graph,
+            collect_profile_context,
             initial_state,
         )
 
@@ -459,6 +460,7 @@ class AutopilotService:
                     budget=goal.budget or {},
                     top_n=int(constraints.get("top_n") or 5),
                     cooldown_days=cooldown_days or None,
+                    profile_context=await collect_profile_context(self.db, user_id, constraints),
                 ),
                 config,
             )

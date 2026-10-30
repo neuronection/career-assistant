@@ -1,10 +1,14 @@
 """— Career Autopilot: goal CRUD, the checkpointed LangGraph run
 (mock provider e2e), guardrails (budget abort, cooldown, pause), constraint
-learning, transparency timeline, isolation and the no-apply invariant."""
+learning, transparency timeline, retrieval quality (grounded planner,
+guaranteed must-terms, semantic + graph recall, replan), isolation and the
+no-apply invariant."""
 
+import json
 from datetime import UTC, datetime
 from uuid import UUID
 
+import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import select
 
@@ -13,6 +17,23 @@ from app.models.enums import BackgroundJobType, ScheduleKind
 from app.services.growth.autopilot_service import AutopilotService
 from app.services.scheduler.runner import KIND_TASKS
 from tests.conftest import session_headers
+
+
+@pytest.fixture
+def autopilot_mock():
+    """Script the AUTOPILOT_RUN mock fixture for one test, then restore."""
+    from app.ai.gateway import MOCK_FIXTURES, register_mock_fixture
+    from app.models.enums import AITaskType
+
+    key = AITaskType.AUTOPILOT_RUN.value
+    saved = MOCK_FIXTURES.get(key)
+
+    def script(builder) -> None:
+        register_mock_fixture(AITaskType.AUTOPILOT_RUN, builder)
+
+    yield script
+    if saved is not None:
+        MOCK_FIXTURES[key] = saved
 
 
 def _uid(auth_headers) -> UUID:
@@ -532,3 +553,172 @@ async def test_migration_head_is_linear():
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == ["0077"]
+
+
+# --------------------------------------------------- S1 planner grounding
+
+
+async def test_profile_context_feeds_the_plan_state(
+    client, auth_headers, db, profile_ready, seeded_catalog
+):
+    """`collect_profile_context` composes skills/education/location and
+    `initial_state` carries it into the first checkpoint (plan 158 S1.1)."""
+    from app.ai.graphs.autopilot import collect_profile_context, initial_state
+    from app.models.taxonomy_model import Skill
+    from app.models.user_model import UserSkill
+
+    user_id = _uid(auth_headers)
+    programming = (
+        (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
+    )
+    db.add(UserSkill(user_id=user_id, skill_id=programming.id, level=7))
+    await db.commit()
+
+    context = await collect_profile_context(db, user_id, {"seniority": ["junior"]})
+    assert context["skills"] == [{"key": "programming", "level": 7}]
+    assert context["education_level"] == "high_school"
+    assert context["country"] == "Greece" and context["city"] == "Athens"
+    assert context["target_seniority"] == ["junior"]
+
+    state = initial_state(
+        user_id=user_id,
+        goal_id=UUID(int=1),
+        run_id=UUID(int=2),
+        goal_text="data work",
+        constraints={},
+        budget={},
+        profile_context=context,
+    )
+    assert state["profile_context"] == context
+    assert (
+        initial_state(
+            user_id=user_id,
+            goal_id=UUID(int=1),
+            run_id=UUID(int=2),
+            goal_text="data work",
+            constraints={},
+            budget={},
+        )["profile_context"]
+        == {}
+    )
+
+
+async def test_plan_prompt_carries_the_vocabulary_and_skill_neighbourhood(
+    client, auth_headers, db, profile_ready, seeded_catalog
+):
+    """Closed enums + allowed keys in the system prompt; the user's own
+    skills then their graph neighbourhood precede frequency padding
+    (plan 158 S1.2)."""
+    from app.ai.graphs.autopilot import (
+        PLAN_SKILL_LIMIT,
+        _plan_system,
+        _plan_user_prompt,
+        plan_vocabulary,
+    )
+    from app.models.taxonomy_model import Skill
+    from app.models.user_model import UserSkill
+    from app.services.postings.explore_service import (
+        ALLOWED_FILTER_KEYS,
+        BENEFIT_KIND_VALUES,
+        REMOTE_VALUES,
+        SCHEDULE_CUE_VALUES,
+        SENIORITY_VALUES,
+    )
+
+    user_id = _uid(auth_headers)
+    skills = {
+        key: (await db.execute(select(Skill).where(Skill.key == key))).scalars().first()
+        for key in ("programming", "data-analysis")
+    }
+    skills["data-analysis"].parent_id = skills["programming"].id
+    db.add(UserSkill(user_id=user_id, skill_id=skills["programming"].id, level=7))
+    await db.commit()
+
+    system = _plan_system()
+    for key in ALLOWED_FILTER_KEYS:
+        assert key in system
+    for value in (*SENIORITY_VALUES, *REMOTE_VALUES, *SCHEDULE_CUE_VALUES, *BENEFIT_KIND_VALUES):
+        assert value in system
+    assert "keywords" in system and "q" in system
+
+    vocabulary = await plan_vocabulary(db, user_id)
+    assert vocabulary["skills"][0] == "programming", "own skill first"
+    assert vocabulary["skills"][1] == "data-analysis", "then the graph neighbourhood"
+    assert len(vocabulary["skills"]) <= PLAN_SKILL_LIMIT
+    assert vocabulary["families"]
+    assert isinstance(vocabulary["sources"], list)
+
+    prompt = json.loads(
+        _plan_user_prompt(
+            {"goal_text": "data work", "constraints": {}},
+            vocabulary,
+        )
+    )
+    assert prompt["skill_keys"][:2] == ["programming", "data-analysis"]
+    assert set(prompt["valid_filter_keys"]) == set(ALLOWED_FILTER_KEYS)
+    assert prompt["family_keys"] == vocabulary["families"]
+    assert prompt["source_keys"] == vocabulary["sources"]
+
+
+def test_mock_planner_emits_only_valid_keys_and_keyword_variants():
+    """The deterministic mock demonstrates the contract it pins
+    (plan 158 S1.4): keyword-array variants, valid keys only."""
+    from app.ai.graphs.autopilot import _mock_autopilot
+    from app.ai.schemas import SearchPlan
+    from app.services.postings.explore_service import (
+        ALLOWED_FILTER_KEYS,
+        parse_explore_filters,
+    )
+
+    prompt = json.dumps(
+        {
+            "goal": "junior QA or data job where I can use programming",
+            "must_terms": ["programming"],
+            "target_families": ["technology"],
+            "seniority": ["junior"],
+            "skill_keys": ["programming", "data-analysis"],
+        }
+    )
+    plan = SearchPlan.model_validate(_mock_autopilot(SearchPlan, prompt))
+    assert len(plan.variants) >= 3
+    for variant in plan.variants:
+        assert set(variant.filters) <= ALLOWED_FILTER_KEYS
+        parse_explore_filters(dict(variant.filters))
+    keyword_variants = [v for v in plan.variants if v.filters.get("keywords")]
+    assert keyword_variants, "keyword-style variants, not natural-language q"
+    assert all(v.query == "" for v in keyword_variants)
+    assert any(v.filters.get("skills") for v in plan.variants)
+
+
+async def test_unknown_filter_key_degrades_that_variant_only(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """A variant outside the vocabulary is dropped with a timeline error;
+    the other variants still deliver (plan 158 S1.5)."""
+    from app.ai.graphs.autopilot import _mock_autopilot
+    from app.ai.schemas import SearchPlan
+
+    def scripted(schema, user_prompt):
+        if schema is SearchPlan:
+            return {
+                "variants": [
+                    {
+                        "rationale": "invented filter key",
+                        "query": "",
+                        "filters": {"wizardry": ["yes"]},
+                    },
+                    {"rationale": "broad net", "query": "", "filters": {}},
+                ]
+            }
+        return _mock_autopilot(schema, user_prompt)
+
+    autopilot_mock(scripted)
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+    searches = [entry for entry in result["searches"] if entry.get("step") == "search"]
+    broken = next(entry for entry in searches if entry.get("rationale") == "invented filter key")
+    assert "wizardry" in broken["error"]
+    assert any(entry["error"] == "" and entry["found"] > 0 for entry in searches)
+    assert result["findings"]

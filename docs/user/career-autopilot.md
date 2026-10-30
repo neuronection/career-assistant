@@ -9,7 +9,11 @@ Open it at `/autopilot`.
 
 ## What a run does
 
-1. **Plans** multiple query and filter variants from your goal.
+1. **Plans** several query and filter variants from your goal — grounded in
+   your profile: your skills (and the taxonomy skills around them), your
+   education level, your location, and the seniority you asked for. Each
+   variant searches by **keyword**, so multi-word concepts match titles and
+   employers instead of being treated as one exact phrase.
 2. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
 3. **Ranks** by your deterministic fit score (see
