@@ -1041,11 +1041,14 @@ def test_skill_expand_is_taught_to_every_llm_caller():
     from app.ai.agents.prompts import CHATBOT
     from app.ai.graphs.autopilot import _plan_system, _replan_system
     from app.ai.tools.registry import list_tools
-    from app.services.postings.explore_service import SKILL_EXPAND_MODES
+    from app.services.postings.explore_service import SKILL_EXPAND_MODES, SKILL_MODE_VALUES
 
     allowed_values = f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}"
     assert allowed_values in _plan_system()
     assert allowed_values in _replan_system()
+    allowed_modes = f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}"
+    assert allowed_modes in _plan_system()
+    assert allowed_modes in _replan_system()
     assert "skill_expand" in CHATBOT
     tool = next(tool for tool in list_tools() if tool["key"] == "search_postings")
     assert "skill_expand" in tool["description"]

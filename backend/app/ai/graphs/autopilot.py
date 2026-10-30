@@ -41,6 +41,7 @@ from app.services.postings.explore_service import (
     SCHEDULE_CUE_VALUES,
     SENIORITY_VALUES,
     SKILL_EXPAND_MODES,
+    SKILL_MODE_VALUES,
     explore,
     parse_explore_filters,
 )
@@ -176,7 +177,7 @@ def _plan_system() -> str:
         f"schedule cues: {', '.join(SCHEDULE_CUE_VALUES)}; "
         f"benefit kinds: {', '.join(BENEFIT_KIND_VALUES)}; "
         f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
-        "skill_mode values: all, any. "
+        f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}. "
         "Vary scope (broad vs niche, different skill emphases) and prefer "
         "skill keys from the user's own skill neighbourhood. Honor every "
         "never-term (never search for it) and must-term. Respond with JSON "
@@ -299,7 +300,7 @@ def _replan_system() -> str:
         "the explore vocabulary listed here: "
         f"{', '.join(sorted(ALLOWED_FILTER_KEYS))}. "
         f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
-        "skill_mode values: all, any. Put multi-word concepts in "
+        f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}. Put multi-word concepts in "
         "`keywords` (a LIST — any may match a title or employer), never in `q`. "
         "Design 1-3 genuinely different variants for the SAME goal. Respond "
         "with JSON only."

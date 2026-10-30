@@ -41,7 +41,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.CV_DRAFT.value: 1,
     AITaskType.CV_SYNTH.value: 1,
     AITaskType.CATALOG_ENRICH.value: 1,
-    AITaskType.AUTOPILOT_RUN.value: 5,
+    AITaskType.AUTOPILOT_RUN.value: 6,
     AITaskType.INTERVIEW_PLAN.value: 1,
     AITaskType.INTERVIEW_TURN.value: 1,
     AITaskType.INTERVIEW_DEBRIEF.value: 1,

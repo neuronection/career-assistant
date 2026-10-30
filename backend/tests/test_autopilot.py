@@ -634,6 +634,7 @@ async def test_plan_prompt_carries_the_vocabulary_and_skill_neighbourhood(
         SCHEDULE_CUE_VALUES,
         SENIORITY_VALUES,
         SKILL_EXPAND_MODES,
+        SKILL_MODE_VALUES,
     )
 
     user_id = _uid(auth_headers)
@@ -651,7 +652,7 @@ async def test_plan_prompt_carries_the_vocabulary_and_skill_neighbourhood(
     for value in (*SENIORITY_VALUES, *REMOTE_VALUES, *SCHEDULE_CUE_VALUES, *BENEFIT_KIND_VALUES):
         assert value in system
     assert f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}" in system
-    assert "skill_mode values: all, any" in system
+    assert f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}" in system
     assert "keywords" in system and "q" in system
 
     vocabulary = await plan_vocabulary(db, user_id)

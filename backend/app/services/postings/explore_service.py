@@ -57,6 +57,7 @@ BENEFIT_KIND_VALUES = (
 )
 SKILL_FACET_SIZE = 15
 SKILL_EXPAND_MODES = ("off", "down", "related")
+SKILL_MODE_VALUES = ("all", "any")
 SKILL_EXPAND_HOPS = 1
 OPEN_STATUSES = ("mapped", "new")
 
@@ -199,8 +200,8 @@ def parse_explore_filters(params: dict) -> dict:
     if exclude_entries:
         filters["skill_exclude"] = exclude_entries[:12]
     if params.get("skill_mode"):
-        if params["skill_mode"] not in ("all", "any"):
-            raise ValidationError("skill_mode must be all|any")
+        if params["skill_mode"] not in SKILL_MODE_VALUES:
+            raise ValidationError("skill_mode must be " + "|".join(SKILL_MODE_VALUES))
         filters["skill_mode"] = params["skill_mode"]
     if params.get("skill_expand") not in (None, ""):
         if params["skill_expand"] not in SKILL_EXPAND_MODES:
