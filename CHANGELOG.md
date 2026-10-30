@@ -170,6 +170,10 @@ All notable changes to **Career Assistant** are documented here.
   installer — check-only by family law. Accepted by the shared
   cross-language fixture wall
   (`backend/tests/fixtures/version_check.fixtures.json`).
+- **The badge anchors the sidebar footer's version text** (compact and
+  full layouts), and the About page names the installed version with
+  direct links to the new release and its notes whenever an update is
+  out.
 
 ### Changed (AI-call detail drawer, 2026-10-30)
 - **AI activity rows open a detail drawer instead of inline expansion**

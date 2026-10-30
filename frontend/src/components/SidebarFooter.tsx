@@ -15,6 +15,7 @@ import type { LogoProps } from "@neuronection/assistant-ui";
 import packageJson from "../../package.json";
 
 import { Modal, ModalContent } from "@/components/ui";
+import { UpdateBadge } from "@/components/UpdateBadge";
 import { NEURONECTION_URL, SPONSOR_CHANNELS } from "@/config/funding";
 
 const fundPillClass =
@@ -83,7 +84,7 @@ export function SidebarFooter({
         >
           <Heart className="size-4" />
         </button>
-        <span className="text-[11px] font-medium text-slate-500">v{packageJson.version}</span>
+        <UpdateBadge version={packageJson.version} className="text-[11px]" />
       </div>
     );
   }
@@ -147,9 +148,7 @@ export function SidebarFooter({
               <NeuronectionMark size={20} />
               <NeuronectionWordmark height={7} />
             </a>
-            <span className="text-xs font-medium text-slate-500">
-              v{packageJson.version}
-            </span>
+            <UpdateBadge version={packageJson.version} className="text-xs" />
           </div>
           <div className="flex items-center justify-center gap-2">
             <button
@@ -181,7 +180,7 @@ export function SidebarFooter({
         </div>
       )}
       {!compact && (
-        <p className="text-xs font-medium text-slate-500">v{packageJson.version}</p>
+        <UpdateBadge version={packageJson.version} className="text-xs" />
       )}
 
       <Modal open={fundOpen} onOpenChange={setFundOpen}>
