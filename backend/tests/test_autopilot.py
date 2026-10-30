@@ -901,8 +901,8 @@ async def test_semantic_sweep_degrades_on_a_dim_mismatch(
     client, auth_headers, db, search_fixtures, source, autopilot_mock
 ):
     """A stored vector of another dimension is skipped, not fatal: the
-    sweep returns no semantic candidates and the lexical run completes
-    (plan 158 S3.2)."""
+    sweep returns no semantic candidates, notes the skip and the lexical
+    run completes (plan 158 S3.2)."""
     from app.services.embedding_service import KIND_POSTING, EmbeddingService
     from tests.conftest import _make_posting
 
@@ -934,7 +934,8 @@ async def test_semantic_sweep_degrades_on_a_dim_mismatch(
         for entry in result["searches"]
         if entry.get("rationale") == "semantic sweep over stored posting embeddings"
     )
-    assert sweep["found"] == 0 and sweep["error"] == ""
+    assert sweep["found"] == 0
+    assert "dimension mismatch" in sweep["error"]
     assert result["status"] == "completed"
 
 

@@ -10,7 +10,7 @@ provider synthesizes deterministic vectors for tests/dev).
 import hashlib
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.embedding_model import AIEmbedding
@@ -140,9 +140,15 @@ class EmbeddingService:
         *,
         kind: str | None = KIND_POSTING,
         limit: int = 20,
+        stats: dict | None = None,
     ) -> list[dict]:
         """Cosine ranking over the stored vectors (semantic SIGNAL only —
-        callers must keep SQL hard filters upstream)."""
+        callers must keep SQL hard filters upstream).
+
+        ``stats``, when supplied, receives ``skipped_dim_rows``: the number
+        of stored rows of a different dimension than the query vector,
+        which the dimension filter excludes without raising.
+        """
         from app.ai.gateway import embed_texts
 
         if not query.strip():
@@ -153,6 +159,13 @@ class EmbeddingService:
         if kind is not None:
             stmt = stmt.where(AIEmbedding.entity_kind == kind)
         rows = (await self.db.execute(stmt)).scalars().all()
+        if stats is not None:
+            skipped = (
+                select(func.count()).select_from(AIEmbedding).where(AIEmbedding.dim != query_dim)
+            )
+            if kind is not None:
+                skipped = skipped.where(AIEmbedding.entity_kind == kind)
+            stats["skipped_dim_rows"] = int((await self.db.execute(skipped)).scalar() or 0)
         scored = [
             {
                 "entity_kind": row.entity_kind,

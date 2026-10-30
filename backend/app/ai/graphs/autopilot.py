@@ -638,14 +638,19 @@ async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str
         from app.services.embedding_service import KIND_POSTING, EmbeddingService
 
         query = " ".join([state.get("goal_text") or "", *_must_terms(state)]).strip()
+        stats: dict = {}
         hits = await EmbeddingService(deps.db).search_similar(
-            query, kind=KIND_POSTING, limit=SEMANTIC_K
+            query, kind=KIND_POSTING, limit=SEMANTIC_K, stats=stats
         )
         ids = [UUID(hit["entity_id"]) for hit in hits if float(hit.get("score") or 0) > 0]
         rows = await _gated_rows(deps, state, posting_ids=ids)
         entry["examined"] = len(rows)
         candidates = await _scored_candidates(deps, state, rows)
         entry["found"] = _merge_candidates(best, candidates)
+        if not hits and stats.get("skipped_dim_rows"):
+            entry["error"] = sanitize_error_detail(
+                f"{stats['skipped_dim_rows']} stored embedding(s) skipped: dimension mismatch"
+            )
     except Exception as exc:
         logger.warning("autopilot semantic sweep degraded", exc_info=True)
         entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
