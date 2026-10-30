@@ -293,8 +293,8 @@ def parse_explore_filters(params: dict) -> dict:
         filters["source_exclude"] = sources_excluded[:10]
 
     for key in ("saved", "seen", "applied", "extracted_only"):
-        if params.get(key) not in (None, ""):
-            filters[key] = _as_bool(params.get(key))
+        if params.get(key) not in (None, "") and _as_bool(params.get(key)):
+            filters[key] = True
     for key in ("seen_exclude", "applied_exclude", "hidden_exclude"):
         if params.get(key) not in (None, "") and _as_bool(params[key]):
             filters[key] = True
