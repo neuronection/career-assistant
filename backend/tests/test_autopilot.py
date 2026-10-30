@@ -21,7 +21,13 @@ from tests.conftest import session_headers
 
 @pytest.fixture
 def autopilot_mock():
-    """Script the AUTOPILOT_RUN mock fixture for one test, then restore."""
+    """Script the AUTOPILOT_RUN mock fixture for one test, then restore.
+
+    The graph module registers the default fixture at import time, so it
+    must be imported BEFORE the script is saved — otherwise a lazy import
+    inside the run would overwrite the script.
+    """
+    import app.ai.graphs.autopilot  # noqa: F401 — registers the default fixture
     from app.ai.gateway import MOCK_FIXTURES, register_mock_fixture
     from app.models.enums import AITaskType
 
@@ -722,3 +728,68 @@ async def test_unknown_filter_key_degrades_that_variant_only(
     assert "wizardry" in broken["error"]
     assert any(entry["error"] == "" and entry["found"] > 0 for entry in searches)
     assert result["findings"]
+
+
+# ------------------------------------------------- S2 must-term guarantees
+
+
+async def test_must_hits_outrank_fit_when_ranking(client, auth_headers, db, search_fixtures):
+    """A must-term-covering candidate outranks a higher-fit candidate
+    without it, and the coverage lands in the persisted evidence
+    (plan 158 S2)."""
+    from sqlalchemy import update
+
+    from app.models.posting_model import JobPosting
+
+    a, _b, _c = search_fixtures
+    await db.execute(update(JobPosting).where(JobPosting.id == a.id).values(title="Covered Role"))
+    await db.commit()
+
+    created = await _goal(
+        client,
+        auth_headers,
+        constraints={"must_terms": ["covered"], "top_n": 2},
+    )
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+    assert result["findings"], "coverage never gates a candidate out"
+    assert result["findings"][0]["posting_id"] == str(a.id), (
+        "the must-term match ranks first even at a lower fit"
+    )
+    rows = (
+        (
+            await db.execute(
+                select(AutopilotFinding).where(AutopilotFinding.run_id == UUID(result["run_id"]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    coverage = {row.posting_id: row.evidence["must_coverage"] for row in rows}
+    assert coverage[a.id] == {"hits": 1, "total": 1}
+    assert all(
+        entry == {"hits": 0, "total": 1} for pid, entry in coverage.items() if pid != a.id
+    ), "candidates without the must-term carry zero coverage, not a missing field"
+
+
+def test_curate_prompt_carries_must_coverage():
+    """Curation sees each candidate's coverage against the goal's total
+    (plan 158 S2.2)."""
+    from app.ai.graphs.autopilot import _curate_user_prompt
+
+    prompt = json.loads(
+        _curate_user_prompt(
+            {
+                "goal_text": "data work",
+                "constraints": {"must_terms": ["sql", "python"]},
+            },
+            [
+                {"title": "Analyst", "org": "Extro", "fit": 7.5, "must_hits": 2},
+                {"title": "Reporter", "org": "Num", "fit": 8.5},
+            ],
+        )
+    )
+    assert prompt["candidates"][0]["must_hits"] == 2
+    assert prompt["candidates"][0]["must_total"] == 2
+    assert prompt["candidates"][1]["must_hits"] == 0

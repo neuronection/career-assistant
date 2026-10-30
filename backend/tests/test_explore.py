@@ -776,3 +776,30 @@ async def test_explore_source_exclude(
     )
     assert unknown.status_code == 400
     assert "nope" in unknown.json()["detail"]
+
+
+async def test_explore_keywords_are_any_match_and_escaped(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """The `keywords` axis matches ANY keyword on title or employer, with
+    `%`/`_` treated literally (plan 158 S1: the planner's keyword variants
+    rely on it)."""
+    from tests.conftest import _make_posting
+
+    analyst = await _make_posting(
+        db, source, external_id="kw-a", title="Data Analyst", org="ExtractCo"
+    )
+    wrangler = await _make_posting(
+        db, source, external_id="kw-b", title="Zebra Wrangler", org="Zoo Hotel"
+    )
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(keywords="analyst") == {str(analyst.id)}
+    assert await ids(keywords="analyst,wrangler") == {str(analyst.id), str(wrangler.id)}
+    assert await ids(keywords="zzz") == set()
+    assert await ids(keywords="100%") == set(), "a % is a literal, never a wildcard"
+    assert await ids(q="100%") == set(), "the phrase axis escapes wildcards too"

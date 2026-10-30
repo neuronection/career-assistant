@@ -52,6 +52,15 @@ Two rules keep the engine honest:
 Because it is deterministic, you can re-weight the dimensions and watch the
 rankings change.
 
+### Where the fit score sits in a shortlist
+
+Fit is a *preference*, not a promise. When a surface ranks by what you said
+you must have — Career Autopilot's goal must-terms — coverage of those terms
+comes first and the fit score breaks the tie: a posting that matches one of
+your must-terms outranks a higher-scoring posting that matches none. Every
+autopilot finding shows that coverage (hits out of the goal's must-terms) in
+its evidence, and the curator sees it too when it explains the shortlist.
+
 ## Rankings and filters
 
 The **Rankings** page (`/rankings`) lists jobs by score, and you can slice by

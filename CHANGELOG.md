@@ -12,7 +12,15 @@ All notable changes to **Career Assistant** are documented here.
   natural-language phrase that matched almost nothing. The plan prompt also
   lists the real explore vocabulary, so variants stop inventing filter keys
   and being dropped. A literal `%` or `_` in a search phrase is matched
-  literally instead of acting as a wildcard.
+  literally instead of acting as a wildcard, and the keyword axis (a list of
+  terms, any of which may match a title or employer) now applies to every
+  search that uses it — it was parsed but never applied, so keyword variants
+  silently matched everything.
+- **Your must-terms are a guarantee, not a hint** (plan 158): a shortlist
+  is ordered by must-term coverage first and fit second, so a posting that
+  matches what you said you must have always outranks a higher-scoring one
+  that matches none. Each finding's evidence records its coverage, and the
+  curator weighs it when writing the explanation.
 
 ### Changed (audit auto-refresh + export coverage, 2026-10-30)
 - **Overview gains an auto-refresh toggle** (plan 157): a 30-second

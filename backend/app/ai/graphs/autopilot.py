@@ -275,15 +275,18 @@ def _curate_system(top_n: int) -> str:
         f"the best {top_n} for the user's goal and explain each in 1-3 "
         f"sentences. Ground EVERY claim in the candidate's provided fields "
         f"(fit score, breakdown, skills, responsibilities, snippet); never "
-        f"invent requirements or benefits. Include 1-2 short verbatim "
-        f"quotes copied exactly from that candidate's own text (snippet, "
-        f"responsibilities). Prefer higher fit_score and honest coverage "
-        f"of must-terms; skip noise. Respond with JSON only."
+        f"invent requirements or benefits. Weigh must_hits against "
+        f"must_total: covering the user's must-terms outranks a higher fit "
+        f"score without them. Include 1-2 short verbatim quotes copied "
+        f"exactly from that candidate's own text (snippet, "
+        f"responsibilities). Prefer higher fit_score at equal coverage; "
+        f"skip noise. Respond with JSON only."
     )
 
 
 def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
     c = _constraints(state)
+    must_total = len(_must_terms(state))
     return json.dumps(
         {
             "goal": state.get("goal_text", ""),
@@ -301,6 +304,8 @@ def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
                     "posted_at": cand.get("posted_at"),
                     "fit_score": cand.get("fit"),
                     "fit_breakdown": cand.get("breakdown") or {},
+                    "must_hits": int(cand.get("must_hits") or 0),
+                    "must_total": must_total,
                     "skills": cand.get("skills") or [],
                     "responsibilities": cand.get("responsibilities") or [],
                     "description_snippet": cand.get("snippet") or "",
@@ -326,6 +331,14 @@ def _deterministic_why(candidate: dict) -> str:
     if top:
         why += f"; looking for {', '.join(top)}"
     return why[:1200]
+
+
+def _must_terms(state: AutopilotState) -> list[str]:
+    return [
+        str(term).strip().casefold()
+        for term in _constraints(state).get("must_terms") or []
+        if str(term).strip()
+    ]
 
 
 def _candidate_texts(candidate: dict) -> str:
@@ -476,7 +489,8 @@ def make_guard_node(deps: GraphDeps):
 def make_search_node(deps: GraphDeps):
     async def search(state: AutopilotState) -> dict:
         """Deterministic: execute each planned variant through the same
-        explore code the API uses, collecting candidates."""
+        explore code the API uses, then one semantic sweep over the stored
+        posting embeddings; every source feeds the same candidate pool."""
         variants = (state.get("plan") or {}).get("variants") or []
         timeline: list[dict] = []
         best: dict[str, dict] = {}
@@ -531,9 +545,12 @@ def make_search_node(deps: GraphDeps):
 def make_filter_node(deps: GraphDeps):
     async def filter_node(state: AutopilotState) -> dict:
         """Deterministic: seen/applied/hidden, never-terms, per-goal
-        cooldown; counts land in the transparency timeline."""
+        cooldown; counts land in the transparency timeline. Every survivor
+        carries its must-term coverage — coverage is ranked downstream,
+        never a gate."""
         constraints = _constraints(state)
         never_terms = [str(t).casefold() for t in constraints.get("never_terms") or []]
+        must_terms = _must_terms(state)
         exclude_seen = constraints.get("exclude_seen", True)
         candidates = state.get("candidates") or []
         kept: list[dict] = []
@@ -553,7 +570,12 @@ def make_filter_node(deps: GraphDeps):
             if str(candidate["posting_id"]) in deps.cooldown_ids:
                 dropped["cooldown"] += 1
                 continue
-            kept.append(candidate)
+            kept.append(
+                {
+                    **candidate,
+                    "must_hits": sum(1 for term in must_terms if term in haystack),
+                }
+            )
         await _report(deps, 62, "filtered candidates")
         return {
             "candidates": kept,
@@ -566,10 +588,20 @@ def make_filter_node(deps: GraphDeps):
     return filter_node
 
 
+def _pool_order(candidate: dict) -> tuple[int, float, str]:
+    """The deterministic ranking: constraints are promises, fit is
+    preference — must-term coverage first, then fit, then recency."""
+    return (
+        int(candidate.get("must_hits") or 0),
+        float(candidate.get("fit") or 0),
+        str(candidate.get("posted_at") or ""),
+    )
+
+
 def make_evaluate_node(deps: GraphDeps):
     async def evaluate(state: AutopilotState) -> dict:
-        """Deterministic: canonical posting_fit breakdowns + fit ordering,
-        cut to the curator pool."""
+        """Deterministic: canonical posting_fit breakdowns +
+        ``(must_hits, fit)`` ordering, cut to the curator pool."""
         candidates = state.get("candidates") or []
         if not candidates:
             await _report(deps, 70, "evaluated fit")
@@ -602,10 +634,7 @@ def make_evaluate_node(deps: GraphDeps):
                     ),
                 }
             )
-        enriched.sort(
-            key=lambda c: (float(c.get("fit") or 0), c.get("posted_at") or ""),
-            reverse=True,
-        )
+        enriched.sort(key=_pool_order, reverse=True)
         await _report(deps, 70, "evaluated fit")
         return {"candidates": enriched[:CURATOR_POOL]}
 
@@ -669,9 +698,10 @@ def make_deliver_node(deps: GraphDeps):
         picked = curated.keys() if curated else [str(c["posting_id"]) for c in pool]
         ordered = sorted(
             (by_id[pid] for pid in picked if pid in by_id),
-            key=lambda c: float(c.get("fit") or 0),
+            key=_pool_order,
             reverse=True,
         )[:top_n]
+        must_total = len(_must_terms(state))
         now = _utcnow()
         findings: list[dict] = []
         for candidate in ordered:
@@ -686,6 +716,10 @@ def make_deliver_node(deps: GraphDeps):
                     "quotes": explanation.get("quotes") or [],
                     "breakdown": candidate.get("breakdown") or {},
                     "verified": bool(explanation.get("quotes")),
+                    "must_coverage": {
+                        "hits": int(candidate.get("must_hits") or 0),
+                        "total": must_total,
+                    },
                 },
             )
             deps.db.add(row)

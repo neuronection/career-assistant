@@ -101,6 +101,7 @@ ALLOWED_FILTER_KEYS = frozenset(
 
 DIMENSIONS = (
     "q",
+    "keywords",
     "skills",
     "salary",
     "education_min",

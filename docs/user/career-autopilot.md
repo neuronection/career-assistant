@@ -16,8 +16,10 @@ Open it at `/autopilot`.
    employers instead of being treated as one exact phrase.
 2. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
-3. **Ranks** by your deterministic fit score (see
-   [Matching and rankings](matching-and-rankings.md)).
+3. **Ranks** by your must-terms first and your deterministic fit score
+   second — constraints are promises, fit is preference (see
+   [Matching and rankings](matching-and-rankings.md)). Every finding states
+   how many of your must-terms it covers.
 4. **Explains** the shortlist: every explanation cites verbatim quotes
    verified against the posting's own text.
 
