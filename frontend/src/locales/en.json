@@ -6,6 +6,14 @@
     "badge": "Demo — synthetic data",
     "description": "This instance runs on fictional data and resets periodically."
   },
+  "update": {
+    "tooltip": "Version {{version}} is available",
+    "releaseNotes": "Release notes",
+    "allReleases": "All releases",
+    "installed": "installed",
+    "availableSuffix": "available",
+    "title": "Update available"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "chat": "Chat",

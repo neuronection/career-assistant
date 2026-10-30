@@ -1,35 +1,9 @@
 import { api } from "@/api/client";
-import type { PostingsResponse, PostingOut, PostingSourceInfo } from "@/types/wire";
+import type { PostingsResponse, PostingSourceInfo } from "@/types/wire";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingDetailOut } from "@/types/wire";
 import type { ExploreParams } from "@/types";
 
-export interface PostingSearchParams {
-  skills: string;
-  mode?: "all" | "any";
-  priority?: string;
-  source?: string;
-  remote?: boolean;
-  seniority?: string;
-  catalog_job_id?: string;
-  saved?: boolean;
-  sort?: string;
-  match_profile?: boolean;
-  company?: string;
-  no_company?: string;
-}
-
-export async function reextractPostings(
-  postingIds: string[],
-): Promise<{ queued: number; skipped: number; missing: string[]; requested: number }> {
-  const { data } = await api.post<
-    { queued: number; skipped: number; missing: string[]; requested: number }
-  >(
-    "/admin/postings/reextract",
-    { posting_ids: postingIds },
-  );
-  return data;
-}
 
 export async function reextractPosting(
   postingId: string,
@@ -95,15 +69,6 @@ export function emptyFilterSpec(): FilterSpec {
   };
 }
 
-export async function filterPostings(
-  filters: FilterSpec,
-  feed?: { company?: string; no_company?: string },
-): Promise<PostingOut[]> {
-  const { data } = await api.post<PostingOut[]>("/postings/filter", { filters }, {
-    params: feed,
-  });
-  return data;
-}
 
 export interface FilterPreset {
   id: string;
@@ -135,14 +100,6 @@ export async function deleteFilterPreset(presetId: string): Promise<void> {
   await api.delete(`/me/posting-filters/${presetId}`);
 }
 
-export async function searchPostings(
-  params: PostingSearchParams
-): Promise<PostingsResponse> {
-  const { data } = await api.get<PostingsResponse>("/postings/search", {
-    params,
-  });
-  return data;
-}
 
 export async function explorePostings(
   params: ExploreParams
