@@ -40,6 +40,7 @@ from app.services.postings.explore_service import (
     REMOTE_VALUES,
     SCHEDULE_CUE_VALUES,
     SENIORITY_VALUES,
+    SKILL_EXPAND_MODES,
     explore,
     parse_explore_filters,
 )
@@ -173,7 +174,9 @@ def _plan_system() -> str:
         f"remote_policy values: {', '.join(REMOTE_VALUES)}; "
         f"posted_within values: {', '.join(POSTED_WINDOWS)}; "
         f"schedule cues: {', '.join(SCHEDULE_CUE_VALUES)}; "
-        f"benefit kinds: {', '.join(BENEFIT_KIND_VALUES)}. "
+        f"benefit kinds: {', '.join(BENEFIT_KIND_VALUES)}; "
+        f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
+        "skill_mode values: all, any. "
         "Vary scope (broad vs niche, different skill emphases) and prefer "
         "skill keys from the user's own skill neighbourhood. Honor every "
         "never-term (never search for it) and must-term. Respond with JSON "
@@ -294,7 +297,9 @@ def _replan_system() -> str:
         "Broaden: relax or drop the text query, widen family/seniority scope, "
         "and keep every never-term (never search for it). Filters stay inside "
         "the explore vocabulary listed here: "
-        f"{', '.join(sorted(ALLOWED_FILTER_KEYS))}. Put multi-word concepts in "
+        f"{', '.join(sorted(ALLOWED_FILTER_KEYS))}. "
+        f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
+        "skill_mode values: all, any. Put multi-word concepts in "
         "`keywords` (a LIST — any may match a title or employer), never in `q`. "
         "Design 1-3 genuinely different variants for the SAME goal. Respond "
         "with JSON only."
@@ -811,6 +816,7 @@ def make_filter_node(deps: GraphDeps):
         await _report(deps, 62, "filtered candidates")
         return {
             "candidates": kept,
+            "progress_pct": max(int(state.get("progress_pct") or 0), 62),
             "searches": [
                 *(state.get("searches") or []),
                 {"step": "filter", **dropped, "kept": len(kept)},
@@ -837,7 +843,7 @@ def make_evaluate_node(deps: GraphDeps):
         candidates = state.get("candidates") or []
         if not candidates:
             await _report(deps, 70, "evaluated fit")
-            return {}
+            return {"progress_pct": max(int(state.get("progress_pct") or 0), 70)}
         from app.models.posting_model import JobPosting
         from app.services.postings.posting_fit_service import get_posting_fits_batch
 
@@ -868,7 +874,10 @@ def make_evaluate_node(deps: GraphDeps):
             )
         enriched.sort(key=_pool_order, reverse=True)
         await _report(deps, 70, "evaluated fit")
-        return {"candidates": enriched[: curator_pool(state.get("top_n"))]}
+        return {
+            "candidates": enriched[: curator_pool(state.get("top_n"))],
+            "progress_pct": max(int(state.get("progress_pct") or 0), 70),
+        }
 
     return evaluate
 

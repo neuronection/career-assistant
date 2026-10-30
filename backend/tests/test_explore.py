@@ -1039,10 +1039,13 @@ def test_skill_expand_is_taught_to_every_llm_caller():
     knows it: the planner prompt, the chat grounding prompt and the
     search_postings tool description all name it (plan 158 S6.4)."""
     from app.ai.agents.prompts import CHATBOT
-    from app.ai.graphs.autopilot import _plan_system
+    from app.ai.graphs.autopilot import _plan_system, _replan_system
     from app.ai.tools.registry import list_tools
+    from app.services.postings.explore_service import SKILL_EXPAND_MODES
 
-    assert "skill_expand" in _plan_system()
+    allowed_values = f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}"
+    assert allowed_values in _plan_system()
+    assert allowed_values in _replan_system()
     assert "skill_expand" in CHATBOT
     tool = next(tool for tool in list_tools() if tool["key"] == "search_postings")
     assert "skill_expand" in tool["description"]

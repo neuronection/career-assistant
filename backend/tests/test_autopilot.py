@@ -633,6 +633,7 @@ async def test_plan_prompt_carries_the_vocabulary_and_skill_neighbourhood(
         REMOTE_VALUES,
         SCHEDULE_CUE_VALUES,
         SENIORITY_VALUES,
+        SKILL_EXPAND_MODES,
     )
 
     user_id = _uid(auth_headers)
@@ -649,6 +650,8 @@ async def test_plan_prompt_carries_the_vocabulary_and_skill_neighbourhood(
         assert key in system
     for value in (*SENIORITY_VALUES, *REMOTE_VALUES, *SCHEDULE_CUE_VALUES, *BENEFIT_KIND_VALUES):
         assert value in system
+    assert f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}" in system
+    assert "skill_mode values: all, any" in system
     assert "keywords" in system and "q" in system
 
     vocabulary = await plan_vocabulary(db, user_id)
@@ -1151,6 +1154,28 @@ async def test_replan_stays_single_when_both_passes_are_empty(
     assert result["findings"] == []
     assert [entry.get("step") for entry in result["searches"]].count("replan") == 1
     assert await _autopilot_calls(db, auth_headers) == 2
+
+
+async def test_progress_never_regresses_across_the_replan_reentry(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """Re-entering the search node after a replan reports forward-only
+    progress (plan 158 S5.6a)."""
+    autopilot_mock(_empty_then_broad())
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    reported: list[int] = []
+
+    async def progress(pct: int, _stage: str) -> None:
+        reported.append(int(pct))
+
+    result = await service.run_goal(UUID(created["id"]), user_id, progress=progress)
+    await db.commit()
+
+    assert result["findings"], "the replan delivers"
+    assert [entry.get("step") for entry in result["searches"]].count("replan") == 1
+    assert reported, "the run reports progress"
+    assert reported == sorted(reported), f"progress regressed: {reported}"
 
 
 async def test_budget_cap_suppresses_the_replan(
