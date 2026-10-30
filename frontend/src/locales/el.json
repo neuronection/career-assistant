@@ -1715,19 +1715,14 @@
         "test": "Έλεγχος",
         "sync": "Συγχρονισμός τώρα",
         "syncQueued": "Συγχρονισμός αναμενόμενος για {{key}}",
-        "edit": "Επεξεργασία",
         "save": "Αποθήκευση πηγής",
         "cancel": "Ακύρωση",
         "probeOk": "OK · {{items}} αντικείμενο(α) · {{latency}} ms",
         "probeError": "{{code}}: {{detail}}",
-        "needsConfig": "απαιτείται διαμόρφωση",
         "secretSetShort": "ορίστε — αφήστε κενό για να διατηρήσετε",
         "secretMissingShort": "δεν έχει οριστεί",
         "select": "Επιλέξτε…",
         "githubTokenPlaceholder": "gh_pat_…",
-        "statusOk": "Υγιής",
-        "statusDegraded": "Υποβαθμισμένη",
-        "statusFailing": "Αποτυγχάνει",
         "lastSuccess": "Τελευταία επιτυχία",
         "kind": {
           "posting": "Αγγελίες εργασίας",
@@ -1779,7 +1774,10 @@
         "sealedNote": "Τα μυστικά αποθηκεύονται κρυπτογραφημένα και δεν επανεμφανίζονται ποτέ.",
         "keyPlaceholder": "π.χ. acme-board",
         "keyTaken": "Αυτό το κλειδί χρησιμοποιείται ήδη.",
-        "planSources": "{{count}} radar"
+        "planSources": "{{count}} radar",
+        "paused": "Σε παύση",
+        "originMcp": "MCP",
+        "originBundled": "Ενσωματωμένο"
       },
       "extSources": {
         "title": "Επεκτατικές πηγές (εισαγωγή από git)",
@@ -4906,7 +4904,22 @@
       "stageChip": "φάση {{stage}}",
       "promptChip": "prompt {{version}}",
       "packChip": "πακέτο {{key}} v{{version}}",
-      "range": "{{from}}–{{to}} από {{total}} γραμμές"
+      "range": "{{from}}–{{to}} από {{total}} γραμμές",
+      "drawer": {
+        "model": "Μοντέλο",
+        "tokens": "Tokens",
+        "promptVersion": "Έκδοση prompt",
+        "pack": "Πακέτο δεξιοτήτων",
+        "run": "Εκτέλεση",
+        "stage": "Φάση",
+        "user": "Χρήστης",
+        "parsed": "Δομημένα",
+        "raw": "Ακατέργαστα",
+        "prompt": "Prompt",
+        "output": "Έξοδος",
+        "viewAria": "Προβολή λεπτομερειών",
+        "position": "{{index}} από {{total}}"
+      }
     },
     "security": {
       "groupFilter": "Ομάδα ενεργειών",

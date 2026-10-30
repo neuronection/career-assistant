@@ -143,6 +143,7 @@ export async function fetchAuditEvents(
 }
 
 export interface GenerationParams {
+  id?: string;
   task?: string;
   provider?: string;
   model?: string;

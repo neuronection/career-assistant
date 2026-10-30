@@ -694,6 +694,13 @@ async def test_generations_filter_matrix(client, db, _admin_and_user):
     assert by_status["total"] == 2
     assert all(g["status"] == "ok" for g in by_status["items"])
 
+    target = by_status["items"][0]
+    by_id = (
+        await client.get(f"/api/v1/admin/audit/ai/generations?id={target['id']}", headers=admin)
+    ).json()
+    assert by_id["total"] == 1
+    assert by_id["items"][0]["id"] == target["id"]
+
     paged = (
         await client.get("/api/v1/admin/audit/ai/generations?limit=2&offset=1", headers=admin)
     ).json()

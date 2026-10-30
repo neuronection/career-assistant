@@ -17281,6 +17281,7 @@ export interface operations {
                 tier?: string | null;
                 window?: string | null;
                 q?: string | null;
+                id?: string | null;
                 limit?: number;
                 offset?: number;
                 from?: string | null;

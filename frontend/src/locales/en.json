@@ -1715,19 +1715,14 @@
         "test": "Test",
         "sync": "Sync now",
         "syncQueued": "Sync queued for {{key}}",
-        "edit": "Edit",
         "save": "Save source",
         "cancel": "Cancel",
         "probeOk": "OK · {{items}} item(s) · {{latency}} ms",
         "probeError": "{{code}}: {{detail}}",
-        "needsConfig": "needs config",
         "secretSetShort": "set — leave empty to keep",
         "secretMissingShort": "not set",
         "select": "Select…",
         "githubTokenPlaceholder": "gh_pat_…",
-        "statusOk": "Healthy",
-        "statusDegraded": "Degraded",
-        "statusFailing": "Failing",
         "lastSuccess": "Last success",
         "kind": {
           "posting": "Job boards",
@@ -1779,7 +1774,10 @@
         "sealedNote": "Secrets are sealed at rest and never echoed back.",
         "keyPlaceholder": "e.g. acme-board",
         "keyTaken": "This key is already in use.",
-        "planSources": "{{count}} radar(s)"
+        "planSources": "{{count}} radar(s)",
+        "paused": "Paused",
+        "originMcp": "MCP",
+        "originBundled": "Bundled"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -4907,7 +4905,22 @@
       "stageChip": "stage {{stage}}",
       "promptChip": "prompt {{version}}",
       "packChip": "pack {{key}} v{{version}}",
-      "range": "{{from}}–{{to}} of {{total}} rows"
+      "range": "{{from}}–{{to}} of {{total}} rows",
+      "drawer": {
+        "model": "Model",
+        "tokens": "Tokens",
+        "promptVersion": "Prompt version",
+        "pack": "Skill pack",
+        "run": "Run",
+        "stage": "Stage",
+        "user": "User",
+        "parsed": "Parsed",
+        "raw": "Raw",
+        "prompt": "Prompt",
+        "output": "Output",
+        "viewAria": "Detail view",
+        "position": "{{index}} of {{total}}"
+      }
     },
     "security": {
       "groupFilter": "Action group",

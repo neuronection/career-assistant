@@ -3283,7 +3283,7 @@ def test_0075_extension_source_subpath_uniqueness():
     (origin, subpath), and the downgrade folds the column back."""
     config = _configured()
 
-    async def seed(origin: str, subpath: str, descriptor: dict):
+    async def seed(row_id: str, origin: str, descriptor: dict):
         import json
 
         from sqlalchemy import text
@@ -3296,16 +3296,14 @@ def test_0075_extension_source_subpath_uniqueness():
             async with engine.begin() as conn:
                 await conn.execute(
                     text(
-                        "INSERT INTO extension_sources (id, origin, subpath, kind, "
-                        "descriptor, candidates, secrets, status, consecutive_failures) "
-                        "VALUES (:id, :origin, :subpath, 'git', :descriptor::jsonb, "
-                        "'[]'::jsonb, '{}'::jsonb, 'ok', 0)"
+                        "INSERT INTO extension_sources (id, origin, kind, "
+                        "descriptor, candidates, secrets, status, error, "
+                        "consecutive_failures, created_at, updated_at) "
+                        "VALUES (CAST(:id AS uuid), :origin, 'git', CAST(:descriptor AS jsonb), "
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', '', 0, now(), now())"
                     ).bindparams(
-                        id=origin.replace("https://", "00000000-0000-4000-8000-")
-                        .replace("/", "-")[:36]
-                        .ljust(36, "0"),
+                        id=row_id,
                         origin=origin,
-                        subpath=subpath,
                         descriptor=json.dumps(descriptor),
                     )
                 )
@@ -3342,16 +3340,17 @@ def test_0075_extension_source_subpath_uniqueness():
                 await conn.execute(
                     text(
                         "INSERT INTO extension_sources (id, origin, subpath, kind, "
-                        "descriptor, candidates, secrets, status, consecutive_failures) "
+                        "descriptor, candidates, secrets, status, error, "
+                        "consecutive_failures, created_at, updated_at) "
                         "VALUES ('11111111-1111-4111-8111-111111111111', "
                         "'https://git.example.com/multi', 'a/src', 'git', '{}'::jsonb, "
-                        "'[]'::jsonb, '{}'::jsonb, 'ok', 0)"
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', '', 0, now(), now())"
                     )
                 )
         finally:
             await engine.dispose()
 
-    async def read_folded_descriptor(origin: str):
+    async def read_origin_rows():
         from sqlalchemy import text
         from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -3362,24 +3361,33 @@ def test_0075_extension_source_subpath_uniqueness():
             async with engine.connect() as conn:
                 return (
                     await conn.execute(
-                        text("SELECT descriptor FROM extension_sources WHERE origin = :o"),
-                        {"o": origin},
+                        text(
+                            "SELECT origin, descriptor FROM extension_sources "
+                            "WHERE origin LIKE 'https://git.example.com/multi%'"
+                        )
                     )
-                ).scalar()
+                ).all()
         finally:
             await engine.dispose()
 
     try:
-        command.upgrade(config, "0074")
+        # Normalize: a crashed earlier run can leave the DB at 0075 —
+        # alembic `upgrade` never descends, so descend explicitly first
+        # (no-op when already at 0074), then clear this test's rows.
+        command.downgrade(config, "0074")
+        _es_cleanup()
         assert not _column_present("extension_sources", "subpath")
-        asyncio.run(_es_cleanup())
         asyncio.run(
-            seed("https://git.example.com/multi", "", {"url": "https://git.example.com/multi"})
+            seed(
+                "22222222-2222-4222-8222-222222222222",
+                "https://git.example.com/multi",
+                {"url": "https://git.example.com/multi"},
+            )
         )
         asyncio.run(
             seed(
+                "33333333-3333-4333-8333-333333333333",
                 "https://git.example.com/multi-b",
-                "b/src",
                 {"url": "https://git.example.com/multi-b", "subpath": "b/src"},
             )
         )
@@ -3395,8 +3403,17 @@ def test_0075_extension_source_subpath_uniqueness():
 
         command.downgrade(config, "0074")
         assert not _column_present("extension_sources", "subpath")
-        folded = asyncio.run(read_folded_descriptor("https://git.example.com/multi-b"))
-        assert (folded or {}).get("subpath") == "b/src", "the downgrade folds back"
+        # The downgrade folds each survivor's subpath into its descriptor.
+        # These two rows carry DIFFERENT origins, so both survive — the
+        # dedupe keeps one row per origin only.
+        remaining = asyncio.run(read_origin_rows())
+
+        assert len(remaining) == 2, remaining
+        folded = {origin: (descriptor or {}).get("subpath") for origin, descriptor in remaining}
+        assert folded["https://git.example.com/multi"] is None, (
+            "the '' subpath row folds nothing (absent key)"
+        )
+        assert folded["https://git.example.com/multi-b"] == "b/src"
     finally:
         _es_cleanup()
 

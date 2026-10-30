@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
+import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
+import { SwitchRow } from "@/components/ui/switch-row";
 import { useTranslation } from "react-i18next";
 import {
   Badge,
@@ -10,9 +11,7 @@ import {
   MenuContent,
   MenuItem,
   MenuTrigger,
-} from "@/components/ui";import { IntegrationInstancesList } from "@/components/ui/integrations";
-import type { IntegrationExtensionGroupView } from "@/components/ui/integrations";
-import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
+} from "@/components/ui";import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
@@ -42,6 +41,202 @@ export function SourcesSection() {
       <JobSourceConnectors />
       <ExtensionSourcesSection />
     </div>
+  );
+}
+
+const STATUS_TONE: Record<string, { dot: string; labelKey: string }> = {
+  ok: { dot: "bg-emerald-500", labelKey: "toolsSettings.connectors.sources.statusOk" },
+  degraded: { dot: "bg-[var(--as-warning)]", labelKey: "toolsSettings.connectors.sources.statusDegraded" },
+  failing: { dot: "bg-[var(--as-danger)]", labelKey: "toolsSettings.connectors.sources.statusFailing" },
+};
+
+function shortTime(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString([], {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function JobSourceCard({
+  source,
+  connector,
+  probe,
+  probing,
+  busy,
+  needsSecret,
+  onToggle,
+  onTest,
+  onSync,
+  onDocs,
+  onPlan,
+  onManage,
+  onRemove,
+}: {
+  source: PostingSource;
+  connector?: ConnectorCatalogEntry;
+  probe?: SourceProbe;
+  probing: boolean;
+  busy: boolean;
+  needsSecret: boolean;
+  onToggle: (next: boolean) => void;
+  onTest: () => void;
+  onSync: () => void;
+  onDocs: () => void;
+  onPlan: () => void;
+  onManage: () => void;
+  onRemove: () => void;
+}) {
+  const { t } = useTranslation();
+  const paused = Boolean(source.paused_at);
+  const active = source.enabled && !paused;
+  const tone = STATUS_TONE[sourceStatus(source)] ?? STATUS_TONE.ok;
+  const isPosting = (source.kind || "posting") === "posting";
+  const lastSuccess = shortTime(source.last_run_at);
+  const Icon = source.kind === "market" ? Globe : Radar;
+
+  return (
+    <article
+      data-testid={`integration-instance-${source.id}`}
+      className="space-y-2 rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3.5"
+    >
+      <div className="flex items-start gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-primary)_10%,var(--as-surface-raised))] text-[var(--as-primary)]" aria-hidden>
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="flex min-w-0 items-center gap-1.5 truncate text-sm font-semibold text-[var(--as-fg)]">
+            <span className="truncate" data-testid={`job-source-name-${source.key}`}>{source.key}</span>
+          </p>
+          <p className="truncate text-xs text-[var(--as-muted-fg)]">
+            {connector?.title ?? source.connector_key}
+          </p>
+        </div>
+        <SwitchRow
+          label={t("toolsSettings.connectors.sources.enabledAria") + ": " + source.key}
+          checked={active}
+          hideLabel
+          disabled={busy}
+          onCheckedChange={onToggle}
+          className="w-auto shrink-0 border-none bg-transparent px-0 py-0 hover:bg-transparent"
+          data-testid={`job-source-toggle-${source.key}`}
+        />
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--as-muted)] px-2 py-0.5">
+          <span className={`h-1.5 w-1.5 rounded-full ${active ? tone.dot : "bg-[var(--as-muted-fg)]"}`} aria-hidden />
+          <span className="text-[var(--as-fg)]">
+            {paused ? t("toolsSettings.connectors.sources.paused") : active ? t(tone.labelKey) : t("toolsSettings.connectors.sources.paused")}
+          </span>
+        </span>
+        <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">
+          {source.managed ? t("toolsSettings.connectors.sources.originMcp") : t("toolsSettings.connectors.sources.originBundled")}
+        </span>
+        <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">T1</span>
+        {needsSecret ? (
+          <span
+            className="rounded-full bg-[color-mix(in_srgb,var(--as-warning)_18%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
+            data-testid={`integration-condition-${source.id}-needs-secret`}
+          >
+            {t("toolsSettings.connectors.sources.needsSecret")}
+          </span>
+        ) : null}
+      </div>
+
+      <p className="text-xs text-[var(--as-muted-fg)]">
+        {source.posting_count != null
+          ? t("companies.openPostings", { count: source.posting_count })
+          : null}
+        {lastSuccess
+          ? ` · ${t("toolsSettings.connectors.sources.lastSuccess")} ${lastSuccess}`
+          : ""}
+        {source.error ? (
+          <span className="block truncate text-[var(--as-danger)]">{source.error}</span>
+        ) : null}
+      </p>
+
+      {probe ? (
+        <p
+          className={
+            probe.ok ? "text-xs text-emerald-600" : "text-xs text-amber-600"
+          }
+          data-testid={`job-source-probe-${source.key}`}
+        >
+          {probe.ok
+            ? t("toolsSettings.connectors.sources.probeOk", {
+                items: probe.items ?? 0,
+                latency: probe.latency_ms ?? 0,
+              })
+            : t("toolsSettings.connectors.sources.probeError", {
+                code: probe.error?.code ?? "error",
+                detail: probe.error?.detail ?? "",
+              })}
+        </p>
+      ) : null}
+
+      <div className="flex items-center justify-end gap-1.5 pt-0.5">
+        {isPosting ? (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={probing}
+            onClick={onTest}
+          >
+            {probing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Radar className="h-3.5 w-3.5" />}
+            {t("toolsSettings.connectors.sources.test")}
+          </Button>
+        ) : null}
+        <Menu>
+          <MenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              aria-label={`${t("toolsSettings.connectors.sources.actions")}: ${source.key}`}
+              data-testid={`source-actions-${source.key}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </MenuTrigger>
+          <MenuContent align="end">
+            {isPosting ? (
+              <MenuItem
+                data-testid={`sync-source-${source.key}`}
+                disabled={busy}
+                onSelect={onSync}
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                {t("toolsSettings.connectors.sources.sync")}
+              </MenuItem>
+            ) : null}
+            {connector?.manifest?.docs ? (
+              <MenuItem
+                data-testid={`connector-docs-${source.connector_key}`}
+                onSelect={onDocs}
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                {t("toolsSettings.connectors.docs.open", "Docs")}
+              </MenuItem>
+            ) : null}
+            <MenuItem data-testid={`query-plan-${source.key}`} onSelect={onPlan}>
+              {t("toolsSettings.connectors.sources.plan")}
+            </MenuItem>
+            <MenuItem data-testid={`manage-source-${source.key}`} onSelect={onManage}>
+              {t("toolsSettings.connectors.sources.manage")}
+            </MenuItem>
+            <MenuItem
+              data-testid={`remove-source-${source.key}`}
+              disabled={busy}
+              onSelect={onRemove}
+            >
+              {t("toolsSettings.connectors.sources.remove")}
+            </MenuItem>
+          </MenuContent>
+        </Menu>
+      </div>
+    </article>
   );
 }
 
@@ -183,45 +378,22 @@ function JobSourceConnectors() {
     }
   };
 
-  const groups = useMemo<IntegrationExtensionGroupView[]>(() => {
-    const kinds = ["posting", "market", "university", "search", "webhook_in"];
-    return kinds
-      .map(
-        (kind): IntegrationExtensionGroupView => ({
-          extension: {
-            id: `job-sources-${kind}`,
-            name: t(`toolsSettings.connectors.sources.kind.${kind}`),
-            originClass: "bundled",
-            tier: "T1",
-            categories: ["data"],
-          },
-          instances: sources
-            .filter((source) => (source.kind || "posting") === kind)
-            .map((source) => {
-              const connector = catalogByKey[source.connector_key];
-              const needsSecret = Object.entries(source.secret_hints).some(
-                ([slot, hint]) =>
-                  connector?.secret_fields.includes(slot) && !hint.set
-              );
-              return {
-                id: source.id,
-                extensionId: source.connector_key,
-                name: source.key,
-                enabled: source.enabled && !source.paused_at,
-                status: sourceStatus(source),
-                lastSuccessAt: source.last_run_at,
-                conditions: needsSecret ? (["needs-secret"] as const) : [],
-                parked: Boolean(source.paused_at),
-                originClass: "bundled" as const,
-                tier: "T1" as const,
-                digest: null,
-                update: null,
-              };
-            }),
-        })
-      )
-      .filter((group) => group.instances.length > 0);
-  }, [sources, catalogByKey, t]);
+  const kindOrder = ["posting", "market", "university", "search", "webhook_in"] as const;
+  const groups = useMemo(
+    () =>
+      kindOrder
+        .map((kind) => ({
+          kind,
+          label: t(`toolsSettings.connectors.sources.kind.${kind}`),
+          sources: sources.filter((source) => (source.kind || "posting") === kind),
+        }))
+        .filter((group) => group.sources.length > 0),
+    [sources, t]
+  );
+  const needsSecret = (source: PostingSource) =>
+    Object.entries(source.secret_hints).some(
+      ([slot, hint]) => catalogByKey[source.connector_key]?.secret_fields.includes(slot) && !hint.set
+    );
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
@@ -321,149 +493,62 @@ function JobSourceConnectors() {
           </div>
         </div>
 
-        <div className="mt-3">
-          <IntegrationInstancesList
-            groups={groups}
-            busy={busy || probingId !== null}
-            labels={{
-              emptyLabel: t("toolsSettings.connectors.sources.empty"),
-              enableAriaLabel: t("toolsSettings.connectors.sources.enabledAria"),
-              configureLabel: t("toolsSettings.connectors.sources.edit"),
-              lastSuccessLabel: t("toolsSettings.connectors.sources.lastSuccess"),
-              statusLabels: {
-                ok: t("toolsSettings.connectors.sources.statusOk"),
-                degraded: t("toolsSettings.connectors.sources.statusDegraded"),
-                failing: t("toolsSettings.connectors.sources.statusFailing"),
-              },
-              conditionLabels: {
-                "needs-config": t("toolsSettings.connectors.sources.needsConfig"),
-                "needs-secret": t("toolsSettings.connectors.sources.needsSecret"),
-              },
-            }}
-            onToggleEnabled={(instance, next) => {
-              const source = sources.find((row) => row.id === instance.id);
-              if (source) {
-                void (async () => {
-                  setBusy(true);
-                  try {
-                    await sourcesApi.updateSource(
-                      source.id,
-                      next ? { enabled: true, paused: false } : { paused: true }
-                    );
-                    await refresh();
-                  } catch (err) {
-                    setNotice(apiDetail(err));
-                  } finally {
-                    setBusy(false);
-                  }
-                })();
-              }
-            }}
-            renderInstanceActions={(instance) => {
-              const source = sources.find((row) => row.id === instance.id);
-              if (!source) return null;
-              const result = probes[source.id];
-              const connector = catalogByKey[source.connector_key];
-              const isPosting = (source.kind || "posting") === "posting";
-              return (
-                <span className="flex flex-wrap items-center justify-end gap-1.5">
-                  {result ? (
-                    <span
-                      className={
-                        result.ok
-                          ? "text-xs text-emerald-600"
-                          : "text-xs text-amber-600"
-                      }
-                      data-testid={`job-source-probe-${source.key}`}
-                    >
-                      {result.ok
-                        ? t("toolsSettings.connectors.sources.probeOk", {
-                            items: result.items ?? 0,
-                            latency: result.latency_ms ?? 0,
-                          })
-                        : t("toolsSettings.connectors.sources.probeError", {
-                            code: result.error?.code ?? "error",
-                            detail: result.error?.detail ?? "",
-                          })}
-                    </span>
-                  ) : null}
-                  {isPosting ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={probingId === source.id}
-                      onClick={() => void probe(source)}
-                    >
-                      {probingId === source.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Radar className="h-3.5 w-3.5" />
-                      )}
-                      {t("toolsSettings.connectors.sources.test")}
-                    </Button>
-                  ) : null}
-                  <Menu>
-                    <MenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`${t("toolsSettings.connectors.sources.actions")}: ${source.key}`}
-                        data-testid={`source-actions-${source.key}`}
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </MenuTrigger>
-                    <MenuContent align="end">
-                      {isPosting ? (
-                        <MenuItem
-                          data-testid={`sync-source-${source.key}`}
-                          disabled={busy}
-                          onSelect={() => void sync(source)}
-                        >
-                          <RefreshCw className="h-3.5 w-3.5" />
-                          {t("toolsSettings.connectors.sources.sync")}
-                        </MenuItem>
-                      ) : null}
-                      {connector?.manifest?.docs ? (
-                        <MenuItem
-                          data-testid={`connector-docs-${source.connector_key}`}
-                          onSelect={() => setDocsKey(source.connector_key)}
-                        >
-                          <BookOpen className="h-3.5 w-3.5" />
-                          {t("toolsSettings.connectors.docs.open", "Docs")}
-                        </MenuItem>
-                      ) : null}
-                      <MenuItem
-                        data-testid={`query-plan-${source.key}`}
-                        onSelect={() => setPlanTarget(source.id)}
-                      >
-                        {t("toolsSettings.connectors.sources.plan")}
-                      </MenuItem>
-                      <MenuItem
-                        data-testid={`manage-source-${source.key}`}
-                        onSelect={() =>
-                          navigate(`/sources/${source.id}`, {
-                            state: {
-                              from: `${location.pathname}${location.search}`,
-                            },
-                          })
+        <div className="mt-4 space-y-5">
+          {groups.length === 0 ? (
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("toolsSettings.connectors.sources.empty")}
+            </p>
+          ) : (
+            groups.map((group) => (
+              <div key={group.kind} className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                    {group.label}
+                  </p>
+                  <span className="text-[11px] text-[var(--as-muted-fg)]">
+                    {group.sources.length}
+                  </span>
+                </div>
+                <div className="grid gap-3 lg:grid-cols-2">
+                  {group.sources.map((source) => (
+                    <JobSourceCard
+                      key={source.id}
+                      source={source}
+                      connector={catalogByKey[source.connector_key]}
+                      probe={probes[source.id]}
+                      probing={probingId === source.id}
+                      busy={busy}
+                      needsSecret={needsSecret(source)}
+                      onToggle={(next) => {
+                        setBusy(true);
+                        try {
+                          void sourcesApi
+                            .updateSource(
+                              source.id,
+                              next ? { enabled: true, paused: false } : { paused: true }
+                            )
+                            .then(refresh)
+                            .catch((err) => setNotice(apiDetail(err)));
+                        } finally {
+                          setBusy(false);
                         }
-                      >
-                        {t("toolsSettings.connectors.sources.manage")}
-                      </MenuItem>
-                      <MenuItem
-                        data-testid={`remove-source-${source.key}`}
-                        disabled={busy}
-                        onSelect={() => setRemoveTarget(source)}
-                      >
-                        {t("toolsSettings.connectors.sources.remove")}
-                      </MenuItem>
-                    </MenuContent>
-                  </Menu>
-                </span>
-              );
-            }}
-          />
+                      }}
+                      onTest={() => void probe(source)}
+                      onSync={() => void sync(source)}
+                      onDocs={() => setDocsKey(source.connector_key)}
+                      onPlan={() => setPlanTarget(source.id)}
+                      onManage={() =>
+                        navigate(`/sources/${source.id}`, {
+                          state: { from: `${location.pathname}${location.search}` },
+                        })
+                      }
+                      onRemove={() => setRemoveTarget(source)}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         {notice ? (

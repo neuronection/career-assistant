@@ -1715,19 +1715,14 @@
         "test": "Test",
         "sync": "Jetzt synchronisieren",
         "syncQueued": "Synchronisierung für {{key}} geplant",
-        "edit": "Bearbeiten",
         "save": "Quelle speichern",
         "cancel": "Abbrechen",
         "probeOk": "OK · {{items}} Artikel · {{latency}} ms",
         "probeError": "{{code}}: {{detail}}",
-        "needsConfig": "Konfiguration erforderlich",
         "secretSetShort": "Festlegen — leer lassen, um beizubehalten",
         "secretMissingShort": "Nicht festgelegt",
         "select": "Auswählen…",
         "githubTokenPlaceholder": "gh_pat_…",
-        "statusOk": "Gesund",
-        "statusDegraded": "Beeinträchtigt",
-        "statusFailing": "Fehlerhaft",
         "lastSuccess": "Letzter Erfolg",
         "kind": {
           "posting": "Jobbörsen",
@@ -1779,7 +1774,10 @@
         "sealedNote": "Geheimnisse werden versiegelt gespeichert und nie zurückgespielt.",
         "keyPlaceholder": "z. B. acme-board",
         "keyTaken": "Dieser Schlüssel ist bereits vergeben.",
-        "planSources": "{{count}} Radar(e)"
+        "planSources": "{{count}} Radar(e)",
+        "paused": "Pausiert",
+        "originMcp": "MCP",
+        "originBundled": "Eingebaut"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -4906,7 +4904,22 @@
       "stageChip": "Phase {{stage}}",
       "promptChip": "Prompt {{version}}",
       "packChip": "Paket {{key}} v{{version}}",
-      "range": "{{from}}–{{to}} von {{total}} Zeilen"
+      "range": "{{from}}–{{to}} von {{total}} Zeilen",
+      "drawer": {
+        "model": "Modell",
+        "tokens": "Tokens",
+        "promptVersion": "Prompt-Version",
+        "pack": "Skill-Paket",
+        "run": "Lauf",
+        "stage": "Phase",
+        "user": "Benutzer",
+        "parsed": "Strukturiert",
+        "raw": "Roh",
+        "prompt": "Prompt",
+        "output": "Ausgabe",
+        "viewAria": "Detailansicht",
+        "position": "{{index}} von {{total}}"
+      }
     },
     "security": {
       "groupFilter": "Aktionsgruppe",

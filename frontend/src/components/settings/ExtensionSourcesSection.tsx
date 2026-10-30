@@ -9,6 +9,7 @@ import type {
 } from "@/api/extensionSources";
 import { apiDetail } from "@/api/client";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
+import { Button } from "@/components/ui";
 import {
   AddIntegrationSourceDialog,
   ConsentDialog,
@@ -96,6 +97,20 @@ function mapGroups(installs: ExtensionInstallView[]): IntegrationExtensionGroupV
   }));
 }
 
+function shortOrigin(view: ExtensionSourceView): string {
+  const sub = view.descriptor.subpath ? ` · ${view.descriptor.subpath}` : "";
+  if (view.kind === "local") {
+    const raw = view.descriptor.local?.path ?? view.origin;
+    const tilde = raw.replace(/^\/home\/[^/]+/, "~");
+    const segments = tilde.split("/").filter(Boolean);
+    const short =
+      segments.length > 3 ? `~/${segments.slice(-2).join("/")}` : tilde;
+    return `${short}${sub}`;
+  }
+  const host = view.origin.replace(/^https?:\/\//, "").replace(/^www\./, "");
+  return `${host}${sub}`;
+}
+
 function mapSource(view: ExtensionSourceView): IntegrationSourceRowView {
   const live = (candidate: ExtensionCandidate) =>
     !view.installs.some(
@@ -105,9 +120,7 @@ function mapSource(view: ExtensionSourceView): IntegrationSourceRowView {
   return {
     id: view.id,
     kind: view.kind,
-    origin: view.descriptor.subpath
-      ? `${view.origin} · ${view.descriptor.subpath}`
-      : view.origin,
+    origin: shortOrigin(view),
     status: view.status,
     error: view.error || null,
     refStrategy: view.descriptor.ref?.strategy ?? null,
@@ -363,22 +376,12 @@ export function ExtensionSourcesSection() {
       />
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-1.5 text-sm font-medium text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
-          onClick={() => setAddOpen(true)}
-          data-testid="add-extension-source"
-        >
+        <Button size="sm" variant="outline" onClick={() => setAddOpen(true)} data-testid="add-extension-source">
           {t("toolsSettings.connectors.extSources.add")}
-        </button>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-1.5 text-sm font-medium text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
-          onClick={() => bundleInputRef.current?.click()}
-          data-testid="import-bundle"
-        >
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => bundleInputRef.current?.click()} data-testid="import-bundle">
           {t("toolsSettings.connectors.extSources.importBundle")}
-        </button>
+        </Button>
         <input
           ref={bundleInputRef}
           type="file"

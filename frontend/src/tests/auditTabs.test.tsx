@@ -139,6 +139,14 @@ const GENERATIONS: AIGenerationRow[] = [
   },
 ];
 
+const REMOTE_GENERATION: AIGenerationRow = {
+  ...GENERATIONS[0],
+  id: "gen-remote",
+  task_type: "match_score",
+  status: "error",
+  error: "429 rate limit",
+};
+
 const EVENTS: AuditEventRow[] = [
   {
     id: "evt-1",
@@ -293,9 +301,12 @@ describe("audit page tabs", () => {
         { key: "cv_draft", calls: 5, errors: 1, tokens_in: 0, tokens_out: 0 },
       ],
     });
-    vi.mocked(fetchAuditGenerations).mockResolvedValue({
-      total: 2,
-      items: GENERATIONS,
+    vi.mocked(fetchAuditGenerations).mockImplementation(async (params) => {
+      if (params?.id) {
+        const row = [...GENERATIONS, REMOTE_GENERATION].find((g) => g.id === params.id);
+        return { total: row ? 1 : 0, items: row ? [row] : [] };
+      }
+      return { total: 2, items: GENERATIONS };
     });
     vi.mocked(fetchAuditEvents).mockResolvedValue({ total: 2, items: EVENTS });
     vi.mocked(fetchAuditJobs).mockResolvedValue({ total: 1, items: JOBS });
@@ -343,11 +354,10 @@ describe("audit page tabs", () => {
     await waitFor(() => expect(probe()).toBe("/settings/audit"));
   });
 
-  it("lands the AI tab deep link, marks mock rows simulated and expands detail", async () => {
+  it("lands the AI tab deep link, marks mock rows simulated and opens the drawer", async () => {
     renderPage("/settings/audit?tab=ai");
     expect(await screen.findByTestId("audit-ai-tab")).toBeTruthy();
     expect(screen.getByTestId("audit-gen-simulated-gen-mock")).toBeTruthy();
-    expect(screen.queryByTestId("audit-gen-detail-gen-ok")).toBeNull();
 
     const tokensCell = screen.getByTitle("5,329 → 356");
     expect(tokensCell.textContent).toBe("5.3k → 356");
@@ -356,8 +366,34 @@ describe("audit page tabs", () => {
     expect(mockRow.textContent).not.toContain("?");
 
     await userEvent.click(screen.getByTestId("audit-gen-row-gen-ok"));
-    expect(screen.getByTestId("audit-gen-detail-gen-ok")).toBeTruthy();
-    expect(screen.getByText(/run #11111111/)).toBeTruthy();
+    expect(await screen.findByTestId("audit-gen-drawer")).toBeTruthy();
+    expect(screen.getByTestId("audit-gen-meta").textContent).toContain("5,329 → 356");
+    const pairs = screen.getByTestId("audit-parsed-pairs");
+    expect(pairs.textContent).toContain("reply");
+    expect(pairs.textContent).toContain("hi");
+    expect(probe()).toBe("/settings/audit?tab=ai&detail=gen-ok");
+
+    await userEvent.click(screen.getByRole("tab", { name: "Raw" }));
+    const raw = screen.getByTestId("audit-gen-drawer");
+    expect(raw.textContent).toContain('"reply": "hi"');
+
+    expect(screen.getByTestId("audit-gen-drawer-prev")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("audit-gen-drawer-next"));
+    await waitFor(() =>
+      expect(screen.getByTestId("audit-gen-row-gen-mock")).toBeTruthy(),
+    );
+    expect(screen.getByTestId("audit-gen-drawer-prev")).toBeEnabled();
+  });
+
+  it("resolves an off-page ?detail= row by id", async () => {
+    renderPage("/settings/audit?tab=ai&detail=gen-remote");
+    expect(await screen.findByTestId("audit-gen-drawer")).toBeTruthy();
+    expect(screen.getByTestId("audit-gen-error")).toBeTruthy();
+    expect(screen.getByText("429 rate limit")).toBeTruthy();
+    expect(fetchAuditGenerations).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "gen-remote", limit: 1 }),
+    );
+    expect(screen.queryByTestId("audit-gen-drawer-prev")).toBeNull();
   });
 
   it("applies the task facet filter and pages the ledger", async () => {

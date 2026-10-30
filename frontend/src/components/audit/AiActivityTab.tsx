@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import {
   exportAuditCsv,
   fetchAuditBreakdown,
@@ -9,6 +10,7 @@ import {
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
+import { GenerationDetailDrawer } from "@/components/audit/GenerationDetailDrawer";
 import {
   EMPTY_RANGE,
   RangeFilter,
@@ -45,75 +47,25 @@ const EMPTY_FILTERS: Filters = {
   q: "",
 };
 
-function GenerationDetail({ row }: { row: AIGenerationRow }) {
-  const { t } = useTranslation();
-  return (
-    <div
-      className="mx-2 mb-2 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3 text-xs"
-      data-testid={`audit-gen-detail-${row.id}`}
-    >
-      {row.error && <p className="mb-2 font-medium text-rose-600">{row.error}</p>}
-      <p className="mb-2 whitespace-pre-wrap break-words text-[var(--as-muted-fg)]">
-        {t("audit.ai.promptLabel")}
-        {row.prompt ? row.prompt.slice(0, 600) : "—"}
-      </p>
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        {row.run_id && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.runChip", { id: row.run_id.slice(0, 8) })}
-          </span>
-        )}
-        {row.run_stage && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.stageChip", { stage: row.run_stage })}
-          </span>
-        )}
-        {row.prompt_version && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.promptChip", { version: row.prompt_version })}
-          </span>
-        )}
-        {row.pack_key && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.packChip", {
-              key: row.pack_key,
-              version: row.pack_version ?? "?",
-            })}
-          </span>
-        )}
-      </div>
-      {row.output && (
-        <pre className="max-h-60 overflow-y-auto whitespace-pre-wrap break-all rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px] leading-relaxed text-[var(--as-fg)]">
-          {JSON.stringify(row.output, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 function GenerationRow({
   row,
-  expanded,
-  onToggle,
+  onOpen,
 }: {
   row: AIGenerationRow;
-  expanded: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <>
-      <tr
+    <tr
         className="cursor-pointer border-b border-[var(--as-border)] hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
-        onClick={onToggle}
+        onClick={onOpen}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
             event.preventDefault();
-            onToggle();
+            onOpen();
           }
         }}
         tabIndex={0}
-        aria-expanded={expanded}
         data-testid={`audit-gen-row-${row.id}`}
       >
         <td className="px-3 py-2">
@@ -123,7 +75,6 @@ function GenerationRow({
             }`}
           >
             {t(`aiSettings.status.${row.status}`, { defaultValue: row.status })}
-            {expanded ? " ▾" : " ▸"}
           </span>
         </td>
         <td className="px-3 py-2 font-medium text-[var(--as-fg)]">
@@ -164,21 +115,14 @@ function GenerationRow({
           {new Date(row.created_at).toLocaleString()}
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={7} className="p-0">
-            <GenerationDetail row={row} />
-          </td>
-        </tr>
-      )}
-    </>
   );
 }
 
-/** The AI ledger tab: facet-driven filters over every AI call, with
- * expandable row detail and lineage chips (run/stage/prompt/pack). */
+/** The AI ledger tab: facet-driven filters over every AI call; a row
+ * opens the detail drawer (?detail=<id> deep link, plan 154). */
 export function AiActivityTab() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const [rows, setRows] = useState<AIGenerationRow[]>([]);
@@ -186,10 +130,11 @@ export function AiActivityTab() {
   const [page, setPage] = useState(0);
   const [taskFacets, setTaskFacets] = useState<AuditBreakdownRow[]>([]);
   const [providerFacets, setProviderFacets] = useState<AuditBreakdownRow[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [deepLinkRow, setDeepLinkRow] = useState<AIGenerationRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const detailId = searchParams.get("detail");
 
   useEffect(() => {
     const loadFacets = async () => {
@@ -243,11 +188,66 @@ export function AiActivityTab() {
     void load(applied, page);
   }, [load, applied, page]);
 
+  useEffect(() => {
+    if (!detailId || rows.some((row) => row.id === detailId)) return;
+    if (deepLinkRow?.id === detailId) return;
+    let live = true;
+    const fetchRow = async () => {
+      try {
+        const result = await fetchAuditGenerations({ id: detailId, limit: 1 });
+        if (!live) return;
+        setDeepLinkRow(result.items[0] ?? null);
+        if (!result.items[0]) {
+          const next = new URLSearchParams(searchParams);
+          next.delete("detail");
+          setSearchParams(next, { replace: true });
+        }
+      } catch {
+        if (live) {
+          setDeepLinkRow(null);
+          const next = new URLSearchParams(searchParams);
+          next.delete("detail");
+          setSearchParams(next, { replace: true });
+        }
+      }
+    };
+    void fetchRow();
+    return () => {
+      live = false;
+    };
+  }, [detailId, rows, deepLinkRow, searchParams, setSearchParams]);
+
+  const detailRow =
+    rows.find((row) => row.id === detailId) ??
+    (deepLinkRow?.id === detailId ? deepLinkRow : null);
+  const detailIndex = detailRow ? rows.findIndex((row) => row.id === detailRow.id) : -1;
+
+  const openDetail = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", id);
+    setSearchParams(next);
+  };
+
+  const closeDetail = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("detail");
+    setSearchParams(next, { replace: true });
+  };
+
+  const navigateDetail = (delta: -1 | 1) => {
+    if (detailIndex < 0) return;
+    const nextIndex = detailIndex + delta;
+    const target = rows[nextIndex];
+    if (!target) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", target.id);
+    setSearchParams(next);
+  };
+
   const applyFilters = (next: Filters) => {
     setFilters(next);
     setApplied(next);
     setPage(0);
-    setExpanded(null);
   };
 
   const patch = (part: Partial<Filters>) => applyFilters({ ...filters, ...part });
@@ -391,8 +391,7 @@ export function AiActivityTab() {
                 <GenerationRow
                   key={row.id}
                   row={row}
-                  expanded={expanded === row.id}
-                  onToggle={() => setExpanded(expanded === row.id ? null : row.id)}
+                  onOpen={() => openDetail(row.id)}
                 />
               ))}
             </tbody>
@@ -428,6 +427,22 @@ export function AiActivityTab() {
           </button>
         </span>
       </div>
+
+      <GenerationDetailDrawer
+        row={detailRow}
+        onClose={closeDetail}
+        onNavigate={detailIndex >= 0 ? navigateDetail : undefined}
+        hasPrev={detailIndex > 0}
+        hasNext={detailIndex >= 0 && detailIndex < rows.length - 1}
+        position={
+          detailIndex >= 0
+            ? t("audit.ai.drawer.position", {
+                index: detailIndex + 1 + page * PAGE_SIZE,
+                total: total.toLocaleString(),
+              })
+            : undefined
+        }
+      />
     </div>
   );
 }

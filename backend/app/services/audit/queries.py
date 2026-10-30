@@ -571,13 +571,17 @@ async def generations(
     tier: str | None = None,
     window: str | None = None,
     query: str | None = None,
+    generation_id: str | None = None,
     limit: int = 50,
     offset: int = 0,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
 ) -> tuple[int, list[AIGeneration]]:
-    """The AI ledger with the full filter matrix (plan 151 D7)."""
+    """The AI ledger with the full filter matrix (plan 151 D7). ``id``
+    resolves one exact row (detail deep links, plan 154)."""
     conditions = []
+    if generation_id:
+        conditions.append(AIGeneration.id == generation_id)
     if task:
         conditions.append(AIGeneration.task_type == task)
     if provider:

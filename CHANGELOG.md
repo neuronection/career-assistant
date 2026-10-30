@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (AI-call detail drawer, 2026-10-30)
+- **AI activity rows open a detail drawer instead of inline expansion**
+  (plan 154): parsed and raw views over one call — parsed renders the
+  output as labelled pairs/chips (never raw JSON strings) with a
+  copyable prompt block; raw shows the full prompt + pretty JSON with
+  copy buttons; a meta grid carries exact tokens, latency, tier, skill
+  pack, prompt version and run/stage; prev/next steps through the loaded
+  page without closing. Deep-linkable via `?detail=<id>` — the
+  generations endpoint gains an `id` filter so reloads resolve rows that
+  are not on the loaded page.
+
 ### Changed (postings + companies graduate from beta, 2026-10-30)
 - **Live postings (`/postings`) and Companies (`/companies`) are
   shipped** — the beta chips leave the navigation; the feature
