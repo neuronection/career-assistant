@@ -128,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0077"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0078"], (
         "revision chain stays linear on one head"
     )
 
@@ -140,6 +140,20 @@ def test_0027_cv_synth_items_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present(), "re-upgrade restores the table"
+
+
+def test_0078_search_preset_name_roundtrip():
+    """Plan 165: saved searches carry a preset name; the column is nullable
+    so existing remembered rows survive the upgrade unchanged."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("search_history", "name"), "preset names exist at head"
+
+    command.downgrade(config, "0077")
+    assert not _column_present("search_history", "name"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("search_history", "name"), "re-upgrade restores the column"
 
 
 def test_0033_profile_proposals_roundtrip():

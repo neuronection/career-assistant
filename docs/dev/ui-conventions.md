@@ -481,6 +481,52 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   wrapper — six labels scroll instead of squeezing. Loading stays the
   app's Spinner + label row (previews are the shimmer exception, §6).
 
+## 2i. Filter chips — one cycle, one clear (plan 164)
+
+Every filter chip follows the same contract (`TriStateChips` in
+`components/filters/filterBits.tsx`), on every rail (`/postings`,
+`/companies`):
+
+- **off → include → exclude → off**: one click includes (accent), the
+  second excludes (rose, `−` prefix), the third clears. Right-click jumps
+  straight to exclude. Values are mutually exclusive across the pair of
+  lists, and every mode drops the value from the other list.
+- **A selected chip carries an ×** that clears it in one click — never
+  make a user cycle back out of a state, and never hover-reveal it.
+- **The pill is a wrapper with two sibling buttons** (value + remove):
+  a `<button>` inside a `<button>` is invalid markup and swallows the
+  inner click. Keep the value button's `data-testid` (its accessible name
+  is the label + count) and give the remove button
+  `data-testid="{testId}-clear"` + `aria-label` "Remove {label}".
+- Chips that intentionally cannot be excluded (`allowExclude={false}`,
+  e.g. the posted-window selector) cycle include → clear only, and still
+  get the × — the visual contract stays identical.
+- Binary state toggles (saved only, hide seen, deep-extracted) are
+  checkboxes, not chips: their uncheck *is* the clear.
+- **Exclude pickers are excluded chips too** (plan 166): the skills /
+  organizations exclude lists keep the library `MultiSelectPicker`, but
+  their selected chips carry `ca-picker-exclude` (rose bg + text, `−`
+  prefix via `renderChipExtra`) so the same value reads the same whether
+  it was excluded by a chip or by a picker. The wrapper class is the
+  only lever — the library chip styling is internal, so scope the CSS to
+  `[data-as="picker-chips"] > li` under that wrapper; never restyle the
+  include pickers.
+
+## 2j. The preset bar — saved views (plan 165)
+
+A list page whose filter set is URL state gets a **preset bar** above the
+results (`PresetBar`, `/postings` today):
+
+- presets are **chips**, never a dropdown: apply on click, active state
+  highlighted, a `⋯` menu per chip carrying the filter summary plus
+  update/rename/delete (delete confirmed). Saving offers **Update
+  {active}** instead of duplicating; names are unique per user.
+- the preset is a **saved search** (`search_history.name`, `PATCH
+  /me/searches/{id}`), not a second store — digests, RSS feeds and the
+  scheduler already resolve saved searches by id.
+- the save dialog shows the same human-readable summary the menu does, so
+  what you are about to save is visible before it lands.
+
 ## 2h. Shareable list state — the URL is the state (plan 163)
 
 A list page whose filters/order a user would want to reload, go back to

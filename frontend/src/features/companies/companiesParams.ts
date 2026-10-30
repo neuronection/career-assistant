@@ -23,6 +23,7 @@ export interface CompanyFilters {
   employment: string[];
   employmentExclude: string[];
   industries: string[];
+  industriesExclude: string[];
   minOpen: number;
   location: string;
   sort: string;
@@ -38,6 +39,7 @@ export const DEFAULT_FILTERS: CompanyFilters = {
   employment: [],
   employmentExclude: [],
   industries: [],
+  industriesExclude: [],
   minOpen: 0,
   location: "",
   sort: DEFAULT_SORT,
@@ -69,6 +71,7 @@ export function parseFilters(params: URLSearchParams): CompanyFilters {
     employment: csv(params.get("employment")),
     employmentExclude: csv(params.get("employment_exclude")),
     industries: csv(params.get("industry")),
+    industriesExclude: csv(params.get("industry_exclude")),
     minOpen: (MIN_OPEN_OPTIONS as ReadonlyArray<number>).includes(minOpen) ? minOpen : 0,
     location: params.get("location") ?? "",
     sort: sortFrom(params),
@@ -85,6 +88,7 @@ export function toParams(filters: CompanyFilters): CompanyQuery {
   if (filters.employment.length) params.employment = filters.employment;
   if (filters.employmentExclude.length) params.employment_exclude = filters.employmentExclude;
   if (filters.industries.length) params.industry = filters.industries;
+  if (filters.industriesExclude.length) params.industry_exclude = filters.industriesExclude;
   if (filters.minOpen) params.min_open = filters.minOpen;
   if (filters.location) params.location = filters.location;
   if (filters.sort !== DEFAULT_SORT) params.sort = filters.sort;
@@ -115,6 +119,7 @@ export function countActive(filters: CompanyFilters): number {
     filters.employment.length +
     filters.employmentExclude.length +
     filters.industries.length +
+    filters.industriesExclude.length +
     (filters.minOpen ? 1 : 0) +
     (filters.location ? 1 : 0) +
     (filters.status === "new" ? 1 : 0)

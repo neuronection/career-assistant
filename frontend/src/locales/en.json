@@ -383,10 +383,7 @@
     "nothingMatchesBody": "Loosen a filter or ask an admin to connect more posting sources.",
     "loadMore": "Load more",
     "loadingMore": "Loading more postings…",
-    "searchSaved": "Search saved — schedule it in Settings → Scheduler.",
-    "saveFailed": "Could not save the search",
     "intro": "Every open vacancy across your sources — filter, facet, deep-extract.",
-    "saveSearch": "Save this search",
     "facet": {
       "skills": "Skills",
       "workMode": "Work mode",
@@ -4660,7 +4657,9 @@
     "include": "Include",
     "exclude": "Exclude",
     "clickToInclude": "Click to include — right-click to exclude",
-    "clickToExclude": "Click to exclude — right-click to remove",
+    "clickToExclude": "Click to exclude",
+    "clickToClear": "Click to clear",
+    "removeValue": "Remove {{value}}",
     "clickToIncludeOnly": "Click to include",
     "clickToToggle": "Click to filter by this",
     "min": "min",
@@ -5101,5 +5100,38 @@
       "noActivity": "No activity in this range"
     },
     "autoRefresh": "Auto-refresh 30s"
+  },
+  "presets": {
+    "title": "Presets",
+    "saveCurrent": "Save current view",
+    "saveHint": "Save these filters as a one-click preset",
+    "updateNamed": "Update {{name}}",
+    "save": "Save preset",
+    "update": "Update preset",
+    "nameLabel": "Preset name",
+    "saveTitle": "Save this view as a preset",
+    "rename": "Rename",
+    "renameTitle": "Rename preset",
+    "delete": "Delete preset",
+    "deleteTitle": "Delete preset “{{name}}”?",
+    "deleteBody": "The saved filters are removed; the postings stay.",
+    "updateCurrent": "Update with current filters",
+    "options": "Options for {{name}}",
+    "saved": "Preset saved",
+    "updated": "Preset updated",
+    "renamed": "Preset renamed",
+    "deleted": "Preset deleted",
+    "defaultName": "My search",
+    "summary": {
+      "query": "Search: {{value}}",
+      "skills": "Skills: {{list}}",
+      "skillsExclude": "Excluded skills: {{list}}",
+      "include": "{{label}}: {{list}}",
+      "exclude": "{{label}} excluded: {{list}}",
+      "posted": "Posted: {{value}}",
+      "salary": "Salary from: {{value}}",
+      "sort": "Sorted by: {{value}}",
+      "empty": "No filters — shows every open posting."
+    }
   }
 }

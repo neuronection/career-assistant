@@ -12,6 +12,7 @@ export interface CompanyQuery {
   employment_exclude?: string[];
   min_open?: number;
   industry?: string[];
+  industry_exclude?: string[];
   location?: string;
   sort?: string;
   facets?: boolean;
@@ -29,6 +30,7 @@ function toParams(query: CompanyQuery): Record<string, unknown> {
     "employment",
     "employment_exclude",
     "industry",
+    "industry_exclude",
   ] as const) {
     const values = query[key];
     if (values && values.length > 0) params[key] = values.join(",");

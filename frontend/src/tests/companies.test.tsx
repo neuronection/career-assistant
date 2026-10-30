@@ -271,6 +271,50 @@ describe("Companies browsing (plan 135)", () => {
     await waitFor(() => expect(screen.getByTestId("location-search").textContent).toBe(""));
   });
 
+  it("cycles an industry chip through include, exclude and clear", async () => {
+    mocked.fetchCompanies.mockResolvedValue({
+      items: [COMPANY],
+      facets: { work_mode: {}, seniority: {}, employment: {}, industries: { fintech: 2 } },
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/companies"]}>
+        <Companies />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("company-card-acme-cloud");
+    fireEvent.click(screen.getByText("Industries"));
+
+    await user.click(screen.getByTestId("company-industries-fintech"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("industry=fintech")
+    );
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({ industry: ["fintech"] })
+      )
+    );
+
+    await user.click(screen.getByTestId("company-industries-fintech"));
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).toContain("industry_exclude=fintech");
+      expect(search).not.toContain("industry=fintech");
+    });
+    await waitFor(() =>
+      expect(mocked.fetchCompanies).toHaveBeenLastCalledWith(
+        expect.objectContaining({ industry_exclude: ["fintech"] })
+      )
+    );
+
+    await user.click(screen.getByTestId("company-industries-fintech-clear"));
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).not.toContain("industry");
+    });
+  });
+
   it("restores directory filters from the URL", async () => {
     mocked.fetchCompanies.mockResolvedValue({
       items: [COMPANY, PROPOSED],

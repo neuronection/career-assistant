@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 
 export function Section({
   title,
@@ -60,26 +60,34 @@ export interface FacetChip {
   testId?: string;
 }
 
+export type TriStateMode = "include" | "exclude" | "clear";
+
 /**
  * The tri-state cycle for one chip: off → include → exclude → off,
  * right-click excludes directly. Include and exclude are mutually
- * exclusive per value.
+ * exclusive per value (every mode drops the value from the other list).
  */
 export function triStateToggle(
   include: string[],
   exclude: string[],
   value: string,
-  mode: "include" | "exclude",
+  mode: TriStateMode,
 ): { include: string[]; exclude: string[] } {
-  if (mode === "include") {
+  if (mode === "clear") {
     return {
-      include: include.includes(value) ? include.filter((v) => v !== value) : [...include, value],
+      include: include.filter((v) => v !== value),
       exclude: exclude.filter((v) => v !== value),
     };
   }
+  if (mode === "exclude") {
+    return {
+      include: include.filter((v) => v !== value),
+      exclude: [...exclude.filter((v) => v !== value), value],
+    };
+  }
   return {
-    include: include.filter((v) => v !== value),
-    exclude: exclude.includes(value) ? exclude.filter((v) => v !== value) : [...exclude, value],
+    include: [...include.filter((v) => v !== value), value],
+    exclude: exclude.filter((v) => v !== value),
   };
 }
 
@@ -94,7 +102,7 @@ export function TriStateChips({
   values: FacetChip[];
   include: string[];
   exclude: string[];
-  onToggle: (value: string, mode: "include" | "exclude") => void;
+  onToggle: (value: string, mode: TriStateMode) => void;
   showCounts?: boolean;
   allowExclude?: boolean;
 }) {
@@ -104,48 +112,71 @@ export function TriStateChips({
       {values.map(({ value, label, count, testId }) => {
         const isIncluded = include.includes(value);
         const isExcluded = exclude.includes(value);
-        const dimmed = showCounts && count === 0 && !isIncluded && !isExcluded;
+        const selected = isIncluded || isExcluded;
+        const dimmed = showCounts && count === 0 && !selected;
+        const nextMode: TriStateMode = !selected
+          ? "include"
+          : isIncluded && allowExclude
+            ? "exclude"
+            : "clear";
+        const title = !selected
+          ? allowExclude
+            ? t("filters.clickToInclude")
+            : t("filters.clickToToggle")
+          : isIncluded && allowExclude
+            ? t("filters.clickToExclude")
+            : t("filters.clickToClear");
         return (
-          <button
+          <span
             key={value}
-            type="button"
-            data-testid={testId}
-            onClick={() =>
-              onToggle(value, isIncluded || isExcluded ? (isIncluded ? "exclude" : "include") : "include")
-            }
-            onContextMenu={
-              allowExclude
-                ? (e) => {
-                    e.preventDefault();
-                    onToggle(value, "exclude");
-                  }
-                : undefined
-            }
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+            data-state={isIncluded ? "include" : isExcluded ? "exclude" : undefined}
+            className={`inline-flex items-stretch overflow-hidden rounded-full border text-xs transition-colors ${
               isIncluded
-                ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                ? "border-primary-300 bg-primary-50 text-primary-700"
                 : isExcluded
                   ? "border-rose-300 bg-rose-50 text-rose-700"
                   : dimmed
                     ? "border-slate-100 bg-white text-slate-300"
                     : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
             }`}
-            title={
-              allowExclude
-                ? isIncluded
-                  ? t("filters.clickToExclude")
-                  : isExcluded
-                    ? t("filters.clickToIncludeOnly")
-                    : t("filters.clickToInclude")
-                : t("filters.clickToToggle")
-            }
           >
-            {isExcluded ? "− " : ""}
-            {label}
-            {showCounts && count !== undefined ? (
-              <span className="ml-1 opacity-70">· {count}</span>
+            <button
+              type="button"
+              data-testid={testId}
+              aria-pressed={selected}
+              onClick={() => onToggle(value, nextMode)}
+              onContextMenu={
+                allowExclude
+                  ? (e) => {
+                      e.preventDefault();
+                      onToggle(value, "exclude");
+                    }
+                  : undefined
+              }
+              className={`py-1 pl-2.5 ${selected ? "pr-1" : "pr-2.5"} ${
+                isIncluded ? "font-medium" : ""
+              }`}
+              title={title}
+            >
+              {isExcluded ? "− " : ""}
+              {label}
+              {showCounts && count !== undefined ? (
+                <span className="ml-1 opacity-70">· {count}</span>
+              ) : null}
+            </button>
+            {selected ? (
+              <button
+                type="button"
+                onClick={() => onToggle(value, "clear")}
+                data-testid={testId ? `${testId}-clear` : undefined}
+                aria-label={t("filters.removeValue", { value: label })}
+                title={t("filters.clickToClear")}
+                className="py-1 pl-0.5 pr-1.5 opacity-70 transition-opacity hover:opacity-100"
+              >
+                <X aria-hidden className="h-3 w-3" />
+              </button>
             ) : null}
-          </button>
+          </span>
         );
       })}
     </div>

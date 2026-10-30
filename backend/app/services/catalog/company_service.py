@@ -47,6 +47,7 @@ class CompanyService:
         employment_exclude: list[str] | None = None,
         min_open: int | None = None,
         industry: list[str] | None = None,
+        industry_exclude: list[str] | None = None,
         location: str | None = None,
         sort: str = "open_postings",
         facets: bool = False,
@@ -139,6 +140,13 @@ class CompanyService:
                 item
                 for item in items
                 if wanted.intersection(tag.lower() for tag in item.industry_tags)
+            ]
+        if industry_exclude:
+            dropped = {tag.lower() for tag in industry_exclude}
+            items = [
+                item
+                for item in items
+                if not dropped.intersection(tag.lower() for tag in item.industry_tags)
             ]
 
         facet_data = None

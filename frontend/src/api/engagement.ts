@@ -8,8 +8,18 @@ export async function recordSearch(body: {
   query: string;
   filters: Record<string, unknown>;
   result_count: number;
+  saved?: boolean;
+  name?: string | null;
 }): Promise<SearchRecord> {
   const { data } = await api.post<SearchRecord>("/me/searches", body);
+  return data;
+}
+
+export async function updateSearch(
+  id: string,
+  body: { name?: string; query?: string; filters?: Record<string, unknown>; result_count?: number }
+): Promise<SearchRecord> {
+  const { data } = await api.patch<SearchRecord>(`/me/searches/${id}`, body);
   return data;
 }
 
@@ -23,11 +33,6 @@ export async function fetchSearches(params: {
 
 export async function deleteSearch(id: string): Promise<void> {
   await api.delete(`/me/searches/${id}`);
-}
-
-export async function saveSearch(id: string): Promise<SearchRecord> {
-  const { data } = await api.post<SearchRecord>(`/me/searches/${id}/save`);
-  return data;
 }
 
 export async function fetchFeed(

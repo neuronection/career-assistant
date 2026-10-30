@@ -212,6 +212,19 @@ export function toParams(filters: Filters): ExploreParams {
   return params;
 }
 
+export function filtersFromRecord(record: Record<string, unknown> | null | undefined): Filters {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(record ?? {})) {
+    if (value == null) continue;
+    if (Array.isArray(value)) {
+      for (const entry of value) params.append(key, String(entry));
+    } else {
+      params.set(key, String(value));
+    }
+  }
+  return parseFilters(params);
+}
+
 export function toSearchParams(filters: Filters): URLSearchParams {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(toParams(filters))) {

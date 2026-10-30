@@ -383,10 +383,7 @@
     "nothingMatchesBody": "Entfernen Sie einen Filter oder bitten Sie einen Administrator, weitere Jobquellen zu verbinden.",
     "loadMore": "Mehr anzeigen",
     "loadingMore": "Weitere Stellen werden geladen…",
-    "searchSaved": "Suche speichern — planen Sie sie in den Einstellungen → Zeitplaner.",
-    "saveFailed": "Suche konnte nicht gespeichert werden",
     "intro": "Alle offenen Stellenangebote aus Ihren Quellen — filtern, verfeinern, detailliert analysieren.",
-    "saveSearch": "Diese Suche speichern",
     "facet": {
       "skills": "Fähigkeiten",
       "workMode": "Arbeitsweise",
@@ -4659,7 +4656,9 @@
     "include": "Einbeziehen",
     "exclude": "Ausschließen",
     "clickToInclude": "Klicken zum Einschließen — Rechtsklick zum Ausschließen",
-    "clickToExclude": "Klicken zum Ausschließen — Rechtsklick zum Entfernen",
+    "clickToExclude": "Zum Ausschließen klicken",
+    "clickToClear": "Zum Entfernen klicken",
+    "removeValue": "{{value}} entfernen",
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "clickToToggle": "Klicken, um danach zu filtern",
     "min": "min",
@@ -5100,5 +5099,38 @@
       "noActivity": "Keine Aktivität in diesem Zeitraum"
     },
     "autoRefresh": "Auto-Aktualisierung 30s"
+  },
+  "presets": {
+    "title": "Vorlagen",
+    "saveCurrent": "Aktuelle Ansicht speichern",
+    "saveHint": "Diese Filter als Vorlage mit einem Klick speichern",
+    "updateNamed": "{{name}} aktualisieren",
+    "save": "Vorlage speichern",
+    "update": "Vorlage aktualisieren",
+    "nameLabel": "Name der Vorlage",
+    "saveTitle": "Diese Ansicht als Vorlage speichern",
+    "rename": "Umbenennen",
+    "renameTitle": "Vorlage umbenennen",
+    "delete": "Vorlage löschen",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "deleteBody": "Die gespeicherten Filter werden entfernt; die Stellenangebote bleiben.",
+    "updateCurrent": "Mit aktuellen Filtern aktualisieren",
+    "options": "Optionen für {{name}}",
+    "saved": "Vorlage gespeichert",
+    "updated": "Vorlage aktualisiert",
+    "renamed": "Vorlage umbenannt",
+    "deleted": "Vorlage gelöscht",
+    "defaultName": "Meine Suche",
+    "summary": {
+      "query": "Suche: {{value}}",
+      "skills": "Fähigkeiten: {{list}}",
+      "skillsExclude": "Ausgeschlossene Fähigkeiten: {{list}}",
+      "include": "{{label}}: {{list}}",
+      "exclude": "{{label}} ausgeschlossen: {{list}}",
+      "posted": "Veröffentlicht: {{value}}",
+      "salary": "Gehalt ab: {{value}}",
+      "sort": "Sortiert nach: {{value}}",
+      "empty": "Keine Filter — zeigt alle offenen Stellen."
+    }
   }
 }

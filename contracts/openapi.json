@@ -18122,6 +18122,17 @@
             "title": "Id",
             "type": "string"
           },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "query": {
             "title": "Query",
             "type": "string"
@@ -18399,6 +18410,18 @@
             "title": "Filters",
             "type": "object"
           },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
           "query": {
             "default": "",
             "maxLength": 300,
@@ -18410,6 +18433,11 @@
             "minimum": 0.0,
             "title": "Result Count",
             "type": "integer"
+          },
+          "saved": {
+            "default": false,
+            "title": "Saved",
+            "type": "boolean"
           },
           "scope": {
             "$ref": "#/components/schemas/SearchScope"
@@ -18430,6 +18458,60 @@
         ],
         "title": "SearchScope",
         "type": "string"
+      },
+      "SearchUpdateIn": {
+        "properties": {
+          "filters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filters"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "query": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query"
+          },
+          "result_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Count"
+          }
+        },
+        "title": "SearchUpdateIn",
+        "type": "object"
       },
       "SectionGap": {
         "properties": {
@@ -32294,6 +32376,24 @@
             }
           },
           {
+            "description": "CSV exclude companies carrying any of these industry tags",
+            "in": "query",
+            "name": "industry_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "CSV exclude companies carrying any of these industry tags",
+              "title": "Industry Exclude"
+            }
+          },
+          {
             "description": "Matches open-posting city or country",
             "in": "query",
             "name": "location",
@@ -40857,7 +40957,7 @@
         ]
       },
       "post": {
-        "description": "Remember a search (debounced: same query+filters inside 30 min updates).",
+        "description": "Remember a search (debounced: same query+filters inside 30 min\nupdates). `saved` + `name` create a preset in one call.",
         "operationId": "record_search_api_v1_me_searches_post",
         "requestBody": {
           "content": {
@@ -40929,6 +41029,58 @@
           }
         },
         "summary": "Delete Search",
+        "tags": [
+          "engagement"
+        ]
+      },
+      "patch": {
+        "description": "Edit a preset: rename it, re-point its filters at the current view or\nrefresh its result count (renaming or re-pointing saves the row).",
+        "operationId": "update_search_api_v1_me_searches__search_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "search_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Search Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchUpdateIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Search",
         "tags": [
           "engagement"
         ]

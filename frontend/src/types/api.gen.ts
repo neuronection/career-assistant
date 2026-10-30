@@ -6916,7 +6916,8 @@ export interface paths {
         put?: never;
         /**
          * Record Search
-         * @description Remember a search (debounced: same query+filters inside 30 min updates).
+         * @description Remember a search (debounced: same query+filters inside 30 min
+         *     updates). `saved` + `name` create a preset in one call.
          */
         post: operations["record_search_api_v1_me_searches_post"];
         delete?: never;
@@ -6942,7 +6943,12 @@ export interface paths {
         delete: operations["delete_search_api_v1_me_searches__search_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Search
+         * @description Edit a preset: rename it, re-point its filters at the current view or
+         *     refresh its result count (renaming or re-pointing saves the row).
+         */
+        patch: operations["update_search_api_v1_me_searches__search_id__patch"];
         trace?: never;
     };
     "/api/v1/me/searches/{search_id}/save": {
@@ -15571,6 +15577,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Name */
+            name?: string | null;
             /** Query */
             query: string;
             /** Result Count */
@@ -15657,6 +15665,8 @@ export interface components {
             filters?: {
                 [key: string]: unknown;
             };
+            /** Name */
+            name?: string | null;
             /**
              * Query
              * @default
@@ -15667,6 +15677,11 @@ export interface components {
              * @default 0
              */
             result_count: number;
+            /**
+             * Saved
+             * @default false
+             */
+            saved: boolean;
             scope: components["schemas"]["SearchScope"];
         };
         /**
@@ -15674,6 +15689,19 @@ export interface components {
          * @enum {string}
          */
         SearchScope: "catalog" | "rankings" | "universities" | "postings";
+        /** SearchUpdateIn */
+        SearchUpdateIn: {
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name?: string | null;
+            /** Query */
+            query?: string | null;
+            /** Result Count */
+            result_count?: number | null;
+        };
         /** SectionGap */
         SectionGap: {
             /** Candidate Count */
@@ -23720,6 +23748,8 @@ export interface operations {
                 min_open?: number | null;
                 /** @description CSV match-any over profile industry tags */
                 industry?: string | null;
+                /** @description CSV exclude companies carrying any of these industry tags */
+                industry_exclude?: string | null;
                 /** @description Matches open-posting city or country */
                 location?: string | null;
                 /** @description open_postings (busiest first) | name (A-Z) | recent (latest open posting) */
@@ -29668,6 +29698,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_search_api_v1_me_searches__search_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                search_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchOut"];
+                };
             };
             /** @description Validation Error */
             422: {

@@ -106,12 +106,14 @@ cues, benefits and organization — with live facet counts. The filter rail
 speaks the same language as the feed's:
 
 - every multi-value axis is **tri-state** — click a chip to include, click
-  again to exclude (rendered struck in red), click once more to clear;
-  right-click excludes directly,
+  again to exclude (rendered struck in red), click once more to clear
+  (right-click jumps straight to exclude). Every selected chip carries an
+  **×** that clears it in one click, so you never have to cycle back out,
 - **skills** use the type-ahead picker with the browse-catalog modal and a
-  per-skill minimum level, plus a second picker for **excluded skills**,
+  per-skill minimum level, plus a second picker for **excluded skills**
+  (their chips render in the same excluded red as every other exclude),
 - **organization** is picked from the companies catalog (search popup)
-  with its own exclude list,
+  with its own exclude list (same excluded chip styling),
 - **sources** are include/exclude chips with live counts,
 - **state toggles** sit under the facets: deep-extracted only, saved
   only and **Hide seen** — reviewed postings drop out of the list without
@@ -133,10 +135,24 @@ A reload, the browser's back button and a shared or bookmarked link all
 open the same filtered view; unknown or malformed values are dropped and
 the page falls back to its defaults.
 
+### Presets — save a view, not a query
+
+Above the results sits the **preset bar**. *Save current view* turns the
+whole search — text, every facet, the state toggles, the sort — into a
+named preset chip:
+
+- **Click a chip** to re-apply it; the active preset is highlighted.
+- **`⋯` on a chip** shows exactly what the preset holds (search, skills
+  with levels, included/excluded facets, salary floor, toggles, sort) and
+  offers **Update with current filters**, **Rename** and **Delete**
+  (confirmed; the postings stay).
+- When the current view *is* a preset, the save button becomes
+  **Update <name>** instead of creating a duplicate; names are unique
+  per user. Presets are saved searches, so they can also be scheduled
+  from [Notifications and scheduler](notifications-and-scheduler.md).
+
 You can also:
 
-- **Save searches** and schedule them (see
-  [Notifications and scheduler](notifications-and-scheduler.md)).
 - **Scroll** — results load infinitely: the next page fetches
   automatically as you approach the end (cursor pagination under the
   hood).
