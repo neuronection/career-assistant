@@ -51,7 +51,7 @@ def test_benefit_kinds_feed_values_signal():
 
 
 def test_fit_version_bumped_for_signal_change():
-    assert FIT_VERSION == 5
+    assert FIT_VERSION == 6
 
 
 async def test_generator_emits_v2_vocabulary(db, auth_headers, seeded_catalog):

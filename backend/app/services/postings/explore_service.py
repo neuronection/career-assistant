@@ -14,7 +14,7 @@ import base64
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import Text, and_, case, func, not_, or_, select
@@ -33,6 +33,9 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
+
+if TYPE_CHECKING:
+    from app.services.postings.posting_fit_service import FitOverrides
 
 POSTED_WINDOWS: dict[str, timedelta] = {
     "24h": timedelta(hours=24),
@@ -934,6 +937,8 @@ async def _ranked_page(
     after_id: UUID | None,
     frontier: dict | None,
     limit: int,
+    *,
+    fit_overrides: "FitOverrides | None" = None,
 ) -> tuple[list[dict], str | None]:
     query = _base_select(user_id, saved=bool(filters.get("saved")))
     if conditions:
@@ -955,7 +960,12 @@ async def _ranked_page(
     if sort == "fit":
         from app.services.postings.posting_fit_service import get_posting_fits_batch
 
-        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
+        fits = await get_posting_fits_batch(
+            db,
+            user_id,
+            [entry["posting"] for entry in entries],
+            fit_overrides=fit_overrides,
+        )
         for entry in entries:
             entry["fit"] = fits[entry["posting"].id]["score"]
 
@@ -1067,6 +1077,7 @@ async def explore(
     cursor: str | None = None,
     limit: int = 20,
     with_facets: bool = True,
+    fit_overrides: "FitOverrides | None" = None,
 ) -> dict:
     """The explore query: SQL filters → count → keyset page → facets.
 
@@ -1075,6 +1086,10 @@ async def explore(
     order would require scoring every posting; `total` stays the exact
     filtered count. ``with_facets=False`` skips the (grouped, self-excluding)
     facet queries and omits the key — agent callers never render them.
+    ``fit_overrides`` (plan 169) scores the fit sort's ranking window with
+    the goal's disabled profile inputs so window selection honors them;
+    endpoint/chat/radar callers omit it and stay canonical, and the
+    non-fit-sort enrichment below stays canonical regardless.
     """
     if sort not in ("fit", "fresh", "salary", "relevance"):
         raise ValidationError("sort must be fit|fresh|salary|relevance")
@@ -1111,6 +1126,7 @@ async def explore(
             after_id,
             frontier,
             limit,
+            fit_overrides=fit_overrides,
         )
 
     if sort != "fit" and page:

@@ -46,6 +46,7 @@ from app.services.postings.explore_service import (
     explore,
     parse_explore_filters,
 )
+from app.services.postings.posting_fit_service import FitOverrides
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +115,7 @@ class GraphDeps:
     progress: ProgressCb | None = None
     cancelled: CancelCb | None = None
     cooldown_ids: set[str] = field(default_factory=set)
+    fit_overrides: FitOverrides | None = None
 
 
 # ------------------------------------------------------------------ helpers
@@ -559,13 +561,19 @@ async def _gated_rows(
 async def _scored_candidates(
     deps: GraphDeps, state: AutopilotState, rows: list[tuple]
 ) -> list[dict]:
-    """Serialize loaded rows into candidates: batch-cached fit, no
-    never-term hits, must-term coverage."""
+    """Serialize loaded rows into candidates: goal-adjusted batch fit (the
+    seam serves BOTH sweep paths), no never-term hits, must-term
+    coverage."""
     from app.services.postings.posting_fit_service import get_posting_fits_batch
 
     if not rows:
         return []
-    fits = await get_posting_fits_batch(deps.db, UUID(state["user_id"]), [row[0] for row in rows])
+    fits = await get_posting_fits_batch(
+        deps.db,
+        UUID(state["user_id"]),
+        [row[0] for row in rows],
+        fit_overrides=deps.fit_overrides,
+    )
     never_terms = [str(term).casefold() for term in _constraints(state).get("never_terms") or []]
     must_terms = _must_terms(state)
     scored: list[dict] = []
@@ -1003,6 +1011,7 @@ def make_search_node(deps: GraphDeps):
                     sort="fit",
                     limit=SEARCH_LIMIT,
                     with_facets=False,
+                    fit_overrides=deps.fit_overrides,
                 )
                 entry["found"] = int(result.get("total") or 0)
                 entry["examined"] = len(result.get("items") or [])
@@ -1099,7 +1108,7 @@ def _pool_order(candidate: dict) -> tuple[int, float, str]:
 
 def make_evaluate_node(deps: GraphDeps):
     async def evaluate(state: AutopilotState) -> dict:
-        """Deterministic: canonical posting_fit breakdowns +
+        """Deterministic: goal-adjusted posting_fit breakdowns +
         ``(must_hits, fit)`` ordering, cut to the curator pool."""
         candidates = state.get("candidates") or []
         if not candidates:
@@ -1112,7 +1121,10 @@ def make_evaluate_node(deps: GraphDeps):
         rows = await deps.db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
         postings = {str(p.id): p for p in rows.scalars().all()}
         fits = await get_posting_fits_batch(
-            deps.db, UUID(state["user_id"]), list(postings.values())
+            deps.db,
+            UUID(state["user_id"]),
+            list(postings.values()),
+            fit_overrides=deps.fit_overrides,
         )
         enriched: list[dict] = []
         for candidate in candidates:

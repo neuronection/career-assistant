@@ -19,7 +19,10 @@ from dataclasses import dataclass, field
 # 3: interests blends RIASEC affinity vectors; salary gate added.
 # 4: values dimension joins the engine.
 # 5: benefit kinds feed the values signal.
-FIT_VERSION = 5
+# 6: prereqs gains internal `parts` sub-scores (plan 169) — owns BOTH
+#    caches the constant feeds: posting_fits (sweep backfill) and the
+#    catalog MatchInsight rows (FIT_REFIT queue).
+FIT_VERSION = 6
 
 # Neutral score for "no signal on either side" — never 0, never 10.
 NEUTRAL = 7.0

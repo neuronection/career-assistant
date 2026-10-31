@@ -5,12 +5,17 @@ mapped archetype's fit with a visible estimate note — never silently
 blended. Weights reuse's user sliders, dimensions mapped 1:1
 (prereqs→education, location_remote→location, seniority_stage→
 experience); freshness carries a fixed weight (interests has no posting
-analogue and stays unused)."""
+analogue and stays unused). A goal's profile-usage toggles (plan 169)
+derive a `FitOverrides` pass: disabled inputs score neutral-7 with a
+`disabled` marker, and goal-adjusted values are pure rescores over the
+canonical cached breakdown — the cache keeps ONE row per user x posting
+and never stores adjusted values."""
 
 import hashlib
 import json
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
@@ -18,10 +23,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import EducationLevel, EducationLevelOrder, PostingSkillPriority
+from app.models.enums import CareerStage, EducationLevel, EducationLevelOrder, PostingSkillPriority
 from app.models.posting_model import JobPosting, PostingFit, PostingSkill
 from app.models.user_model import UserSkill
-from app.services.postings.fit.dimensions import FIT_VERSION
+from app.schemas.autopilot import ProfileUsage
+from app.services.postings.fit.dimensions import FIT_VERSION, NEUTRAL
 
 FRESH_WEIGHT = 1.0
 FRESH_DECAY_PER_WEEK = 0.5
@@ -136,11 +142,22 @@ def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
     return False
 
 
-def _prereqs_dimension(posting: JobPosting, profile, certifications: set[str]) -> dict:
-    """Education + language + stated-certificate prerequisites vs the profile."""
-    score = 10.0
-    details: list[str] = []
-    scored = False
+def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dict[str, dict]:
+    """The three prerequisite inputs as per-part sub-scores (plan 169).
+
+    Each part carries ``kind`` (its stable key), ``score`` (10.0 = no
+    penalty), ``detail`` (its evidence lines) and ``signal`` — whether it
+    had requirement content that scores (an absent requirement stays a
+    no-op with signal False). The public five-dimension contract and the
+    pre-plan merged score are unchanged when every part is on.
+    """
+    parts: dict[str, dict] = {
+        "education": {"kind": "education", "score": 7.0, "detail": "", "signal": False},
+        "languages": {"kind": "languages", "score": 7.0, "detail": "", "signal": False},
+        "certificates": {"kind": "certificates", "score": 7.0, "detail": "", "signal": False},
+    }
+    details: dict[str, list[str]] = {"education": [], "languages": [], "certificates": []}
+
     required_education = (posting.extract or {}).get("education", {}) or {}
     level = required_education.get("level") or posting.education_level
     if level:
@@ -158,14 +175,16 @@ def _prereqs_dimension(posting: JobPosting, profile, certifications: set[str]) -
         required = _as_level(level)
         user = _as_level(user_level) if user_level else None
         if required is None:
-            details.append(f"requires education: {level} (unrecognized level)")
-            scored = True
+            details["education"].append(f"requires education: {level} (unrecognized level)")
+            parts["education"].update(score=10.0, signal=True)
         elif user is None:
-            details.append(f"requires education: {level} (yours unspecified)")
+            details["education"].append(f"requires education: {level} (yours unspecified)")
         else:
             met = EducationLevelOrder.at_least(user, required)
-            score = 10.0 if met else 3.0
-            details.append(f"education {'meets' if met else 'below'} requirement ({level})")
+            parts["education"].update(score=10.0 if met else 3.0, signal=True)
+            details["education"].append(
+                f"education {'meets' if met else 'below'} requirement ({level})"
+            )
 
     required_languages = [
         str(lang).lower() for lang in (posting.extract or {}).get("languages") or []
@@ -178,37 +197,94 @@ def _prereqs_dimension(posting: JobPosting, profile, certifications: set[str]) -
             )
             for lang in academics.get("languages") or []
         }
+        unmet = 0
         for lang in required_languages:
             if lang not in user_languages or user_languages[lang] < 1:
-                details.append(f"language {lang} not evidenced")
-                score = min(score, 5.0)
-                scored = True
+                details["languages"].append(f"language {lang} not evidenced")
+                unmet += 1
             else:
-                details.append(f"language {lang} evidenced")
-                scored = True
+                details["languages"].append(f"language {lang} evidenced")
+        parts["languages"].update(score=5.0 if unmet else 10.0, signal=True)
 
+    unevidenced = 0
     for row in (posting.extract or {}).get("prerequisites") or []:
         kind = str(row.get("kind", ""))
         label = str(row.get("label", "")).strip()
         if not label or kind in ("language", "other"):
             continue
         if kind == "degree":
-            details.append(f"degree wording: {label} (level via education)")
+            details["certificates"].append(f"degree wording: {label} (level via education)")
             continue
         if _certificate_evidenced(label, certifications):
-            details.append(f"{kind} {label} evidenced")
-            scored = True
+            details["certificates"].append(f"{kind} {label} evidenced")
+            parts["certificates"].update(signal=True)
         else:
-            details.append(f"{kind} {label} not evidenced (profile has no match)")
-            score = min(score, 6.0)
-            scored = True
-    if not details or not scored:
+            details["certificates"].append(f"{kind} {label} not evidenced (profile has no match)")
+            unevidenced += 1
+            parts["certificates"].update(signal=True)
+    if unevidenced or parts["certificates"]["signal"]:
+        parts["certificates"].update(score=6.0 if unevidenced else 10.0)
+
+    for key, lines in details.items():
+        parts[key]["detail"] = "; ".join(lines)
+    return parts
+
+
+def _merge_prereqs(
+    parts: dict[str, dict], *, use_education: bool = True, use_languages: bool = True
+) -> dict:
+    """The min-cap merge over the PARTICIPATING parts (plan 169).
+
+    A disabled part is excluded from the merge — it never contributes a
+    penalty, so the merged score can only rise or stay — and is stored
+    neutral-7 with a ``disabled`` marker for display. With no
+    participating part the dimension reads neutral 7.0 with its details,
+    exactly the pre-plan ``scored`` gate (an absent requirement stays a
+    no-op). ``parts`` stays internal: the typed posting envelope strips
+    it.
+    """
+    flags = {"education": use_education, "languages": use_languages, "certificates": use_education}
+    display: dict[str, dict] = {}
+    participating: list[float] = []
+    details: list[str] = []
+    for key, part in parts.items():
+        entry = dict(part)
+        if not flags.get(key, True):
+            entry.update(
+                score=7.0,
+                detail=f"{key} disabled for this goal",
+                disabled=True,
+            )
+        else:
+            entry.pop("disabled", None)
+            if part.get("signal"):
+                participating.append(float(part["score"]))
+        if entry.get("detail"):
+            details.append(entry["detail"])
+        display[key] = entry
+    if not participating:
         return {
             "score": 7.0,
             "detail": "; ".join(details[:3]) or "no explicit prerequisites",
             "neutral": True,
+            "parts": display,
         }
-    return {"score": round(score, 2), "detail": "; ".join(details[:3])}
+    return {
+        "score": round(min(participating), 2),
+        "detail": "; ".join(details[:3]),
+        "parts": display,
+    }
+
+
+def _disabled_dimension(key: str) -> dict:
+    """A whole dimension switched off for this goal: neutral 7.0 with the
+    engine's no-signal convention plus an explicit ``disabled`` marker."""
+    return {
+        "score": NEUTRAL,
+        "detail": f"{key} disabled for this goal",
+        "neutral": True,
+        "disabled": True,
+    }
 
 
 def _location_remote_dimension(posting: JobPosting, profile) -> dict:
@@ -323,6 +399,55 @@ def _inputs_payload(
     }
 
 
+@dataclass(frozen=True)
+class FitOverrides:
+    """Per-goal fit input switches (plan 169) — the goal's ProfileUsage +
+    seniority resolved once per run and threaded through the graph.
+
+    Disabled inputs score neutral-7 with a ``disabled`` marker; the
+    canonical fit cache (one row per user x posting) is untouched and
+    goal-adjusted values are derived rescores over it, never cached.
+    ``stage`` is the ``stage_source="goal"`` target (``None`` keeps the
+    profile stage); a disabled ``use_experience`` wins over it.
+    """
+
+    use_skills: bool = True
+    use_education: bool = True
+    use_languages: bool = True
+    use_location: bool = True
+    use_experience: bool = True
+    use_lifestyle: bool = True
+    stage: CareerStage | None = None
+
+    @classmethod
+    def from_profile_usage(cls, usage: ProfileUsage, seniority: list[str]) -> "FitOverrides":
+        from app.services.profile.stages_service import stage_from_seniority
+
+        return cls(
+            use_skills=usage.use_skills,
+            use_education=usage.use_education,
+            use_languages=usage.use_languages,
+            use_location=usage.use_location,
+            use_experience=usage.use_experience,
+            use_lifestyle=usage.use_lifestyle,
+            stage=(stage_from_seniority(seniority) if usage.stage_source == "goal" else None),
+        )
+
+    @property
+    def active(self) -> bool:
+        """True when any toggle is off OR the goal stage swap applies —
+        the condition for rescore-over-cache semantics."""
+        all_on = (
+            self.use_skills
+            and self.use_education
+            and self.use_languages
+            and self.use_location
+            and self.use_experience
+            and self.use_lifestyle
+        )
+        return not all_on or self.stage is not None
+
+
 def lifestyle_gates(posting: JobPosting, constraints: dict | None) -> list[str]:
     """lifestyle constraints vs v2 extract facts.
 
@@ -367,11 +492,19 @@ def lifestyle_gates(posting: JobPosting, constraints: dict | None) -> list[str]:
 
 
 async def compute_posting_fit(
-    db: AsyncSession, user_id: UUID, posting: JobPosting, context: dict | None = None
+    db: AsyncSession,
+    user_id: UUID,
+    posting: JobPosting,
+    context: dict | None = None,
+    *,
+    overrides: FitOverrides | None = None,
 ) -> dict:
     """Full deterministic score: {score, breakdown, extracted, estimate,
     inputs_hash}. When the posting is not deep-extracted the mapped
-    archetype's fit is the visible fallback (estimate=true)."""
+    archetype's fit is the visible fallback (estimate=true) — estimates
+    never carry overrides. ``overrides`` neutralizes the goal's disabled
+    profile inputs (neutral-7 + ``disabled`` markers); the inputs hash is
+    toggle-invariant — flags never ride it."""
     if context is None:
         context = await _load_context(db, user_id)
     profile = context["profile"]
@@ -424,16 +557,36 @@ async def compute_posting_fit(
             "inputs_hash": inputs_hash,
         }
 
+    flags = overrides if overrides is not None and overrides.active else FitOverrides()
+    goal_stage = (
+        flags.stage.value if flags.use_experience and flags.stage is not None else stage.value
+    )
     links = (
         (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
     breakdown = {
-        "skills": _skills_dimension(links, user_levels),
-        "prereqs": _prereqs_dimension(posting, profile, set(certifications)),
-        "location_remote": _location_remote_dimension(posting, profile),
-        "seniority_stage": _seniority_stage_dimension(posting, stage.value),
+        "skills": (
+            _disabled_dimension("skills")
+            if not flags.use_skills
+            else _skills_dimension(links, user_levels)
+        ),
+        "prereqs": _merge_prereqs(
+            _prereq_parts(posting, profile, set(certifications)),
+            use_education=flags.use_education,
+            use_languages=flags.use_languages,
+        ),
+        "location_remote": (
+            _disabled_dimension("location_remote")
+            if not flags.use_location
+            else _location_remote_dimension(posting, profile)
+        ),
+        "seniority_stage": (
+            _disabled_dimension("seniority_stage")
+            if not flags.use_experience
+            else _seniority_stage_dimension(posting, goal_stage)
+        ),
         "freshness": _freshness_dimension(posting),
     }
     for dim, entry in breakdown.items():
@@ -450,7 +603,7 @@ async def compute_posting_fit(
         "breakdown": breakdown,
         "extracted": True,
         "estimate": False,
-        "gates": lifestyle_gates(posting, profile.constraints),
+        "gates": ([] if not flags.use_lifestyle else lifestyle_gates(posting, profile.constraints)),
         "inputs_hash": inputs_hash,
     }
 
@@ -486,6 +639,74 @@ def _cached_result(cached: PostingFit, posting: JobPosting, context: dict) -> di
         "estimate": "archetype_estimate" in breakdown,
         "gates": lifestyle_gates(posting, context["profile"].constraints),
         "inputs_hash": cached.inputs_hash,
+    }
+
+
+def _with_weight(entry: dict, stored: dict | None) -> dict:
+    weight = (stored or {}).get("weight")
+    if weight is not None:
+        entry["weight"] = weight
+    return entry
+
+
+def _rescore_cached(
+    base: dict, posting: JobPosting, context: dict, overrides: FitOverrides
+) -> dict:
+    """Goal-adjusted values over a canonical result (plan 169).
+
+    Pure math over the stored breakdown plus one pure stage recompute
+    (``_seniority_stage_dimension`` over the goal stage); the canonical
+    row itself is untouched and this result is never written back.
+    Estimate rows never reach this seam (the archetype estimate predates
+    deep extraction — overrides are a documented no-op there).
+    """
+    from copy import deepcopy
+
+    profile = context["profile"]
+    stored = base.get("breakdown") or {}
+    breakdown = deepcopy(stored)
+    if not overrides.use_skills and "skills" in breakdown:
+        breakdown["skills"] = _with_weight(_disabled_dimension("skills"), stored.get("skills"))
+    if "prereqs" in breakdown:
+        stored_parts = (stored.get("prereqs") or {}).get("parts")
+        if stored_parts:
+            breakdown["prereqs"] = _with_weight(
+                _merge_prereqs(
+                    stored_parts,
+                    use_education=overrides.use_education,
+                    use_languages=overrides.use_languages,
+                ),
+                stored.get("prereqs"),
+            )
+    if "location_remote" in breakdown and not overrides.use_location:
+        breakdown["location_remote"] = _with_weight(
+            _disabled_dimension("location_remote"), stored.get("location_remote")
+        )
+    if "seniority_stage" in breakdown:
+        if not overrides.use_experience:
+            breakdown["seniority_stage"] = _with_weight(
+                _disabled_dimension("seniority_stage"), stored.get("seniority_stage")
+            )
+        elif overrides.stage is not None:
+            breakdown["seniority_stage"] = _with_weight(
+                _seniority_stage_dimension(posting, overrides.stage.value),
+                stored.get("seniority_stage"),
+            )
+    total_weight = sum(entry["weight"] for entry in breakdown.values())
+    score = (
+        sum(entry["score"] * entry["weight"] for entry in breakdown.values()) / total_weight
+        if total_weight
+        else 7.0
+    )
+    return {
+        "score": round(float(min(10.0, max(0.0, score))), 2),
+        "breakdown": breakdown,
+        "extracted": base.get("extracted", True),
+        "estimate": False,
+        "gates": (
+            [] if not overrides.use_lifestyle else lifestyle_gates(posting, profile.constraints)
+        ),
+        "inputs_hash": base.get("inputs_hash", ""),
     }
 
 
@@ -564,13 +785,18 @@ async def get_posting_fits_batch(
     *,
     write_budget: int | None = None,
     refresh: bool = False,
+    fit_overrides: FitOverrides | None = None,
 ) -> dict[UUID, dict]:
     """Listing-time batch: one shared context, cache-first per posting.
 
     Cached rows whose `inputs_hash` still matches are hits; missing or
     stale rows recompute (bounded by the caller's window) and are written
     through — `write_budget` caps the persistence when the caller passes a
-    full feed instead of a page.
+    full feed instead of a page. With `fit_overrides` active the RESULT is
+    the goal-adjusted rescore: a canonical hit rescores over the stored
+    breakdown, a miss computes canonically, writes that row, then
+    rescores — adjusted values are never persisted, and estimate rows are
+    returned untouched.
     """
     if not postings:
         return {}
@@ -588,6 +814,7 @@ async def get_posting_fits_batch(
         .all()
     )
     cached_by_id = {row.posting_id: row for row in cached_rows}
+    adjust = fit_overrides is not None and fit_overrides.active
 
     result: dict[UUID, dict] = {}
     pending: list[dict] = []
@@ -596,10 +823,17 @@ async def get_posting_fits_batch(
         cached = cached_by_id.get(posting.id)
         inputs_hash = _expected_hash(user_id, posting, context)
         if not refresh and _cache_is_fresh(cached, inputs_hash):
-            result[posting.id] = _cached_result(cached, posting, context)
+            base = _cached_result(cached, posting, context)
+            if adjust and not base["estimate"] and fit_overrides is not None:
+                result[posting.id] = _rescore_cached(base, posting, context, fit_overrides)
+            else:
+                result[posting.id] = base
             continue
         computed = await compute_posting_fit(db, user_id, posting, context=context)
-        result[posting.id] = computed
+        if adjust and not computed["estimate"] and fit_overrides is not None:
+            result[posting.id] = _rescore_cached(computed, posting, context, fit_overrides)
+        else:
+            result[posting.id] = computed
         if write_budget is None or len(pending) < write_budget:
             pending.append(_fit_row(user_id, posting, computed, now))
     await _write_fit_rows(db, pending)

@@ -502,6 +502,8 @@ class AutopilotService:
             collect_profile_context,
             initial_state,
         )
+        from app.schemas.autopilot import ProfileUsage
+        from app.services.postings.posting_fit_service import FitOverrides
 
         goal = await self._require_goal(user_id, goal_id)
         if goal.status != "active":
@@ -518,11 +520,16 @@ class AutopilotService:
 
         constraints = goal.constraints or {}
         cooldown_days = int(constraints.get("cooldown_days", 7) or 0)
+        fit_overrides = FitOverrides.from_profile_usage(
+            ProfileUsage.model_validate(constraints.get("profile") or {}),
+            [str(value) for value in constraints.get("seniority") or []],
+        )
         deps = GraphDeps(
             db=self.db,
             progress=progress,
             cancelled=cancelled,
             cooldown_ids=await self._cooldown_ids(goal.id, cooldown_days, exclude_run=run.id),
+            fit_overrides=fit_overrides,
         )
         checkpointer = self._checkpointer
         if checkpointer is None:

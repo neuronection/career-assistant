@@ -186,6 +186,15 @@ everything the system knows about the role:
 - your per-posting **match score** with the per-dimension breakdown,
   source attribution and similar openings.
 
+The posting detail always shows your **canonical** match score. When an
+[autopilot goal](career-autopilot.md) turns a profile input off, that
+run's ranking scores the disabled dimension at a neutral 7/10 with a
+visible "disabled for this goal" note instead of a penalty — scores stay
+comparable across goals. Prerequisites merge over the inputs still in
+play, so switching one off can only raise or keep the merged
+prerequisite score, never lower it, and postings still awaiting deep
+extraction (estimates) ignore the toggles entirely.
+
 "Open on the original board" (the top button) jumps to the listing in a
 new tab and records the click; beside it sit the cover-letter draft, the
 practice interview and the [application tracker](applications.md) entry.

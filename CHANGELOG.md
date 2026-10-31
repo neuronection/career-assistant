@@ -14,6 +14,19 @@ All notable changes to **Career Assistant** are documented here.
   you edit. Disabled inputs score neutral instead of penalizing, and the
   search itself honors them.
 
+### Changed (autopilot profile usage, 2026-10-31)
+- **Disabled profile inputs stop dragging scores down** (plan 169): a
+  goal-run's fit scoring neutralizes exactly the toggles you switched
+  off — a disabled dimension or prerequisite reads a neutral 7/10 with a
+  visible "disabled for this goal" note, prerequisite sub-scores merge
+  over the inputs still in play (switching one off can only raise or
+  keep the merged score), and the goal's seniority selection can drive
+  the career stage (`stage_source=goal`: intern→student,
+  junior/mid→early career, senior+→experienced). The search windows,
+  the ranking, the sweep recall and the findings all rank on the
+  goal-adjusted score; the posting-detail card and chat "my fit" keep
+  showing the canonical score, and match estimates ignore the toggles.
+
 ### Added (autopilot run trace, 2026-10-31)
 - **Every autopilot call is now linked to its run in the AI audit ledger**
   (plan 168): plan, replan, curation and the semantic-sweep embedding call
