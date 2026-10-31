@@ -814,6 +814,12 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
         },
         enabled=bool(payload.get("enabled", True)),
     )
+    if connector_key == "mcp":
+        managed, schema = _managed_bundle_schema(source)
+        if managed and schema:
+            from app.extensions.builtin.mcp import ensure_source_tool_options
+
+            ensure_source_tool_options(source, schema)
     db.add(source)
     await db.commit()
     await db.refresh(source)
@@ -837,6 +843,7 @@ async def update_posting_source(
     )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    was_enabled = source.enabled
     if "config" in payload and payload["config"] is not None:
         effective_mode = str(payload.get("query_mode") or source.query_mode or "static").strip()
         relax = ("keywords", "location") if effective_mode == "radar" else ()
@@ -872,6 +879,16 @@ async def update_posting_source(
         source.enabled = bool(payload["enabled"])
     if "paused" in payload and payload["paused"] is not None:
         source.paused_at = datetime.now(UTC) if payload["paused"] else None
+    if source.connector_key == "mcp" and (
+        "config" in payload
+        or "query_mode" in payload
+        or (bool(payload.get("enabled")) and not was_enabled)
+    ):
+        managed, schema = _managed_bundle_schema(source)
+        if managed and schema:
+            from app.extensions.builtin.mcp import ensure_source_tool_options
+
+            ensure_source_tool_options(source, schema)
     await db.commit()
     return await _source_view(db, source)
 

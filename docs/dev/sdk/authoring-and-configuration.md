@@ -179,6 +179,17 @@ MCP_CONFIG_SCHEMA = {
 }
 ```
 
+**Required fields are enforced at save time for T3 managed sources**
+(plan 173): the mcp `options` passthrough is checked against the bundle
+manifest's `configSchema` whenever the source is created, its config is
+saved, its query mode changes, or it is enabled — a missing or empty
+required field (e.g. `keywords`) is a 400 naming the field, not a sync
+that fails later inside the bundle. Radar-mode sources relax
+`keywords`/`location` (the radar query overlay supplies them per sync),
+mirroring the T2 `validate_config` rule. Only required fields gate:
+optional knobs stay free-form (the settings forms store numbers as
+strings; the tool's own validation coerces them).
+
 ### Form hints (`x-choices`, `x-csv`, `x-presets`, `x-section`)
 
 Beside `x-secret`, the configSchema admits four rendering hints the

@@ -54,6 +54,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ValidationError
 from app.extensions import contract
 from app.models.extension_model import ExtensionInstall, ExtensionSource
 
@@ -1993,6 +1994,15 @@ async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: 
         job_source = row.scalars().first()
         if job_source is None:
             raise LifecycleError("not-found", "the minted job source is gone — re-import")
+        if enabled and job_source.connector_key == "mcp":
+            schema = (install.manifest or {}).get("configSchema")
+            if isinstance(schema, dict):
+                from app.extensions.builtin.mcp import ensure_source_tool_options
+
+                try:
+                    ensure_source_tool_options(job_source, schema)
+                except ValidationError as exc:
+                    raise LifecycleError("invalid", str(exc)) from exc
         job_source.enabled = enabled
         await db.commit()
     return _install_view(install)

@@ -36,6 +36,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.errors import ValidationError
+from app.extensions import contract
 from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorError,
@@ -134,6 +136,71 @@ class McpConfig(BaseModel):
 
 def _invalid(detail: str) -> ConnectorError:
     return ConnectorError(code="invalid", detail=detail[:500], retryable="no")
+
+
+RADAR_RELAX_KEYS = ("keywords", "location")
+
+
+def _tool_typed(subschema: object, value: object) -> object:
+    """The settings forms store numbers/booleans as strings; the tool's
+    pydantic layer coerces them — the guard judges the coerced value."""
+    if not isinstance(value, str) or not isinstance(subschema, dict):
+        return value
+    want = subschema.get("type")
+    text = value.strip()
+    if want in ("number", "integer"):
+        try:
+            parsed = float(text)
+        except ValueError:
+            return value
+        if want == "integer" and not parsed.is_integer():
+            return value
+        return int(parsed) if parsed.is_integer() else parsed
+    if want == "boolean" and text in ("true", "false"):
+        return text == "true"
+    return value
+
+
+def validate_tool_options(options: dict, schema: dict, *, relax_keys: tuple[str, ...] = ()) -> None:
+    """The bundle's own ``configSchema`` is the options contract at save
+    time (plan 173): every required field (minus ``relax_keys`` — the
+    radar query overlay supplies those per sync, so relaxed fields are
+    skipped entirely, slightly looser than the T2 relax) must be present,
+    non-empty, and satisfy its own constraints. Only required fields are
+    checked — optional knobs stay free-form, because a whole-object type
+    check would reject the app's own stored shape."""
+    props = schema.get("properties") or {}
+    problems: list[str] = []
+    for name in schema.get("required") or []:
+        if name in relax_keys:
+            continue
+        value = options.get(name)
+        if name not in options or (isinstance(value, str) and not value.strip()):
+            problems.append(f"$.{name}: missing required property {name!r}")
+            continue
+        subschema = props.get(name)
+        if subschema is not None:
+            err = contract.validate(subschema, _tool_typed(subschema, value), schema, f"$.{name}")
+            if err:
+                problems.append(err)
+    if problems:
+        raise ValidationError("tool options rejected: " + "; ".join(problems))
+
+
+def ensure_source_tool_options(source, schema: dict) -> None:
+    """Validate one source's stored options against its bundle schema under
+    the source's effective query mode (radar relaxes keywords/location —
+    the T2 ``validate_config`` rule). Raises core ``ValidationError``
+    (→ HTTP 400) naming the field."""
+    relax = RADAR_RELAX_KEYS if (getattr(source, "query_mode", None) or "static") == "radar" else ()
+    raw = str((getattr(source, "config", None) or {}).get("options") or "")
+    try:
+        options = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"options is not valid JSON: {exc}") from exc
+    if not isinstance(options, dict):
+        raise ValidationError("options must be a JSON object")
+    validate_tool_options(options, schema, relax_keys=relax)
 
 
 def _protocol(detail: str) -> ConnectorError:

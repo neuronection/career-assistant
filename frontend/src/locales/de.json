@@ -4657,6 +4657,7 @@
     "queryMode": "Suchquelle",
     "radarMode": "Meinem Job-Radar folgen",
     "staticMode": "Statische Konfiguration",
+    "staticNeedsFields": "Setze {{fields}} unten in der Konfiguration, bevor du in den statischen Modus wechselst — der Radar-Modus liefert sie pro Sync.",
     "configHint": "Vollständige Paket-Einstellungen (Stichwörter, Filter, Taktung) liegen auf der Tools-Seite im Bearbeiten-Formular dieser Quelle.",
     "runsEmpty": "Noch keine Ausführungen — klicken Sie auf „Jetzt ausführen“.",
     "runStarted": "Start",

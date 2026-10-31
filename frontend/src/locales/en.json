@@ -4658,6 +4658,7 @@
     "queryMode": "Search source",
     "radarMode": "Follow my job radar",
     "staticMode": "Static config",
+    "staticNeedsFields": "Set {{fields}} in the configuration below before switching to static mode — radar mode supplies them per sync.",
     "configHint": "Full bundle settings (keywords, filters, pacing) live on the Tools page under this source's Edit form.",
     "runsEmpty": "No runs recorded yet — hit Run now.",
     "runStarted": "Started",

@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (source config guard, 2026-11-01)
+- A managed bundle source can no longer be saved into a state that only
+  fails at sync: the `options` passthrough is now validated against the
+  bundle's own config schema when the source is created, edited, switched
+  between static and radar mode, or enabled — a missing required field
+  (e.g. search keywords) is a clear 400 naming the field instead of every
+  run dying with `config rejected: keywords Field required`. Radar mode
+  stays exempt for keywords/location (the radar supplies them per sync),
+  and the source page now blocks the static-mode switch with the same
+  message while the fields are still empty.
+
 ### Fixed (list return state, 2026-10-31)
 - Opening a posting no longer costs you the list: coming back to
   `/postings` — via the browser's back button or the **All postings**

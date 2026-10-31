@@ -142,6 +142,58 @@ describe("SourceDetailPage", () => {
     await user.click(screen.getByRole("tab", { name: "Query plan" }));
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
   });
+
+  it("blocks the radar → static switch while required fields are missing", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        query_mode: "radar",
+        config: { options: JSON.stringify({ max_pages: 2 }) },
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", title: "Keywords", minLength: 1 },
+            max_pages: { type: "number", title: "Max pages" },
+          },
+          required: ["keywords"],
+        },
+      },
+    ]);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    await user.selectOptions(screen.getByLabelText("Search source"), "static");
+    const notes = await screen.findAllByText(/switching to static mode/);
+    expect(notes[0].textContent).toContain("keywords");
+    expect(mocks.updateSource).not.toHaveBeenCalled();
+  });
+
+  it("switches to static when the required fields are present", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        query_mode: "radar",
+        config: { options: JSON.stringify({ keywords: "devops", max_pages: 2 }) },
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", title: "Keywords", minLength: 1 },
+            max_pages: { type: "number", title: "Max pages" },
+          },
+          required: ["keywords"],
+        },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    await user.selectOptions(screen.getByLabelText("Search source"), "static");
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.query_mode).toBe("static");
+    expect(JSON.parse(call.config.options).keywords).toBe("devops");
+  });
 });
 
 

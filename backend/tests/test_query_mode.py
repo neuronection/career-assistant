@@ -1,6 +1,7 @@
 """Plan 130 — radar-driven ingestion: merged role groups + provenance,
 rotation, the call-time query overlay, and the mcp options passthrough."""
 
+import json
 import uuid
 from types import SimpleNamespace
 from typing import ClassVar
@@ -460,6 +461,390 @@ def test_mcp_options_passthrough_and_secret_guard():
         McpConfig.model_validate(
             {"transport": "stdio", "command": "x", "options": '{"token": "sneaky"}'}
         )
+
+
+# ------------------------------------------------- required options guard (plan 173)
+
+GUARD_MANIFEST = {
+    "apiVersion": "extension/v1",
+    "kind": "connector",
+    "id": "guard-bundle",
+    "version": "1.0.0",
+    "description": "guard fixture",
+    "author": "t",
+    "license": "MIT",
+    "repository": "https://example.invalid/guard",
+    "capabilities": ["sync"],
+    "configSchema": {
+        "type": "object",
+        "properties": {
+            "keywords": {"type": "string", "title": "Keywords", "minLength": 1},
+            "location": {"type": "string", "title": "Location"},
+            "max_pages": {"type": "number", "title": "Pages"},
+        },
+        "required": ["keywords"],
+    },
+    "entry": "server.py",
+    "mcp": {"transport": "stdio"},
+}
+
+
+def _mint_guard_bundle(tmp_path, monkeypatch) -> str:
+    from app.core.config import settings
+
+    content = tmp_path / "extensions" / ("b" * 64)
+    content.mkdir(parents=True)
+    (content / "server.py").write_text("print('hi')\n")
+    (content / "manifest.json").write_text(json.dumps(GUARD_MANIFEST))
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    return f"python {content / 'server.py'}"
+
+
+@pytest.fixture
+def mcp_allowlisted(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "connector_plugins_allowlist", ["mcp"])
+    reset_registry()
+    yield
+    reset_registry()
+
+
+async def _mcp_source(db, key, command, *, options=None, query_mode="radar", enabled=False):
+    config = {
+        "transport": "stdio",
+        "command": command,
+        "tool": "fetch_postings",
+        "timeout_seconds": 120,
+    }
+    if options is not None:
+        config["options"] = json.dumps(options)
+    src = JobSource(
+        key=key, connector_key="mcp", config=config, query_mode=query_mode, enabled=enabled
+    )
+    db.add(src)
+    await db.commit()
+    await db.refresh(src)
+    return src
+
+
+async def test_mode_flip_to_static_requires_bundle_keywords(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(db, "guard-flip", command, options={"max_pages": 3})
+
+    flipped = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"query_mode": "static"},
+        headers=auth_headers,
+    )
+    assert flipped.status_code == 400, flipped.text
+    assert "keywords" in flipped.json()["detail"]
+    await db.refresh(src)
+    assert src.query_mode == "radar", "a rejected flip leaves the stored mode alone"
+
+    saved = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={
+            "query_mode": "static",
+            "config": {**src.config, "options": json.dumps({"keywords": "devops"})},
+        },
+        headers=auth_headers,
+    )
+    assert saved.status_code == 200, saved.text
+    await db.refresh(src)
+    assert src.query_mode == "static"
+    assert json.loads(src.config["options"])["keywords"] == "devops"
+
+
+async def test_radar_mode_keeps_keywords_optional(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(db, "guard-radar", command, options={"max_pages": 3})
+
+    flipped = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"query_mode": "radar"},
+        headers=auth_headers,
+    )
+    assert flipped.status_code == 200, flipped.text
+
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "guard-create-radar",
+            "connector_key": "mcp",
+            "config": {**src.config},
+            "query_mode": "radar",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+
+
+async def test_create_static_rejects_missing_keywords(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    base_config = {
+        "transport": "stdio",
+        "command": command,
+        "tool": "fetch_postings",
+        "timeout_seconds": 120,
+    }
+
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "guard-create-static",
+            "connector_key": "mcp",
+            "config": {**base_config, "options": json.dumps({"max_pages": 2})},
+            "query_mode": "static",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 400, created.text
+    assert "keywords" in created.json()["detail"]
+
+    ok = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "guard-create-static",
+            "connector_key": "mcp",
+            "config": {
+                **base_config,
+                "options": json.dumps({"keywords": "devops", "max_pages": "2"}),
+            },
+            "query_mode": "static",
+        },
+        headers=auth_headers,
+    )
+    # string-typed knobs stay valid — only required fields gate
+    assert ok.status_code == 201, ok.text
+
+
+async def test_empty_keywords_string_is_rejected_in_static(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(db, "guard-empty", command, options={"keywords": ""})
+
+    flipped = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"query_mode": "static"},
+        headers=auth_headers,
+    )
+    assert flipped.status_code == 400, flipped.text
+
+
+async def test_enable_flip_blocked_without_required_options(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(
+        db, "guard-enable", command, options={"max_pages": 2}, query_mode="static"
+    )
+
+    enabled = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"enabled": True},
+        headers=auth_headers,
+    )
+    assert enabled.status_code == 400, enabled.text
+    await db.refresh(src)
+    assert src.enabled is False
+
+    sneaky = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"enabled": "true"},
+        headers=auth_headers,
+    )
+    # a truthy non-boolean enables too — same guard
+    assert sneaky.status_code == 400, sneaky.text
+    await db.refresh(src)
+    assert src.enabled is False
+
+    saved = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"enabled": True, "config": {**src.config, "options": json.dumps({"keywords": "qa"})}},
+        headers=auth_headers,
+    )
+    assert saved.status_code == 200, saved.text
+    await db.refresh(src)
+    assert src.enabled is True
+
+
+async def test_non_managed_mcp_source_skips_the_guard(db, client, auth_headers, mcp_allowlisted):
+    src = await _mcp_source(
+        db,
+        "guard-plain",
+        "python /tmp/elsewhere/server.py",
+        options={"max_pages": 2},
+        query_mode="static",
+    )
+    enabled = await client.put(
+        f"/api/v1/admin/postings/sources/{src.id}",
+        json={"enabled": True},
+        headers=auth_headers,
+    )
+    # no bundle manifest behind the command — nothing to enforce
+    assert enabled.status_code == 200, enabled.text
+
+
+TYPED_MANIFEST = {
+    **GUARD_MANIFEST,
+    "id": "typed-bundle",
+    "configSchema": {
+        "type": "object",
+        "properties": {
+            "topic": {"type": "string", "title": "Topic", "maxLength": 80},
+            "min_salary": {"type": "number", "title": "Min salary"},
+        },
+        "required": ["topic", "min_salary"],
+    },
+}
+
+
+def _mint_typed_bundle(tmp_path, monkeypatch) -> str:
+    from app.core.config import settings
+
+    content = tmp_path / "extensions" / ("c" * 64)
+    content.mkdir(parents=True)
+    (content / "server.py").write_text("print('hi')\n")
+    (content / "manifest.json").write_text(json.dumps(TYPED_MANIFEST))
+    monkeypatch.setattr(settings, "data_dir", str(tmp_path))
+    return f"python {content / 'server.py'}"
+
+
+async def test_required_number_accepts_the_string_form_the_forms_store(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_typed_bundle(tmp_path, monkeypatch)
+
+    def _payload(key, options):
+        return {
+            "key": key,
+            "connector_key": "mcp",
+            "config": {
+                "transport": "stdio",
+                "command": command,
+                "tool": "fetch_postings",
+                "timeout_seconds": 120,
+                "options": json.dumps(options),
+            },
+            "query_mode": "static",
+        }
+
+    ok = await client.post(
+        "/api/v1/admin/postings/sources",
+        json=_payload("guard-typed", {"topic": "devops", "min_salary": "2500"}),
+        headers=auth_headers,
+    )
+    # the tool coerces numeric strings — so does the guard
+    assert ok.status_code == 201, ok.text
+
+    bad = await client.post(
+        "/api/v1/admin/postings/sources",
+        json=_payload("guard-typed-2", {"topic": "devops", "min_salary": "plenty"}),
+        headers=auth_headers,
+    )
+    assert bad.status_code == 400, bad.text
+    assert "min_salary" in bad.json()["detail"]
+
+
+async def test_empty_required_string_is_missing_even_without_min_length(
+    db, client, auth_headers, mcp_allowlisted, tmp_path, monkeypatch
+):
+    command = _mint_typed_bundle(tmp_path, monkeypatch)
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "guard-blank",
+            "connector_key": "mcp",
+            "config": {
+                "transport": "stdio",
+                "command": command,
+                "tool": "fetch_postings",
+                "timeout_seconds": 120,
+                "options": json.dumps({"topic": "", "min_salary": 10}),
+            },
+            "query_mode": "static",
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 400, created.text
+    assert "topic" in created.json()["detail"]
+
+
+async def test_install_enable_blocked_without_required_options(
+    db, mcp_allowlisted, tmp_path, monkeypatch
+):
+    from app.extensions.lifecycle import LifecycleError, set_install_enabled
+    from app.models.extension_model import ExtensionInstall
+
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(
+        db, "guard-install", command, options={"max_pages": 2}, query_mode="static"
+    )
+    install = ExtensionInstall(
+        extension_id="guard-install",
+        version="1.0.0",
+        manifest=GUARD_MANIFEST,
+        pin_ref="v1",
+        digest="c" * 64,
+        tier="T3",
+        source_key=src.key,
+        enabled=False,
+    )
+    db.add(install)
+    await db.commit()
+    await db.refresh(install)
+
+    with pytest.raises(LifecycleError) as excinfo:
+        await set_install_enabled(db, install.id, True)
+    assert "keywords" in str(excinfo.value)
+
+    from sqlalchemy.orm.attributes import flag_modified
+
+    src.config = {**src.config, "options": json.dumps({"keywords": "qa"})}
+    flag_modified(src, "config")
+    await db.commit()
+    await set_install_enabled(db, install.id, True)
+    await db.refresh(install)
+    await db.refresh(src)
+    assert install.enabled is True
+    assert src.enabled is True
+
+
+async def test_install_enable_allows_keywords_present(db, mcp_allowlisted, tmp_path, monkeypatch):
+    from app.extensions.lifecycle import set_install_enabled
+    from app.models.extension_model import ExtensionInstall
+
+    command = _mint_guard_bundle(tmp_path, monkeypatch)
+    src = await _mcp_source(
+        db, "guard-install-ok", command, options={"keywords": "devops"}, query_mode="static"
+    )
+    install = ExtensionInstall(
+        extension_id="guard-install-ok",
+        version="1.0.0",
+        manifest=GUARD_MANIFEST,
+        pin_ref="v1",
+        digest="d" * 64,
+        tier="T3",
+        source_key=src.key,
+        enabled=False,
+    )
+    db.add(install)
+    await db.commit()
+    await db.refresh(install)
+
+    await set_install_enabled(db, install.id, True)
+    await db.refresh(install)
+    await db.refresh(src)
+    assert install.enabled is True
+    assert src.enabled is True
 
 
 async def test_delete_source_cascades_and_reports_counts(

@@ -166,6 +166,19 @@ async def _echo_for(db, source_id, extension_id: str = "example-posting-fetcher"
     return preview["echo"]
 
 
+async def _compliant_options(db, install_id: uuid.UUID, **options) -> None:
+    """Plan 173: enabling enforces the manifest's required config fields —
+    give the minted source compliant options first, then enable."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    install = await db.get(ExtensionInstall, install_id)
+    row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+    src = row.scalars().first()
+    src.config = {**src.config, "options": json.dumps(options)}
+    flag_modified(src, "config")
+    await db.commit()
+
+
 # ------------------------------------------------------------- e2e import
 
 
@@ -213,6 +226,7 @@ async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots,
     assert content_dir.name == installed["digest"], "content-addressed by digest"
     assert str(content_dir / "server.py") in minted.config["command"]
 
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     enabled = await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     assert enabled["enabled"] is True
     await db.refresh(minted)
@@ -370,6 +384,7 @@ async def test_t3_spawn_refuses_a_drifted_content_tree(db, local_roots, mcp_allo
         "example-posting-fetcher",
         consent=await _echo_for(db, source.id),
     )
+    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
@@ -391,6 +406,7 @@ async def test_tombstone_retains_consent_and_never_reenables(db, local_roots, mc
     view = await install_extension(
         db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
     )
+    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
 
     tombstoned = await lifecycle.tombstone_install(db, uuid.UUID(view["id"]))
@@ -763,6 +779,7 @@ async def test_gitops_removal_from_list_parks_data_intact(db, local_roots, mcp_a
             managed_by="gitops",
         )
         install_id = uuid.UUID(view["id"])
+        await _compliant_options(db, install_id, board="jobs")
         await lifecycle.set_install_enabled(db, install_id, True)
 
         await put_desired_state(db, {"schema": 1, "sources": [], "extensions": []})
@@ -1028,6 +1045,7 @@ async def test_sources_ride_the_admin_api_surface(
     assert installed.json()["enabled"] is False
     install_id = installed.json()["id"]
 
+    await _compliant_options(db, uuid.UUID(install_id), board="jobs")
     enabled = await client.post(
         f"/api/v1/admin/extensions/installs/{install_id}/enabled",
         json={"enabled": True},
@@ -1115,6 +1133,7 @@ async def test_e2e_import_runs_against_the_canonical_template_too(
         consent=await _echo_for(db, source.id),
         actor_id=await _actor_id(db),
     )
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
@@ -1378,6 +1397,7 @@ async def test_reinstall_over_enabled_install_refuses_with_remedy(
         consent=await _echo_for(db, source.id),
         actor_id=await _actor_id(db),
     )
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     await set_install_enabled(db, uuid.UUID(installed["id"]), True)
 
     with pytest.raises(LifecycleError) as exc:

@@ -146,6 +146,16 @@ export function SourceDetailPage() {
     dirtyRef.current = true;
     setConfigValues(next);
   };
+  // The options payload both the save and the mode flip send — the
+  // backend validates exactly what is on screen (plan 173).
+  const packOptions = (values: IntegrationConfigValues) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(values)
+          .filter(([, value]) => value !== null && value !== undefined && value !== "")
+          .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+      ),
+    );
   const updateBatch = (count: number) => {
     dirtyRef.current = true;
     setLocalBatch(count);
@@ -181,6 +191,16 @@ export function SourceDetailPage() {
           : field,
       );
   }, [source?.tool_config_schema, t]);
+
+  // Required bundle fields still missing from the options — static mode
+  // searches the stored keywords, radar supplies them per sync (plan 173).
+  const missingForStatic = useMemo(() => {
+    const required = source?.tool_config_schema?.required ?? [];
+    return required.filter((name) => {
+      const value = configValues[name];
+      return value === undefined || value === null || String(value).trim() === "";
+    });
+  }, [source?.tool_config_schema, configValues]);
 
   const reload = useCallback(async () => {
     const [rows, runRows] = await Promise.all([
@@ -483,13 +503,26 @@ export function SourceDetailPage() {
                 id="src-query-mode"
                 className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
                 value={source.query_mode}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const next = event.target.value as "static" | "radar";
+                  if (next === "static" && source.query_mode !== "static" && missingForStatic.length) {
+                    setNotice(
+                      t("sourceDetail.staticNeedsFields", { fields: missingForStatic.join(", ") }),
+                    );
+                    return;
+                  }
                   void act(() =>
                     updateSource(sourceId, {
-                      query_mode: event.target.value as "static" | "radar",
+                      query_mode: next,
+                      config: source.tool_config_schema
+                        ? {
+                            ...(source.config as Record<string, unknown>),
+                            options: packOptions(configValues),
+                          }
+                        : source.config,
                     }),
-                  )
-                }
+                  );
+                }}
               >
                 <option value="static">{t("sourceDetail.staticMode")}</option>
                 <option value="radar">{t("sourceDetail.radarMode")}</option>
@@ -612,20 +645,12 @@ export function SourceDetailPage() {
               onValuesChange={updateValues}
               onSave={({ secrets }) =>
                 void (async () => {
-                  const packed = Object.fromEntries(
-                    Object.entries(configValues)
-                      .filter(([, value]) => value !== null && value !== undefined && value !== "")
-                      .map(([key, value]) => [
-                        key,
-                        Array.isArray(value) ? value.join(",") : value,
-                      ]),
-                  );
                   await act(
                     () =>
                       updateSource(sourceId, {
                         config: {
                           ...(source.config as Record<string, unknown>),
-                          options: JSON.stringify(packed),
+                          options: packOptions(configValues),
                         },
                         query_mode: source.query_mode,
                         query_batch_size: localBatch,
