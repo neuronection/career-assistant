@@ -19,6 +19,12 @@ All notable changes to **Career Assistant** are documented here.
   only — no prompt text), its findings and its timeline, addressed by id
   so runs beyond the 30-row history resolve. A foreign and a missing run
   answer the same 404.
+- **The Autopilot page opens any run in a detail modal** (plan 168): a
+  "Details" action (or `?run=<id>` deep link) shows the step-by-step trace
+  with each step's arguments and outputs, the replan branch, the graph
+  strip, the run's AI calls — with a "View call" link into the audit
+  ledger for admins — and its findings. Pre-trace runs fall back to the
+  search timeline.
 
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):

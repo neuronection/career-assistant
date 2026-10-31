@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18next from "i18next";
+import { useSearchParams } from "react-router-dom";
 import {
   Bot,
   CirclePause,
@@ -24,6 +25,7 @@ import {
   ModalFooter,
   ModalHeader,
   ModalTitle,
+  PanelModal,
   Spinner,
 } from "@/components/ui";
 import { AiSetupPrompt } from "@/components/ai/AiSetupPrompt";
@@ -40,6 +42,7 @@ import {
   deleteGoal,
   fetchFindingsByRun,
   fetchGoals,
+  fetchRunDetail,
   patchGoal,
   runGoal,
   sendFindingFeedback,
@@ -49,8 +52,11 @@ import type {
   AutopilotConstraints,
   AutopilotFinding,
   AutopilotGoal,
+  AutopilotRunDetail,
   AutopilotRunWithFindings,
+  AutopilotTraceStep,
 } from "@/api/autopilot";
+import { useAuthStore } from "@/stores/authStore";
 
 const SENIORITY_OPTIONS = [
   { value: "intern", labelKey: "autopilot.seniority.intern" },
@@ -511,8 +517,347 @@ function Timeline({ runId, entries }: { runId: string; entries: AutopilotRunWith
   );
 }
 
+type NodeState = "done" | "aborted" | "skipped";
+
+function nodeState(node: string, steps: AutopilotTraceStep[]): NodeState {
+  const entries = steps.filter((entry) => entry.step === node);
+  if (entries.length === 0) return "skipped";
+  const last = entries[entries.length - 1];
+  return last.abort ? "aborted" : "done";
+}
+
+function stepLabel(node: string): string {
+  return i18next.t(`autopilot.runDetail.step.${node}`, { defaultValue: node });
+}
+
+function stepSummary(entry: AutopilotTraceStep): string {
+  const t = i18next.t;
+  const count = (value: unknown): number =>
+    Array.isArray(value) ? value.length : Number(value ?? 0);
+  const output = entry.output ?? {};
+  switch (entry.step) {
+    case "plan":
+      return t("autopilot.runDetail.summary.plan", { count: count(output.variants) });
+    case "search":
+      return t("autopilot.runDetail.summary.search", {
+        probes: count(output.searches),
+        pool: count(output.pool),
+      });
+    case "filter":
+      return t("autopilot.runDetail.summary.filter", {
+        kept: Number(output.kept ?? 0),
+        pool: count(output.pool),
+      });
+    case "evaluate":
+      return t("autopilot.runDetail.summary.evaluate", { pool: count(output.pool) });
+    case "replan":
+      return t("autopilot.runDetail.summary.replan", { count: count(output.queries) });
+    case "graph_sweep":
+      return t("autopilot.runDetail.summary.graphSweep", {
+        found: Number(output.found ?? 0),
+        examined: Number(output.examined ?? 0),
+      });
+    case "budget_guard":
+      return output.abort
+        ? t("autopilot.runDetail.summary.guardAbort", { reason: String(output.abort) })
+        : t("autopilot.runDetail.summary.guardTokens", {
+            tokens: Number(output.tokens_used ?? 0),
+          });
+    case "curate":
+      return t("autopilot.runDetail.summary.curate", { count: count(output.picked) });
+    case "deliver":
+      return t("autopilot.runDetail.summary.deliver", {
+        count: count(output.findings),
+        status: String(output.status ?? ""),
+      });
+    default:
+      return "";
+  }
+}
+
+function durationLabel(run: { started_at: string | null; finished_at: string | null }): string {
+  if (!run.started_at || !run.finished_at) return "";
+  const ms = new Date(run.finished_at).getTime() - new Date(run.started_at).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return "";
+  return i18next.t("autopilot.runDetail.duration", { seconds: Math.round(ms / 1000) });
+}
+
+function RunDetailModal({
+  runId,
+  onClose,
+}: {
+  runId: string;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
+  const [detail, setDetail] = useState<AutopilotRunDetail | null>(null);
+  const [missing, setMissing] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    setDetail(null);
+    setMissing(false);
+    fetchRunDetail(runId)
+      .then((result) => {
+        if (live) setDetail(result);
+      })
+      .catch(() => {
+        if (live) setMissing(true);
+      });
+    return () => {
+      live = false;
+    };
+  }, [runId]);
+
+  const planArgs =
+    detail?.steps.find((entry) => entry.step === "plan")?.args ?? null;
+
+  return (
+    <PanelModal
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={<span className="truncate">{t("autopilot.runDetail.title")}</span>}
+      size="xl"
+      data-testid="run-detail-modal"
+    >
+      {missing ? (
+        <p className="text-sm text-[var(--as-muted-fg)]" data-testid="run-detail-missing">
+          {t("autopilot.runDetail.missing")}
+        </p>
+      ) : detail === null ? (
+        <div className="flex justify-center py-10">
+          <Spinner />
+        </div>
+      ) : (
+        <div className="space-y-5" data-testid="run-detail-body">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs ${
+                RUN_STATUS_STYLE[detail.run.status] ?? "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {RUN_STATUS_KEYS[detail.run.status]
+                ? t(RUN_STATUS_KEYS[detail.run.status])
+                : detail.run.status}
+            </span>
+            <span className="text-xs text-[var(--as-muted-fg)]">
+              {dateLabel(detail.run.created_at)}
+              {detail.run.tokens_used
+                ? ` · ${t("autopilot.tokens", { count: detail.run.tokens_used })}`
+                : ""}
+              {durationLabel(detail.run) ? ` · ${durationLabel(detail.run)}` : ""}
+            </span>
+            <p className="min-w-full text-sm font-medium text-slate-900">
+              {detail.run.goal_text}
+            </p>
+            {detail.run.error && (
+              <p className="min-w-full rounded-lg bg-rose-50 p-2 text-xs text-rose-700">
+                {detail.run.error}
+              </p>
+            )}
+          </div>
+
+          {!detail.trace_available ? (
+            <div data-testid="run-detail-fallback" className="space-y-3">
+              <p className="rounded-lg bg-[var(--as-muted)] p-3 text-xs text-[var(--as-muted-fg)]">
+                {t("autopilot.runDetail.unavailable")}
+              </p>
+              <Timeline runId={detail.run.id} entries={detail.timeline} />
+            </div>
+          ) : (
+            <>
+              <section className="space-y-1" data-testid="run-detail-inputs">
+                <h3 className="text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                  {t("autopilot.runDetail.inputs")}
+                </h3>
+                {planArgs && (
+                  <div className="flex flex-wrap items-center gap-1 rounded-lg bg-[var(--as-muted)] p-2 text-xs text-[var(--as-muted-fg)]">
+                    {(Array.isArray(planArgs.constraints) ? planArgs.constraints : []).map(
+                      (key) => (
+                        <span
+                          key={key}
+                          className="rounded-full bg-[var(--as-surface)] px-2 py-0.5"
+                        >
+                          {key}
+                        </span>
+                      ),
+                    )}
+                    {(Array.isArray(planArgs.budget) ? planArgs.budget : []).map((key) => (
+                      <span
+                        key={key}
+                        className="rounded-full bg-[var(--as-surface)] px-2 py-0.5"
+                      >
+                        {t("autopilot.runDetail.budgetKey", { key })}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {planArgs && typeof planArgs.profile === "object" && planArgs.profile !== null && (
+                  <p className="text-xs text-[var(--as-muted-fg)]">
+                    {t("autopilot.runDetail.profile", {
+                      skills: Number(
+                        (planArgs.profile as { skills?: number }).skills ?? 0,
+                      ),
+                    })}
+                  </p>
+                )}
+              </section>
+
+              <section className="space-y-1" data-testid="run-detail-graph">
+                <h3 className="text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                  {t("autopilot.runDetail.graph")}
+                </h3>
+                <div className="flex flex-wrap gap-1">
+                  {detail.nodes.map((node) => {
+                    const state = nodeState(node, detail.steps);
+                    return (
+                      <span
+                        key={node}
+                        data-testid={`run-detail-node-${node}`}
+                        data-state={state}
+                        className={`rounded-full px-2 py-0.5 text-xs ${
+                          state === "done"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : state === "aborted"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-slate-100 text-slate-400"
+                        }`}
+                      >
+                        {stepLabel(node)}
+                      </span>
+                    );
+                  })}
+                </div>
+              </section>
+
+              <section className="space-y-1" data-testid="run-detail-steps">
+                <h3 className="text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                  {t("autopilot.runDetail.steps")}
+                </h3>
+                <div className="space-y-1">
+                  {detail.steps.map((entry, index) => (
+                    <div key={`${entry.step}-${index}`}>
+                      {entry.iteration > 1 &&
+                        (index === 0 || detail.steps[index - 1].iteration < entry.iteration) && (
+                          <div
+                            className="mt-2 flex items-center gap-1 text-xs font-medium text-[var(--as-accent)]"
+                            data-testid="run-detail-branch"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            {t("autopilot.runDetail.branch", { iteration: entry.iteration })}
+                          </div>
+                        )}
+                      <div
+                        className="rounded-lg border border-[var(--as-border)] px-3 py-1.5"
+                        data-testid={`run-detail-step-${index}`}
+                        data-step={entry.step}
+                      >
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="font-medium text-slate-900">
+                            {stepLabel(entry.step)}
+                          </span>
+                          <span className="tabular-nums text-[var(--as-muted-fg)]">
+                            {t("autopilot.runDetail.ms", { ms: entry.duration_ms })}
+                          </span>
+                          <span className="text-slate-700">{stepSummary(entry)}</span>
+                          {entry.abort && (
+                            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700">
+                              {t("autopilot.runDetail.abortedAs", { reason: entry.abort })}
+                            </span>
+                          )}
+                          {entry.error && (
+                            <span className="text-rose-600">{entry.error}</span>
+                          )}
+                        </div>
+                        <details className="mt-1" data-testid={`run-detail-step-detail-${index}`}>
+                          <summary className="cursor-pointer text-[11px] text-[var(--as-muted-fg)]">
+                            {t("autopilot.runDetail.args")}
+                          </summary>
+                          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[var(--as-muted)] p-2 font-mono text-[11px]">
+                            {JSON.stringify(entry.args, null, 2)}
+                          </pre>
+                          <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-[var(--as-muted)] p-2 font-mono text-[11px]">
+                            {JSON.stringify(entry.output, null, 2)}
+                          </pre>
+                        </details>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </>
+          )}
+
+          {detail.ai_calls.length > 0 && (
+            <section className="space-y-1" data-testid="run-detail-calls">
+              <h3 className="text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("autopilot.runDetail.calls")}
+              </h3>
+              <div className="space-y-1">
+                {detail.ai_calls.map((call) => (
+                  <div
+                    key={call.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg bg-[var(--as-muted)] px-3 py-1.5 text-xs"
+                    data-testid={`run-detail-call-${call.id}`}
+                  >
+                    <span className="font-medium text-slate-900">
+                      {call.run_stage ?? call.task_type}
+                    </span>
+                    <span className="text-[var(--as-muted-fg)]">
+                      {call.provider}/{call.model}
+                    </span>
+                    <span
+                      className={call.status === "ok" ? "text-emerald-600" : "text-rose-600"}
+                    >
+                      {call.status}
+                    </span>
+                    <span className="tabular-nums text-[var(--as-muted-fg)]">
+                      {t("autopilot.tokens", { count: (call.tokens_in ?? 0) + (call.tokens_out ?? 0) })}
+                    </span>
+                    {call.latency_ms != null && (
+                      <span className="tabular-nums text-[var(--as-muted-fg)]">
+                        {t("autopilot.runDetail.ms", { ms: Math.round(call.latency_ms) })}
+                      </span>
+                    )}
+                    {isAdmin && (
+                      <a
+                        href={`/settings/audit?tab=ai&detail=${call.id}`}
+                        className="ml-auto text-[var(--as-accent)] hover:underline"
+                        data-testid={`run-detail-call-link-${call.id}`}
+                      >
+                        {t("autopilot.runDetail.viewCall")}
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-2" data-testid="run-detail-findings">
+            <h3 className="text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("autopilot.findings")}
+            </h3>
+            {detail.findings.length === 0 ? (
+              <p className="text-sm text-[var(--as-muted-fg)]">
+                {t("autopilot.noSurvivors")}
+              </p>
+            ) : (
+              detail.findings.map((finding) => (
+                <FindingCard key={finding.id} finding={finding} onFeedback={() => undefined} />
+              ))
+            )}
+          </section>
+        </div>
+      )}
+    </PanelModal>
+  );
+}
+
 export function Autopilot() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [goals, setGoals] = useState<AutopilotGoal[] | null>(null);
   const [runs, setRuns] = useState<AutopilotRunWithFindings[] | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -521,6 +866,22 @@ export function Autopilot() {
   const [busyGoal, setBusyGoal] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [openTimelines, setOpenTimelines] = useState<Set<string>>(new Set());
+  const runParam = searchParams.get("run");
+
+  const closeRun = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("run");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const openRun = useCallback(
+    (runId: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("run", runId);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
 
   const load = useCallback(() => {
     void fetchGoals().then(setGoals).catch(() => setGoals([]));
@@ -791,6 +1152,14 @@ export function Autopilot() {
                         ? t("autopilot.hideWork")
                         : t("autopilot.whatSearched")}
                     </button>
+                    <button
+                      type="button"
+                      className="text-xs text-[var(--as-accent)] hover:underline"
+                      onClick={() => openRun(run.id)}
+                      data-testid={`run-details-${run.id}`}
+                    >
+                      {t("autopilot.runDetail.open")}
+                    </button>
                   </div>
                   {openTimelines.has(run.id) && (
                     <Timeline runId={run.id} entries={run.searches_executed} />
@@ -825,6 +1194,8 @@ export function Autopilot() {
         onClose={() => setModalOpen(false)}
         onSaved={load}
       />
+
+      {runParam && <RunDetailModal runId={runParam} onClose={closeRun} />}
 
       {deleting && (
         <ConfirmationModal

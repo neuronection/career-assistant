@@ -53,6 +53,19 @@ postings it found in total and how many it actually examined, and the windows
 it scans hold **fresh** postings only — ones you have not seen, applied to or
 hidden — so a long browsing history never crowds new vacancies out of a run.
 
+## Open a run
+
+Every run card has a **Details** action (deep-linkable with `?run=<id>` on
+`/autopilot`). The run's detail view shows the **step trace** — what the plan,
+each search, the filters, the ranking, the broaden pass, the budget check, the
+curation and the delivery actually did, with timing and each step's arguments
+and output summaries — plus the run's **AI calls** (which stage served which
+call, its model and spend; an admin also gets a "View call" link into the
+audit ledger), and the shortlist it produced. Runs from before this trace
+existed fall back to the search timeline — never an empty view. Everything is
+argument/output summaries: the full prompt text stays admin-only in the audit
+ledger.
+
 Semantic coverage grows as your postings get embedded: an admin re-runs the
 embeddings recompute today, so a fresh board's postings join the by-meaning
 pass only once they have an embedding. Keyword search and related-role

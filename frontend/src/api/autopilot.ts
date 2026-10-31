@@ -83,6 +83,41 @@ export interface TimelineEntry {
   kept?: number;
 }
 
+export interface AutopilotTraceStep {
+  step: string;
+  kind: string;
+  iteration: number;
+  at: string;
+  duration_ms: number;
+  args: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error: string;
+  abort: string;
+}
+
+export interface AutopilotAiCall {
+  id: string;
+  task_type: string;
+  run_stage: string | null;
+  provider: string;
+  model: string;
+  status: string;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  latency_ms: number | null;
+  prompt_version: string | null;
+}
+
+export interface AutopilotRunDetail {
+  run: AutopilotRunSummary & { goal_id: string; goal_text: string };
+  steps: AutopilotTraceStep[];
+  nodes: string[];
+  ai_calls: AutopilotAiCall[];
+  findings: AutopilotFinding[];
+  timeline: TimelineEntry[];
+  trace_available: boolean;
+}
+
 export interface GoalCreateInput {
   goal_text: string;
   constraints?: Partial<AutopilotConstraints>;
@@ -129,6 +164,11 @@ export async function runGoal(
 }
 export async function fetchFindingsByRun(): Promise<AutopilotRunWithFindings[]> {
   const { data } = await api.get<AutopilotRunWithFindings[]>("/autopilot/findings");
+  return data;
+}
+
+export async function fetchRunDetail(runId: string): Promise<AutopilotRunDetail> {
+  const { data } = await api.get<AutopilotRunDetail>(`/autopilot/runs/${runId}`);
   return data;
 }
 

@@ -869,7 +869,7 @@
     "deleteBody": "Es wird und die Ergebnisse gehen mit. Dies kann nicht rückgängig gemacht werden.",
     "delete": "Löschen",
     "fitScore": "Passungsgrad",
- "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
+    "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
     "moreLikeThis": "Mehr wie das",
     "hideLikeThis": "Ausblenden — das Ziel lernt, diese zu überspringen",
     "status": {
@@ -947,7 +947,48 @@
     "cooldownSuffix": "Tage vor erneuter Suche",
     "cadenceLabel": "Zyklus",
     "saveChanges": "Änderungen speichern",
-    "createGoal": "Ziel erstellen"
+    "createGoal": "Ziel erstellen",
+    "runDetail": {
+      "title": "Lauf-Details",
+      "open": "Details",
+      "missing": "Dieser Lauf wurde nicht gefunden (möglicherweise gelöscht).",
+      "unavailable": "Dieser Lauf stammt aus der Zeit vor dem detaillierten Schritt-Trace — stattdessen wird die Such-Chronik angezeigt.",
+      "inputs": "Eingaben",
+      "graph": "Graph",
+      "steps": "Schritt-Trace",
+      "branch": "Erweitert — Durchgang {{iteration}}",
+      "args": "Argumente & Ausgabe",
+      "calls": "KI-Aufrufe",
+      "viewCall": "Aufruf ansehen",
+      "duration": "{{seconds}} s",
+      "ms": "{{ms}} ms",
+      "abortedAs": "abgebrochen: {{reason}}",
+      "profile": "Profil-Snapshot: {{skills}} Skills",
+      "budgetKey": "Budget: {{key}}",
+      "step": {
+        "plan": "Planen",
+        "search": "Suche",
+        "filter": "Filter",
+        "replan": "Neu planen",
+        "evaluate": "Bewerten",
+        "graph_sweep": "Graph-Erweiterung",
+        "budget_guard": "Budget-Wächter",
+        "curate": "Kuratieren",
+        "deliver": "Ausliefern"
+      },
+      "summary": {
+        "plan": "{{count}} Suchvarianten geplant",
+        "search": "{{probes}} Abfragen · Pool {{pool}}",
+        "filter": "{{kept}} behalten · Pool {{pool}}",
+        "evaluate": "Ranking-Pool mit {{pool}}",
+        "replan": "{{count}} erweiterte Abfragen",
+        "graphSweep": "+{{found}} gefunden · {{examined}} geprüft über verwandte Rollen",
+        "guardAbort": "Abbruch: {{reason}}",
+        "guardTokens": "{{tokens}} Tokens bisher ausgegeben",
+        "curate": "{{count}} Ausnahmen erklärt",
+        "deliver": "{{count}} Treffer · {{status}}"
+      }
+    }
   },
   "scheduler": {
     "searchesTitle": "Geplante Suchanfragen",
