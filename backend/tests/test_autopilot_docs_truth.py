@@ -103,10 +103,51 @@ def test_state_channels_and_routing_tables_are_present():
         "`replan_attempts`",
         "`curation`",
         "`progress_pct`",
+        "`trace_steps`",
     ):
         assert channel in text
     for reason in ("`budget`", "`cancelled`", "`error`"):
         assert f"| {reason} |" in text
+
+
+def test_run_trace_docs_name_the_real_steps():
+    """The Run trace section names the graph's node set in execution order,
+    the durable channel, the column and the endpoint (plan 168 S5.4)."""
+    from app.services.growth.autopilot_service import EXECUTION_NODE_ORDER
+
+    text = _ai_layer()
+    for node in EXECUTION_NODE_ORDER:
+        assert f"`{node}`" in text
+    assert "`trace_steps`" in text
+    assert "`autopilot_runs.run_steps`" in text
+    assert "GET /autopilot/runs/{run_id}" in text
+    assert "`trace_available`" in text
+    for escape in ("TTL-pruned", "ledger, not checkpoint history"):
+        assert escape in text, "durability claim is explicit"
+
+
+def test_run_trace_caps_match_the_code():
+    """The documented summary caps match the constants (plan 168 S5.4)."""
+    from app.ai.graphs.autopilot import CANDIDATE_CAP
+
+    text = _ai_layer()
+    assert "goal text clipped to 400" in text
+    assert f"capped at {CANDIDATE_CAP} (`CANDIDATE_CAP`)" in text
+
+
+def test_tracing_docs_name_the_real_knobs_and_spans():
+    """The Tracing export section documents env knobs that exist on
+    `Settings` and the span vocabulary the code emits (plan 168 S5.4)."""
+    from app.core.config import Settings
+
+    fields = Settings.model_fields
+    text = _ai_layer()
+    for knob in ("CAREER_OTEL_EXPORT", "CAREER_OTEL_ENDPOINT", "CAREER_OTEL_SERVICE_NAME"):
+        assert knob in text
+        assert knob.removeprefix("CAREER_").lower() in fields, f"{knob} maps to Settings"
+    for span_name in ("autopilot.run", "autopilot.node", "llm.call"):
+        assert f"`{span_name}`" in text
+    assert "never" in text and "prompt or output text" in text
 
 
 def test_user_page_diagram_stays_user_level():

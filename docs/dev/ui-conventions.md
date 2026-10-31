@@ -462,7 +462,8 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   drawer or on the review card — never inline on the row, and hover
   reveals nothing destructive.
 - **Details drawer**: ONE generalized `EntityDetailsDrawer` (PanelModal —
-  right sheet on desktop, full-screen on mobile) with per-kind adapters;
+  a centered modal that width-caps on desktop and goes full-screen below
+  `sm`; never a side sheet) with per-kind adapters;
   the skills adapter keeps the richer stats/history surface.
 - **Bulk**: `BulkBar`/`SelectionToggle` (per-id endpoints loop client-side
   with per-item outcomes: successes summarized, failures listed — the

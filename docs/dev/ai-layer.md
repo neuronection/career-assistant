@@ -166,6 +166,7 @@ compares this table with the code):
 | `progress_pct` | 0-100, monotonic | the progress callback must never report backwards on a re-entry |
 | `profile_context` | ≤ 12 skills | the planner's grounding; computed once per run |
 | `abort_reason` / `tokens_used` | one value | routing + the run's recorded spend |
+| `trace_steps` | one entry per executed node | the durable run trace — persisted to `autopilot_runs.run_steps` at deliver, survives checkpoint pruning |
 
 **Similarity signals** — what each recall source catches, needs and how it
 degrades:
@@ -198,6 +199,87 @@ still ships:
 A replan spends one audited call; when the run budget is already spent the
 node skips the call and the deterministic findings still ship.
 
+### Run trace (plan 168)
+
+Every executed node lands one entry in the `trace_steps` state channel —
+append-return, exactly the `searches` precedent, so a retried node
+contributes nothing on its failed attempt and a resume never duplicates an
+entry (`iteration` distinguishes the legitimate second `search`/`filter`
+pass after a replan). `deliver` persists the accumulated list to
+`autopilot_runs.run_steps`; a run that dies mid-graph persists the steps up
+to the last completed node plus a `failed` status via the service's failure
+path. **The trace is a ledger, not checkpoint history**: checkpoints are
+TTL-pruned (desktop boot prune, server `system_checkpoint_prune`), the
+trace survives restarts and prunes and dies only with the goal (the run
+cascade) — `ai_generations` rows outlive it by design.
+
+Each entry carries `{step, kind, iteration, at, duration_ms, args, output,
+error, abort}` where `args`/`output` are **whitelisted summaries** — the
+plan step's goal text clipped to 400 chars, constraint/budget keys and the
+profile-context shape; search variant queries/filters with found/examined;
+filter kept/dropped counts; evaluate pool/fit-range/must-hits histogram;
+graph-sweep seeds and merge counts; guard tokens-vs-caps and the abort
+reason; curate picks; deliver findings (ids/scores), status and whether the
+notification fired. Candidate ids stay capped at 120 (`CANDIDATE_CAP`) and
+no entry carries a serialized candidate — prompts and full outputs remain
+admin-only in the audit ledger.
+
+The owner-facing surface is `GET /autopilot/runs/{run_id}` (owner-scoped
+product detail, a foreign and a missing run answer the same 404): `{run,
+steps, nodes, ai_calls, findings, timeline, trace_available}` — `ai_calls`
+joins `ai_generations` by `run_id` with metadata only (no
+prompt/output text), and `trace_available` is false for pre-0079 runs
+(steps `[]` — the UI falls back to the timeline). `nodes` is the
+**execution-ordered** node list derived from the compiled graph —
+`plan`, `search`, `filter`, `replan`, `evaluate`, `graph_sweep`,
+`budget_guard`, `curate`, `deliver` (compiled insertion order is not
+execution order; `budget_guard` is added second but runs late). Runs
+beyond the 30-row listings resolve by id. The UI renders the payload as
+the `?run=<id>` detail modal on `/autopilot`.
+
+```mermaid
+flowchart LR
+    subgraph Graph["Autopilot graph (checkpointed, thread_id = run id)"]
+        P[plan] --> S[search] --> F[filter] --> E[evaluate] --> GS[graph_sweep] --> BG[budget_guard] --> C[curate] --> D[deliver]
+        F -. replan ≤1 .-> RP[replan] -.-> S
+    end
+    Graph -- "record_step() per node" --> ST[("autopilot_runs.run_steps<br/>durable JSONB")]
+    Graph -- "RunRef per gateway call" --> AG[("ai_generations<br/>run_id + run_stage")]
+    ST --> RE["GET /autopilot/runs/{id}"]
+    AG --> RE
+    RE --> UI["Run detail modal ?run=id<br/>steps · graph chips · AI-call links"]
+```
+
+### Tracing export (plan 168)
+
+The first-party trace above is the product surface; OpenTelemetry is an
+**optional export adapter, never a second surface** (ADR-0044 addendum).
+`app/ai/tracing.py` exposes one `TraceSink`: `autopilot.run` (root, in
+`AutopilotService.run_goal` — the single entry for API, queue and chat
+callers), `autopilot.node` (started inside each node callable, so retries
+and replan re-entries record fresh) and `llm.call` (in `ainvoke_structured`
+and `embed_texts`). Every span carries `run_id` + `goal_id` (a contextvar
+scope stamps nested spans, so a lost asyncio context stays correlatable)
+plus the metadata vocabulary — `node`, `task_type`, `provider`, `model`,
+`tokens_in/out`, `latency_ms`, `status`, `prompt_version` — and **never**
+prompt or output text. Destinations: any OTLP backend (Jaeger, Tempo,
+Grafana, Langfuse over OTLP). Infra knobs only, like `CAREER_MOCK_AI` —
+never AI config: `CAREER_OTEL_EXPORT` (`""` default | `console` | `otlp`),
+`CAREER_OTEL_ENDPOINT` (required for otlp), `CAREER_OTEL_SERVICE_NAME`
+(default `career-assistant`). Without the `otel` extra installed the
+guarded import keeps every span a no-op — desktop stays zero-setup and
+inert. A bad value or a missing endpoint disables the sink with exactly
+one warning; a sink failure never fails the wrapped call. Spans flush
+through a `BatchSpanProcessor` and shut down with the app lifespan.
+
+```mermaid
+flowchart LR
+    GW["app.ai.gateway<br/>ainvoke_structured · embed_texts"] -- "span(llm.call)" --> TS["app.ai.tracing.TraceSink"]
+    AP["autopilot nodes"] -- "span(autopilot.node)" --> TS
+    TS -- "disabled (default)" --> NOOP[no-op]
+    TS -- "CAREER_OTEL_EXPORT=console" --> CON[console exporter]
+    TS -- "CAREER_OTEL_EXPORT=otlp" --> OTLP["OTLP endpoint<br/>Jaeger · Tempo · Langfuse"]
+```
 
 ## Decision models (`app/ai/decide/`)
 
