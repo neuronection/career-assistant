@@ -256,8 +256,9 @@ The first-party trace above is the product surface; OpenTelemetry is an
 **optional export adapter, never a second surface** (ADR-0044 addendum).
 `app/ai/tracing.py` exposes one `TraceSink`: `autopilot.run` (root, in
 `AutopilotService.run_goal` — the single entry for API, queue and chat
-callers), `autopilot.node` (started inside each node callable, so retries
-and replan re-entries record fresh) and `llm.call` (in `ainvoke_structured`
+callers), `autopilot.node` (one per graph node, started by the wiring
+wrapper around each node callable — `deliver` included — so retries and
+replan re-entries start fresh) and `llm.call` (in `ainvoke_structured`
 and `embed_texts`). Every span carries `run_id` + `goal_id` (a contextvar
 scope stamps nested spans, so a lost asyncio context stays correlatable)
 plus the metadata vocabulary — `node`, `task_type`, `provider`, `model`,
@@ -269,8 +270,14 @@ never AI config: `CAREER_OTEL_EXPORT` (`""` default | `console` | `otlp`),
 (default `career-assistant`). Without the `otel` extra installed the
 guarded import keeps every span a no-op — desktop stays zero-setup and
 inert. A bad value or a missing endpoint disables the sink with exactly
-one warning; a sink failure never fails the wrapped call. Spans flush
-through a `BatchSpanProcessor` and shut down with the app lifespan.
+one warning; a sink failure never fails the wrapped call. Enabling builds
+the sink its **own** `TracerProvider` with the env-selected exporter behind
+a `BatchSpanProcessor` (buffered background export), and the tracer is
+taken from that same provider — the global OTel provider is never touched,
+so an unconfigured process stays a no-op `ProxyTracerProvider`. App-lifespan
+shutdown calls `sink.shutdown()`, which flushes pending spans and releases
+the provider (`sink.flush()` is available for bounded force-export before
+long-lived phases).
 
 ```mermaid
 flowchart LR

@@ -135,6 +135,9 @@ async def test_spans_carry_the_metadata_vocabulary_and_parentage(
     assert node_span.attributes["run_id"] == result["run_id"], "context lost ⇒ still stamped"
     assert node_span.parent is not None
     assert node_span.parent.span_id == run_span.context.span_id, "nodes nest under the run"
+    assert any(span.attributes.get("node") == "deliver" for span in spans), (
+        "deliver carries its autopilot.node span like every other node"
+    )
     for span in spans:
         assert (
             span.attributes.get("goal_id") is not None or span.attributes.get("run_id") is not None

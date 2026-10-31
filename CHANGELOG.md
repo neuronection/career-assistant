@@ -30,7 +30,8 @@ All notable changes to **Career Assistant** are documented here.
   `CAREER_OTEL_ENDPOINT` and `CAREER_OTEL_SERVICE_NAME`, an infra knob
   like `CAREER_MOCK_AI` — install the new `otel` extra). Off by default;
   without the extra every span is a no-op, so desktop stays zero-setup.
-  Spans (`autopilot.run`, `autopilot.node`, `llm.call`) carry run/node
+  Spans (`autopilot.run`, `autopilot.node` on every graph node including
+  `deliver`, `llm.call`) carry run/node
   metadata only — never prompt or output text — and a misconfiguration
   degrades to disabled with one warning, never a crash.
 

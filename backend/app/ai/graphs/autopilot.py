@@ -658,16 +658,16 @@ def record_step(
     return [*(state.get("trace_steps") or []), entry]
 
 
-def _traced(step: str, kind: str, args_of, output_of, node):
-    """Run one node and land exactly one trace entry per execution.
+def _spanned(step: str, kind: str, node):
+    """Open the ``autopilot.node`` span around one node execution.
 
-    The wrapper is what LangGraph invokes, so a retry or a replan
-    re-entry starts fresh (and records fresh); a node that raises
-    contributes no entry — the service's failure path reads the last
-    completed superstep from the checkpointer instead.
+    Every graph node goes through this wrapper — ``deliver`` included —
+    so an exported waterfall shows the full graph. The span carries the
+    node/kind metadata plus the post-run status and latency; a node that
+    raises still records the failure on its span before propagating.
     """
 
-    async def traced(state: AutopilotState) -> dict:
+    async def spanned(state: AutopilotState) -> dict:
         from app.ai.tracing import sink
 
         started = time.perf_counter()
@@ -680,19 +680,36 @@ def _traced(step: str, kind: str, args_of, output_of, node):
                     "abort_reason": str(update.get("abort_reason") or ""),
                 }
             )
-            update["trace_steps"] = record_step(
-                state,
-                step=step,
-                kind=kind,
-                duration_ms=int((time.perf_counter() - started) * 1000),
-                args=args_of(state),
-                output=output_of(state, update),
-                error=str(update.get("error") or ""),
-                abort=str(update.get("abort_reason") or ""),
-            )
         return update
 
-    return traced
+    return spanned
+
+
+def _traced(step: str, kind: str, args_of, output_of, node):
+    """Run one node and land exactly one trace entry per execution.
+
+    The wrapper is what LangGraph invokes, so a retry or a replan
+    re-entry starts fresh (and records fresh); a node that raises
+    contributes no entry — the service's failure path reads the last
+    completed superstep from the checkpointer instead.
+    """
+
+    async def traced(state: AutopilotState) -> dict:
+        started = time.perf_counter()
+        update = await node(state)
+        update["trace_steps"] = record_step(
+            state,
+            step=step,
+            kind=kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            args=args_of(state),
+            output=output_of(state, update),
+            error=str(update.get("error") or ""),
+            abort=str(update.get("abort_reason") or ""),
+        )
+        return update
+
+    return _spanned(step, kind, traced)
 
 
 def _fresh_entries(state: AutopilotState, update: dict) -> list[dict]:
@@ -1514,7 +1531,7 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
         _traced("curate", "llm", _curate_args, _curate_output, make_curate_node(deps)),
         retry_policy=retry,
     )
-    builder.add_node("deliver", make_deliver_node(deps))
+    builder.add_node("deliver", _spanned("deliver", "deterministic", make_deliver_node(deps)))
 
     builder.add_edge(START, "plan")
     builder.add_conditional_edges(
