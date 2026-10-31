@@ -199,6 +199,48 @@ still ships:
 A replan spends one audited call; when the run budget is already spent the
 node skips the call and the deterministic findings still ship.
 
+### Profile usage & goal-adjusted fit (plan 169)
+
+Every goal carries a `profile` block on its constraints (`ProfileUsage`:
+six `use_*` toggles + `stage_source: "profile" | "goal"`, defaults
+reproducing the pre-plan behavior). `AutopilotService.run_goal` derives a
+`FitOverrides` from it once and threads it through `GraphDeps`; the
+planner and the fit engine honor it:
+
+- **Planner context** — `collect_profile_context` drops a disabled input
+  (with everything off it plans from the goal text + vocabulary alone),
+  adds the academic languages when `use_languages`, and shows the
+  effective stage: `stage_source="goal"` derives it from the goal's
+  seniority selection by max rank (intern→`student`,
+  junior/mid→`early_career`, senior+→`experienced`; an empty selection
+  keeps the profile stage), and `use_experience=False` omits it. The
+  plan/replan vocabulary skips the user-skill neighbourhood when
+  `use_skills` is off (frequency padding only).
+- **Fit** — disabled dimensions score the engine's neutral 7.0 with a
+  `disabled` marker (`use_lifestyle` empties the gates instead — gates
+  are recomputed live, never cached); the `prereqs` dimension carries
+  internal per-part sub-scores (`parts: {education, languages,
+  certificates}`, each `{kind, score, detail, signal}`) and merges by
+  min-cap over the PARTICIPATING parts only, so a disabled part never
+  contributes a penalty (the merged score can only rise or stay, 7.0
+  neutral when nothing participates). `stage_source="goal"` swaps the
+  stage value into the pure `_seniority_stage_dimension`; a disabled
+  `use_experience` wins over it.
+- **Cache law** — `posting_fits` keeps ONE canonical row per
+  user×posting; the usage flags never ride `inputs_hash` (toggle
+  invariant). With active overrides the batch result is a **derived
+  rescore** over the canonical breakdown (`_rescore_cached`: pure math +
+  one pure stage recompute); a canonical miss computes and writes
+  canonically first, then rescores — adjusted values are never persisted,
+  and archetype-estimate rows are never rescored. The `explore` fit-sort
+  window accepts the same overrides, so window selection honors the
+  toggles; the non-fit-sort enrichment stays canonical, as do the posting
+  detail card and the chat "my fit" tool.
+- **Explanations** — `_deterministic_why` filters `disabled: True`
+  dimensions out BEFORE slicing to three (fit-only line when none
+  remain), and the curator system prompt forbids citing disabled
+  dimensions as strengths or weaknesses (`AUTOPILOT_RUN` prompt v7).
+
 ### Run trace (plan 168)
 
 Every executed node lands one entry in the `trace_steps` state channel —

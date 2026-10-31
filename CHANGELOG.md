@@ -26,6 +26,13 @@ All notable changes to **Career Assistant** are documented here.
   the ranking, the sweep recall and the findings all rank on the
   goal-adjusted score; the posting-detail card and chat "my fit" keep
   showing the canonical score, and match estimates ignore the toggles.
+- **The planner honors the same toggles** (plan 169): disabled profile
+  inputs are dropped from the planner's context (with everything off it
+  plans from your goal text and the job-market vocabulary alone), your
+  languages join the context when enabled, and the run trace's Inputs
+  panel shows exactly which profile inputs a run used. Autopilot
+  explanations never cite a dimension you switched off as a strength or
+  a weakness.
 
 ### Added (autopilot run trace, 2026-10-31)
 - **Every autopilot call is now linked to its run in the AI audit ledger**

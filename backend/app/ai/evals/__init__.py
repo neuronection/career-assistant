@@ -161,12 +161,16 @@ _AUTOPILOT_STATE = {
         "never_terms": ["sales"],
         "seniority": ["junior"],
         "top_n": 5,
+        "profile": {"use_skills": True, "stage_source": "goal"},
     },
     "profile_context": {
         "skills": [{"key": "programming", "level": 7}],
         "education_level": "high_school",
+        "languages": [{"code": "en", "level": "advanced"}],
         "country": "Greece",
         "city": "Athens",
+        "stage": "early_career",
+        "stage_source": "goal",
         "target_seniority": ["junior"],
     },
 }

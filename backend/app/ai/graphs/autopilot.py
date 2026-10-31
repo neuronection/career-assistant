@@ -213,36 +213,66 @@ def _plan_user_prompt(state: AutopilotState, vocabulary: dict | None = None) -> 
 
 async def collect_profile_context(db: AsyncSession, user_id: UUID, constraints: dict) -> dict:
     """The planner's small profile dict: skills with levels, education,
-    location and the goal's target seniority.
+    location, languages and the effective career stage — gated by the
+    goal's profile-usage flags (plan 169).
 
-    A dict composer over existing queries — no new profile modeling, the
-    same ``SkillService.user_skills`` the profile surfaces read.
+    A disabled input is DROPPED (the planner plans from the goal text and
+    the vocabulary alone); languages join when ``use_languages``; the
+    stage is the effective one — ``stage_source="goal"`` derives it from
+    the seniority selection (its max rank), ``use_experience=False``
+    omits it entirely. ``target_seniority`` is the goal's own constraint
+    and stays. A dict composer over existing queries — no new profile
+    modeling, the same ``SkillService.user_skills`` the profile surfaces
+    read.
     """
+    from app.schemas.autopilot import ProfileUsage
     from app.services.catalog.skills_service import SkillService
     from app.services.deps import get_profile_for_user
+    from app.services.postings.posting_fit_service import FitOverrides
+    from app.services.profile.stages_service import stage_for_user
 
     profile = await get_profile_for_user(db, user_id)
+    usage = ProfileUsage.model_validate(constraints.get("profile") or {})
+    overrides = FitOverrides.from_profile_usage(
+        usage, [str(value) for value in constraints.get("seniority") or []]
+    )
     basics = profile.basics or {}
-    skills = [
-        {"key": row.skill.key, "level": int(row.level)}
-        for row in await SkillService(db).user_skills(user_id)
-        if row.skill is not None
-    ][:PROFILE_SKILL_LIMIT]
-    return {
-        "skills": skills,
-        "education_level": basics.get("education_level"),
-        "country": basics.get("country") or None,
-        "city": basics.get("city") or None,
-        "target_seniority": [str(value) for value in constraints.get("seniority") or []],
-    }
+    context: dict = {}
+    if usage.use_skills:
+        context["skills"] = [
+            {"key": row.skill.key, "level": int(row.level)}
+            for row in await SkillService(db).user_skills(user_id)
+            if row.skill is not None
+        ][:PROFILE_SKILL_LIMIT]
+    if usage.use_education:
+        context["education_level"] = basics.get("education_level")
+    if usage.use_location:
+        context["country"] = basics.get("country") or None
+        context["city"] = basics.get("city") or None
+    if usage.use_languages:
+        context["languages"] = [
+            {"code": str(row.get("code", "")).lower(), "level": str(row.get("level", "basic"))}
+            for row in (profile.academics or {}).get("languages") or []
+            if row.get("code")
+        ]
+    if usage.use_experience:
+        stage, _source = await stage_for_user(db, user_id)
+        effective = overrides.stage if overrides.stage is not None else stage
+        context["stage"] = effective.value
+        context["stage_source"] = "goal" if overrides.stage is not None else "profile"
+    context["target_seniority"] = [str(value) for value in constraints.get("seniority") or []]
+    return context
 
 
-async def plan_vocabulary(db: AsyncSession, user_id: UUID) -> dict:
+async def plan_vocabulary(db: AsyncSession, user_id: UUID, *, use_skills: bool = True) -> dict:
     """The planner's skill/family/source vocabulary (plan 158 S1.2).
 
     The user's own skills and their 1-hop curated graph neighbourhood
     (synonyms + subtree + ``is_a`` children, ``down`` mode) come FIRST,
     then top-by-posting-frequency keys pad the list to ``PLAN_SKILL_LIMIT``.
+    With ``use_skills`` off the user-skill neighbourhood is skipped
+    entirely — the planner plans from the goal text and the
+    posting-frequency padding only (plan 169).
     """
     from app.models.job_model import JobFamily
     from app.models.posting_model import JobPosting, JobSource, PostingSkill
@@ -251,17 +281,21 @@ async def plan_vocabulary(db: AsyncSession, user_id: UUID) -> dict:
     from app.services.catalog.skills_service import SkillService
 
     keys: list[str] = []
-    for row in await SkillService(db).user_skills(user_id):
-        key = row.skill.key if row.skill is not None else None
-        if key and key not in keys:
-            keys.append(key)
-    own_ids = set((await db.execute(select(Skill.id).where(Skill.key.in_(keys)))).scalars().all())
-    if own_ids:
-        graph = await SkillRelationService(db).load_graph()
-        reached = graph.expand(own_ids, mode=SkillExpandMode.DOWN, hops=SKILL_GRAPH_HOPS)
-        for key in sorted(graph.keys_for(reached)):
-            if key not in keys:
+    own_ids: set = set()
+    if use_skills:
+        for row in await SkillService(db).user_skills(user_id):
+            key = row.skill.key if row.skill is not None else None
+            if key and key not in keys:
                 keys.append(key)
+        own_ids = set(
+            (await db.execute(select(Skill.id).where(Skill.key.in_(keys)))).scalars().all()
+        )
+        if own_ids:
+            graph = await SkillRelationService(db).load_graph()
+            reached = graph.expand(own_ids, mode=SkillExpandMode.DOWN, hops=SKILL_GRAPH_HOPS)
+            for key in sorted(graph.keys_for(reached)):
+                if key not in keys:
+                    keys.append(key)
     families = list(
         (await db.execute(select(JobFamily.key).order_by(JobFamily.key))).scalars().all()
     )
@@ -347,7 +381,9 @@ def _curate_system(top_n: int) -> str:
         f"the best {top_n} for the user's goal and explain each in 1-3 "
         f"sentences. Ground EVERY claim in the candidate's provided fields "
         f"(fit score, breakdown, skills, responsibilities, snippet); never "
-        f"invent requirements or benefits. Weigh must_hits against "
+        f"invent requirements or benefits. Dimensions marked `disabled` "
+        f"were excluded at the user's instruction: never cite them as "
+        f"strengths or weaknesses. Weigh must_hits against "
         f"must_total: covering the user's must-terms outranks a higher fit "
         f"score without them. Include 1-2 short verbatim quotes copied "
         f"exactly from that candidate's own text (snippet, "
@@ -390,11 +426,21 @@ def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
 
 
 def _deterministic_why(candidate: dict) -> str:
-    """LLM-free fallback explanation grounded in the fit breakdown."""
-    parts = []
-    for name, dim in list((candidate.get("breakdown") or {}).items())[:3]:
-        if isinstance(dim, dict) and dim.get("score") is not None:
-            parts.append(f"{str(name).replace('_', ' ')} {float(dim['score']):.1f}/10")
+    """LLM-free fallback explanation grounded in the fit breakdown.
+
+    Dimensions marked ``disabled`` (the goal's profile toggles) are
+    filtered out FIRST — a neutral-by-instruction dim is never cited as
+    a signal — then the list slices to three; with none remaining the
+    ``why`` falls back to the fit-only line.
+    """
+    dims = [
+        (name, dim)
+        for name, dim in (candidate.get("breakdown") or {}).items()
+        if isinstance(dim, dict) and dim.get("score") is not None and not dim.get("disabled")
+    ]
+    parts = [
+        f"{str(name).replace('_', ' ')} {float(dim['score']):.1f}/10" for name, dim in dims[:3]
+    ]
     why = f"Fit {float(candidate.get('fit') or 0):.1f}/10"
     if parts:
         why += f" ({', '.join(parts)})"
@@ -727,17 +773,19 @@ def _fresh_entries(state: AutopilotState, update: dict) -> list[dict]:
 
 def _plan_args(state: AutopilotState) -> dict:
     profile = state.get("profile_context") or {}
+    summary: dict = {"target_seniority": profile.get("target_seniority") or []}
+    if "skills" in profile:
+        summary["skills"] = len(profile.get("skills") or [])
+    if "languages" in profile:
+        summary["languages"] = len(profile.get("languages") or [])
+    for key in ("education_level", "country", "city", "stage", "stage_source"):
+        if key in profile:
+            summary[key] = profile.get(key)
     return {
         "goal": str(state.get("goal_text") or "")[:400],
         "constraints": sorted(_constraints(state).keys()),
         "budget": sorted((state.get("budget") or {}).keys()),
-        "profile": {
-            "skills": len(profile.get("skills") or []),
-            "education_level": profile.get("education_level"),
-            "country": profile.get("country"),
-            "city": profile.get("city"),
-            "target_seniority": profile.get("target_seniority") or [],
-        },
+        "profile": summary,
     }
 
 
@@ -925,7 +973,11 @@ def make_plan_node(deps: GraphDeps):
         vocabulary → SearchPlan."""
         try:
             try:
-                vocabulary = await plan_vocabulary(deps.db, UUID(state["user_id"]))
+                vocabulary = await plan_vocabulary(
+                    deps.db,
+                    UUID(state["user_id"]),
+                    use_skills=deps.fit_overrides.use_skills if deps.fit_overrides else True,
+                )
             except Exception:
                 logger.warning("autopilot vocabulary collection failed", exc_info=True)
                 vocabulary = {}
@@ -1192,7 +1244,11 @@ def make_replan_node(deps: GraphDeps):
             }
         try:
             try:
-                vocabulary = await plan_vocabulary(deps.db, UUID(state["user_id"]))
+                vocabulary = await plan_vocabulary(
+                    deps.db,
+                    UUID(state["user_id"]),
+                    use_skills=deps.fit_overrides.use_skills if deps.fit_overrides else True,
+                )
             except Exception:
                 logger.warning("autopilot vocabulary collection failed", exc_info=True)
                 vocabulary = {}

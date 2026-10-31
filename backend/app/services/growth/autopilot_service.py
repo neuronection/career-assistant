@@ -65,22 +65,19 @@ def execution_nodes() -> list[str]:
 
 
 async def profile_context_preview(
-    db: AsyncSession, user_id: UUID, usage: "ProfileUsage", seniority: list[str]
+    db: AsyncSession, user_id: UUID, usage: ProfileUsage, seniority: list[str]
 ) -> dict:
     """The caller's effective profile snapshot for a DRAFT usage block.
 
-    What a run with these inputs would see: the planner dict
-    (``collect_profile_context`` over the draft constraints) plus the
-    academic languages, the effective career stage (``stage_source="goal"``
-    derives from the seniority selection; an empty selection keeps the
-    profile stage) and the lifestyle constraint count. Disabled toggles
-    drop their keys — the response carries only what would be used.
-    Owner-scoped: a draft never touches a goal row.
+    What a run with these inputs would see: ``collect_profile_context``
+    over the draft constraints (gated fields dropped, languages and the
+    effective stage included, ``stage_source`` naming which side supplied
+    the stage) plus the lifestyle constraint count. Owner-scoped: a draft
+    never touches a goal row.
     """
     from app.ai.graphs.autopilot import collect_profile_context
     from app.services.deps import get_profile_for_user
     from app.services.postings.posting_fit_service import LIFESTYLE_CONSTRAINT_KEYS
-    from app.services.profile.stages_service import stage_for_user, stage_from_seniority
 
     constraints = {
         "seniority": [str(value) for value in seniority],
@@ -88,22 +85,6 @@ async def profile_context_preview(
     }
     snapshot = await collect_profile_context(db, user_id, constraints)
     profile = await get_profile_for_user(db, user_id)
-    languages = [
-        {"code": str(row.get("code", "")).lower(), "level": str(row.get("level", "basic"))}
-        for row in (profile.academics or {}).get("languages") or []
-        if row.get("code")
-    ]
-    stage, _kind = await stage_for_user(db, user_id)
-    source = "profile"
-    if usage.stage_source == "goal":
-        goal_stage = stage_from_seniority(seniority)
-        if goal_stage is not None:
-            stage, source = goal_stage, "goal"
-    if usage.use_languages:
-        snapshot["languages"] = languages
-    if usage.use_experience:
-        snapshot["stage"] = stage.value
-        snapshot["stage_source"] = source
     if usage.use_lifestyle:
         values = profile.constraints or {}
         snapshot["lifestyle_count"] = sum(
