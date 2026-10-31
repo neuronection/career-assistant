@@ -76,7 +76,7 @@ export function RankedJobCard({
         </div>
       }
     >
-      <div className="flex shrink-0 flex-col items-center gap-0.5 pt-0.5" data-capture="fit-bubble">
+      <div className="flex shrink-0 flex-col items-center gap-0.5 pt-0.5">
         <ScoreBubble score={item.score} size={52} />
         <span className="text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--as-muted-fg)]">
           {t("rankings.match")}

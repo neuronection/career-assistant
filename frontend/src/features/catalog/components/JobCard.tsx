@@ -95,7 +95,7 @@ export function JobCard({
               : []
           }
         />
-        <div className="mt-1.5 flex flex-wrap items-center gap-1" data-capture="job-chips">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1">
           <ChipRow
             testId="job-interests"
             max={3}
