@@ -19,11 +19,13 @@ import { TimeSeriesChart, seriesRows } from "@/components/stats/charts/TimeSerie
 import { BreakdownBars } from "@/components/stats/charts/BreakdownBars";
 import { SkillTrendList } from "@/components/stats/charts/SkillTrendList";
 import { ScatterQuadrant } from "@/components/stats/charts/ScatterQuadrant";
+import { ClockworkCard } from "@/components/stats/charts/ClockworkCard";
 import { DonutChart } from "@/components/stats/charts/DonutChart";
 import {
   fetchCompanyStatsOverview,
   fetchCompanyStatsSummary,
   fetchPostingStatsBreakdown,
+  fetchPostingStatsClockwork,
   fetchPostingStatsOverview,
   fetchPostingStatsSalary,
   fetchPostingStatsSkills,
@@ -33,6 +35,7 @@ import {
   type CompanyStatsSummary,
   type MarketDimension,
   type PostingStatsBreakdown,
+  type PostingStatsClockwork,
   type PostingStatsOverview,
   type PostingStatsSalary,
   type PostingStatsSkills,
@@ -73,6 +76,7 @@ export function MarketStats() {
   const [skills, setSkills] = useState<PostingStatsSkills | null>(null);
   const [breakdown, setBreakdown] = useState<PostingStatsBreakdown | null>(null);
   const [salary, setSalary] = useState<PostingStatsSalary | null>(null);
+  const [clockwork, setClockwork] = useState<PostingStatsClockwork | null>(null);
   const [companySummary, setCompanySummary] = useState<CompanyStatsSummary | null>(null);
   const [companyOverview, setCompanyOverview] = useState<CompanyStatsOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,9 +114,10 @@ export function MarketStats() {
       fetchPostingStatsSalary(market),
       fetchCompanyStatsSummary(market),
       fetchCompanyStatsOverview(market),
+      fetchPostingStatsClockwork(market),
     ]);
     if (id !== requestId.current) return;
-    const [rSummary, rOverview, rSeries, rSkills, rBreakdown, rSalary, rCompany, rCompanies] =
+    const [rSummary, rOverview, rSeries, rSkills, rBreakdown, rSalary, rCompany, rCompanies, rClockwork] =
       results;
     setSummary(rSummary.status === "fulfilled" ? rSummary.value : null);
     setOverview(rOverview.status === "fulfilled" ? rOverview.value : null);
@@ -122,6 +127,7 @@ export function MarketStats() {
     setSalary(rSalary.status === "fulfilled" ? rSalary.value : null);
     setCompanySummary(rCompany.status === "fulfilled" ? rCompany.value : null);
     setCompanyOverview(rCompanies.status === "fulfilled" ? rCompanies.value : null);
+    setClockwork(rClockwork.status === "fulfilled" ? rClockwork.value : null);
     if (results.every((result) => result.status === "rejected")) {
       setError(true);
     }
@@ -381,6 +387,10 @@ export function MarketStats() {
               )}
             </ChartCard>
           </div>
+
+          {clockwork ? (
+            <ClockworkCard clock={clockwork} />
+          ) : null}
 
           <ChartCard
             title={t("marketStats.cards.skills")}

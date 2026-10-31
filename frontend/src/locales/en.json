@@ -5302,10 +5302,31 @@
       "dimensionsHint": "Grouped demand by one dimension — the rows carry their filter mapping.",
       "salary": "Salary bands",
       "salaryHint": "Per currency, annualized normalized basis; thin samples hide the band.",
-      "companies": "Who is hiring"
+      "companies": "Who is hiring",
+      "rhythm": "When the market posts",
+      "rhythmHint": "Posting counts by weekday and hour, UTC."
     },
     "series": {
       "prev": "Previous period"
+    },
+    "rhythm": {
+      "gridAria": "Posting counts by weekday and hour (UTC)",
+      "peak": "Busiest: {{cell}} UTC",
+      "cellTitle": "{{cell}} UTC — {{count}} postings",
+      "hour": "{{hour}}:00",
+      "totalPair": "{{label}} {{count}}",
+      "summaryPeak": "Busiest: {{cell}} UTC.",
+      "summaryByWeekday": "Totals by weekday: {{totals}}.",
+      "summaryByHour": "Totals by hour: {{totals}}.",
+      "weekday": {
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat",
+        "7": "Sun"
+      }
     },
     "bucketLabel": "Bucket: {{bucket}}",
     "split": {

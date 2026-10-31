@@ -5301,10 +5301,31 @@
       "dimensionsHint": "Gruppierte Nachfrage je Dimension — Zeilen tragen ihre Filterzuordnung.",
       "salary": "Gehaltsspannen",
       "salaryHint": "Je Währung, annualisierte Normalisierung; dünne Stichproben blenden die Spanne aus.",
-      "companies": "Wer stellt ein"
+      "companies": "Wer stellt ein",
+      "rhythm": "Wann der Markt postet",
+      "rhythmHint": "Posting-Zählungen nach Wochentag und Stunde, UTC."
     },
     "series": {
       "prev": "Vorzeitraum"
+    },
+    "rhythm": {
+      "gridAria": "Posting-Zählungen nach Wochentag und Stunde (UTC)",
+      "peak": "Stärkster Moment: {{cell}} UTC",
+      "cellTitle": "{{cell}} UTC — {{count}} Postings",
+      "hour": "{{hour}} Uhr",
+      "totalPair": "{{label}} {{count}}",
+      "summaryPeak": "Stärkster Moment: {{cell}} UTC.",
+      "summaryByWeekday": "Summen nach Wochentag: {{totals}}.",
+      "summaryByHour": "Summen nach Stunde: {{totals}}.",
+      "weekday": {
+        "1": "Mo",
+        "2": "Di",
+        "3": "Mi",
+        "4": "Do",
+        "5": "Fr",
+        "6": "Sa",
+        "7": "So"
+      }
     },
     "bucketLabel": "Intervall: {{bucket}}",
     "split": {

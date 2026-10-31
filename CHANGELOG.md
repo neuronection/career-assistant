@@ -13,6 +13,13 @@ All notable changes to **Career Assistant** are documented here.
   slice: the rail sparkline is clipped to today (future-dated rows still
   count in every KPI) and the "skill lead changed" insight card now
   requires the new leader's rise to clear the trailing-baseline gate.
+- **"When the market posts"** (plan 171 slice 2): the stats page renders
+  the clock — a weekday × hour heat grid over the `--ca-heat-hot` token
+  ramp in its own row after the volume card, zero cells muted, the
+  deterministic peak ringed and named ("Busiest: Wed 09:00 UTC"), the
+  weekday axis localized and hour ticks at 0/6/12/18/23, plus a
+  screen-reader summary of the condensed totals. UTC is stated in the
+  docs (`docs/user/market-stats.md`).
 
 ### Added (market statistics rails, 2026-10-31)
 - **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now

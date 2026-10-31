@@ -237,6 +237,34 @@ export interface CompanyStatsOverview {
   openings_histogram: OpeningsBucket[];
 }
 
+export interface ClockCell {
+  /** ISO weekday, 1..7 (Monday = 1). */
+  weekday: number;
+  hour: number;
+  count: number;
+  prev: number;
+  delta_pct: number | null;
+}
+
+export interface ClockPeak {
+  weekday: number;
+  hour: number;
+  count: number;
+}
+
+export interface PostingStatsClockwork {
+  as_of: string;
+  window: string;
+  status_basis: StatsStatusBasis;
+  start: string | null;
+  end: string;
+  time_zone: "UTC";
+  cells: ClockCell[];
+  peak: ClockPeak | null;
+  by_weekday: number[];
+  by_hour: number[];
+}
+
 export interface MarketStatsQuery {
   window?: MarketWindow;
   from?: string;
@@ -310,6 +338,15 @@ export async function fetchPostingStatsSalary(
   params: MarketStatsQuery = {},
 ): Promise<PostingStatsSalary> {
   const { data } = await api.get<PostingStatsSalary>("/postings/stats/salary", {
+    params: queryParams(params),
+  });
+  return data;
+}
+
+export async function fetchPostingStatsClockwork(
+  params: MarketStatsQuery = {},
+): Promise<PostingStatsClockwork> {
+  const { data } = await api.get<PostingStatsClockwork>("/postings/stats/clockwork", {
     params: queryParams(params),
   });
   return data;

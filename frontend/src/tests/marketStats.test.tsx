@@ -5,7 +5,10 @@ import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 
 import * as statsApi from "@/api/stats";
 import { MarketStats } from "@/features/postings/pages/MarketStats";
-import type { PostingStatsSummary } from "@/api/stats";
+import {
+  type PostingStatsClockwork,
+  type PostingStatsSummary,
+} from "@/api/stats";
 
 vi.mock("recharts", async (importOriginal) => {
   const mod = await importOriginal<typeof import("recharts")>();
@@ -27,6 +30,7 @@ vi.mock("@/api/stats", async (importOriginal) => {
     fetchPostingStatsSkills: vi.fn(),
     fetchPostingStatsBreakdown: vi.fn(),
     fetchPostingStatsSalary: vi.fn(),
+    fetchPostingStatsClockwork: vi.fn(),
     fetchCompanyStatsSummary: vi.fn(),
     fetchCompanyStatsOverview: vi.fn(),
   };
@@ -38,6 +42,36 @@ const SPARK = Array.from({ length: 14 }, (_, index) => ({
   bucket: `2026-10-${String(index + 10).padStart(2, "0")}`,
   count: index % 3,
 }));
+
+/** A complete zero-filled 7×24 matrix — the real ClockworkOut contract
+ * (mock-reality rule); `hot` fills one cell and its aggregates. */
+function mockClockwork(hot = true): PostingStatsClockwork {
+  const cells = Array.from({ length: 168 }, (_, index) => ({
+    weekday: Math.floor(index / 24) + 1,
+    hour: index % 24,
+    count: hot && index === (3 - 1) * 24 + 9 ? 12 : 0,
+    prev: hot && index === (3 - 1) * 24 + 9 ? 4 : 0,
+    delta_pct: hot && index === (3 - 1) * 24 + 9 ? 200.0 : null,
+  }));
+  const weekdayTotals = Array.from({ length: 7 }, () => 0);
+  const hourTotals = Array.from({ length: 24 }, () => 0);
+  if (hot) {
+    weekdayTotals[2] = 12;
+    hourTotals[9] = 12;
+  }
+  return {
+    as_of: SUMMARY.as_of,
+    window: "30d",
+    status_basis: "all",
+    start: "2026-10-01T00:00:00Z",
+    end: SUMMARY.as_of,
+    time_zone: "UTC",
+    cells,
+    peak: hot ? { weekday: 3, hour: 9, count: 12 } : null,
+    by_weekday: weekdayTotals,
+    by_hour: hourTotals,
+  };
+}
 
 const SUMMARY: PostingStatsSummary = {
   as_of: "2026-10-31T12:00:00Z",
@@ -57,6 +91,7 @@ const SUMMARY: PostingStatsSummary = {
  * rule; a silent field miss here hides against the live endpoint. */
 function mockPayloads() {
   mocked.fetchPostingStatsSummary.mockResolvedValue(SUMMARY);
+  mocked.fetchPostingStatsClockwork.mockResolvedValue(mockClockwork());
   mocked.fetchPostingStatsOverview.mockResolvedValue({
     as_of: SUMMARY.as_of,
     window: "30d",
@@ -307,6 +342,54 @@ describe("MarketStats page", () => {
       revokeObjectURL.mockRestore();
       createObjectURL.mockRestore();
     }
+  });
+
+  it("renders the clock card on the real wire shape, with the ramp and the peak ringed", async () => {
+    renderPage("/postings/stats");
+    await waitFor(() => expect(screen.getByTestId("stats-card-rhythm")).toBeTruthy());
+    const cells = screen.getAllByTestId("stats-rhythm-cell");
+    expect(cells).toHaveLength(168);
+    // Weekday/hour coordinates ride the cells; the hot cell reads the top ramp band.
+    expect(cells.every((cell) => Number(cell.getAttribute("data-w")) >= 1)).toBe(true);
+    const hot = cells.find((cell) => cell.getAttribute("data-w") === "3" && cell.getAttribute("data-h") === "9");
+    expect(hot).toHaveAttribute("data-level", "5");
+    // Zero cells stay muted (level 0) — a quarter of the matrix spot-checked.
+    expect(cells.filter((cell) => cell.getAttribute("data-level") === "0").length).toBe(167);
+    expect(screen.getByTestId("stats-rhythm-peak").textContent).toBe("Busiest: Wed 09:00 UTC");
+    expect(screen.getByTestId("stats-rhythm-grid")).toHaveAttribute(
+      "aria-label",
+      "Posting counts by weekday and hour (UTC)"
+    );
+    // The condensable sr-only summary carries the by_weekday/by_hour twin.
+    expect(
+      screen
+        .getByTestId("stats-card-rhythm")
+        .querySelector(".sr-only")
+        ?.textContent
+        ?.startsWith("Busiest: Wed 09:00 UTC.")
+    ).toBe(true);
+  });
+
+  it("hides the peak caption and renders the zero ramp when the clock is empty", async () => {
+    mocked.fetchPostingStatsClockwork.mockResolvedValue(mockClockwork(false));
+    renderPage("/postings/stats");
+    await waitFor(() => expect(screen.getByTestId("stats-card-rhythm")).toBeTruthy());
+    expect(screen.queryByTestId("stats-rhythm-peak")).toBeNull();
+  });
+
+  it("rides the view state: the clock fetcher shares window and basis with the card family", async () => {
+    renderPage("/postings/stats");
+    await waitFor(() => expect(mocked.fetchPostingStatsClockwork).toHaveBeenCalledWith({
+      window: "30d",
+      status_basis: "all",
+    }));
+    await userEvent.click(screen.getByTestId("market-stats-basis-open"));
+    await waitFor(() =>
+      expect(mocked.fetchPostingStatsClockwork).toHaveBeenCalledWith({
+        window: "30d",
+        status_basis: "open",
+      })
+    );
   });
 
   it("renders the empty state, never a crash, when everything returns nothing", async () => {

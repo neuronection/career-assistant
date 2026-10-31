@@ -38,6 +38,8 @@ Beside the presets, two global toggles shape every card:
 - **Pulse tiles** — new postings in the last 24 hours, 7 days and 30 days,
   each with the change versus the previous period and a 14-day sparkline.
   A tile click opens `/postings` with the matching `posted_within` filter.
+- **When the market posts** — the whole window as a weekday × hour grid
+  in UTC (the deterministic clock heat map), busiest cell named below it.
 - **Postings over time** — a bar chart of the window, split by nothing,
   status, source, work mode, seniority or employment, with the ingestion
   basis visible in the bucket label.
@@ -66,6 +68,22 @@ Beside the presets, two global toggles shape every card:
   stalled sources are named.
 
 Numbers, percentages and dates render in your locale format.
+
+## When the market posts
+
+The **When the market posts** card sits right after the volume chart and
+shows the whole window as a weekday × hour grid — 168 cells, Monday
+through Sunday across the top rows and hours 00–23 along the columns.
+Each posting falls into the cell of its effective posted time, so the
+grid answers "when does hiring actually land?" at one glance.
+
+- All times are **UTC** — the grid states so on every cell and in its
+  caption; you always know which clock a busy day belongs to.
+- Cells shade from muted (empty) through the shared heat ramp, and the
+  single busiest cell is ringed; the caption below names it, e.g.
+  "Busiest: Wed 09:00 UTC".
+- The grid shares the page's window and status basis — switch the header
+  toggles and the clock re-reads the same population as every other card.
 
 ## Related pages
 
