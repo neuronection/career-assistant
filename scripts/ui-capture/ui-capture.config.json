@@ -8,7 +8,10 @@
     "base": "http://localhost:3100",
     "api": "http://localhost:8100/api/v1",
     "apiPath": "/api/v1",
-    "healthUrls": ["{base}", "{apiRoot}/health"],
+    "healthUrls": [
+      "{base}",
+      "{apiRoot}/health"
+    ],
     "env": {
       "basePort": "FRONTEND_PORT",
       "apiPort": "API_PORT",
@@ -25,14 +28,35 @@
   },
   "session": {
     "windowFlag": "__CA_SCREENSHOT_CAPTURE__",
-    "apiHeaders": { "X-Profile-Id": "{profileId}" },
+    "apiHeaders": {
+      "X-Profile-Id": "{profileId}"
+    },
     "apiEntries": [
-      { "key": "ca-profile-id", "path": "/profiles", "match": { "is_default": true }, "pick": "id" }
+      {
+        "key": "ca-profile-id",
+        "path": "/profiles",
+        "match": {
+          "is_default": true
+        },
+        "pick": "id"
+      }
     ]
   },
   "pathTokens": {
-    "profileId": { "path": "/profiles", "match": { "is_default": true }, "pick": "id" },
-    "cvId": { "path": "/cv", "match": { "title": "Wren Ashgrove — CV" }, "pick": "id" }
+    "profileId": {
+      "path": "/profiles",
+      "match": {
+        "is_default": true
+      },
+      "pick": "id"
+    },
+    "cvId": {
+      "path": "/cv",
+      "match": {
+        "title": "Wren Ashgrove \u2014 CV"
+      },
+      "pick": "id"
+    }
   },
   "capture": {
     "outDir": "docs/images",
@@ -41,19 +65,48 @@
     "settleMs": 800,
     "headless": true,
     "viewports": {
-      "desktop": { "width": 1440, "height": 1200, "deviceScaleFactor": 1 },
-      "mobile": { "width": 390, "height": 844, "deviceScaleFactor": 2 },
-      "desktop2x": { "width": 1440, "height": 900, "deviceScaleFactor": 2 }
+      "desktop": {
+        "width": 1440,
+        "height": 1200,
+        "deviceScaleFactor": 1
+      },
+      "mobile": {
+        "width": 390,
+        "height": 844,
+        "deviceScaleFactor": 2
+      },
+      "desktop2x": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 2
+      },
+      "desktop4x": {
+        "width": 1440,
+        "height": 900,
+        "deviceScaleFactor": 4
+      }
     }
   },
   "gallery": {
-    "title": "Career Assistant — Visual Tour",
-    "mobileTitle": "Career Assistant — Visual Tour (Mobile)",
+    "title": "Career Assistant \u2014 Visual Tour",
+    "mobileTitle": "Career Assistant \u2014 Visual Tour (Mobile)",
     "regenCommand": "./scripts/capture_ui.sh"
   },
   "gif": {
     "output": "docs/images/visual-tour.gif",
-    "order": ["login", "dashboard", "catalog", "rankings", "job-detail", "universities", "profile-experience", "cv-studio", "cv-builder", "chat", "chat-proposals"],
+    "order": [
+      "login",
+      "dashboard",
+      "catalog",
+      "rankings",
+      "job-detail",
+      "universities",
+      "profile-experience",
+      "cv-studio",
+      "cv-builder",
+      "chat",
+      "chat-proposals"
+    ],
     "width": 800,
     "frameSeconds": 2,
     "holdLast": 3

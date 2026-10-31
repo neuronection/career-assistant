@@ -39,7 +39,7 @@ export function ScoreBreakdown({
     ? dimensions.filter((dimension) => dimension.detail)
     : [];
   return (
-    <div className={`space-y-1.5 ${className}`} data-testid={testId}>
+    <div data-capture="fit-breakdown" className={`space-y-1.5 ${className}`} data-testid={testId}>
       {dimensions.map((dimension) => {
         const width = Math.max(
           0,
