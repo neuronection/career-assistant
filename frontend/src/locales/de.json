@@ -5161,7 +5161,6 @@
       "title": "Mit Vorzeitraum vergleichen"
     },
     "export": "CSV exportieren",
-    "exportComing": "CSV-Export folgt in einem nächsten Update",
     "tiles": {
       "new24h": "Neu in 24 Std.",
       "new7d": "Neu in 7 Tagen",
@@ -5266,6 +5265,7 @@
       "topSources": "Top-Quellen",
       "openFull": "Vollständige Marktdaten öffnen",
       "unavailable": "Der Marktpuls ist gerade nicht verfügbar."
-    }
+    },
+    "exportAll": "Alle aktuellen Statistiken als CSV herunterladen"
   }
 }

@@ -282,6 +282,33 @@ describe("MarketStats page", () => {
     );
   });
 
+  it("exports the per-card and combined CSV payloads through the blob funnel", async () => {
+    const createObjectURL = vi
+      .spyOn(URL, "createObjectURL")
+      .mockReturnValue("blob:market-stats-test");
+    const revokeObjectURL = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+    const clicks = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+    try {
+      renderPage("/postings/stats");
+      await waitFor(() => expect(mocked.fetchPostingStatsTimeseries).toHaveBeenCalled());
+      await waitFor(() =>
+        expect(screen.getByTestId("stats-export-volume")).toBeTruthy(),
+      );
+      await userEvent.click(screen.getByTestId("stats-export-volume"));
+      expect(createObjectURL).toHaveBeenCalledWith(
+        expect.objectContaining({ type: "text/csv;charset=utf-8" })
+      );
+      const volumeAnchor = clicks.mock.instances[0] as unknown as HTMLAnchorElement;
+      expect(volumeAnchor.download).toMatch(/^market-stats-volume-/);
+      await userEvent.click(screen.getByTestId("stats-export"));
+      expect(clicks).toHaveBeenCalledTimes(2);
+    } finally {
+      clicks.mockRestore();
+      revokeObjectURL.mockRestore();
+      createObjectURL.mockRestore();
+    }
+  });
+
   it("renders the empty state, never a crash, when everything returns nothing", async () => {
     mocked.fetchPostingStatsSkills.mockResolvedValue({
       ...{}, // every list empty

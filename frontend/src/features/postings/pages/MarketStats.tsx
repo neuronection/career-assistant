@@ -10,7 +10,9 @@ import {
   type SegmentedTabsItem,
 } from "@/components/ui";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
+import { ChartExport } from "@/components/stats/charts/ChartExport";
 import { ChartCard } from "@/components/stats/charts/chartKit";
+import { downloadStatsCsv, type CsvRows } from "@/components/stats/statsExport";
 import { DeltaBadge } from "@/components/stats/charts/DeltaBadge";
 import { InsightsStrip } from "@/components/stats/charts/InsightsStrip";
 import { TimeSeriesChart, seriesRows } from "@/components/stats/charts/TimeSeriesChart";
@@ -37,6 +39,7 @@ import {
   type PostingStatsSummary,
   type PostingStatsTimeseries,
   type SalaryCurrency,
+  type SkillStat,
   type TimeseriesSplit,
 } from "@/api/stats";
 import {
@@ -168,10 +171,11 @@ export function MarketStats() {
           </button>
           <button
             type="button"
-            disabled
-            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--as-border)] px-3 py-1 text-xs font-medium text-[var(--as-muted-fg)] opacity-60"
+            onClick={() => downloadStatsCsv(view.window, allExportRows(summary, series, skills, breakdown, salary, companySummary, companyOverview))}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-full border border-[var(--as-border)] px-3 py-1 text-xs font-medium text-[var(--as-muted-fg)]"
             data-testid="stats-export"
-            title={t("marketStats.exportComing")}
+            title={t("marketStats.exportAll")}
           >
             <Download className="size-3" aria-hidden />
             {t("marketStats.export")}
@@ -305,12 +309,22 @@ export function MarketStats() {
               subtitle={t("marketStats.cards.volumeHint")}
               testId="volume"
               actions={
-                <SegmentedTabs
-                  items={splitItems}
-                  value={view.split}
-                  onValueChange={(next) => patch({ split: next as TimeseriesSplit | "" })}
-                  ariaLabel={t("marketStats.split.title")}
-                />
+                <>
+                  <SegmentedTabs
+                    items={splitItems}
+                    value={view.split}
+                    onValueChange={(next) => patch({ split: next as TimeseriesSplit | "" })}
+                    ariaLabel={t("marketStats.split.title")}
+                  />
+                  {series ? (
+                    <ChartExport
+                      name={`volume-${view.window}`}
+                      rows={volumeCsv(series)}
+                      title={t("marketStats.export")}
+                      testId="stats-export-volume"
+                    />
+                  ) : null}
+                </>
               }
             >
               {series && series.points.length > 0 ? (
@@ -371,6 +385,14 @@ export function MarketStats() {
             title={t("marketStats.cards.skills")}
             subtitle={t("marketStats.cards.skillsHint")}
             testId="skills"
+            actions={skills ? (
+              <ChartExport
+                name={`skills-${view.window}`}
+                rows={skillsCsv(skills)}
+                title={t("marketStats.export")}
+                testId="stats-export-skills"
+              />
+            ) : null}
           >
             {skills && skills.top.length > 0 ? (
               <>
@@ -500,15 +522,25 @@ export function MarketStats() {
             subtitle={t("marketStats.cards.dimensionsHint")}
             testId="dimensions"
             actions={
-              <div className="w-56">
-                <SearchableDropdown
-                  options={dimensionOptions}
-                  value={view.dimension}
-                  onChange={(value) => patch({ dimension: value as MarketDimension })}
-                  label={t("marketStats.dimension.title")}
-                  hideLabel
-                />
-              </div>
+              <>
+                <div className="w-56">
+                  <SearchableDropdown
+                    options={dimensionOptions}
+                    value={view.dimension}
+                    onChange={(value) => patch({ dimension: value as MarketDimension })}
+                    label={t("marketStats.dimension.title")}
+                    hideLabel
+                  />
+                </div>
+                {breakdown ? (
+                  <ChartExport
+                    name={`breakdown-${view.dimension}-${view.window}`}
+                    rows={breakdownCsv(breakdown)}
+                    title={t("marketStats.export")}
+                    testId="stats-export-dimensions"
+                  />
+                ) : null}
+              </>
             }
           >
             {breakdown ? (
@@ -601,6 +633,117 @@ function breakdownFromRows(
   };
 }
 
+
+const CSV_HEADER_VOLUME = ["bucket", "count", "prev", "ingestion"];
+
+function volumeCsv(series: PostingStatsTimeseries): CsvRows {
+  return [
+    CSV_HEADER_VOLUME,
+    ...series.points.map((point) => [point.bucket, point.count, point.prev, point.ingestion]),
+  ];
+}
+
+function skillRowsCsv(label: string, rows: SkillStat[]): CsvRows {
+  return [
+    [label, "count", "share", "delta_pct", "trend"],
+    ...rows.map((row) => [row.key, row.label, row.count, row.share, row.delta_pct ?? "", row.trend]),
+  ];
+}
+
+function skillsCsv(skills: PostingStatsSkills): CsvRows {
+  return [
+    ...skillRowsCsv("top", skills.top),
+    ...skillRowsCsv("rising", skills.rising),
+    ...skillRowsCsv("falling", skills.falling),
+  ];
+}
+
+function breakdownCsv(breakdown: PostingStatsBreakdown): CsvRows {
+  return [
+    ["key", "count", "share", "prev", "delta_pct", "trend"],
+    ...breakdown.rows.map((row) => [
+      row.key,
+      row.count,
+      row.share,
+      row.prev,
+      row.delta_pct ?? "",
+      row.trend,
+    ]),
+  ];
+}
+
+function salaryCsv(salary: PostingStatsSalary): CsvRows {
+  const rows: CsvRows = [["currency", "disclosed", "coverage", "thin_sample", "p25", "p50", "p75"]];
+  for (const currency of salary.currencies) {
+    rows.push([
+      currency.currency,
+      currency.disclosed,
+      currency.coverage,
+      currency.thin_sample,
+      currency.p25 ?? "",
+      currency.p50 ?? "",
+      currency.p75 ?? "",
+    ]);
+    for (const seniority of currency.by_seniority) {
+      rows.push([`  ${seniority.seniority}`, seniority.count, seniority.median ?? ""]);
+    }
+  }
+  return rows;
+}
+
+function companiesCsv(overview: CompanyStatsOverview): CsvRows {
+  return [
+    ["company", "open_postings", "new_in_range", "delta_pct", "trend"],
+    ...overview.top_hiring.map((row) => [
+      row.name,
+      row.open_postings,
+      row.new_in_range.count,
+      row.new_in_range.delta_pct ?? "",
+      row.new_in_range.trend,
+    ]),
+  ];
+}
+
+function allExportRows(
+  summary: PostingStatsSummary | null,
+  series: PostingStatsTimeseries | null,
+  skills: PostingStatsSkills | null,
+  breakdown: PostingStatsBreakdown | null,
+  salary: PostingStatsSalary | null,
+  companySummary: CompanyStatsSummary | null,
+  companyOverview: CompanyStatsOverview | null,
+): CsvRows {
+  const rows: CsvRows = [];
+  if (summary) {
+    rows.push(
+      ["pulse", "count", "prev", "delta_pct", "trend"],
+      ["new_24h", summary.new_24h.count, summary.new_24h.prev, summary.new_24h.delta_pct ?? "", summary.new_24h.trend],
+      ["new_7d", summary.new_7d.count, summary.new_7d.prev, summary.new_7d.delta_pct ?? "", summary.new_7d.trend],
+      ["new_30d", summary.new_30d.count, summary.new_30d.prev, summary.new_30d.delta_pct ?? "", summary.new_30d.trend],
+      ["open_total", summary.open_total],
+    );
+  }
+  if (series) {
+    rows.push([], ["volume"], ...volumeCsv(series));
+  }
+  if (skills) {
+    rows.push([], ["skills"], ...skillRowsCsv("top", skills.top));
+  }
+  if (breakdown) {
+    rows.push([], [`breakdown:${breakdown.dimension}`], ...breakdownCsv(breakdown));
+  }
+  if (salary) {
+    rows.push([], ["salary"], ...salaryCsv(salary));
+  }
+  if (companySummary) {
+    rows.push([], ["companies"], ["companies_hiring", companySummary.companies_hiring], ["new_companies", companySummary.new_companies.count, companySummary.new_companies.prev, companySummary.new_companies.delta_pct ?? "", companySummary.new_companies.trend]);
+  }
+  if (companyOverview) {
+    rows.push([], ["top_hiring"], ...companiesCsv(companyOverview));
+  }
+  return rows.length > 0 ? rows : [["market-stats", "no data"]];
+}
+
 function StatusMix({ overview }: { overview: PostingStatsOverview }) {
   const { t } = useTranslation();
   const entries = Object.entries(overview.status_mix).filter(([, count]) => count > 0);
@@ -672,6 +815,14 @@ function SalaryCard({
       title={t("marketStats.cards.salary")}
       subtitle={t("marketStats.cards.salaryHint")}
       testId="salary"
+      actions={currencies.length > 0 ? (
+        <ChartExport
+          name={`salary-${salary?.window ?? ""}`}
+          rows={salaryCsv(salary as PostingStatsSalary)}
+          title={t("marketStats.export")}
+          testId="stats-export-salary"
+        />
+      ) : null}
     >
       {currencies.length > 0 ? (
         <div className="grid gap-4 xl:grid-cols-2">
@@ -828,7 +979,18 @@ function CompaniesCard({
       <ChartCard title={t("marketStats.cards.companies")} testId="companies-tiles">
         <StatTiles layout="auto" columns={2} testId="market-stats-companies" tiles={tiles} />
       </ChartCard>
-      <ChartCard title={t("marketStats.companies.topHiring")} testId="companies-top">
+      <ChartCard
+        title={t("marketStats.companies.topHiring")}
+        testId="companies-top"
+        actions={overview && overview.top_hiring.length > 0 ? (
+          <ChartExport
+            name={`companies-${overview.window}`}
+            rows={companiesCsv(overview)}
+            title={t("marketStats.export")}
+            testId="stats-export-companies"
+          />
+        ) : null}
+      >
         {overview && overview.top_hiring.length > 0 ? (
           <ul className="space-y-1.5">
             {overview.top_hiring.map((company, index) => (
