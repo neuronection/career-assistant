@@ -183,9 +183,9 @@ async def test_disabled_prereq_part_never_contributes_a_penalty(
     canonical = await compute_posting_fit(db, user_id, posting, context=context)
     merged = canonical["breakdown"]["prereqs"]
     assert merged["score"] == 3.0, "education below requirement is the strongest penalty"
-    assert merged["parts"]["education"]["score"] == 3.0
-    assert merged["parts"]["languages"]["score"] == 5.0
-    assert merged["parts"]["certificates"]["score"] == 6.0
+    assert merged["parts"]["education"]["cap"] == 3.0
+    assert merged["parts"]["languages"]["cap"] == 5.0
+    assert merged["parts"]["certificates"]["cap"] == 6.0
 
     for combo in FLAG_COMBOS:
         overrides = FitOverrides.from_profile_usage(ProfileUsage(**combo), ["junior"])
@@ -197,7 +197,7 @@ async def test_disabled_prereq_part_never_contributes_a_penalty(
             f"{combo}: the merged prereqs score can only rise or stay"
         )
         if not any(
-            part.get("signal") and not part.get("disabled") for part in adjusted["parts"].values()
+            part.get("scored") and not part.get("disabled") for part in adjusted["parts"].values()
         ):
             assert adjusted.get("neutral") and adjusted["score"] == 7.0
 
@@ -221,12 +221,6 @@ async def test_prereqs_scored_gate_preserved(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, frozen_now
 ):
     user_id = _user_id(auth_headers)
-    posting = await _extracted(
-        db,
-        source,
-        "ovr-scored-gate",
-        extract_overrides={"languages": [], "prerequisites": []},
-    )
     from app.models.user_model import Profile
 
     profile = (await db.execute(select(Profile))).scalars().first()
@@ -234,6 +228,12 @@ async def test_prereqs_scored_gate_preserved(
     await db.commit()
 
     context = await _load_context(db, user_id)
+    posting = await _extracted(
+        db,
+        source,
+        "ovr-scored-gate",
+        extract_overrides={"languages": [], "prerequisites": []},
+    )
     canonical = await compute_posting_fit(db, user_id, posting, context=context)
     entry = canonical["breakdown"]["prereqs"]
     assert entry["score"] == 7.0 and entry.get("neutral"), (
@@ -264,6 +264,72 @@ async def test_prereqs_scored_gate_preserved(
     )
 
 
+async def test_prereqs_default_matrix_matches_the_pre_plan_baseline(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, frozen_now
+):
+    """Execution-pinned against 009efadf (round-2 B1): a recognized
+    education comparison alone never makes the dimension non-neutral —
+    met or below, both read the scored-gate neutral 7.0; a scored
+    language part turns the dimension non-neutral and the education cap
+    shifts the min (below + unmet language → 3.0, met + evidenced → 10.0)
+    — the all-on engine values equal the pre-plan accumulator's."""
+    from app.models.user_model import Profile
+
+    user_id = _user_id(auth_headers)
+
+    async def _scenario(external_id: str, *, level: str, languages: list[str]):
+        profile = (await db.execute(select(Profile))).scalars().first()
+        profile.basics = {**(profile.basics or {}), "education_level": level}
+        await db.commit()
+        posting = await _extracted(
+            db,
+            source,
+            external_id,
+            extract_overrides={"languages": languages, "prerequisites": []},
+        )
+        result = await compute_posting_fit(db, user_id, posting)
+        entry = result["breakdown"]["prereqs"]
+        entry["posting"] = posting
+        return entry
+
+    entry = await _scenario("ovr-baseline-met", level="master", languages=[])
+    assert entry["score"] == 7.0 and entry.get("neutral"), "education met alone stays neutral"
+    parts = entry["parts"]
+    assert parts["education"]["cap"] == 10.0 and not parts["education"].get("scored")
+
+    entry = await _scenario("ovr-baseline-below", level="high_school", languages=[])
+    assert entry["score"] == 7.0 and entry.get("neutral"), "education below alone stays neutral"
+    parts = entry["parts"]
+    assert parts["education"]["cap"] == 3.0 and not parts["education"].get("scored")
+
+    entry = await _scenario("ovr-below-lang", level="high_school", languages=["de"])
+    assert entry["score"] == 3.0 and not entry.get("neutral")
+    parts = entry["parts"]
+    assert parts["languages"]["cap"] == 5.0 and parts["languages"].get("scored")
+    adjusted = (
+        await get_posting_fits_batch(
+            db, user_id, [entry["posting"]], fit_overrides=FitOverrides(use_languages=False)
+        )
+    )[entry["posting"].id]
+    assert adjusted["breakdown"]["prereqs"]["score"] == 7.0
+    assert adjusted["breakdown"]["prereqs"].get("neutral") is True, (
+        "the rescore over the stored parts drops the language penalty"
+    )
+
+    entry = await _scenario("ovr-met-lang", level="master", languages=["en"])
+    assert entry["score"] == 10.0 and not entry.get("neutral")
+    parts = entry["parts"]
+    assert parts["languages"]["cap"] == 10.0 and parts["languages"].get("scored")
+    adjusted = (
+        await get_posting_fits_batch(
+            db, user_id, [entry["posting"]], fit_overrides=FitOverrides(use_education=False)
+        )
+    )[entry["posting"].id]
+    assert adjusted["breakdown"]["prereqs"]["score"] == 10.0, (
+        "the rescore over the stored parts keeps the evidenced language at 10.0"
+    )
+
+
 async def test_merges_unchanged_when_all_parts_on(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, frozen_now
 ):
@@ -278,10 +344,26 @@ async def test_merges_unchanged_when_all_parts_on(
     assert inactive == active_all_on, "an all-on override block reproduces today's values"
     entry = active_all_on["breakdown"]["prereqs"]
     assert entry["score"] == 3.0
-    assert entry["parts"]["education"]["score"] == 3.0
-    assert entry["parts"]["languages"]["score"] == 5.0
-    assert entry["parts"]["certificates"]["score"] == 6.0
+    assert entry["parts"]["education"]["cap"] == 3.0
+    assert entry["parts"]["languages"]["cap"] == 5.0
+    assert entry["parts"]["certificates"]["cap"] == 6.0
     assert all("disabled" not in part for part in entry["parts"].values())
+
+    education_only = await _extracted(
+        db,
+        source,
+        "ovr-all-on-education",
+        extract_overrides={"languages": [], "prerequisites": []},
+    )
+    baseline = await compute_posting_fit(db, user_id, education_only, context=context)
+    all_on = await compute_posting_fit(
+        db, user_id, education_only, context=context, overrides=FitOverrides()
+    )
+    assert baseline == all_on
+    entry = all_on["breakdown"]["prereqs"]
+    assert entry["score"] == 7.0 and entry.get("neutral"), (
+        "education below alone reads the pre-plan neutral under the all-on engine"
+    )
 
 
 # ------------------------------------------------------------- stage swap

@@ -145,16 +145,17 @@ def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
 def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dict[str, dict]:
     """The three prerequisite inputs as per-part sub-scores (plan 169).
 
-    Each part carries ``kind`` (its stable key), ``score`` (10.0 = no
-    penalty), ``detail`` (its evidence lines) and ``signal`` — whether it
-    had requirement content that scores (an absent requirement stays a
-    no-op with signal False). The public five-dimension contract and the
-    pre-plan merged score are unchanged when every part is on.
+    Each part carries ``kind`` (its stable key), ``cap`` (its min-cap
+    contribution; 10.0 = no penalty), ``scored`` (whether it can make the
+    dimension non-neutral — the pre-plan gate: a recognized education
+    comparison caps WITHOUT scoring, every other requirement scores) and
+    ``detail`` (its evidence lines). The public five-dimension contract
+    and the pre-plan merged score are unchanged when every part is on.
     """
     parts: dict[str, dict] = {
-        "education": {"kind": "education", "score": 7.0, "detail": "", "signal": False},
-        "languages": {"kind": "languages", "score": 7.0, "detail": "", "signal": False},
-        "certificates": {"kind": "certificates", "score": 7.0, "detail": "", "signal": False},
+        "education": {"kind": "education", "cap": 10.0, "detail": "", "scored": False},
+        "languages": {"kind": "languages", "cap": 10.0, "detail": "", "scored": False},
+        "certificates": {"kind": "certificates", "cap": 10.0, "detail": "", "scored": False},
     }
     details: dict[str, list[str]] = {"education": [], "languages": [], "certificates": []}
 
@@ -176,12 +177,12 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
         user = _as_level(user_level) if user_level else None
         if required is None:
             details["education"].append(f"requires education: {level} (unrecognized level)")
-            parts["education"].update(score=10.0, signal=True)
+            parts["education"].update(scored=True)
         elif user is None:
             details["education"].append(f"requires education: {level} (yours unspecified)")
         else:
             met = EducationLevelOrder.at_least(user, required)
-            parts["education"].update(score=10.0 if met else 3.0, signal=True)
+            parts["education"].update(cap=10.0 if met else 3.0)
             details["education"].append(
                 f"education {'meets' if met else 'below'} requirement ({level})"
             )
@@ -204,7 +205,7 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
                 unmet += 1
             else:
                 details["languages"].append(f"language {lang} evidenced")
-        parts["languages"].update(score=5.0 if unmet else 10.0, signal=True)
+        parts["languages"].update(cap=5.0 if unmet else 10.0, scored=True)
 
     unevidenced = 0
     for row in (posting.extract or {}).get("prerequisites") or []:
@@ -217,13 +218,13 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
             continue
         if _certificate_evidenced(label, certifications):
             details["certificates"].append(f"{kind} {label} evidenced")
-            parts["certificates"].update(signal=True)
+            parts["certificates"].update(scored=True)
         else:
             details["certificates"].append(f"{kind} {label} not evidenced (profile has no match)")
             unevidenced += 1
-            parts["certificates"].update(signal=True)
-    if unevidenced or parts["certificates"]["signal"]:
-        parts["certificates"].update(score=6.0 if unevidenced else 10.0)
+            parts["certificates"].update(scored=True)
+    if unevidenced:
+        parts["certificates"].update(cap=6.0)
 
     for key, lines in details.items():
         parts[key]["detail"] = "; ".join(lines)
@@ -233,36 +234,42 @@ def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dic
 def _merge_prereqs(
     parts: dict[str, dict], *, use_education: bool = True, use_languages: bool = True
 ) -> dict:
-    """The min-cap merge over the PARTICIPATING parts (plan 169).
+    """The pre-plan accumulator as a merge over the parts (plan 169).
 
-    A disabled part is excluded from the merge — it never contributes a
-    penalty, so the merged score can only rise or stay — and is stored
-    neutral-7 with a ``disabled`` marker for display. With no
-    participating part the dimension reads neutral 7.0 with its details,
-    exactly the pre-plan ``scored`` gate (an absent requirement stays a
-    no-op). ``parts`` stays internal: the typed posting envelope strips
-    it.
+    A ``scored`` part makes the dimension non-neutral; the merged score is
+    then the min over ALL enabled parts' caps — an unscored education cap
+    still shifts the min (the pre-plan engine assigned the education score
+    before the languages/certificates min-caps lowered it). With no scored
+    part the dimension reads neutral 7.0 with its details — exactly the
+    pre-plan ``scored`` gate: a recognized education comparison alone
+    (met or below) stays neutral. A disabled part is excluded from BOTH
+    the min and the scored-any check — it never contributes a penalty, so
+    the merged score can only rise or stay — and is stored neutral-7 with
+    a ``disabled`` marker for display. ``parts`` stays internal: the typed
+    posting envelope strips it.
     """
     flags = {"education": use_education, "languages": use_languages, "certificates": use_education}
     display: dict[str, dict] = {}
-    participating: list[float] = []
+    caps: list[float] = []
+    any_scored = False
     details: list[str] = []
     for key, part in parts.items():
         entry = dict(part)
         if not flags.get(key, True):
             entry.update(
-                score=7.0,
+                cap=7.0,
                 detail=f"{key} disabled for this goal",
                 disabled=True,
             )
         else:
             entry.pop("disabled", None)
-            if part.get("signal"):
-                participating.append(float(part["score"]))
+            caps.append(float(part["cap"]))
+            if part.get("scored"):
+                any_scored = True
         if entry.get("detail"):
             details.append(entry["detail"])
         display[key] = entry
-    if not participating:
+    if not any_scored:
         return {
             "score": 7.0,
             "detail": "; ".join(details[:3]) or "no explicit prerequisites",
@@ -270,7 +277,7 @@ def _merge_prereqs(
             "parts": display,
         }
     return {
-        "score": round(min(participating), 2),
+        "score": round(min(caps), 2),
         "detail": "; ".join(details[:3]),
         "parts": display,
     }

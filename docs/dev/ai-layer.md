@@ -220,10 +220,14 @@ planner and the fit engine honor it:
   `disabled` marker (`use_lifestyle` empties the gates instead — gates
   are recomputed live, never cached); the `prereqs` dimension carries
   internal per-part sub-scores (`parts: {education, languages,
-  certificates}`, each `{kind, score, detail, signal}`) and merges by
-  min-cap over the PARTICIPATING parts only, so a disabled part never
-  contributes a penalty (the merged score can only rise or stay, 7.0
-  neutral when nothing participates). `stage_source="goal"` swaps the
+  certificates}`, each `{kind, cap, detail, scored}`) and merges like the
+  pre-plan accumulator: any `scored` part makes the dimension
+  non-neutral at the min over the enabled parts' `cap`s (a recognized
+  education comparison caps without scoring — education-met/below alone
+  stay the neutral 7.0, exactly the pre-plan gate), a disabled part is
+  excluded from both the min and the scored-any check so the merged
+  score can only rise or stay, and nothing scored reads 7.0 neutral.
+  `stage_source="goal"` swaps the
   stage value into the pure `_seniority_stage_dimension`; a disabled
   `use_experience` wins over it.
 - **Cache law** — `posting_fits` keeps ONE canonical row per
