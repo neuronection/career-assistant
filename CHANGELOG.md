@@ -4,6 +4,23 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (market statistics page, 2026-10-31)
+- **Market statistics page** (plan 170 slice 2): `/postings/stats`, reached
+  from the sidebar (after Companies), turns the market statistics API into
+  a first-class analysis page — window presets (24h/7d/30d/90d/all plus a
+  custom date range), an open/all status-basis toggle, a previous-period
+  comparison, the deterministic "what changed" insight cards, pulse tiles
+  with deltas and a sparkline, volume-over-time charts with split
+  selectors, the skills suite (top list, rising/cooling, volume ×
+  momentum quadrant, category donut, level histogram, priority mix), a
+  nine-dimension market-structure explorer including demand by career
+  family, per-currency salary bands and histograms, the companies card,
+  and the coverage + source-freshness footer. Chart marks that have a
+  filter vocabulary link straight into `/postings` and `/companies` with
+  the matching filters; the URL carries the whole view so analysis
+  windows are shareable. Documented in `docs/user/market-stats.md`;
+  registered in the feature registry (beta, with a demo-tour scene).
+
 ### Added (market statistics API, 2026-10-31)
 - **Market statistics, computed live** (plan 170): new read-only
   endpoints under `/postings/stats/*` — pulse summary (fixed-window

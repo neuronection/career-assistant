@@ -49,6 +49,12 @@
       "docs": "docs/user/companies.md"
     },
     {
+      "key": "/postings/stats",
+      "state": "beta",
+      "since": "2026-10-31",
+      "docs": "docs/user/market-stats.md"
+    },
+    {
       "key": "/settings/taxonomy",
       "state": "on",
       "since": "2026-10-28",

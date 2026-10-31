@@ -15,6 +15,8 @@ describe("resolveActiveId", () => {
     expect(resolveActiveId("/catalog/generate")).toBe("/catalog");
     expect(resolveActiveId("/catalog/universities/42")).toBe("/catalog");
     expect(resolveActiveId("/postings/search")).toBe("/postings");
+    expect(resolveActiveId("/postings/stats")).toBe("/postings/stats");
+    expect(resolveActiveId("/postings/stats/anything/nested")).toBe("/postings/stats");
     expect(resolveActiveId("/profile/assessment")).toBe("/profile");
     expect(resolveActiveId("/profile/experience")).toBe("/profile");
     expect(resolveActiveId("/profile/education")).toBe("/profile");
@@ -44,11 +46,15 @@ describe("resolveActiveId", () => {
   });
 
   it("registry keeps its shape", () => {
-    expect(NAV).toHaveLength(15);
+    expect(NAV).toHaveLength(16);
     expect(NAV.filter((item) => item.studentOnly).map((item) => item.to)).toEqual(
       []
     );
     expect(NAV.filter((item) => item.section).length).toBeGreaterThan(0);
+    // Market stats follows the Companies entry (job-hunt section, the
+    // divider lives on the Catalog entry that opens it).
+    expect(NAV[6]).toMatchObject({ to: "/postings/stats" });
+    expect(NAV[5]).toMatchObject({ to: "/companies" });
     expect(NAV[NAV.length - 1].to).toBe("/settings/ai");
   });
 
@@ -64,6 +70,7 @@ describe("resolveActiveId", () => {
       "/onboarding/setup",
       "/paths",
       "/postings",
+      "/postings/stats",
       "/settings/audit",
       "/settings/companies",
       "/settings/taxonomy",
@@ -71,14 +78,16 @@ describe("resolveActiveId", () => {
     // Postings and Companies graduate to shipped on 2026-10-30; the
     // remaining registered surfaces stay beta (un-gated 2026-10-21)
     // except the shipped first-run AI setup step; none are hidden.
+    // Market stats ships beta with the page (plan 170).
     expect(
       FEATURES.filter((feature) => feature.state === "beta")
         .map((feature) => feature.key)
         .sort()
-    ).toEqual(["/autopilot", "/growth", "/interviews", "/paths"]);
+    ).toEqual(["/autopilot", "/growth", "/interviews", "/paths", "/postings/stats"]);
     expect(FEATURES.every((feature) => feature.state !== "hidden")).toBe(true);
     // Deep links still resolve against the registry.
     expect(resolveActiveId("/postings/search")).toBe("/postings");
+    expect(resolveActiveId("/postings/stats")).toBe("/postings/stats");
     expect(resolveActiveId("/autopilot")).toBe("/autopilot");
   });
 });

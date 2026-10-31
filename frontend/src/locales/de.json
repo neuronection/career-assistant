@@ -33,7 +33,8 @@
     "sectionExtensions": "Erweiterungen",
     "paths": "Karrierepfade",
     "companies": "Unternehmen",
-    "radar": "Job-Radar"
+    "radar": "Job-Radar",
+    "marketStats": "Marktdaten"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -869,7 +870,7 @@
     "deleteBody": "Es wird und die Ergebnisse gehen mit. Dies kann nicht rückgängig gemacht werden.",
     "delete": "Löschen",
     "fitScore": "Passungsgrad",
- "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
+    "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
     "moreLikeThis": "Mehr wie das",
     "hideLikeThis": "Ausblenden — das Ziel lernt, diese zu überspringen",
     "status": {
@@ -5135,5 +5136,130 @@
       "sort": "Sortiert nach: {{value}}",
       "empty": "Keine Filter — zeigt alle offenen Stellen."
     }
+  },
+  "marketStats": {
+    "title": "Marktdaten",
+    "subtitle": "Wie sich der Stellenmarkt bewegt — Volumen, Skills und Gehälter im Zeitverlauf.",
+    "window": {
+      "title": "Zeitfenster",
+      "24h": "Letzte 24 Std.",
+      "7d": "Letzte 7 Tage",
+      "30d": "Letzte 30 Tage",
+      "90d": "Letzte 90 Tage",
+      "all": "Gesamter Zeitraum",
+      "custom": "Eigener Zeitraum",
+      "fromLabel": "Von",
+      "toLabel": "Bis"
+    },
+    "basis": {
+      "title": "Statusbasis",
+      "open": "Offene",
+      "all": "Alle Status"
+    },
+    "basisHint": "Offene zählt nur laufende Stellen; Alle zählt auch abgelaufene.",
+    "compare": {
+      "title": "Mit Vorzeitraum vergleichen"
+    },
+    "export": "CSV exportieren",
+    "exportComing": "CSV-Export folgt in einem nächsten Update",
+    "tiles": {
+      "new24h": "Neu in 24 Std.",
+      "new7d": "Neu in 7 Tagen",
+      "new30d": "Neu in 30 Tagen",
+      "newInRange": "Neu im Zeitraum",
+      "openTotal": "Offene Stellen"
+    },
+    "delta": {
+      "new": "Neu",
+      "vsPrev": "{{pct}} % ggü. Vorzeitraum"
+    },
+    "insights": {
+      "subjectPostings": "Stellenvolumen",
+      "volumeHigh": "{{subject}} liegt {{pct}} % über der jüngeren Norm",
+      "volumeLow": "{{subject}} liegt {{pct}} % unter der jüngeren Norm",
+      "shareHigh": "Der Anteil von {{subject}} liegt {{pct}} % über dem jüngeren Niveau",
+      "shareLow": "Der Anteil von {{subject}} liegt {{pct}} % unter dem jüngeren Niveau",
+      "skillLead": "{{subject}} hat den bisher führenden Skill überholt",
+      "fallback": "{{subject}} hat sich in diesem Zeitraum ungewöhnlich bewegt"
+    },
+    "cards": {
+      "overview": "Marktüberblick",
+      "volume": "Stellen im Zeitverlauf",
+      "volumeHint": "Anzahl je Intervall, beim Vergleich mit Geisterbalken des Vorzeitraums.",
+      "skills": "Gefragte Skills",
+      "skillsHint": "Die meistgeforderten Skills mit Trend gegenüber dem Vorzeitraum.",
+      "dimensions": "Marktstruktur",
+      "dimensionsHint": "Gruppierte Nachfrage je Dimension — Zeilen tragen ihre Filterzuordnung.",
+      "salary": "Gehaltsspannen",
+      "salaryHint": "Je Währung, annualisierte Normalisierung; dünne Stichproben blenden die Spanne aus.",
+      "companies": "Wer stellt ein"
+    },
+    "series": {
+      "prev": "Vorzeitraum"
+    },
+    "bucketLabel": "Intervall: {{bucket}}",
+    "split": {
+      "title": "Aufschlüsseln nach",
+      "none": "Keine Aufschlüsselung",
+      "status": "Nach Status",
+      "source": "Nach Quelle",
+      "work_mode": "Nach Arbeitsmodus",
+      "seniority": "Nach Seniorität",
+      "employment": "Nach Anstellung"
+    },
+    "skills": {
+      "top": "Meistgeforderte Skills",
+      "rising": "Aufstrebend",
+      "falling": "Abklingend",
+      "categoryMix": "Kategorienmix",
+      "levelHistogram": "Anforderungsniveau",
+      "priority": "Prioritätenmix",
+      "avgLevel": "Ø Niveau",
+      "perPosting": "Skills pro Stelle",
+      "trendAria": "Trend {{pct}} %"
+    },
+    "quadrant": {
+      "title": "Volumen × Dynamik",
+      "share": "Anteil der Stellen",
+      "momentum": "Dynamik"
+    },
+    "dimension": {
+      "title": "Dimension",
+      "seniority": "Seniorität",
+      "work_mode": "Arbeitsmodus",
+      "employment": "Anstellungsart",
+      "contract": "Vertragsart",
+      "education": "Ausbildung",
+      "source": "Quelle",
+      "location": "Standort",
+      "org": "Unternehmen",
+      "family": "Laufbahnfamilie"
+    },
+    "browse": "Stellen für {{label}} anzeigen",
+    "browseSkill": "Stellen mit {{skill}} anzeigen",
+    "share": "{{pct}} %",
+    "salary": {
+      "coverage": "{{pct}} % nennen ein Gehalt",
+      "thin": "Zu wenige Gehaltsangaben für eine Spanne"
+    },
+    "companies": {
+      "hiring": "Unternehmen stellen ein",
+      "newCompanies": "Neue Unternehmen",
+      "topHiring": "Meiste Stellen",
+      "industryMix": "Branchenmix",
+      "open": "{{count}} offene Stellen"
+    },
+    "coverage": {
+      "salary": "{{pct}} % mit Gehaltsangabe",
+      "location": "{{pct}} % mit Standort",
+      "orgLinked": "{{pct}} % mit Unternehmen verknüpft",
+      "skillTagged": "{{pct}} % mit Skills erfasst"
+    },
+    "freshness": {
+      "asOf": "Datenstand: {{date}}",
+      "stale": "Holt auf: {{sources}}"
+    },
+    "error": "Marktdaten konnten nicht geladen werden.",
+    "noData": "Keine Daten in diesem Zeitraum"
   }
 }

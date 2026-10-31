@@ -139,6 +139,16 @@ export const scenes = [
     waitForSelector: "[data-testid='companies']",
   },
   {
+    name: "market-stats",
+    group: "Career exploration",
+    caption: "Market statistics — postings volume, top skills with trends and salary bands over a chosen window.",
+    narration: "See where the market is moving: postings volume, the skills employers ask for and the pay bands, over the last day or the last quarter.",
+    path: "/postings/stats",
+    interactions: [{ action: "wait", ms: 4000 }],
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='market-stats']",
+  },
+  {
     name: "autopilot",
     group: "Working life",
     caption: "Career Autopilot — goal-driven agent searches with budgets.",

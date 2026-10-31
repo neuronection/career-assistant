@@ -33,7 +33,8 @@
     "sectionExtensions": "Extensions",
     "paths": "Career paths",
     "companies": "Companies",
-    "radar": "Job radar"
+    "radar": "Job radar",
+    "marketStats": "Market stats"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -869,7 +870,7 @@
     "deleteBody": "Its runs and findings go with it. This cannot be undone.",
     "delete": "Delete",
     "fitScore": "Fit score",
-  "mustHaves": "Must-haves {{hits}}/{{total}}",
+    "mustHaves": "Must-haves {{hits}}/{{total}}",
     "moreLikeThis": "More like this",
     "hideLikeThis": "Hide like this — the goal learns to skip these",
     "status": {
@@ -5136,5 +5137,130 @@
       "sort": "Sorted by: {{value}}",
       "empty": "No filters — shows every open posting."
     }
+  },
+  "marketStats": {
+    "title": "Market stats",
+    "subtitle": "How the job market is moving — volume, skills and pay over time.",
+    "window": {
+      "title": "Time window",
+      "24h": "Last 24h",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "all": "All time",
+      "custom": "Custom range",
+      "fromLabel": "From",
+      "toLabel": "Until"
+    },
+    "basis": {
+      "title": "Status basis",
+      "open": "Open",
+      "all": "All statuses"
+    },
+    "basisHint": "Open counts only live postings; All also counts expired ones.",
+    "compare": {
+      "title": "Compare with previous"
+    },
+    "export": "Export CSV",
+    "exportComing": "CSV export arrives in a next update",
+    "tiles": {
+      "new24h": "New in 24h",
+      "new7d": "New in 7 days",
+      "new30d": "New in 30 days",
+      "newInRange": "New in range",
+      "openTotal": "Open postings"
+    },
+    "delta": {
+      "new": "New",
+      "vsPrev": "{{pct}}% vs previous"
+    },
+    "insights": {
+      "subjectPostings": "Posting volume",
+      "volumeHigh": "{{subject}} is {{pct}}% above the recent norm",
+      "volumeLow": "{{subject}} is {{pct}}% below the recent norm",
+      "shareHigh": "{{subject}} share is {{pct}}% above its recent level",
+      "shareLow": "{{subject}} share is {{pct}}% below its recent level",
+      "skillLead": "{{subject}} overtook the previous leading skill",
+      "fallback": "{{subject}} moved unusually in this window"
+    },
+    "cards": {
+      "overview": "Market overview",
+      "volume": "Postings over time",
+      "volumeHint": "Counts per bucket, with the previous period as ghost bars when compared.",
+      "skills": "Skills in demand",
+      "skillsHint": "Top-demanded skills with their trend against the previous window.",
+      "dimensions": "Market structure",
+      "dimensionsHint": "Grouped demand by one dimension — the rows carry their filter mapping.",
+      "salary": "Salary bands",
+      "salaryHint": "Per currency, annualized normalized basis; thin samples hide the band.",
+      "companies": "Who is hiring"
+    },
+    "series": {
+      "prev": "Previous period"
+    },
+    "bucketLabel": "Bucket: {{bucket}}",
+    "split": {
+      "title": "Split by",
+      "none": "No split",
+      "status": "By status",
+      "source": "By source",
+      "work_mode": "By work mode",
+      "seniority": "By seniority",
+      "employment": "By employment"
+    },
+    "skills": {
+      "top": "Most demanded skills",
+      "rising": "Rising",
+      "falling": "Cooling",
+      "categoryMix": "Category mix",
+      "levelHistogram": "Demand level",
+      "priority": "Priority mix",
+      "avgLevel": "Avg. level",
+      "perPosting": "Skills per posting",
+      "trendAria": "Trend {{pct}}%"
+    },
+    "quadrant": {
+      "title": "Volume × momentum",
+      "share": "Share of postings",
+      "momentum": "Momentum"
+    },
+    "dimension": {
+      "title": "Dimension",
+      "seniority": "Seniority",
+      "work_mode": "Work mode",
+      "employment": "Employment type",
+      "contract": "Contract type",
+      "education": "Education",
+      "source": "Source",
+      "location": "Location",
+      "org": "Company",
+      "family": "Career family"
+    },
+    "browse": "Show postings for {{label}}",
+    "browseSkill": "Show postings needing {{skill}}",
+    "share": "{{pct}}%",
+    "salary": {
+      "coverage": "{{pct}}% disclose pay",
+      "thin": "Too few disclosed postings to show a band"
+    },
+    "companies": {
+      "hiring": "Companies hiring",
+      "newCompanies": "New companies",
+      "topHiring": "Top hiring",
+      "industryMix": "Industry mix",
+      "open": "{{count}} open postings"
+    },
+    "coverage": {
+      "salary": "{{pct}}% salary disclosed",
+      "location": "{{pct}}% location given",
+      "orgLinked": "{{pct}}% linked to companies",
+      "skillTagged": "{{pct}}% skill-tagged"
+    },
+    "freshness": {
+      "asOf": "Data as of {{date}}",
+      "stale": "Catching up: {{sources}}"
+    },
+    "error": "Could not load market statistics.",
+    "noData": "No data in this window"
   }
 }

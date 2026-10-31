@@ -46,6 +46,7 @@ import { Assessment } from "@/features/assessment/pages/Assessment";
 import { Universities } from "@/features/university/pages/Universities";
 import { UniversityDetail } from "@/features/university/pages/UniversityDetail";
 import { Companies } from "@/features/companies/pages/Companies";
+import { MarketStats } from "@/features/postings/pages/MarketStats";
 import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 import { SkillPage } from "@/features/skills/pages/SkillPage";
 
@@ -82,6 +83,7 @@ export function App() {
           <Route path="/postings" element={<Explore />} />
           <Route path="/postings/search" element={<Navigate to="/postings" replace />} />
           <Route path="/postings/feed" element={<Navigate to="/postings" replace />} />
+          <Route path="/postings/stats" element={<MarketStats />} />
           <Route path="/postings/:ref" element={<PostingDetailPage />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/explore" element={<Navigate to="/postings" replace />} />

@@ -101,6 +101,12 @@
               "description": "Connector engines, the live postings feed, deep extraction into skills and benefits, and the Explore page's filters and saved searches."
             },
             {
+              "id": "market-stats",
+              "file": "user/market-stats.md",
+              "title": "Market statistics",
+              "description": "The dedicated analytics page over the live postings corpus: window presets, pulse KPIs, skills and salary charts, dimension breakdowns and the insights strip (beta)."
+            },
+            {
               "id": "job-radar",
               "file": "user/job-radar.md",
               "title": "Job radar",
