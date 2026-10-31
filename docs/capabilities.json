@@ -50,7 +50,7 @@
         "desktop"
       ],
       "order": 10,
-      "visual": "images/components/job-catalog-desktop2x.png"
+      "visual": "images/components/job-catalog-desktop.png"
     },
     {
       "id": "profile-matching",
@@ -112,7 +112,7 @@
         "desktop"
       ],
       "order": 30,
-      "visual": "images/components/cv-studio-panel-desktop2x.png"
+      "visual": "images/components/cv-studio-panel-desktop.png"
     },
     {
       "id": "assistant-chat",
@@ -143,7 +143,7 @@
         "desktop"
       ],
       "order": 33,
-      "visual": "images/components/assistant-chat-desktop.png"
+      "visual": "images/components/proposal-card-desktop.png"
     },
     {
       "id": "application-tracker",
