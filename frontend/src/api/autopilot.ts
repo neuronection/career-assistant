@@ -1,5 +1,45 @@
 import { api } from "@/api/client";
 
+export interface ProfileUsage {
+  use_skills: boolean;
+  use_education: boolean;
+  use_languages: boolean;
+  use_location: boolean;
+  use_experience: boolean;
+  use_lifestyle: boolean;
+  stage_source: "profile" | "goal";
+}
+
+export const DEFAULT_PROFILE_USAGE: ProfileUsage = {
+  use_skills: true,
+  use_education: true,
+  use_languages: true,
+  use_location: true,
+  use_experience: true,
+  use_lifestyle: true,
+  stage_source: "profile",
+};
+
+export interface ProfileContextSnapshot {
+  skills?: { key: string; level: number }[];
+  education_level?: string | null;
+  languages?: { code: string; level: string }[];
+  country?: string | null;
+  city?: string | null;
+  stage?: string;
+  stage_source?: "profile" | "goal";
+  lifestyle_count?: number;
+  target_seniority?: string[];
+}
+
+export async function fetchProfileContext(
+  profile: ProfileUsage,
+  seniority: string[]
+): Promise<ProfileContextSnapshot> {
+  const { data } = await api.post("/autopilot/profile-context", { profile, seniority });
+  return data;
+}
+
 export interface AutopilotConstraints {
   must_terms: string[];
   never_terms: string[];
@@ -11,6 +51,7 @@ export interface AutopilotConstraints {
   exclude_seen: boolean;
   cooldown_days: number;
   top_n: number;
+  profile: ProfileUsage;
 }
 
 export interface AutopilotBudget {

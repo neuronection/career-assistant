@@ -39,9 +39,11 @@ import {
 } from "@/features/cv/components/cv/formPrimitives";
 import {
   createGoal,
+  DEFAULT_PROFILE_USAGE,
   deleteGoal,
   fetchFindingsByRun,
   fetchGoals,
+  fetchProfileContext,
   fetchRunDetail,
   patchGoal,
   runGoal,
@@ -55,6 +57,8 @@ import type {
   AutopilotRunDetail,
   AutopilotRunWithFindings,
   AutopilotTraceStep,
+  ProfileContextSnapshot,
+  ProfileUsage,
 } from "@/api/autopilot";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -106,6 +110,19 @@ function constraintChips(goal: AutopilotGoal): string[] {
     chips.push(t("autopilot.chip.salaryMin", { salary: c.salary_min.toLocaleString() }));
   for (const s of c.seniority ?? [])
     chips.push(t(`autopilot.seniority.${s}`, { defaultValue: s }));
+  const usage: ProfileUsage = { ...DEFAULT_PROFILE_USAGE, ...(c.profile ?? {}) };
+  const offKeys: (keyof ProfileUsage)[] = [
+    "use_skills",
+    "use_education",
+    "use_languages",
+    "use_location",
+    "use_experience",
+    "use_lifestyle",
+  ];
+  for (const key of offKeys) {
+    if (!usage[key]) chips.push(t(`autopilot.profileUsage.chips.${key}`));
+  }
+  if (usage.stage_source === "goal") chips.push(t("autopilot.profileUsage.chips.stage_source"));
   return chips;
 }
 
@@ -143,6 +160,97 @@ interface GoalDraft {
   cooldown_days: number;
   top_n: number;
   cadence: string;
+  profile: ProfileUsage;
+}
+
+const USAGE_TOGGLE_KEYS: { key: keyof ProfileUsage; labelKey: string; hintKey: string }[] = [
+  {
+    key: "use_skills",
+    labelKey: "autopilot.profileUsage.toggles.use_skills.label",
+    hintKey: "autopilot.profileUsage.toggles.use_skills.description",
+  },
+  {
+    key: "use_education",
+    labelKey: "autopilot.profileUsage.toggles.use_education.label",
+    hintKey: "autopilot.profileUsage.toggles.use_education.description",
+  },
+  {
+    key: "use_languages",
+    labelKey: "autopilot.profileUsage.toggles.use_languages.label",
+    hintKey: "autopilot.profileUsage.toggles.use_languages.description",
+  },
+  {
+    key: "use_location",
+    labelKey: "autopilot.profileUsage.toggles.use_location.label",
+    hintKey: "autopilot.profileUsage.toggles.use_location.description",
+  },
+  {
+    key: "use_experience",
+    labelKey: "autopilot.profileUsage.toggles.use_experience.label",
+    hintKey: "autopilot.profileUsage.toggles.use_experience.description",
+  },
+  {
+    key: "use_lifestyle",
+    labelKey: "autopilot.profileUsage.toggles.use_lifestyle.label",
+    hintKey: "autopilot.profileUsage.toggles.use_lifestyle.description",
+  },
+];
+
+function usageSummary(
+  profile: ProfileUsage,
+  seniority: string[],
+  snapshot: ProfileContextSnapshot | null,
+  t: (key: string, options?: Record<string, unknown>) => string
+): string {
+  const lines: string[] = [];
+  const skills = snapshot?.skills?.map((row) => row.key) ?? [];
+  lines.push(
+    profile.use_skills
+      ? skills.length
+        ? t("autopilot.summary.skills", { items: skills.join(", ") })
+        : t("autopilot.summary.skillsNone")
+      : t("autopilot.summary.skillsUnused")
+  );
+  lines.push(
+    profile.use_education
+      ? snapshot?.education_level
+        ? t("autopilot.summary.education", { level: snapshot.education_level })
+        : t("autopilot.summary.educationNone")
+      : t("autopilot.summary.educationUnused")
+  );
+  const languages = snapshot?.languages?.map((row) => row.code) ?? [];
+  lines.push(
+    profile.use_languages
+      ? languages.length
+        ? t("autopilot.summary.languages", { items: languages.join(", ") })
+        : t("autopilot.summary.languagesNone")
+      : t("autopilot.summary.languagesUnused")
+  );
+  if (!profile.use_experience) {
+    lines.push(t("autopilot.summary.stageUnused"));
+  } else if (snapshot?.stage && snapshot.stage_source === "goal") {
+    lines.push(t("autopilot.summary.stage", { stage: snapshot.stage }));
+  } else if (profile.stage_source === "goal" && !seniority.length) {
+    lines.push(t("autopilot.summary.stageFromProfile"));
+  } else if (snapshot?.stage) {
+    lines.push(t("autopilot.summary.stage", { stage: snapshot.stage }));
+  } else {
+    lines.push(t("autopilot.summary.stageNone"));
+  }
+  const location = snapshot?.city ?? snapshot?.country;
+  lines.push(
+    profile.use_location
+      ? location
+        ? t("autopilot.summary.location", { city: location })
+        : t("autopilot.summary.locationNone")
+      : t("autopilot.summary.locationUnused")
+  );
+  lines.push(
+    profile.use_lifestyle
+      ? t("autopilot.summary.lifestyle", { count: snapshot?.lifestyle_count ?? 0 })
+      : t("autopilot.summary.lifestyleUnused")
+  );
+  return lines.join(" · ");
 }
 
 function draftFromGoal(goal: AutopilotGoal | null): GoalDraft {
@@ -157,6 +265,7 @@ function draftFromGoal(goal: AutopilotGoal | null): GoalDraft {
     exclude_seen: true,
     cooldown_days: 7,
     top_n: 5,
+    profile: DEFAULT_PROFILE_USAGE,
   };
   const cadence = goal?.cadence?.type ?? "manual";
   return {
@@ -169,6 +278,7 @@ function draftFromGoal(goal: AutopilotGoal | null): GoalDraft {
     cooldown_days: c.cooldown_days ?? 7,
     top_n: c.top_n ?? 5,
     cadence: cadence === "daily_at" ? "daily" : cadence === "weekly" ? "weekly" : "manual",
+    profile: { ...DEFAULT_PROFILE_USAGE, ...(c.profile ?? {}) },
   };
 }
 
@@ -186,14 +296,33 @@ function GoalModal({
   const [draft, setDraft] = useState<GoalDraft>(() => draftFromGoal(goal));
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [usageOpen, setUsageOpen] = useState(false);
+  const [snapshot, setSnapshot] = useState<ProfileContextSnapshot | null>(null);
   const { t } = useTranslation();
 
   useEffect(() => {
     if (open) {
       setDraft(draftFromGoal(goal));
       setError(null);
+      setUsageOpen(false);
+      setSnapshot(null);
     }
   }, [open, goal]);
+
+  useEffect(() => {
+    if (!open || !usageOpen) return;
+    let live = true;
+    fetchProfileContext(draft.profile, draft.seniority)
+      .then((result) => {
+        if (live) setSnapshot(result);
+      })
+      .catch(() => {
+        if (live) setSnapshot(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, [open, usageOpen, draft.profile, draft.seniority]);
 
   const save = async () => {
     if (draft.goal_text.trim().length < 3) {
@@ -216,6 +345,7 @@ function GoalModal({
       seniority: draft.seniority,
       cooldown_days: draft.cooldown_days,
       top_n: draft.top_n,
+      profile: draft.profile,
     };
     try {
       if (goal) {
@@ -334,6 +464,75 @@ function GoalModal({
             ]}
             onChange={(value) => setDraft({ ...draft, cadence: value })}
           />
+          <div className="rounded-xl border border-[var(--as-border)] p-3">
+            <button
+              type="button"
+              className="flex w-full cursor-pointer items-center justify-between gap-2 text-xs font-medium text-[var(--as-fg)]"
+              aria-expanded={usageOpen}
+              onClick={() => setUsageOpen((next) => !next)}
+              data-testid="usage-section-toggle"
+            >
+              {t("autopilot.profileUsage.title")}
+              <span className="text-[var(--as-muted-fg)]">{usageOpen ? "−" : "+"}</span>
+            </button>
+            {usageOpen && (
+              <div className="mt-3 space-y-3" data-testid="usage-section">
+                {draft.profile.use_skills &&
+                draft.profile.use_education &&
+                draft.profile.use_languages &&
+                draft.profile.use_location &&
+                draft.profile.use_experience &&
+                draft.profile.use_lifestyle ? null : (
+                  <p className="text-xs text-[var(--as-muted-fg)]" data-testid="usage-goal-only">
+                    {t("autopilot.profileUsage.goalOnly")}
+                  </p>
+                )}
+                {USAGE_TOGGLE_KEYS.map(({ key, labelKey, hintKey }) => (
+                  <div key={key}>
+                    <ToggleRow
+                      label={t(labelKey)}
+                      checked={draft.profile[key] as boolean}
+                      onChange={(checked) =>
+                        setDraft({ ...draft, profile: { ...draft.profile, [key]: checked } })
+                      }
+                    />
+                    <p className="mt-0.5 text-[11px] text-[var(--as-muted-fg)]">{t(hintKey)}</p>
+                  </div>
+                ))}
+                <SegmentedRow
+                  label={t("autopilot.profileUsage.stageSourceLabel")}
+                  value={draft.profile.stage_source}
+                  options={[
+                    {
+                      value: "profile",
+                      label: t("autopilot.profileUsage.stageSource.profile"),
+                    },
+                    { value: "goal", label: t("autopilot.profileUsage.stageSource.goal") },
+                  ]}
+                  onChange={(value) =>
+                    setDraft({
+                      ...draft,
+                      profile: {
+                        ...draft.profile,
+                        stage_source: value as ProfileUsage["stage_source"],
+                      },
+                    })
+                  }
+                />
+                <div
+                  className="rounded-lg bg-[var(--as-muted)] p-2 text-[11px] text-[var(--as-muted-fg)]"
+                  data-testid="usage-summary"
+                >
+                  {snapshot === null
+                    ? t("autopilot.summary.loading")
+                    : usageSummary(draft.profile, draft.seniority, snapshot, t)}
+                </div>
+                <p className="text-[11px] text-[var(--as-muted-fg)]">
+                  {t("autopilot.profileUsage.footnote")}
+                </p>
+              </div>
+            )}
+          </div>
           {error && (
             <p className="text-xs text-red-600" role="alert" data-testid="goal-error">
               {error}
@@ -696,9 +895,27 @@ function RunDetailModal({
                 {planArgs && typeof planArgs.profile === "object" && planArgs.profile !== null && (
                   <p className="text-xs text-[var(--as-muted-fg)]">
                     {t("autopilot.runDetail.profile", {
-                      skills: Number(
-                        (planArgs.profile as { skills?: number }).skills ?? 0,
-                      ),
+                      parts: [
+                        t("autopilot.runDetail.profileSkills", {
+                          skills: Number(
+                            (planArgs.profile as { skills?: number }).skills ?? 0,
+                          ),
+                        }),
+                        (planArgs.profile as { languages?: number }).languages != null
+                          ? t("autopilot.runDetail.profileLanguages", {
+                              count: Number(
+                                (planArgs.profile as { languages?: number }).languages,
+                              ),
+                            })
+                          : null,
+                        (planArgs.profile as { stage?: string }).stage
+                          ? t("autopilot.runDetail.profileStage", {
+                              stage: (planArgs.profile as { stage?: string }).stage,
+                            })
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · "),
                     })}
                   </p>
                 )}

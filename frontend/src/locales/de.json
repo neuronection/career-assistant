@@ -963,7 +963,7 @@
       "duration": "{{seconds}} s",
       "ms": "{{ms}} ms",
       "abortedAs": "abgebrochen: {{reason}}",
-      "profile": "Profil-Snapshot: {{skills}} Skills",
+      "profile": "Profil-Snapshot: {{parts}}",
       "budgetKey": "Budget: {{key}}",
       "step": {
         "plan": "Planen",
@@ -987,6 +987,75 @@
         "guardTokens": "{{tokens}} Tokens bisher ausgegeben",
         "curate": "{{count}} Ausnahmen erklärt",
         "deliver": "{{count}} Treffer · {{status}}"
+      },
+      "profileSkills": "{{skills}} Skills",
+      "profileLanguages": "{{count}} Sprachen",
+      "profileStage": "Stufe {{stage}}"
+    },
+    "summary": {
+      "skills": "Skills: {{items}}",
+      "skillsNone": "Skills: keine erfasst",
+      "skillsUnused": "Skills: nicht verwendet",
+      "education": "Bildung: {{level}}",
+      "educationNone": "Bildung: nicht erfasst",
+      "educationUnused": "Bildung: nicht verwendet",
+      "languages": "Sprachen: {{items}}",
+      "languagesNone": "Sprachen: keine erfasst",
+      "languagesUnused": "Sprachen: nicht verwendet",
+      "stage": "Stufe: {{stage}}",
+      "stageFromProfile": "Stufe: aus deinem Profil",
+      "stageNone": "Stufe: nicht erfasst",
+      "stageUnused": "Erfahrung: nicht verwendet",
+      "location": "Ort: {{city}}",
+      "locationNone": "Ort: nicht erfasst",
+      "locationUnused": "Ort: nicht verwendet",
+      "lifestyle": "Lebensstil: {{count}}",
+      "lifestyleUnused": "Lebensstil: nicht verwendet",
+      "loading": "Profil wird geprüft …"
+    },
+    "profileUsage": {
+      "title": "Was der Autopilot aus deinem Profil verwendet",
+      "goalOnly": "Mit deaktivierten Eingaben sucht dieses Ziel nur anhand deines Zieltextes.",
+      "footnote": "Match-Schätzungen (noch nicht tief extrahierte Stellen) ignorieren diese Schalter.",
+      "stageSourceLabel": "Karrierestufe",
+      "stageSource": {
+        "profile": "Aus meinem Profil",
+        "goal": "Aus der Seniorität dieses Ziels"
+      },
+      "toggles": {
+        "use_skills": {
+          "label": "Skills",
+          "description": "Deine Skills lenken das Suchvokabular und die Skill-Bewertung."
+        },
+        "use_education": {
+          "label": "Bildung & Zertifikate",
+          "description": "Bildungs- und Zertifikatsanforderungen prüfen dein Profil."
+        },
+        "use_languages": {
+          "label": "Sprachen",
+          "description": "Sprachanforderungen prüfen die Sprachen in deinem Profil."
+        },
+        "use_location": {
+          "label": "Ort",
+          "description": "Deine Stadt und Remote-Präferenz beeinflussen die Ortsbewertung."
+        },
+        "use_experience": {
+          "label": "Erfahrung",
+          "description": "Deine Karrierestufe wird gegen die Seniorität jeder Stelle bewertet."
+        },
+        "use_lifestyle": {
+          "label": "Lebensstil-Constraints",
+          "description": "Deine Reise-, Schicht- und Zeitgrenzen kennzeichnen Stellen."
+        }
+      },
+      "chips": {
+        "use_skills": "keine Skills",
+        "use_education": "keine Bildung",
+        "use_languages": "keine Sprachen",
+        "use_location": "kein Ort",
+        "use_experience": "keine Erfahrung",
+        "use_lifestyle": "keine Lebensstil-Flags",
+        "stage_source": "Stufe aus Ziel"
       }
     }
   },

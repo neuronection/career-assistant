@@ -9,10 +9,12 @@ All notable changes to **Career Assistant** are documented here.
   "What the autopilot uses from your profile" section — six toggles
   (skills, education & certificates, languages, location, experience,
   lifestyle constraints) plus a stage source (your profile or the goal's
-  seniority). Defaults reproduce today's behavior; a live preview
-  (`POST /autopilot/profile-context`) shows the effective snapshot while
-  you edit. Disabled inputs score neutral instead of penalizing, and the
-  search itself honors them.
+  seniority). Defaults reproduce today's behavior; a live preview shows
+  the effective snapshot ("Skills: react, python · Stage: student …")
+  while you edit, each goal card carries chips for the inputs you
+  switched off, and the run detail's Inputs panel shows exactly which
+  profile inputs a run used. Disabled inputs score neutral instead of
+  penalizing, and the search itself honors them.
 
 ### Changed (autopilot profile usage, 2026-10-31)
 - **Disabled profile inputs stop dragging scores down** (plan 169): a

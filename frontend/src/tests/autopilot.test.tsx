@@ -6,9 +6,11 @@ import { MemoryRouter } from "react-router-dom";
 import { Autopilot } from "@/features/growth/pages/Autopilot";
 import {
   createGoal,
+  DEFAULT_PROFILE_USAGE,
   deleteGoal,
   fetchFindingsByRun,
   fetchGoals,
+  fetchProfileContext,
   fetchRunDetail,
   patchGoal,
   runGoal,
@@ -18,6 +20,7 @@ import type {
   AutopilotGoal,
   AutopilotRunWithFindings,
   AutopilotRunDetail,
+  ProfileContextSnapshot,
 } from "@/api/autopilot";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -33,6 +36,7 @@ vi.mock("@/api/autopilot", async (importOriginal) => {
     deleteGoal: vi.fn().mockResolvedValue(undefined),
     runGoal: vi.fn(),
     sendFindingFeedback: vi.fn(),
+    fetchProfileContext: vi.fn(),
   };
 });
 
@@ -44,6 +48,22 @@ const mockCreate = vi.mocked(createGoal);
 const mockPatch = vi.mocked(patchGoal);
 const mockDelete = vi.mocked(deleteGoal);
 const mockRunDetail = vi.mocked(fetchRunDetail);
+const mockProfileContext = vi.mocked(fetchProfileContext);
+
+function snapshot(overrides: Partial<ProfileContextSnapshot> = {}): ProfileContextSnapshot {
+  return {
+    skills: [{ key: "programming", level: 4 }],
+    education_level: "high_school",
+    languages: [{ code: "en", level: "advanced" }],
+    country: "Greece",
+    city: "Athens",
+    stage: "student",
+    stage_source: "profile",
+    lifestyle_count: 1,
+    target_seniority: [],
+    ...overrides,
+  };
+}
 
 function goal(overrides: Partial<AutopilotGoal> = {}): AutopilotGoal {
   return {
@@ -60,6 +80,7 @@ function goal(overrides: Partial<AutopilotGoal> = {}): AutopilotGoal {
       exclude_seen: true,
       cooldown_days: 7,
       top_n: 5,
+      profile: { ...DEFAULT_PROFILE_USAGE },
     },
     budget: { max_tokens: null, max_calls: null },
     cadence: { type: "daily_at", params: { time: "08:00" } },
@@ -206,6 +227,7 @@ beforeEach(() => {
   mockGoals.mockResolvedValue([goal()]);
   mockRuns.mockResolvedValue([runWithFindings()]);
   mockRunDetail.mockResolvedValue(runDetail());
+  mockProfileContext.mockResolvedValue(snapshot());
   mockRun.mockResolvedValue({
     run_id: "r2",
     status: "completed",
@@ -456,5 +478,148 @@ describe("Autopilot page", () => {
     mockRunDetail.mockRejectedValue(new Error("404"));
     renderPage("/autopilot?run=r-gone");
     expect(await screen.findByTestId("run-detail-missing")).toBeInTheDocument();
+  });
+
+  it("round-trips the profile usage block through the modal", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Junior QA job, remote");
+    await user.click(screen.getByTestId("new-goal"));
+    const text = await screen.findByLabelText("Your goal");
+    await user.type(text, "Remote data job");
+    await user.click(screen.getByTestId("usage-section-toggle"));
+    await user.click(screen.getByTestId("toggle-skills"));
+    await user.click(screen.getByTestId("goal-save"));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    const payload = mockCreate.mock.calls[0][0];
+    expect(payload.constraints?.profile?.use_skills).toBe(false);
+    expect(payload.constraints?.profile?.use_education).toBe(true);
+    expect(payload.constraints?.profile?.stage_source).toBe("profile");
+    expect(fetchProfileContext).toHaveBeenCalledWith(
+      expect.objectContaining({ use_skills: false }),
+      []
+    );
+  });
+
+  it("saves defaults that match today's behavior when the section stays closed", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByText("Junior QA job, remote");
+    await user.click(screen.getByTestId("new-goal"));
+    const text = await screen.findByLabelText("Your goal");
+    await user.type(text, "Remote data job");
+    await user.click(screen.getByTestId("goal-save"));
+    await waitFor(() => expect(mockCreate).toHaveBeenCalled());
+    const payload = mockCreate.mock.calls[0][0];
+    expect(payload.constraints?.profile).toEqual({ ...DEFAULT_PROFILE_USAGE });
+  });
+
+  it("shows a live usage summary that reflects the toggles", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId("new-goal"));
+    await user.click(screen.getByTestId("usage-section-toggle"));
+    const summary = await screen.findByTestId("usage-summary");
+    await waitFor(() => {
+      expect(summary.textContent).toContain("Skills: programming");
+      expect(summary.textContent).toContain("Education: high_school");
+      expect(summary.textContent).toContain("Languages: en");
+      expect(summary.textContent).toContain("Stage: student");
+      expect(summary.textContent).toContain("Location: Athens");
+    });
+
+    mockProfileContext.mockResolvedValue(
+      snapshot({ stage: "early_career", stage_source: "goal" })
+    );
+    await user.click(screen.getByRole("button", { name: "From this goal's seniority" }));
+    await waitFor(() => expect(summary.textContent).toContain("Stage: early_career"));
+
+    mockProfileContext.mockResolvedValue(
+      snapshot({ stage: "student", stage_source: "profile" })
+    );
+    await user.click(screen.getByTestId("toggle-experience"));
+    await waitFor(() => {
+      expect(summary.textContent).toContain("Experience: not used");
+      expect(summary.textContent).not.toContain("Stage: early_career");
+    });
+
+    await user.click(screen.getByTestId("toggle-experience"));
+    await waitFor(() => expect(summary.textContent).toContain("Stage: from your profile"));
+  });
+
+  it("shows the searching-from-goal-only note when an input is switched off", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByTestId("new-goal"));
+    await user.click(screen.getByTestId("usage-section-toggle"));
+    expect(screen.queryByTestId("usage-goal-only")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("toggle-skills"));
+    expect(await screen.findByTestId("usage-goal-only")).toBeInTheDocument();
+  });
+
+  it("renders disabled-usage chips on the goal card", async () => {
+    mockGoals.mockResolvedValue([
+      goal({
+        id: "g2",
+        constraints: {
+          must_terms: [],
+          never_terms: [],
+          family_keys: [],
+          source_keys: [],
+          remote: null,
+          salary_min: null,
+          seniority: [],
+          exclude_seen: true,
+          cooldown_days: 7,
+          top_n: 5,
+          profile: {
+            use_skills: false,
+            use_education: true,
+            use_languages: true,
+            use_location: true,
+            use_experience: true,
+            use_lifestyle: true,
+            stage_source: "goal",
+          },
+        },
+      }),
+    ]);
+    renderPage();
+    const card = await screen.findByTestId("goal-card-g2");
+    expect(card.textContent).toContain("no skills");
+    expect(card.textContent).toContain("stage from goal");
+    expect(card.textContent).not.toContain("no education");
+  });
+
+  it("renders the plan inputs panel with languages and stage", async () => {
+    const detail = runDetail();
+    detail.steps = [
+      traceStep({
+        step: "plan",
+        kind: "llm",
+        args: {
+          goal: "Junior QA job, remote",
+          constraints: ["profile", "seniority"],
+          budget: [],
+          profile: {
+            skills: 2,
+            languages: 1,
+            stage: "student",
+            stage_source: "goal",
+            education_level: "high_school",
+            target_seniority: ["junior"],
+          },
+        },
+        output: { variants: 3 },
+      }),
+    ];
+    mockRunDetail.mockResolvedValue(detail);
+    renderPage("/autopilot?run=r1");
+    const inputs = await screen.findByTestId("run-detail-inputs");
+    await waitFor(() => {
+      expect(inputs.textContent).toContain("2 skills");
+      expect(inputs.textContent).toContain("1 languages");
+      expect(inputs.textContent).toContain("stage student");
+    });
   });
 });
