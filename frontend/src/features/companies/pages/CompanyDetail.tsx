@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ExternalLink } from "lucide-react";
+
+import { LIST_RETURN_STATE, listReturnHref } from "@/lib/listReturn";
 import { fetchCompany } from "@/api/companies";
 import { fetchPostings } from "@/api/postings";
 import { Badge, EmptyState } from "@/components/ui";
@@ -269,7 +271,8 @@ function BackLink() {
   const { t } = useTranslation();
   return (
     <Link
-      to="/companies"
+      to={listReturnHref("/companies")}
+      state={LIST_RETURN_STATE}
       className="text-sm text-[var(--as-accent)] inline-flex items-center gap-1 hover:underline"
     >
       <ArrowLeft className="w-4 h-4" /> {t("companyDetail.back")}

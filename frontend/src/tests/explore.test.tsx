@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
+import { resetExploreListCache } from "@/features/catalog/exploreListCache";
 import { explorePostings } from "@/api/postings";
 import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
@@ -167,6 +168,7 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
 }
 
 beforeEach(() => {
+  resetExploreListCache();
   mockExplore.mockResolvedValue(exploreResponse());
   mockCompanies.mockResolvedValue({
     items: [

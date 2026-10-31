@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
@@ -30,6 +30,7 @@ import { useProfilesStore } from "@/stores/profilesStore";
 import { BetaBanner } from "@/components/BetaBanner";
 import { FirstRunSetupGate } from "@/features/profile/components/onboarding/FirstRunSetupGate";
 import { AiMockChip } from "@/components/ai/AiSetupPrompt";
+import { useMainScrollRestoration } from "@/hooks/useMainScrollRestoration";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -37,6 +38,8 @@ export function Layout() {
   const { bootstrap, load: loadBootstrap } = useBootstrapStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
+  useMainScrollRestoration(mainRef);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -226,7 +229,7 @@ export function Layout() {
             )}
           </div>
         </header>
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto">
+        <main id="main" ref={mainRef} className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={
               fullBleed

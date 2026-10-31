@@ -135,6 +135,15 @@ A reload, the browser's back button and a shared or bookmarked link all
 open the same filtered view; unknown or malformed values are dropped and
 the page falls back to its defaults.
 
+**Opening a posting doesn't cost you the list.** Whether you come back
+with the browser's back button or the **All postings** link on the
+posting page, the list returns with the same filters, the same sort, the
+pages you had already scrolled through and the same scroll position.
+An action taken on the posting keeps the list honest: hiding it drops the
+card, and read/saved state updates in place. A fresh visit from the
+navigation starts at the top, with a fresh list; the remembered view
+lives for the current session.
+
 ### Presets — save a view, not a query
 
 Above the results sits the **preset bar**. *Save current view* turns the

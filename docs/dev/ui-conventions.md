@@ -551,6 +551,29 @@ or send to someone else keeps that state **in the URL, not in
   open-roles floor all ride the URL (`?status=new&work_mode=remote&min_open=5`),
   with the same parse → write → canonicalize contract.
 
+### 2h+. Returning to a list keeps its view (plan 172)
+
+URL state covers filters/order on back, but a remounted list also loses
+its loaded pages and scroll height. The return contract on top of §2h:
+
+- list pages remember their canonical search in session memory
+  (`lib/listReturn.ts`, `rememberListSearch`); detail pages' back links
+  (`/postings/:ref` → "All postings", `/companies/:key` → back) and
+  detail-side list re-entries (hide) navigate to `listReturnHref(path)`
+  carrying `{ listReturn: true }` state — never the bare path;
+- the rendered list is snapshotted in session memory keyed by
+  `profileEpoch|canonical-search` (`exploreListCache` /
+  `companiesListCache`): a remount that is a **return** — POP, or a PUSH
+  carrying the list-return state — restores items + cursor synchronously
+  and skips the first fetch; any other navigation refetches page one as
+  before. Any filter change refetches page one as before, and
+  detail-side mutations keep the snapshot honest (hide drops the row,
+  seen/saved patch it);
+- `useMainScrollRestoration` journals `#main`'s scrollTop per
+  `pathname+search`: POP restores it, a fresh PUSH starts at the top, a
+  PUSH carrying `listReturn` restores it, REPLACE (filter patches, mount
+  canonicalization) never moves it.
+
 ## 2d. Feature state (beta affordance)
 
 `frontend/src/config/features.json` is the single feature-state table

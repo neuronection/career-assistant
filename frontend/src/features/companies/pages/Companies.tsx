@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowUpDown, Building2, Globe, MapPin, Search } from "lucide-react";
-import { fetchCompanies, type CompanyQuery } from "@/api/companies";
+import { fetchCompanies } from "@/api/companies";
+import { rememberListSearch, isListReturn } from "@/lib/listReturn";
+import {
+  peekCompaniesList,
+  rememberCompaniesList,
+  type CompaniesListSnapshot,
+} from "@/features/companies/companiesListCache";
+import { useProfilesStore } from "@/stores/profilesStore";
 import { Badge, EmptyState, SearchableDropdown } from "@/components/ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
@@ -47,10 +59,27 @@ export function Companies() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [facets, setFacets] = useState<CompanyFacets | null>(null);
+  const profileEpoch = useProfilesStore((state) => state.epoch);
+  const plainKey = useMemo(() => toSearchParams(filters).toString(), [filters]);
+  const snapshotKey = `${profileEpoch}|${plainKey}`;
+  const navigationType = useNavigationType();
+  const locationState = useLocation().state;
+  const restorable = navigationType === "POP" || isListReturn(locationState);
+  const restoredRef = useRef<CompaniesListSnapshot | null | undefined>(
+    undefined
+  );
+  if (restoredRef.current === undefined) {
+    restoredRef.current = restorable ? peekCompaniesList(snapshotKey) : null;
+  }
+  const restored = restoredRef.current;
+  const [companies, setCompanies] = useState<Company[]>(
+    () => restored?.companies ?? []
+  );
+  const [facets, setFacets] = useState<CompanyFacets | null>(
+    () => restored?.facets ?? null
+  );
   const [error, setError] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => restored !== null);
 
   const patch = useCallback(
     (update: Partial<CompanyFilters>) => {
@@ -78,25 +107,40 @@ export function Companies() {
   );
 
   const fetchWith = useCallback(
-    (params: CompanyQuery) => {
-      void fetchCompanies({ ...params, facets: true })
+    (current: CompanyFilters) => {
+      void fetchCompanies({ ...toParams(current), facets: true })
         .then((result) => {
-          setCompanies(result.items ?? []);
+          const items = result.items ?? [];
+          setCompanies(items);
           setFacets(result.facets ?? null);
           setError("");
+          rememberCompaniesList(
+            `${profileEpoch}|${toSearchParams(current).toString()}`,
+            { companies: items, facets: result.facets ?? null }
+          );
         })
         .catch(() => setError(t("companies.loadError")))
         .finally(() => setLoaded(true));
     },
-    [t]
+    [t, profileEpoch]
   );
 
+  const restoredForRef = useRef<CompanyFilters | null>(null);
   useEffect(() => {
+    if (restoredRef.current && restoredForRef.current === null) {
+      restoredForRef.current = filters;
+      return;
+    }
+    if (restoredForRef.current === filters) return;
     const handle = setTimeout(() => {
-      fetchWith(toParams(filters));
+      fetchWith(filters);
     }, 250);
     return () => clearTimeout(handle);
   }, [filters, fetchWith]);
+
+  useEffect(() => {
+    rememberListSearch("/companies", plainKey);
+  }, [plainKey]);
 
   useEffect(() => {
     const canonical = toSearchParams(parseFilters(searchParams)).toString();

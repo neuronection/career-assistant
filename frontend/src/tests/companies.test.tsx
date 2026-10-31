@@ -7,6 +7,7 @@ import * as companiesApi from "@/api/companies";
 import * as postingsApi from "@/api/postings";
 import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 import { Companies } from "@/features/companies/pages/Companies";
+import { resetCompaniesListCache } from "@/features/companies/companiesListCache";
 import type { Company, CompanyDetail as CompanyDetailType } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 
@@ -119,6 +120,7 @@ function mockCompanyPostings(items: PostingOut[]) {
 describe("Companies browsing (plan 135)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetCompaniesListCache();
   });
 
   it("shows the proposed badge for posting-born companies", async () => {

@@ -45,7 +45,11 @@ encoded in the address bar
 so a filtered directory survives a reload and can be bookmarked or shared;
 unknown or malformed values are dropped and the page falls back to its
 defaults. The open-roles select carries an **Any number of roles** entry
-for "no floor".
+for "no floor". Opening a company and coming back — via the browser's
+back button or the **All companies** link on the company page — restores
+the same filtered, sorted directory at the same scroll position (for the
+current session); a fresh visit from the navigation starts at the top
+with a fresh list.
 
 ## The company page
 

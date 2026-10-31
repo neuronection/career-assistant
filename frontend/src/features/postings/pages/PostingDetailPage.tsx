@@ -32,6 +32,11 @@ import {
   savePosting,
 } from "@/api/postings";
 import { openInterviewChat } from "@/features/chat/components/chat/interviewChatLink";
+import { LIST_RETURN_STATE, listReturnHref } from "@/lib/listReturn";
+import {
+  dropExploreListPosting,
+  patchExploreListPosting,
+} from "@/features/catalog/exploreListCache";
 import { MatchCard } from "@/features/postings/components/posting-detail/MatchCard";
 import { PostingHistory } from "@/features/postings/components/posting-detail/PostingHistory";
 import {
@@ -111,7 +116,10 @@ export function PostingDetailPage() {
     setMissing(false);
     setError("");
     void fetchPostingDetail(ref)
-      .then(setPosting)
+      .then((next) => {
+        setPosting(next);
+        patchExploreListPosting(next.id, { seen: next.seen, saved: next.saved });
+      })
       .catch((err) => {
         const detail = apiDetail(err);
         if (/not found/i.test(detail)) {
@@ -187,12 +195,16 @@ export function PostingDetailPage() {
 
   function hide() {
     if (posting === null) return;
-    void hidePosting(posting.id, true).then(() => navigate("/postings"));
+    void hidePosting(posting.id, true).then(() => {
+      dropExploreListPosting(posting.id);
+      navigate(listReturnHref("/postings"), { state: LIST_RETURN_STATE });
+    });
   }
 
   const backLink = (
     <Link
-      to="/postings"
+      to={listReturnHref("/postings")}
+      state={LIST_RETURN_STATE}
       className="inline-flex items-center gap-1.5 text-sm text-primary-700 hover:underline"
     >
       <ArrowLeft className="w-4 h-4" /> {t("postingDetail.backToPostings")}
@@ -412,6 +424,7 @@ export function PostingDetailPage() {
                     data-testid="open-original"
                     onClick={() => {
                       void markPostingsSeen([posting.id]).catch(() => undefined);
+                      patchExploreListPosting(posting.id, { seen: true });
                       void markApplied(posting.id, posting.url).catch(() => undefined);
                     }}
                   >

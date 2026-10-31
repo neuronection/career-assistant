@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (list return state, 2026-10-31)
+- Opening a posting no longer costs you the list: coming back to
+  `/postings` — via the browser's back button or the **All postings**
+  link (and after hiding from the posting page) — keeps the filters, the
+  sort, every already-loaded infinite-scroll page and the scroll height.
+  The same contract now covers `/companies` and its **All companies**
+  link. Actions taken on the posting keep the restored list honest
+  (hidden postings drop out; read/saved state updates in place), while a
+  fresh visit from the navigation still starts at the top.
+
 ### Added (market statistics stretch, 2026-10-31)
 - **The posting clock** (plan 171 slice 1): `GET /postings/stats/clockwork`
   joins the market stats API — a complete 7x24 weekday-by-hour matrix over

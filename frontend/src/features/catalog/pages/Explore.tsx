@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useNavigationType, useSearchParams, useLocation } from "react-router-dom";
 import { ArrowUpDown, Radar, Search, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources } from "@/api/postings";
@@ -13,10 +13,17 @@ import { PostingsStatsRail } from "@/components/stats/StatsRail";
 import { PresetBar } from "@/features/postings/components/postings/PresetBar";
 import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { isListReturn, rememberListSearch } from "@/lib/listReturn";
+import {
+  peekExploreList,
+  rememberExploreList,
+  type ExploreListSnapshot,
+} from "@/features/catalog/exploreListCache";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
+import { useProfilesStore } from "@/stores/profilesStore";
 import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
 import {
   CONTRACT_VALUES,
@@ -37,10 +44,25 @@ export function Explore() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
-  const [items, setItems] = useState<PostingOut[]>([]);
-  const [total, setTotal] = useState(0);
-  const [facets, setFacets] = useState<ExploreFacets>(EMPTY_FACETS);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const profileEpoch = useProfilesStore((state) => state.epoch);
+  const plainKey = useMemo(() => toSearchParams(filters).toString(), [filters]);
+  const searchKey = `${profileEpoch}|${plainKey}`;
+  const navigationType = useNavigationType();
+  const location = useLocation();
+  const restorable = navigationType === "POP" || isListReturn(location.state);
+  const restoredRef = useRef<ExploreListSnapshot | null | undefined>(undefined);
+  if (restoredRef.current === undefined) {
+    restoredRef.current = restorable ? peekExploreList(searchKey) : null;
+  }
+  const restored = restoredRef.current;
+  const [items, setItems] = useState<PostingOut[]>(() => restored?.items ?? []);
+  const [total, setTotal] = useState(() => restored?.total ?? 0);
+  const [facets, setFacets] = useState<ExploreFacets>(
+    () => restored?.facets ?? EMPTY_FACETS
+  );
+  const [cursor, setCursor] = useState<string | null>(
+    () => restored?.nextCursor ?? null
+  );
   const [sources, setSources] = useState<PostingSourceInfo[]>([]);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState("");
@@ -49,6 +71,7 @@ export function Explore() {
   const [radarActive, setRadarActive] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
+  const itemsRef = useRef<PostingOut[]>(items);
 
   const paramsFrom = useCallback(
     (current: Filters, nextCursor?: string | null): ExploreParams => {
@@ -64,14 +87,27 @@ export function Explore() {
       setError("");
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
-          setItems((prev) => (append ? [...prev, ...response.items] : response.items));
+          const merged = append
+            ? [...itemsRef.current, ...response.items]
+            : response.items;
+          setItems(merged);
+          itemsRef.current = merged;
           setTotal(response.total);
           setFacets(response.facets ?? {});
           setCursor(response.next_cursor ?? null);
+          rememberExploreList(
+            `${profileEpoch}|${toSearchParams(current).toString()}`,
+            {
+              items: merged,
+              total: response.total,
+              facets: response.facets ?? {},
+              nextCursor: response.next_cursor ?? null,
+            }
+          );
         })
         .catch((err) => setError(String(err)));
     },
-    [cursor, paramsFrom]
+    [cursor, paramsFrom, profileEpoch]
   );
 
   useEffect(() => {
@@ -87,12 +123,22 @@ export function Explore() {
     void fetchPostingSources().then(setSources).catch(() => setSources([]));
   }, []);
 
+  const restoredForRef = useRef<Filters | null>(null);
   useEffect(() => {
+    if (restoredRef.current && restoredForRef.current === null) {
+      restoredForRef.current = filters;
+      return;
+    }
+    if (restoredForRef.current === filters) return;
     setRadarActive(false);
     setCursor(null);
     load(filters, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  useEffect(() => {
+    rememberListSearch("/postings", plainKey);
+  }, [plainKey]);
 
   const patch = useCallback(
     (update: Partial<Filters>) => {
@@ -127,14 +173,25 @@ export function Explore() {
         // a filter change that landed mid-flight re-owns the list —
         // the stale page is dropped, never appended to it
         if (requestFilters !== filtersRef.current) return;
-        setItems((prev) => [...prev, ...response.items]);
+        const merged = [...itemsRef.current, ...response.items];
+        setItems(merged);
+        itemsRef.current = merged;
         setTotal(response.total);
         setFacets(response.facets ?? {});
         setCursor(response.next_cursor ?? null);
+        rememberExploreList(
+          `${profileEpoch}|${toSearchParams(requestFilters).toString()}`,
+          {
+            items: merged,
+            total: response.total,
+            facets: response.facets ?? {},
+            nextCursor: response.next_cursor ?? null,
+          }
+        );
       })
       .catch((err) => setError(String(err)))
       .finally(() => setLoadingMore(false));
-  }, [cursor, filters, paramsFrom, radarActive]);
+  }, [cursor, filters, paramsFrom, radarActive, profileEpoch]);
 
   const sentinelRef = useInfiniteScroll(loadMore, !!cursor && !radarActive);
 
@@ -169,6 +226,7 @@ export function Explore() {
         enabled: true,
       });
       setItems(response.items);
+      itemsRef.current = response.items;
       setTotal(response.total);
       setFacets(response.facets ?? {});
       setCursor(null);
