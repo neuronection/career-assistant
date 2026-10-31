@@ -5268,7 +5268,26 @@
     },
     "basisHint": "Offene zählt nur laufende Stellen; Alle zählt auch abgelaufene.",
     "compare": {
-      "title": "Mit Vorzeitraum vergleichen"
+      "groupAria": "Vergleichsfenster",
+      "off": "Kein Vergleich",
+      "previous": "Vorzeitraum",
+      "custom": "Eigenes B-Fenster",
+      "fromLabel": "Vergleichen ab",
+      "toLabel": "Vergleichen bis",
+      "legendCurrent": "Gewählter Zeitraum",
+      "legendPrev": "Vorheriges",
+      "legendB": "Vergleich",
+      "paused": "Der Vergleich pausiert bei einem Split — er gilt ohne Split.",
+      "hintDates": "Beide Vergleichsdaten wählen, um das B-Fenster zu überlagern.",
+      "hintAll": "Gesamtzeitraum ohne Rand — beide Vergleichsdaten wählen.",
+      "hintCrop": "Per Versatz ausgerichtet — {{count}} Intervalle aus dem Vergleich gekürzt.",
+      "hintPad": "Per Versatz ausgerichtet — {{count}} Intervalle des Vergleichs mit Nullen gefüllt.",
+      "error": "Der Vergleichszeitraum stieß an das Serverlimit — kürzeres B-Fenster wählen."
+    },
+    "copy": {
+      "link": "Link kopieren",
+      "copied": "Link kopiert ✓",
+      "failed": "Kopieren fehlgeschlagen — die URL bleibt in der Adressleiste"
     },
     "export": "CSV exportieren",
     "tiles": {

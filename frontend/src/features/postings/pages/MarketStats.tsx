@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Download, RefreshCw } from "lucide-react";
+import { Copy, Download } from "lucide-react";
+import { isAxiosError } from "axios";
 import {
   EmptyState,
   RangeBar,
@@ -15,7 +16,7 @@ import { ChartCard } from "@/components/stats/charts/chartKit";
 import { downloadStatsCsv, type CsvRows } from "@/components/stats/statsExport";
 import { DeltaBadge } from "@/components/stats/charts/DeltaBadge";
 import { InsightsStrip } from "@/components/stats/charts/InsightsStrip";
-import { TimeSeriesChart, seriesRows } from "@/components/stats/charts/TimeSeriesChart";
+import { TimeSeriesChart, TimeSeriesLegend, seriesRows } from "@/components/stats/charts/TimeSeriesChart";
 import { BreakdownBars } from "@/components/stats/charts/BreakdownBars";
 import { SkillTrendList } from "@/components/stats/charts/SkillTrendList";
 import { ScatterQuadrant } from "@/components/stats/charts/ScatterQuadrant";
@@ -48,11 +49,15 @@ import {
 import {
   MARKET_DIMENSIONS,
   MARKET_WINDOWS,
+  addIsoDays,
+  compareRange,
   parseView,
   rangeQuery,
+  spanDays,
   toSearchParams,
   type MarketStatsView,
 } from "./marketStatsParams";
+import { copyText } from "@/lib/clipboard";
 
 const QUADRANT_MAX = 30;
 
@@ -70,6 +75,7 @@ export function MarketStats() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [summary, setSummary] = useState<PostingStatsSummary | null>(null);
   const [overview, setOverview] = useState<PostingStatsOverview | null>(null);
   const [series, setSeries] = useState<PostingStatsTimeseries | null>(null);
@@ -81,7 +87,10 @@ export function MarketStats() {
   const [companyOverview, setCompanyOverview] = useState<CompanyStatsOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [ghost, setGhost] = useState(true);
+  const [compareSeries, setCompareSeries] = useState<PostingStatsTimeseries | null>(null);
+  const [compareError, setCompareError] = useState<unknown>(null);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const copyReset = useRef(0);
   const requestId = useRef(0);
   const view = useMemo(() => parseView(searchParams), [searchParams]);
   const viewRef = useRef(view);
@@ -131,6 +140,34 @@ export function MarketStats() {
     if (results.every((result) => result.status === "rejected")) {
       setError(true);
     }
+    const series = rSeries.status === "fulfilled" ? rSeries.value : null;
+    const bRange = rSeries.status === "fulfilled" ? compareRange(current) : null;
+    // H9: the B fetch rides A's resolved bucket so the grids align; while
+    // a split is on the overlay pauses (state preserved, no fetch, no
+    // drop — compare applies in split=none only).
+    if (current.compare !== "custom" || !bRange || current.split || !series) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const bFrom = `${bRange.from}T00:00:00`;
+      const bTo = `${new Date(
+        Date.parse(`${bRange.to}T00:00:00Z`) + 86_400_000,
+      ).toISOString().slice(0, 10)}T00:00:00`;
+      const b = await fetchPostingStatsTimeseries({
+        from: bFrom,
+        to: bTo,
+        bucket: series.bucket,
+        status_basis: current.basis,
+      });
+      if (id !== requestId.current) return;
+      setCompareSeries(b);
+      setCompareError(null);
+    } catch (err) {
+      if (id !== requestId.current) return;
+      setCompareSeries(null);
+      setCompareError(err);
+    }
     setLoading(false);
   }, []);
 
@@ -144,6 +181,35 @@ export function MarketStats() {
       setSearchParams(toSearchParams({ ...viewRef.current, ...update }), { replace: true });
     },
     [setSearchParams]
+  );
+
+  // A bare compare=custom pick seeds the B start to A's start minus A's
+  // span — the exact length the previous-window ghost overlaid — so the
+  // pair reveals itself usable; with no edge (window=all) nothing seeds
+  // and the hint explains. Both dates pending never fetches.
+  const patchCompare = useCallback(
+    (mode: MarketStatsView["compare"], from?: string, to?: string) => {
+      if (mode !== "custom") {
+        patch({ compare: mode, compare_from: "", compare_to: "" });
+        return;
+      }
+      if (from !== undefined) {
+        patch({ compare: "custom", compare_from: from });
+        return;
+      }
+      if (to !== undefined) {
+        patch({ compare: "custom", compare_to: to });
+        return;
+      }
+      const span = spanDays(viewRef.current);
+      if (span === null || viewRef.current.compare_from) {
+        patch({ compare: "custom" });
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      patch({ compare: "custom", compare_from: addIsoDays(today, -(2 * span - 1)) });
+    },
+    [patch]
   );
 
   const splitItems: SegmentedTabsItem[] = [
@@ -162,6 +228,62 @@ export function MarketStats() {
   const volumeRows = series ? volumeCsv(series) : [];
   const breakdownRows = breakdown ? breakdownCsv(breakdown) : [];
 
+  const bRange = compareRange(view);
+  const compareOverlay = useMemo(() => {
+    if (view.compare !== "custom" || !series || !compareSeries) return null;
+    // Alignment is by bucket ORDER (offset), not by key: B is a different
+    // date range, so "same bucket" means nothing — both grids are
+    // cropped to the shorter one and the shorter side is zero-padded by
+    // the hint when lengths differ.
+    const length = Math.min(series.points.length, compareSeries.points.length);
+    const points = seriesRows(series.points)
+      .slice(0, length)
+      .map((row, index) => ({ ...row, compare: compareSeries.points[index]?.count ?? 0 }));
+    return {
+      points,
+      cropped: Math.max(0, compareSeries.points.length - length),
+      padded: Math.max(0, series.points.length - length),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series, compareSeries]);
+
+  const copyLink = useCallback(async () => {
+    // The deep link the app is really showing (router location, so any
+    // router context is honest), against the live origin.
+    const ok = await copyText(
+      `${window.location.origin}${location.pathname}${location.search}`,
+    );
+    setCopyState(ok ? "copied" : "failed");
+    window.clearTimeout(copyReset.current);
+    copyReset.current = window.setTimeout(() => setCopyState("idle"), 1600);
+  }, [location.pathname, location.search]);
+
+  let compareHint: string | null = null;
+  let compareHintStatus: string | null = null;
+  if (view.compare === "custom") {
+    if (compareError !== null) {
+      // Degrade path: the B window hit the API's bucket bound (HTTP 400,
+      // the DomainError mapping) — hint inline, keep the page functional.
+      compareHintStatus = isAxiosError(compareError)
+        ? String(compareError.response?.status ?? "")
+        : null;
+      compareHint = t("marketStats.compare.error");
+    } else if (view.split) {
+      compareHint = t("marketStats.compare.paused");
+    } else if (!bRange) {
+      compareHint = view.window === "all"
+        ? t("marketStats.compare.hintAll")
+        : t("marketStats.compare.hintDates");
+    } else if (compareOverlay) {
+      compareHint =
+        compareOverlay.cropped > 0
+          ? t("marketStats.compare.hintCrop", { count: compareOverlay.cropped })
+          : compareOverlay.padded > 0
+            ? t("marketStats.compare.hintPad", { count: compareOverlay.padded })
+            : null;
+    }
+  }
+
   return (
     <div className="space-y-4" data-testid="market-stats">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -172,15 +294,25 @@ export function MarketStats() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            aria-pressed={ghost}
-            onClick={() => setGhost((value) => !value)}
+            onClick={copyLink}
             className="inline-flex items-center gap-1.5 rounded-full border border-[var(--as-border)] px-3 py-1 text-xs font-medium text-[var(--as-muted-fg)]"
-            data-testid="market-stats-compare"
-            title={t("marketStats.compare.title")}
+            data-testid="stats-copy-link"
+            title={
+              copyState === "failed"
+                ? t("marketStats.copy.failed")
+                : t("marketStats.copy.link")
+            }
           >
-            <RefreshCw className="size-3" aria-hidden />
-            {t("marketStats.compare.title")}
+            <Copy className="size-3" aria-hidden />
+            {copyState === "copied"
+              ? t("marketStats.copy.copied")
+              : copyState === "failed"
+                ? t("marketStats.copy.failed")
+                : t("marketStats.copy.link")}
           </button>
+          <span aria-live="polite" className="sr-only">
+            {copyState === "copied" ? t("marketStats.copy.copied") : ""}
+          </span>
           <button
             type="button"
             onClick={() => downloadStatsCsv(view.window, allExportRows(summary, series, skills, breakdown, salary, companySummary, companyOverview))}
@@ -264,7 +396,65 @@ export function MarketStats() {
             </button>
           ))}
         </div>
+        <div
+          className="flex items-center gap-1 rounded-[var(--as-radius)] border border-[var(--as-border)] p-0.5"
+          role="group"
+          aria-label={t("marketStats.compare.groupAria")}
+          data-testid="market-stats-compare"
+        >
+          {(["off", "previous", "custom"] as const).map((mode) => (
+            <button
+              key={mode}
+              type="button"
+              aria-pressed={view.compare === mode}
+              onClick={() => patchCompare(mode)}
+              className={`rounded-[calc(var(--as-radius,0.75rem)-0.2rem)] px-2 py-0.5 text-xs ${
+                view.compare === mode
+                  ? "bg-[var(--as-surface-raised)] font-medium text-[var(--as-fg)]"
+                  : "text-[var(--as-muted-fg)]"
+              }`}
+              data-testid={`market-stats-compare-${mode}`}
+            >
+              {t(`marketStats.compare.${mode}`)}
+            </button>
+          ))}
+        </div>
+        {view.compare === "custom" ? (
+          <span className="flex flex-wrap items-center gap-2">
+            <input
+              type="date"
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2 py-1.5 text-sm text-[var(--as-fg)]"
+              value={view.compare_from}
+              max={view.compare_to || undefined}
+              onChange={(event) => patchCompare("custom", event.target.value)}
+              aria-label={t("marketStats.compare.fromLabel")}
+              data-testid="market-stats-compare-from"
+            />
+            <span aria-hidden className="text-xs text-[var(--as-muted-fg)]">→</span>
+            <input
+              type="date"
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-2 py-1.5 text-sm text-[var(--as-fg)]"
+              value={view.compare_to}
+              min={view.compare_from || undefined}
+              onChange={(event) => patchCompare("custom", undefined, event.target.value)}
+              aria-label={t("marketStats.compare.toLabel")}
+              data-testid="market-stats-compare-to"
+            />
+          </span>
+        ) : null}
       </div>
+
+      {compareHint ? (
+        <p
+          className="text-xs text-[var(--as-warning)]"
+          data-testid="compare-hint"
+          title={
+            compareHintStatus ? `${compareHintStatus}` : undefined
+          }
+        >
+          {compareHint}
+        </p>
+      ) : null}
 
       {error ? (
         <p className="text-sm text-[var(--as-danger)]" data-testid="market-stats-error">
@@ -351,11 +541,16 @@ export function MarketStats() {
               {series && series.points.length > 0 ? (
                 <>
                   <TimeSeriesChart
-                    points={seriesRows(series.points)}
-                    ghost={ghost}
+                    points={compareOverlay?.points ?? seriesRows(series.points)}
+                    ghost={view.compare !== "off"}
                     height={220}
+                    compareLabel={compareOverlay ? t("marketStats.compare.legendB") : undefined}
                     labels={{
-                      prev: t("marketStats.series.prev"),
+                      current: compareOverlay ? t("marketStats.compare.legendCurrent") : undefined,
+                      prev:
+                        compareOverlay
+                          ? t("marketStats.compare.legendPrev")
+                          : t("marketStats.series.prev"),
                       series: view.split
                         ? Object.keys(series.points[0]?.series ?? {}).map((key) => ({
                             key,
@@ -366,6 +561,13 @@ export function MarketStats() {
                         : undefined,
                     }}
                   />
+                  {compareOverlay ? (
+                    <TimeSeriesLegend
+                      current={t("marketStats.compare.legendCurrent")}
+                      prev={t("marketStats.compare.legendPrev")}
+                      compare={t("marketStats.compare.legendB")}
+                    />
+                  ) : null}
                   <p className="mt-2 text-[11px] text-[var(--as-muted-fg)]">
                     {t("marketStats.bucketLabel", { bucket: series.bucket })}
                   </p>

@@ -5269,7 +5269,26 @@
     },
     "basisHint": "Open counts only live postings; All also counts expired ones.",
     "compare": {
-      "title": "Compare with previous"
+      "groupAria": "Comparison window",
+      "off": "No comparison",
+      "previous": "Previous window",
+      "custom": "Custom B range",
+      "fromLabel": "Compare from",
+      "toLabel": "Compare until",
+      "legendCurrent": "Selected window",
+      "legendPrev": "Previous",
+      "legendB": "Comparison",
+      "paused": "Comparison pauses while a split is on — it applies without a split.",
+      "hintDates": "Pick both comparison dates to overlay the B window.",
+      "hintAll": "All time has no edge to mirror — pick both comparison dates.",
+      "hintCrop": "Aligned by offset — {{count}} bucket(s) cropped from the comparison.",
+      "hintPad": "Aligned by offset — {{count}} bucket(s) zero-padded in the comparison.",
+      "error": "The comparison range hit the server's bucket bound — choose a shorter B window."
+    },
+    "copy": {
+      "link": "Copy link",
+      "copied": "Link copied ✓",
+      "failed": "Copy failed — the URL stays in the address bar"
     },
     "export": "Export CSV",
     "tiles": {

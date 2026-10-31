@@ -5,6 +5,7 @@ import { MarketStats } from "@/features/postings/pages/MarketStats";
 import {
   type PostingStatsClockwork,
   type PostingStatsSummary,
+  type PostingStatsTimeseries,
 } from "@/api/stats";
 
 export const SPARK = Array.from({ length: 14 }, (_, index) => ({
@@ -56,7 +57,7 @@ export function mockClockwork(hot = true): PostingStatsClockwork {
   };
 }
 
-export const TIMESERIES = {
+export const TIMESERIES: PostingStatsTimeseries = {
   as_of: SUMMARY.as_of,
   window: "30d",
   status_basis: "all",
@@ -69,7 +70,7 @@ export const TIMESERIES = {
     { bucket: "2026-10-21", count: 0, prev: 4, ingestion: 0, series: {} },
     { bucket: "2026-10-22", count: 11, prev: 6, ingestion: 11, series: {} },
   ],
-} as const;
+};
 
 /** The shapes mirror the real pydantic wire models — the mock-reality
  * rule; a silent field miss here hides against the live endpoint. */

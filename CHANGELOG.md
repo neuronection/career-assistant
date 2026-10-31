@@ -27,6 +27,21 @@ All notable changes to **Career Assistant** are documented here.
   (the shared per-card builders), so the table is the chart's textual
   twin by construction. Backed by the assistant-ui `Table` module; the
   skills lists and the demand quadrant carry `sr-only` captions instead.
+- **Custom comparison + copy link** (plan 171 slice 4): the market-stats
+  comparison becomes URL state (`compare=off|previous|custom`, default
+  `previous` — the old local ghost toggle dies same-commit). `custom`
+  overlays an arbitrary B window beside the selected one — seeded to the
+  equally-long span before A, with an inline date pair (its end
+  auto-mirrors A's span; in `window=all` nothing pre-fills and a hint
+  asks for both dates). The B fetch reuses A's resolved bucket and the
+  overlay aligns by bucket offset — longer grids crop, shorter ones
+  zero-pad, and a `compare-hint` chip names the shift; while a split is
+  on, the overlay pauses with a hint instead. A too-long B window degrades
+  on the API's real HTTP 400 into the same localized hint, page intact.
+  The volume chart renders the B series as a dashed token line over the
+  bars with a localized legend. Header gains a `Copy link` action
+  (family clipboard with the execCommand fallback) with a transient
+  "Link copied ✓" state announced politely.
 
 ### Added (market statistics rails, 2026-10-31)
 - **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now
