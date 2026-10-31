@@ -143,6 +143,14 @@ class Settings(BaseSettings):
     # --mock-ai) or a real provider is configured in the UI. Production
     # ignores this: the gateway blocks the mock provider there regardless.
     mock_ai: bool = False
+    # Optional OTel span export (plan 168 / ADR-0044 addendum): an infra
+    # knob like mock_ai, never AI config — "" (default) | "console" |
+    # "otlp" (+ CAREER_OTEL_ENDPOINT). Without the `otel` extra installed
+    # every span is a no-op, so desktop stays inert and zero-setup. Spans
+    # carry run/node/task metadata, never prompt or output text.
+    otel_export: str = ""
+    otel_endpoint: str | None = None
+    otel_service_name: str = "career-assistant"
     # Checkpoint retention (days) for the boot prune of the desktop
     # checkpoints.db (server-mode Postgres checkpoints are pruned by the
     # plan-98 scheduler trigger; ops may also truncate).

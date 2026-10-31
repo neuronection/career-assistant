@@ -668,18 +668,28 @@ def _traced(step: str, kind: str, args_of, output_of, node):
     """
 
     async def traced(state: AutopilotState) -> dict:
+        from app.ai.tracing import sink
+
         started = time.perf_counter()
-        update = await node(state)
-        update["trace_steps"] = record_step(
-            state,
-            step=step,
-            kind=kind,
-            duration_ms=int((time.perf_counter() - started) * 1000),
-            args=args_of(state),
-            output=output_of(state, update),
-            error=str(update.get("error") or ""),
-            abort=str(update.get("abort_reason") or ""),
-        )
+        with sink().span("autopilot.node", {"node": step, "kind": kind}) as node_span:
+            update = await node(state)
+            node_span.set(
+                {
+                    "status": "ok",
+                    "latency_ms": int((time.perf_counter() - started) * 1000),
+                    "abort_reason": str(update.get("abort_reason") or ""),
+                }
+            )
+            update["trace_steps"] = record_step(
+                state,
+                step=step,
+                kind=kind,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+                args=args_of(state),
+                output=output_of(state, update),
+                error=str(update.get("error") or ""),
+                abort=str(update.get("abort_reason") or ""),
+            )
         return update
 
     return traced

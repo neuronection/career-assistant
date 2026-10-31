@@ -465,6 +465,7 @@ class AutopilotService:
             self.db.add(run)
         await self.db.commit()
         await self.db.refresh(run)
+        run_key = str(run.id) if run is not None else ""
 
         constraints = goal.constraints or {}
         cooldown_days = int(constraints.get("cooldown_days", 7) or 0)
@@ -479,29 +480,38 @@ class AutopilotService:
             checkpointer = await get_checkpointer()
         graph = build_autopilot_graph(deps, checkpointer)
         config = {"configurable": {"thread_id": str(run.id)}}
-        try:
-            if resume:
-                final = await graph.ainvoke(None, config)
-            else:
-                final = await graph.ainvoke(
-                    initial_state(
-                        user_id=user_id,
-                        goal_id=goal.id,
-                        run_id=run.id,
-                        goal_text=goal.goal_text,
-                        constraints=constraints,
-                        budget=goal.budget or {},
-                        top_n=int(constraints.get("top_n") or 5),
-                        cooldown_days=cooldown_days or None,
-                        profile_context=await collect_profile_context(
-                            self.db, user_id, constraints
+        from app.ai.tracing import sink
+
+        with (
+            sink().span(
+                "autopilot.run",
+                {"run_id": run_key, "goal_id": str(goal.id)},
+            ),
+            sink().run_scope(run_key, str(goal.id)),
+        ):
+            try:
+                if resume:
+                    final = await graph.ainvoke(None, config)
+                else:
+                    final = await graph.ainvoke(
+                        initial_state(
+                            user_id=user_id,
+                            goal_id=goal.id,
+                            run_id=run.id,
+                            goal_text=goal.goal_text,
+                            constraints=constraints,
+                            budget=goal.budget or {},
+                            top_n=int(constraints.get("top_n") or 5),
+                            cooldown_days=cooldown_days or None,
+                            profile_context=await collect_profile_context(
+                                self.db, user_id, constraints
+                            ),
                         ),
-                    ),
-                    config,
-                )
-        except Exception as exc:
-            await self._persist_failed_run(graph, config, run, exc)
-            raise
+                        config,
+                    )
+            except Exception as exc:
+                await self._persist_failed_run(graph, config, run, exc)
+                raise
         await self.db.commit()
         await self.db.refresh(run)
         await self._maybe_stale_nudge(goal)

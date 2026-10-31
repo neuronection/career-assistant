@@ -47,6 +47,8 @@ jobs:
         run: uv run alembic upgrade head
       - name: Run tests (coverage floor, xdist-parallel)
         run: uv run pytest tests/ -n auto --dist loadfile --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
+      - name: Tracing suite with the otel extra installed (plan 168)
+        run: uv run --extra otel pytest tests/test_tracing.py
       - name: Contract drift gate (identity-auth §18)
         run: uv run pytest -m contract
       - name: OpenAPI contract diff

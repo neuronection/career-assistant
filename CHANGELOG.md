@@ -25,6 +25,14 @@ All notable changes to **Career Assistant** are documented here.
   strip, the run's AI calls — with a "View call" link into the audit
   ledger for admins — and its findings. Pre-trace runs fall back to the
   search timeline.
+- **Optional OpenTelemetry span export** (plan 168): opt in per
+  environment with `CAREER_OTEL_EXPORT=console|otlp` (plus
+  `CAREER_OTEL_ENDPOINT` and `CAREER_OTEL_SERVICE_NAME`, an infra knob
+  like `CAREER_MOCK_AI` — install the new `otel` extra). Off by default;
+  without the extra every span is a no-op, so desktop stays zero-setup.
+  Spans (`autopilot.run`, `autopilot.node`, `llm.call`) carry run/node
+  metadata only — never prompt or output text — and a misconfiguration
+  degrades to disabled with one warning, never a crash.
 
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):

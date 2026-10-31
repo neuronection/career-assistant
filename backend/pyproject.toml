@@ -55,6 +55,14 @@ desktop = [
     "pystray>=0.19",
     "pygobject>=3.50,<3.51 ; sys_platform == 'linux'",
 ]
+# Optional OTel span export (plan 168, ADR-0044 addendum): opt-in via
+# CAREER_OTEL_EXPORT; without the extra every span is a no-op, so the
+# desktop bundle never needs it and the PyInstaller spec includes nothing.
+otel = [
+    "opentelemetry-api>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+]
 
 [project.scripts]
 careerassistant = "app.shell:run"
