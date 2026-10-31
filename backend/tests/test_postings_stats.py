@@ -56,6 +56,7 @@ async def test_empty_db_returns_zero_shapes(client, auth_headers):
         "/api/v1/postings/stats/skills",
         "/api/v1/postings/stats/breakdown?dimension=org",
         "/api/v1/postings/stats/salary",
+        "/api/v1/postings/stats/clockwork",
         "/api/v1/companies/stats/summary",
         "/api/v1/companies/stats/overview",
     ]
@@ -461,8 +462,11 @@ async def test_clockwork_coherence_and_empty_shapes(db, source):
         ],
     )
     result = await stats_service.clockwork(db, window="7d", status_basis="all", now=NOW)
-    assert sum(cell.count for cell in result.cells) == 2
-    assert sum(cell.prev for cell in result.cells) == 1
+    ctx = stats_service.window_context("7d", now=NOW)
+    instrument = await stats_service._count(db, stats_service.current_conditions(ctx, "all"))
+    assert sum(cell.count for cell in result.cells) == instrument == 2
+    predecessor = await stats_service._count(db, stats_service.prev_conditions(ctx, "all"))
+    assert sum(cell.prev for cell in result.cells) == predecessor == 1
     heated = [cell for cell in result.cells if cell.count]
     assert heated and all(cell.count == 1 for cell in heated)
     assert all((cell.prev == 0) == (cell.delta_pct is None) for cell in heated)
@@ -511,7 +515,11 @@ async def test_sparkline_clips_future_buckets_but_kpis_keep_them(db, source):
 async def test_skill_lead_insight_stays_gated_off_when_the_rise_is_weak(
     db, source, seeded_catalog, kinds
 ):
-    await _seed_lead_fixture(db, source, now_current=(2, 1), strong=False)
+    # The new leader clears the trend floor (3) and overtook the
+    # programming lead, but its rise is under INSIGHT_Z above its own
+    # varying trailing baseline — DISCRIMINATING: the ungated branch
+    # would emit the card here.
+    await _seed_lead_fixture(db, source, now_current=(3, 2), strong=False)
     overview = await stats_service.overview(db, window="7d", status_basis="all", now=NOW)
     kinds_seen = {card.kind for card in overview.insights}
     assert "skill_lead" not in kinds_seen
@@ -530,10 +538,12 @@ async def test_skill_lead_insight_fires_when_the_new_leader_clears_the_gate(
 
 async def _seed_lead_fixture(db, source, *, now_current: tuple[int, int], strong: bool) -> None:
     """Trailing weeks: `wave` problem-solving rows on top of 4 programming
-    rows per week (wave = 1,2,1,2 — a varying baseline). The current
-    window's split decides whether the problem-solving lead-change is a
-    real anomaly. NOW is shared; weak and strong are separate databases."""
-    trailing_wave = [1, 2, 1, 2, 1, 2, 1, 2]
+    rows per week (wave = 2,3,2,3 — a varying baseline, mean 2.5). The
+    weak case's new leader clears the trend floor (3) and overtook the
+    programming lead, yet its rise is under INSIGHT_Z (z = 0.94) — the
+    gate is what separates it from the strong case (z = 6.6). NOW is
+    shared; weak and strong are separate databases."""
+    trailing_wave = [2, 3, 2, 3, 2, 3, 2, 3]
     rows, attached = [], []
     for offset, wave in enumerate(trailing_wave, start=1):
         for index in range(4 + wave):

@@ -146,6 +146,12 @@ export function MarketStats() {
     // a split is on the overlay pauses (state preserved, no fetch, no
     // drop — compare applies in split=none only).
     if (current.compare !== "custom" || !bRange || current.split || !series) {
+      if (id === requestId.current) {
+        // Inapplicable compare — clear the stale overlay/tip so a paused
+        // or absent comparison never renders beside its own hint.
+        setCompareSeries(null);
+        setCompareError(null);
+      }
       setLoading(false);
       return;
     }
@@ -230,7 +236,9 @@ export function MarketStats() {
 
   const bRange = compareRange(view);
   const compareOverlay = useMemo(() => {
-    if (view.compare !== "custom" || !series || !compareSeries) return null;
+    if (view.compare !== "custom" || view.split || !bRange || !series || !compareSeries) {
+      return null;
+    }
     // Alignment is by bucket ORDER (offset), not by key: B is a different
     // date range, so "same bucket" means nothing — both grids are
     // cropped to the shorter one and the shorter side is zero-padded by
@@ -244,8 +252,7 @@ export function MarketStats() {
       cropped: Math.max(0, compareSeries.points.length - length),
       padded: Math.max(0, series.points.length - length),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [series, compareSeries]);
+  }, [series, compareSeries, view.compare, view.split, bRange]);
 
   const copyLink = useCallback(async () => {
     // The deep link the app is really showing (router location, so any

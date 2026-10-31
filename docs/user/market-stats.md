@@ -85,6 +85,41 @@ grid answers "when does hiring actually land?" at one glance.
 - The grid shares the page's window and status basis — switch the header
   toggles and the clock re-reads the same population as every other card.
 
+## Chart or data table
+
+Every data card carries a small Chart ⇄ Data toggle (default: chart).
+The **Data** view is the card's own table — the same rows the CSV export
+downloads, one shared source: if the export says 42, the table says 42.
+The posting clock's table is its condensed twin (totals per weekday and
+per hour plus the peak), not all 168 cells. The charts stay available to
+screen readers through descriptions on the textual lists.
+
+## Compare any window
+
+The header's compare control has three states:
+
+- **Previous** (default) — the overlaid comparison series shows the
+  equal-length window that came right before the selection.
+- **Custom** — pick any two dates and the comparison line shows that
+  range instead, aligned by bucket position ("aligned by offset" — the
+  x-axis stays your selected window). The page tells you when the two
+  grids were not the same length. A comparison range that produces too
+  many buckets for the chart declines politely with a hint instead of
+  breaking the page.
+- **Off** — the volume chart alone.
+
+While a split (status, source, …) is active, the overlay pauses — split
+series and comparisons are two questions about the same data, answered
+one at a time. The comparison lives in the page URL, so a bookmarked
+view keeps it.
+
+## Copy the view
+
+The header's Copy link button puts the page's full URL state (window,
+custom range, status basis, comparison) on the clipboard — paste it to
+share exactly what you were looking at. It works inside the desktop app
+where the raw clipboard API is unavailable.
+
 ## Related pages
 
 - [Postings and search](postings-and-search.md) — the live feed the drill
