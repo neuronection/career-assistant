@@ -948,7 +948,117 @@
     "cooldownSuffix": "days before re-surfacing",
     "cadenceLabel": "Cadence",
     "saveChanges": "Save changes",
-    "createGoal": "Create goal"
+    "createGoal": "Create goal",
+    "runDetail": {
+      "title": "Run details",
+      "open": "Details",
+      "missing": "This run could not be found (it may have been deleted).",
+      "unavailable": "This run predates the detailed step trace — showing its search timeline instead.",
+      "inputs": "Inputs",
+      "graph": "Graph",
+      "steps": "Step trace",
+      "branch": "Broadened — pass {{iteration}}",
+      "args": "Arguments & output",
+      "calls": "AI calls",
+      "viewCall": "View call",
+      "duration": "{{seconds}} s",
+      "ms": "{{ms}} ms",
+      "abortedAs": "aborted: {{reason}}",
+      "profile": "Profile snapshot: {{parts}}",
+      "budgetKey": "budget: {{key}}",
+      "step": {
+        "plan": "Plan",
+        "search": "Search",
+        "filter": "Filter",
+        "replan": "Replan",
+        "evaluate": "Evaluate",
+        "graph_sweep": "Graph sweep",
+        "budget_guard": "Budget guard",
+        "curate": "Curate",
+        "deliver": "Deliver"
+      },
+      "summary": {
+        "plan": "{{count}} search variants planned",
+        "search": "{{probes}} probes · pool {{pool}}",
+        "filter": "kept {{kept}} · pool {{pool}}",
+        "evaluate": "ranked pool of {{pool}}",
+        "replan": "{{count}} broadened queries",
+        "graphSweep": "+{{found}} found · {{examined}} examined via related roles",
+        "guardAbort": "abort: {{reason}}",
+        "guardTokens": "{{tokens}} tokens spent so far",
+        "curate": "{{count}} picks explained",
+        "deliver": "{{count}} findings · {{status}}"
+      },
+      "profileSkills": "{{skills}} skills",
+      "profileLanguages": "{{count}} languages",
+      "profileStage": "stage {{stage}}"
+    },
+    "summary": {
+      "skills": "Skills: {{items}}",
+      "skillsNone": "Skills: none recorded",
+      "skillsUnused": "Skills: not used",
+      "education": "Education: {{level}}",
+      "educationNone": "Education: not recorded",
+      "educationUnused": "Education: not used",
+      "languages": "Languages: {{items}}",
+      "languagesNone": "Languages: none recorded",
+      "languagesUnused": "Languages: not used",
+      "stage": "Stage: {{stage}}",
+      "stageFromProfile": "Stage: from your profile",
+      "stageNone": "Stage: not recorded",
+      "stageUnused": "Experience: not used",
+      "location": "Location: {{city}}",
+      "locationNone": "Location: not recorded",
+      "locationUnused": "Location: not used",
+      "lifestyle": "Lifestyle: {{count}}",
+      "lifestyleUnused": "Lifestyle: not used",
+      "loading": "Checking your profile…"
+    },
+    "profileUsage": {
+      "title": "What the autopilot uses from your profile",
+      "goalOnly": "With inputs switched off, this goal searches from your goal text only.",
+      "footnote": "Match estimates (postings not yet deep-extracted) ignore these toggles.",
+      "stageSourceLabel": "Career stage",
+      "stageSource": {
+        "profile": "From my profile",
+        "goal": "From this goal's seniority"
+      },
+      "toggles": {
+        "use_skills": {
+          "label": "Skills",
+          "description": "Your skills steer the search vocabulary and the skill score."
+        },
+        "use_education": {
+          "label": "Education & certificates",
+          "description": "Education and certificate requirements check your profile."
+        },
+        "use_languages": {
+          "label": "Languages",
+          "description": "Language requirements check the languages in your profile."
+        },
+        "use_location": {
+          "label": "Location",
+          "description": "Your city and remote preference shape the location score."
+        },
+        "use_experience": {
+          "label": "Experience",
+          "description": "Your career stage is scored against each posting's seniority."
+        },
+        "use_lifestyle": {
+          "label": "Lifestyle constraints",
+          "description": "Your travel, shift and hour limits flag postings."
+        }
+      },
+      "chips": {
+        "use_skills": "no skills",
+        "use_education": "no education",
+        "use_languages": "no languages",
+        "use_location": "no location",
+        "use_experience": "no experience",
+        "use_lifestyle": "no lifestyle flags",
+        "stage_source": "stage from goal"
+      }
+    }
   },
   "scheduler": {
     "searchesTitle": "Scheduled searches",

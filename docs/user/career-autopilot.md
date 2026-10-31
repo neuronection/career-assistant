@@ -53,6 +53,51 @@ postings it found in total and how many it actually examined, and the windows
 it scans hold **fresh** postings only — ones you have not seen, applied to or
 hidden — so a long browsing history never crowds new vacancies out of a run.
 
+## What the autopilot uses from your profile
+
+By default a goal uses your whole profile: your skills, your education
+level and certificates, your languages, your location, your experience
+(your career stage), and your lifestyle constraints (travel, shifts,
+hours). Every goal carries a **"What the autopilot uses from your
+profile"** section where each of the six inputs can be switched off for
+that goal alone — your profile itself never changes:
+
+- **Skills** — the planner's skill vocabulary and the fit engine's skill
+  dimension. Off, the goal searches from your goal text only, and
+  missing skills stop dragging scores down.
+- **Education & certificates** — the prerequisite checks. Off, education
+  and certificate requirements score neutral instead of penalizing.
+- **Languages** — the language prerequisite check (and the planner's
+  languages note). Off, language requirements score neutral.
+- **Location** — the location & remote dimension. Off, distance stops
+  affecting the score.
+- **Experience** — the seniority & stage dimension. Off, postings stop
+  being scored against your career stage.
+- **Lifestyle constraints** — the travel/shift/hours flags. Off, nothing
+  is flagged for those; the terms you explicitly asked for (must-terms,
+  never-terms, seen/cooldown) always stay on regardless.
+
+You can also choose where the career **stage** comes from: your profile
+(default) or the goal's seniority selection — a career-changer can target
+"experienced" even though their profile says early-career. A live
+summary in the goal form shows exactly what will be used; the goal
+detail and every run's detail view show the same snapshot. Match
+**estimates** (postings that have not been deep-extracted yet) ignore
+these toggles.
+
+## Open a run
+
+Every run card has a **Details** action (deep-linkable with `?run=<id>` on
+`/autopilot`). The run's detail view shows the **step trace** — what the plan,
+each search, the filters, the ranking, the broaden pass, the budget check, the
+curation and the delivery actually did, with timing and each step's arguments
+and output summaries — plus the run's **AI calls** (which stage served which
+call, its model and spend; an admin also gets a "View call" link into the
+audit ledger), and the shortlist it produced. Runs from before this trace
+existed fall back to the search timeline — never an empty view. Everything is
+argument/output summaries: the full prompt text stays admin-only in the audit
+ledger.
+
 Semantic coverage grows as your postings get embedded: an admin re-runs the
 embeddings recompute today, so a fresh board's postings join the by-meaning
 pass only once they have an embedding. Keyword search and related-role

@@ -98,7 +98,7 @@ function ProposalCard({
     state.status === "approved";
 
   return (
-    <div data-testid={`hitl-card-${card.id}`}>
+    <div data-testid={`hitl-card-${card.id}`} data-capture="proposal-card">
       {card.origin?.token_label || card.source === "mcp" ? (
         <p
           className="mb-1 text-[11px] text-[var(--as-muted-fg)]"

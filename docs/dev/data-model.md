@@ -103,7 +103,7 @@ provenance.
 | `webhook_endpoints` | `posting_model.py` | Inbound-webhook keys (`target` = `posting_status`/`application_status`/`ingest`), hashed token, health |
 | `posting_fits` | `posting_model.py` | Per-posting fit + `inputs_hash` staleness, `computed_at` and `fit_version` for bounded recompute/trends |
 | `market_snapshots` | `market_model.py` | Aggregated market data |
-| `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs and explainable findings |
+| `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs (with the durable `run_steps` step trace) and explainable findings |
 
 **Application pipeline lifecycle.** `app/services/postings/applications_service.py`
 is the only writer of both tables. Any stage move — forward, backward or
@@ -154,6 +154,14 @@ deletion).
 
 ### Migration notes
 
+- **0079** — plan 168: `autopilot_runs.run_steps`, the durable per-node
+  step trace (one append-return entry per executed node: step, kind,
+  iteration, timing, whitelisted args/output summaries, abort marker). A
+  ledger, not checkpoint history — checkpoints stay resume-only and
+  TTL-pruned, the trace survives restarts and prunes and dies with the
+  goal via the run cascade. JSONB with a dialect-safe `'[]'` server
+  default (the NOT NULL add on SQLite); rebuildable forward only, so the
+  downgrade drops it and pre-0079 runs read `trace_available=false`.
 - **0073** — plan 148: `skill_changes`, the append-only skill lifecycle
   journal (`created | updated | promoted | auto_promoted | deprecated |
   restored | merged | deleted` — `event_allowed` CHECK mirrors

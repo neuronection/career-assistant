@@ -64,6 +64,70 @@ All notable changes to **Career Assistant** are documented here.
   last 7 days" finally matches what the feed shows. The RSS wire
   vocabulary keeps its `1d` key (translated to the shared `24h` window).
 
+### Added (autopilot profile usage, 2026-10-31)
+- **Per-goal profile controls** (plan 169): every autopilot goal gains a
+  "What the autopilot uses from your profile" section — six toggles
+  (skills, education & certificates, languages, location, experience,
+  lifestyle constraints) plus a stage source (your profile or the goal's
+  seniority). Defaults reproduce today's behavior; a live preview shows
+  the effective snapshot ("Skills: react, python · Stage: student …")
+  while you edit, each goal card carries chips for the inputs you
+  switched off, and the run detail's Inputs panel shows exactly which
+  profile inputs a run used. Disabled inputs score neutral instead of
+  penalizing, and the search itself honors them.
+
+### Changed (autopilot profile usage, 2026-10-31)
+- **Disabled profile inputs stop dragging scores down** (plan 169): a
+  goal-run's fit scoring neutralizes exactly the toggles you switched
+  off — a disabled dimension or prerequisite reads a neutral 7/10 with a
+  visible "disabled for this goal" note, prerequisite sub-scores merge
+  over the inputs still in play (switching one off can only raise or
+  keep the merged score), and the goal's seniority selection can drive
+  the career stage (`stage_source=goal`: intern→student,
+  junior/mid→early career, senior+→experienced). The search windows,
+  the ranking, the sweep recall and the findings all rank on the
+  goal-adjusted score; the posting-detail card and chat "my fit" keep
+  showing the canonical score, and match estimates ignore the toggles.
+- **The planner honors the same toggles** (plan 169): disabled profile
+  inputs are dropped from the planner's context (with everything off it
+  plans from your goal text and the job-market vocabulary alone), your
+  languages join the context when enabled, and the run trace's Inputs
+  panel shows exactly which profile inputs a run used. Autopilot
+  explanations never cite a dimension you switched off as a strength or
+  a weakness.
+
+### Added (autopilot run trace, 2026-10-31)
+- **Every autopilot call is now linked to its run in the AI audit ledger**
+  (plan 168): plan, replan, curation and the semantic-sweep embedding call
+  record which run and stage they served, so the `/settings/audit` run-id
+  filter works for autopilot like it already did for CV runs.
+- **Each run now persists a durable step trace** (plan 168): plan → search
+  → filter → replan → evaluate → graph sweep → budget guard → curate →
+  deliver record timing and argument/output summaries on the run row —
+  surviving restarts and checkpoint pruning — including failed and
+  cancelled runs, which used to lose everything.
+- **`GET /autopilot/runs/{run_id}` opens one run's detail** (plan 168):
+  the step trace, the graph's node list, the run's AI calls (metadata
+  only — no prompt text), its findings and its timeline, addressed by id
+  so runs beyond the 30-row history resolve. A foreign and a missing run
+  answer the same 404.
+- **The Autopilot page opens any run in a detail modal** (plan 168): a
+  "Details" action (or `?run=<id>` deep link) shows the step-by-step trace
+  with each step's arguments and outputs, the replan branch, the graph
+  strip, the run's AI calls — with a "View call" link into the audit
+  ledger for admins — and its findings. Pre-trace runs fall back to the
+  search timeline.
+- **Optional OpenTelemetry span export** (plan 168): opt in per
+  environment with `CAREER_OTEL_EXPORT=console|otlp` (plus
+  `CAREER_OTEL_ENDPOINT` and `CAREER_OTEL_SERVICE_NAME`, an infra knob
+  like `CAREER_MOCK_AI` — install the new `otel` extra). Off by default;
+  without the extra every span is a no-op, so desktop stays zero-setup.
+  Spans (`autopilot.run`, `autopilot.node` on every graph node including
+  `deliver`, `llm.call`) carry run/node
+  metadata only — never prompt or output text — and a misconfiguration
+  degrades to disabled with one warning, never a crash.
+
+
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):
   the planner now sees your skills (plus the taxonomy skills around them),

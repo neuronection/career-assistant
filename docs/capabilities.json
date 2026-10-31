@@ -50,7 +50,7 @@
         "desktop"
       ],
       "order": 10,
-      "visual": "images/components/job-catalog-desktop2x.png"
+      "visual": "images/components/job-catalog-desktop.png"
     },
     {
       "id": "profile-matching",
@@ -112,7 +112,7 @@
         "desktop"
       ],
       "order": 30,
-      "visual": "images/components/cv-studio-panel-desktop2x.png"
+      "visual": "images/components/cv-studio-panel-desktop.png"
     },
     {
       "id": "assistant-chat",
@@ -143,7 +143,7 @@
         "desktop"
       ],
       "order": 33,
-      "visual": "images/components/assistant-chat-desktop.png"
+      "visual": "images/components/proposal-card-desktop.png"
     },
     {
       "id": "application-tracker",
@@ -407,8 +407,8 @@
         "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
         "Per-model usage view (calls, tokens, latency by provider/model) plus token trends",
         "Production throughput: postings ingested, skill lifecycle events, companies, catalog jobs by origin",
-        "The identity audit trail (logins, denials, admin acts) has a first-class read surface",
-        "Custom date ranges on every view; filtered ledgers export as CSV"
+        "Identity audit trail read surface; custom date ranges and CSV export on every view",
+        "Open any autopilot run and see each step's arguments and outputs, its AI calls and its findings"
       ],
       "links": [
         {

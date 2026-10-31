@@ -11,9 +11,10 @@ from app.schemas.autopilot import (
     AutopilotFeedbackIn,
     AutopilotGoalCreate,
     AutopilotGoalUpdate,
+    ProfileContextPreviewIn,
 )
 from app.services.deps import get_current_user
-from app.services.growth.autopilot_service import AutopilotService
+from app.services.growth.autopilot_service import AutopilotService, profile_context_preview
 
 router = APIRouter(prefix="/autopilot", tags=["autopilot"])
 
@@ -45,6 +46,17 @@ async def list_findings(
 ) -> list[dict]:
     """Recent runs across goals with their findings (grouped by run)."""
     return await AutopilotService(db).findings_by_run(user.id)
+
+
+@router.post("/profile-context")
+async def profile_context(
+    data: ProfileContextPreviewIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The caller's effective profile snapshot for a draft usage block +
+    seniority — the goal form's live summary; never touches a goal row."""
+    return await profile_context_preview(db, user.id, data.profile, data.seniority)
 
 
 @router.get("/goals/{goal_id}")
@@ -100,6 +112,17 @@ async def goal_runs(
 ) -> list[dict]:
     """Run history with findings — the goal's audit trail."""
     return await AutopilotService(db).runs(user.id, goal_id)
+
+
+@router.get("/runs/{run_id}")
+async def run_detail(
+    run_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One run's inspectable detail: node trace, AI calls and findings —
+    a foreign and a missing run answer the same 404."""
+    return await AutopilotService(db).run_detail(user.id, run_id)
 
 
 @router.post("/findings/{finding_id}/feedback")

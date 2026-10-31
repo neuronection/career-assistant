@@ -56,6 +56,7 @@ export function RelationGraph({ graph, onNodeClick }: { graph: JobGraph; onNodeC
         nodes={nodes}
         edges={edges}
         fitView
+        fitViewOptions={{ padding: 0.18 }}
         minZoom={0.2}
         onNodeClick={(_, node) => onNodeClick?.(node.id)}
         proOptions={{ hideAttribution: true }}

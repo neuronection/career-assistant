@@ -39,6 +39,18 @@ from tests.test_extension_sources import (
 
 pytest_plugins = ["tests.test_extension_sources"]
 
+
+@pytest.fixture(autouse=True)
+def _hermetic_git_transport():
+    """The gallery lifecycle tests exercise the REAL git transport — the
+    module stays hermetic against a leaked transport fake from an earlier
+    test on the same worker (a leaked fake fetches the wrong tree and
+    discovery reads it as manifest-less)."""
+    lifecycle.set_git_transport(None)
+    yield
+    lifecycle.set_git_transport(None)
+
+
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 

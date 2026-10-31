@@ -166,6 +166,7 @@ compares this table with the code):
 | `progress_pct` | 0-100, monotonic | the progress callback must never report backwards on a re-entry |
 | `profile_context` | ≤ 12 skills | the planner's grounding; computed once per run |
 | `abort_reason` / `tokens_used` | one value | routing + the run's recorded spend |
+| `trace_steps` | one entry per executed node | the durable run trace — persisted to `autopilot_runs.run_steps` at deliver, survives checkpoint pruning |
 
 **Similarity signals** — what each recall source catches, needs and how it
 degrades:
@@ -198,6 +199,157 @@ still ships:
 A replan spends one audited call; when the run budget is already spent the
 node skips the call and the deterministic findings still ship.
 
+### Profile usage & goal-adjusted fit (plan 169)
+
+Every goal carries a `profile` block on its constraints (`ProfileUsage`:
+six `use_*` toggles + `stage_source: "profile" | "goal"`, defaults
+reproducing the pre-plan behavior). `AutopilotService.run_goal` derives a
+`FitOverrides` from it once and threads it through `GraphDeps`; the
+planner and the fit engine honor it:
+
+- **Planner context** — `collect_profile_context` drops a disabled input
+  (with everything off it plans from the goal text + vocabulary alone),
+  adds the academic languages when `use_languages`, and shows the
+  effective stage: `stage_source="goal"` derives it from the goal's
+  seniority selection by max rank (intern→`student`,
+  junior/mid→`early_career`, senior+→`experienced`; an empty selection
+  keeps the profile stage), and `use_experience=False` omits it. The
+  plan/replan vocabulary skips the user-skill neighbourhood when
+  `use_skills` is off (frequency padding only).
+- **Fit** — disabled dimensions score the engine's neutral 7.0 with a
+  `disabled` marker (`use_lifestyle` empties the gates instead — gates
+  are recomputed live, never cached); the `prereqs` dimension carries
+  internal per-part sub-scores (`parts: {education, languages,
+  certificates}`, each `{kind, cap, detail, scored}`) and merges like the
+  pre-plan accumulator: any `scored` part makes the dimension
+  non-neutral at the min over the enabled parts' `cap`s (a recognized
+  education comparison caps without scoring — education-met/below alone
+  stay the neutral 7.0, exactly the pre-plan gate), a disabled part is
+  excluded from both the min and the scored-any check so the merged
+  score can only rise or stay, and nothing scored reads 7.0 neutral.
+  `stage_source="goal"` swaps the
+  stage value into the pure `_seniority_stage_dimension`; a disabled
+  `use_experience` wins over it.
+- **Cache law** — `posting_fits` keeps ONE canonical row per
+  user×posting; the usage flags never ride `inputs_hash` (toggle
+  invariant). With active overrides the batch result is a **derived
+  rescore** over the canonical breakdown (`_rescore_cached`: pure math +
+  one pure stage recompute); a canonical miss computes and writes
+  canonically first, then rescores — adjusted values are never persisted,
+  and archetype-estimate rows are never rescored. The `explore` fit-sort
+  window accepts the same overrides, so window selection honors the
+  toggles; the non-fit-sort enrichment stays canonical, as do the posting
+  detail card and the chat "my fit" tool.
+- **Explanations** — `_deterministic_why` filters `disabled: True`
+  dimensions out BEFORE slicing to three (fit-only line when none
+  remain), and the curator system prompt forbids citing disabled
+  dimensions as strengths or weaknesses (`AUTOPILOT_RUN` prompt v7).
+
+```mermaid
+flowchart LR
+    subgraph P["Profile (per-goal usage flags)"]
+        SK[skills] -->|use_skills| V[planner vocabulary + context]
+        ED[education + certs] -->|use_education| F[fit prereqs.parts]
+        LG[languages] -->|use_languages| F
+        LOC[location] -->|use_location| F2[fit location_remote]
+        EX[experience years] -->|use_experience · stage_source| F3[fit seniority_stage]
+        LS[lifestyle tolerance] -->|use_lifestyle| G[lifestyle gates]
+    end
+    V --> PLAN[plan · LLM]
+    F --> SCORE["fit score = weighted blend<br/>(disabled part → neutral 7.0)"]
+    F2 --> SCORE
+    F3 --> SCORE
+    SCORE --> POOL["(must_hits, fit) ordering → pool → findings"]
+```
+
+### Run trace (plan 168)
+
+Every executed node lands one entry in the `trace_steps` state channel —
+append-return, exactly the `searches` precedent, so a retried node
+contributes nothing on its failed attempt and a resume never duplicates an
+entry (`iteration` distinguishes the legitimate second `search`/`filter`
+pass after a replan). `deliver` persists the accumulated list to
+`autopilot_runs.run_steps`; a run that dies mid-graph persists the steps up
+to the last completed node plus a `failed` status via the service's failure
+path. **The trace is a ledger, not checkpoint history**: checkpoints are
+TTL-pruned (desktop boot prune, server `system_checkpoint_prune`), the
+trace survives restarts and prunes and dies only with the goal (the run
+cascade) — `ai_generations` rows outlive it by design.
+
+Each entry carries `{step, kind, iteration, at, duration_ms, args, output,
+error, abort}` where `args`/`output` are **whitelisted summaries** — the
+plan step's goal text clipped to 400 chars, constraint/budget keys and the
+profile-context shape; search variant queries/filters with found/examined;
+filter kept/dropped counts; evaluate pool/fit-range/must-hits histogram;
+graph-sweep seeds and merge counts; guard tokens-vs-caps and the abort
+reason; curate picks; deliver findings (ids/scores), status and whether the
+notification fired. Candidate ids stay capped at 120 (`CANDIDATE_CAP`) and
+no entry carries a serialized candidate — prompts and full outputs remain
+admin-only in the audit ledger.
+
+The owner-facing surface is `GET /autopilot/runs/{run_id}` (owner-scoped
+product detail, a foreign and a missing run answer the same 404): `{run,
+steps, nodes, ai_calls, findings, timeline, trace_available}` — `ai_calls`
+joins `ai_generations` by `run_id` with metadata only (no
+prompt/output text), and `trace_available` is false for pre-0079 runs
+(steps `[]` — the UI falls back to the timeline). `nodes` is the
+**execution-ordered** node list derived from the compiled graph —
+`plan`, `search`, `filter`, `replan`, `evaluate`, `graph_sweep`,
+`budget_guard`, `curate`, `deliver` (compiled insertion order is not
+execution order; `budget_guard` is added second but runs late). Runs
+beyond the 30-row listings resolve by id. The UI renders the payload as
+the `?run=<id>` detail modal on `/autopilot`.
+
+```mermaid
+flowchart LR
+    subgraph Graph["Autopilot graph (checkpointed, thread_id = run id)"]
+        P[plan] --> S[search] --> F[filter] --> E[evaluate] --> GS[graph_sweep] --> BG[budget_guard] --> C[curate] --> D[deliver]
+        F -. replan ≤1 .-> RP[replan] -.-> S
+    end
+    Graph -- "record_step() per node" --> ST[("autopilot_runs.run_steps<br/>durable JSONB")]
+    Graph -- "RunRef per gateway call" --> AG[("ai_generations<br/>run_id + run_stage")]
+    ST --> RE["GET /autopilot/runs/{id}"]
+    AG --> RE
+    RE --> UI["Run detail modal ?run=id<br/>steps · graph chips · AI-call links"]
+```
+
+### Tracing export (plan 168)
+
+The first-party trace above is the product surface; OpenTelemetry is an
+**optional export adapter, never a second surface** (ADR-0044 addendum).
+`app/ai/tracing.py` exposes one `TraceSink`: `autopilot.run` (root, in
+`AutopilotService.run_goal` — the single entry for API, queue and chat
+callers), `autopilot.node` (one per graph node, started by the wiring
+wrapper around each node callable — `deliver` included — so retries and
+replan re-entries start fresh) and `llm.call` (in `ainvoke_structured`
+and `embed_texts`). Every span carries `run_id` + `goal_id` (a contextvar
+scope stamps nested spans, so a lost asyncio context stays correlatable)
+plus the metadata vocabulary — `node`, `task_type`, `provider`, `model`,
+`tokens_in/out`, `latency_ms`, `status`, `prompt_version` — and **never**
+prompt or output text. Destinations: any OTLP backend (Jaeger, Tempo,
+Grafana, Langfuse over OTLP). Infra knobs only, like `CAREER_MOCK_AI` —
+never AI config: `CAREER_OTEL_EXPORT` (`""` default | `console` | `otlp`),
+`CAREER_OTEL_ENDPOINT` (required for otlp), `CAREER_OTEL_SERVICE_NAME`
+(default `career-assistant`). Without the `otel` extra installed the
+guarded import keeps every span a no-op — desktop stays zero-setup and
+inert. A bad value or a missing endpoint disables the sink with exactly
+one warning; a sink failure never fails the wrapped call. Enabling builds
+the sink its **own** `TracerProvider` with the env-selected exporter behind
+a `BatchSpanProcessor` (buffered background export), and the tracer is
+taken from that same provider — the global OTel provider is never touched,
+so an unconfigured process stays a no-op `ProxyTracerProvider`. App-lifespan
+shutdown calls `sink.shutdown()`, which flushes pending spans and releases
+the provider (`sink.flush()` is available for bounded force-export before
+long-lived phases).
+
+```mermaid
+flowchart LR
+    GW["app.ai.gateway<br/>ainvoke_structured · embed_texts"] -- "span(llm.call)" --> TS["app.ai.tracing.TraceSink"]
+    AP["autopilot nodes"] -- "span(autopilot.node)" --> TS
+    TS -- "disabled (default)" --> NOOP[no-op]
+    TS -- "CAREER_OTEL_EXPORT=console" --> CON[console exporter]
+    TS -- "CAREER_OTEL_EXPORT=otlp" --> OTLP["OTLP endpoint<br/>Jaeger · Tempo · Langfuse"]
+```
 
 ## Decision models (`app/ai/decide/`)
 

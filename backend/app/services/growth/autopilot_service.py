@@ -10,6 +10,7 @@ is never automated — findings are suggestions only.
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,11 +25,72 @@ from app.schemas.autopilot import (
     AutopilotConstraints,
     AutopilotGoalCreate,
     AutopilotGoalUpdate,
+    ProfileUsage,
 )
 
 logger = logging.getLogger(__name__)
 
 STALE_STREAK = 3
+
+EXECUTION_NODE_ORDER = [
+    "plan",
+    "search",
+    "filter",
+    "replan",
+    "evaluate",
+    "graph_sweep",
+    "budget_guard",
+    "curate",
+    "deliver",
+]
+
+
+def execution_nodes() -> list[str]:
+    """The compiled graph's nodes in EXECUTION order.
+
+    Compiled-graph insertion order is not execution order (``budget_guard``
+    is added second but runs late), so the run detail derives its node list
+    from this sequence, filtered against the compiled set — no frontend
+    copy that drifts; a future node joins through both the graph and this
+    list or the set assertion in the tests fails. The deps are never
+    invoked for the node set, so the session placeholder is an explicit
+    cast.
+    """
+    from app.ai.graphs.autopilot import GraphDeps, build_autopilot_graph
+
+    compiled = set(build_autopilot_graph(GraphDeps(db=cast(AsyncSession, None))).nodes)
+    compiled -= {"__start__", "__end__"}
+    ordered = [node for node in EXECUTION_NODE_ORDER if node in compiled]
+    return ordered + sorted(compiled - set(EXECUTION_NODE_ORDER))
+
+
+async def profile_context_preview(
+    db: AsyncSession, user_id: UUID, usage: ProfileUsage, seniority: list[str]
+) -> dict:
+    """The caller's effective profile snapshot for a DRAFT usage block.
+
+    What a run with these inputs would see: ``collect_profile_context``
+    over the draft constraints (gated fields dropped, languages and the
+    effective stage included, ``stage_source`` naming which side supplied
+    the stage) plus the lifestyle constraint count. Owner-scoped: a draft
+    never touches a goal row.
+    """
+    from app.ai.graphs.autopilot import collect_profile_context
+    from app.services.deps import get_profile_for_user
+    from app.services.postings.posting_fit_service import LIFESTYLE_CONSTRAINT_KEYS
+
+    constraints = {
+        "seniority": [str(value) for value in seniority],
+        "profile": usage.model_dump(mode="json"),
+    }
+    snapshot = await collect_profile_context(db, user_id, constraints)
+    profile = await get_profile_for_user(db, user_id)
+    if usage.use_lifestyle:
+        values = profile.constraints or {}
+        snapshot["lifestyle_count"] = sum(
+            1 for key in LIFESTYLE_CONSTRAINT_KEYS if values.get(key) not in (None, False)
+        )
+    return snapshot
 
 
 def _utcnow() -> datetime:
@@ -421,6 +483,8 @@ class AutopilotService:
             collect_profile_context,
             initial_state,
         )
+        from app.schemas.autopilot import ProfileUsage
+        from app.services.postings.posting_fit_service import FitOverrides
 
         goal = await self._require_goal(user_id, goal_id)
         if goal.status != "active":
@@ -433,37 +497,58 @@ class AutopilotService:
             self.db.add(run)
         await self.db.commit()
         await self.db.refresh(run)
+        run_key = str(run.id) if run is not None else ""
 
         constraints = goal.constraints or {}
         cooldown_days = int(constraints.get("cooldown_days", 7) or 0)
+        fit_overrides = FitOverrides.from_profile_usage(
+            ProfileUsage.model_validate(constraints.get("profile") or {}),
+            [str(value) for value in constraints.get("seniority") or []],
+        )
         deps = GraphDeps(
             db=self.db,
             progress=progress,
             cancelled=cancelled,
             cooldown_ids=await self._cooldown_ids(goal.id, cooldown_days, exclude_run=run.id),
+            fit_overrides=fit_overrides,
         )
         checkpointer = self._checkpointer
         if checkpointer is None:
             checkpointer = await get_checkpointer()
         graph = build_autopilot_graph(deps, checkpointer)
         config = {"configurable": {"thread_id": str(run.id)}}
-        if resume:
-            final = await graph.ainvoke(None, config)
-        else:
-            final = await graph.ainvoke(
-                initial_state(
-                    user_id=user_id,
-                    goal_id=goal.id,
-                    run_id=run.id,
-                    goal_text=goal.goal_text,
-                    constraints=constraints,
-                    budget=goal.budget or {},
-                    top_n=int(constraints.get("top_n") or 5),
-                    cooldown_days=cooldown_days or None,
-                    profile_context=await collect_profile_context(self.db, user_id, constraints),
-                ),
-                config,
-            )
+        from app.ai.tracing import sink
+
+        with (
+            sink().span(
+                "autopilot.run",
+                {"run_id": run_key, "goal_id": str(goal.id)},
+            ),
+            sink().run_scope(run_key, str(goal.id)),
+        ):
+            try:
+                if resume:
+                    final = await graph.ainvoke(None, config)
+                else:
+                    final = await graph.ainvoke(
+                        initial_state(
+                            user_id=user_id,
+                            goal_id=goal.id,
+                            run_id=run.id,
+                            goal_text=goal.goal_text,
+                            constraints=constraints,
+                            budget=goal.budget or {},
+                            top_n=int(constraints.get("top_n") or 5),
+                            cooldown_days=cooldown_days or None,
+                            profile_context=await collect_profile_context(
+                                self.db, user_id, constraints
+                            ),
+                        ),
+                        config,
+                    )
+            except Exception as exc:
+                await self._persist_failed_run(graph, config, run, exc)
+                raise
         await self.db.commit()
         await self.db.refresh(run)
         await self._maybe_stale_nudge(goal)
@@ -475,6 +560,108 @@ class AutopilotService:
             "findings": final.get("findings") or [],
             "searches": final.get("searches") or [],
             "resumed": resume,
+        }
+
+    async def _persist_failed_run(
+        self, graph, config, run: AutopilotRun | None, exc: Exception
+    ) -> None:
+        """Persist a run that died mid-graph, then let the exception fly.
+
+        The trace is read from the checkpointer's last completed superstep
+        (the raising node contributes no step); the run row is re-fetched
+        on the rolled-back session under the run id captured before the
+        invoke, so the durable steps, the ``failed`` status and the error
+        commit even though the request session's uncommitted audit rows
+        cannot.
+        """
+        run_id = run.id if run is not None else None
+        await self.db.rollback()
+        steps: list = []
+        try:
+            snapshot = await graph.aget_state(config)
+            steps = list((snapshot.values or {}).get("trace_steps") or [])
+        except Exception:
+            logger.warning("autopilot failed-run trace recovery failed", exc_info=True)
+        if run_id is None:
+            return
+        row = await self.db.get(AutopilotRun, run_id)
+        if row is None:
+            return
+        row.run_steps = steps
+        row.status = AutopilotRunStatus.FAILED.value
+        row.error = f"{type(exc).__name__}: {exc}"[:1000]
+        row.finished_at = _utcnow()
+        await self.db.commit()
+
+    async def _run_ai_calls(self, run_id: UUID) -> list[dict]:
+        """The run's audited gateway calls, metadata only — never prompt or
+        output text (those stay in the admin detail modal, ADR-0044 §4)."""
+        from app.models.ai_model import AIGeneration
+
+        rows = (
+            (
+                await self.db.execute(
+                    select(AIGeneration)
+                    .where(AIGeneration.run_id == run_id)
+                    .order_by(AIGeneration.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            {
+                "id": str(row.id),
+                "task_type": row.task_type,
+                "run_stage": row.run_stage,
+                "provider": row.provider,
+                "model": row.model,
+                "status": row.status,
+                "tokens_in": row.tokens_in,
+                "tokens_out": row.tokens_out,
+                "latency_ms": row.latency_ms,
+                "prompt_version": row.prompt_version,
+            }
+            for row in rows
+        ]
+
+    async def run_detail(self, user_id: UUID, run_id: UUID) -> dict:
+        """One run, fully inspectable: trace steps, graph nodes, AI calls
+        and findings — addressed by id so runs beyond the 30-row listing
+        resolve (ADR-0044 §9).
+
+        Owner-scoped product detail, not an admin facet view: a foreign or
+        missing run answer the SAME 404, the payload carries no prompt or
+        output text, and there are no ledger-wide filters or export.
+        """
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        row = (
+            (
+                await self.db.execute(
+                    select(AutopilotRun)
+                    .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+                    .where(AutopilotRun.id == run_id, AutopilotGoal.user_id == user_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if row is None:
+            raise NotFoundError("Autopilot run not found")
+        goal = await self.db.get(AutopilotGoal, row.goal_id)
+        return {
+            "run": {
+                **_run_out(row),
+                "goal_id": str(row.goal_id),
+                "goal_text": goal.goal_text if goal is not None else "",
+            },
+            "steps": list(row.run_steps or []),
+            "nodes": execution_nodes(),
+            "ai_calls": await self._run_ai_calls(row.id),
+            "findings": await self._findings_out(row.id),
+            "timeline": list(row.searches_executed or []),
+            "trace_available": bool(row.run_steps),
         }
 
     async def _stale_running_run(self, goal_id: UUID) -> AutopilotRun | None:

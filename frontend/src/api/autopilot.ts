@@ -1,5 +1,45 @@
 import { api } from "@/api/client";
 
+export interface ProfileUsage {
+  use_skills: boolean;
+  use_education: boolean;
+  use_languages: boolean;
+  use_location: boolean;
+  use_experience: boolean;
+  use_lifestyle: boolean;
+  stage_source: "profile" | "goal";
+}
+
+export const DEFAULT_PROFILE_USAGE: ProfileUsage = {
+  use_skills: true,
+  use_education: true,
+  use_languages: true,
+  use_location: true,
+  use_experience: true,
+  use_lifestyle: true,
+  stage_source: "profile",
+};
+
+export interface ProfileContextSnapshot {
+  skills?: { key: string; level: number }[];
+  education_level?: string | null;
+  languages?: { code: string; level: string }[];
+  country?: string | null;
+  city?: string | null;
+  stage?: string;
+  stage_source?: "profile" | "goal";
+  lifestyle_count?: number;
+  target_seniority?: string[];
+}
+
+export async function fetchProfileContext(
+  profile: ProfileUsage,
+  seniority: string[]
+): Promise<ProfileContextSnapshot> {
+  const { data } = await api.post("/autopilot/profile-context", { profile, seniority });
+  return data;
+}
+
 export interface AutopilotConstraints {
   must_terms: string[];
   never_terms: string[];
@@ -11,6 +51,7 @@ export interface AutopilotConstraints {
   exclude_seen: boolean;
   cooldown_days: number;
   top_n: number;
+  profile: ProfileUsage;
 }
 
 export interface AutopilotBudget {
@@ -83,6 +124,41 @@ export interface TimelineEntry {
   kept?: number;
 }
 
+export interface AutopilotTraceStep {
+  step: string;
+  kind: string;
+  iteration: number;
+  at: string;
+  duration_ms: number;
+  args: Record<string, unknown>;
+  output: Record<string, unknown>;
+  error: string;
+  abort: string;
+}
+
+export interface AutopilotAiCall {
+  id: string;
+  task_type: string;
+  run_stage: string | null;
+  provider: string;
+  model: string;
+  status: string;
+  tokens_in: number | null;
+  tokens_out: number | null;
+  latency_ms: number | null;
+  prompt_version: string | null;
+}
+
+export interface AutopilotRunDetail {
+  run: AutopilotRunSummary & { goal_id: string; goal_text: string };
+  steps: AutopilotTraceStep[];
+  nodes: string[];
+  ai_calls: AutopilotAiCall[];
+  findings: AutopilotFinding[];
+  timeline: TimelineEntry[];
+  trace_available: boolean;
+}
+
 export interface GoalCreateInput {
   goal_text: string;
   constraints?: Partial<AutopilotConstraints>;
@@ -129,6 +205,11 @@ export async function runGoal(
 }
 export async function fetchFindingsByRun(): Promise<AutopilotRunWithFindings[]> {
   const { data } = await api.get<AutopilotRunWithFindings[]>("/autopilot/findings");
+  return data;
+}
+
+export async function fetchRunDetail(runId: string): Promise<AutopilotRunDetail> {
+  const { data } = await api.get<AutopilotRunDetail>(`/autopilot/runs/${runId}`);
   return data;
 }
 

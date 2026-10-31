@@ -119,9 +119,11 @@ short version; this page is the reference. Statuses live in
 Describe a goal once ("junior QA role, remote, €30k+") and an agent searches
 your connected boards on a cadence or on demand: it plans multiple
 query/filter variants, filters noise (seen/applied, never-terms, a per-goal
-cooldown), ranks by your deterministic fit score, and delivers a curated
-shortlist where every explanation cites verbatim quotes verified against the
-posting's own text. A "what I searched & why" timeline shows each run's work;
+cooldown), ranks by your deterministic fit score — each goal can turn
+single profile inputs off, and a disabled input scores a neutral 7/10
+instead of a penalty — and delivers a curated shortlist where every
+explanation cites verbatim quotes verified against the posting's own
+text. A "what I searched & why" timeline shows each run's work;
 budgets hard-cap runs (partials still ship); "more/hide like this" teaches the
 goal's constraints, dismissing a whole shortlist pauses it, and three empty
 runs trigger a refine-the-goal nudge — never wasted spend, never

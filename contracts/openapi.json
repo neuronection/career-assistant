@@ -1449,6 +1449,9 @@
             "title": "Never Terms",
             "type": "array"
           },
+          "profile": {
+            "$ref": "#/components/schemas/ProfileUsage"
+          },
           "remote": {
             "anyOf": [
               {
@@ -1550,6 +1553,7 @@
         "type": "object"
       },
       "AutopilotGoalUpdate": {
+        "description": "Goal patch \u2014 ``constraints`` (the whole JSONB, ``profile`` block\nincluded) replaces what is stored; an update without ``profile``\nresets that block to defaults.",
         "properties": {
           "budget": {
             "anyOf": [
@@ -16884,6 +16888,24 @@
         "title": "ProfileAchievementPatch",
         "type": "object"
       },
+      "ProfileContextPreviewIn": {
+        "description": "A DRAFT profile-usage block + the goal's seniority selection.",
+        "properties": {
+          "profile": {
+            "$ref": "#/components/schemas/ProfileUsage"
+          },
+          "seniority": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 6,
+            "title": "Seniority",
+            "type": "array"
+          }
+        },
+        "title": "ProfileContextPreviewIn",
+        "type": "object"
+      },
       "ProfileIn": {
         "properties": {
           "color": {
@@ -17392,6 +17414,53 @@
           }
         },
         "title": "ProfileSectionUpdate",
+        "type": "object"
+      },
+      "ProfileUsage": {
+        "additionalProperties": false,
+        "description": "Per-goal profile-usage controls (goal constraints JSONB).\n\nWhich profile inputs the planner and the fit engine may use for this\ngoal, and where the career stage comes from. Defaults reproduce the\npre-plan behavior exactly (everything on, stage from the profile).\nUpdates replace the whole constraints payload \u2014 a PATCH without\n``profile`` resets the block to these defaults.",
+        "properties": {
+          "stage_source": {
+            "default": "profile",
+            "enum": [
+              "profile",
+              "goal"
+            ],
+            "title": "Stage Source",
+            "type": "string"
+          },
+          "use_education": {
+            "default": true,
+            "title": "Use Education",
+            "type": "boolean"
+          },
+          "use_experience": {
+            "default": true,
+            "title": "Use Experience",
+            "type": "boolean"
+          },
+          "use_languages": {
+            "default": true,
+            "title": "Use Languages",
+            "type": "boolean"
+          },
+          "use_lifestyle": {
+            "default": true,
+            "title": "Use Lifestyle",
+            "type": "boolean"
+          },
+          "use_location": {
+            "default": true,
+            "title": "Use Location",
+            "type": "boolean"
+          },
+          "use_skills": {
+            "default": true,
+            "title": "Use Skills",
+            "type": "boolean"
+          }
+        },
+        "title": "ProfileUsage",
         "type": "object"
       },
       "ProposalDiffRow": {
@@ -32730,6 +32799,96 @@
           }
         },
         "summary": "Goal Runs",
+        "tags": [
+          "autopilot"
+        ]
+      }
+    },
+    "/api/v1/autopilot/profile-context": {
+      "post": {
+        "description": "The caller's effective profile snapshot for a draft usage block +\nseniority \u2014 the goal form's live summary; never touches a goal row.",
+        "operationId": "profile_context_api_v1_autopilot_profile_context_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProfileContextPreviewIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Profile Context Api V1 Autopilot Profile Context Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Profile Context",
+        "tags": [
+          "autopilot"
+        ]
+      }
+    },
+    "/api/v1/autopilot/runs/{run_id}": {
+      "get": {
+        "description": "One run's inspectable detail: node trace, AI calls and findings \u2014\na foreign and a missing run answer the same 404.",
+        "operationId": "run_detail_api_v1_autopilot_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Detail Api V1 Autopilot Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Detail",
         "tags": [
           "autopilot"
         ]
