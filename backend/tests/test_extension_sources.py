@@ -1587,4 +1587,4 @@ async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sour
         ]
         assert second_install.source_id == host.id, "the pin never leaves the hosting source"
     finally:
-        set_git_transport(fake)
+        set_git_transport(None)
