@@ -104,7 +104,6 @@ class TraceSink:
         if self._tracer is not None:
             return self._tracer
         try:
-            from opentelemetry import trace
             from opentelemetry.sdk.resources import Resource
             from opentelemetry.sdk.trace import TracerProvider
             from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -133,7 +132,7 @@ class TraceSink:
             self._warn_once("tracing exporter setup failed — tracing stays disabled", exc_info=True)
             return None
         self._provider = provider
-        self._tracer = trace.get_tracer(settings.otel_service_name or "career-assistant")
+        self._tracer = provider.get_tracer(settings.otel_service_name or "career-assistant")
         return self._tracer
 
     @contextlib.contextmanager

@@ -4,11 +4,14 @@ Default is a no-op: no exporter, no spans, desktop inert. With a span
 processor injected (the test seam), the gateway's ``llm.call`` spans and
 the autopilot's ``node``/``run`` spans carry the metadata vocabulary —
 run_id, goal_id, node, task_type, provider, model, tokens, latency,
-status — and NEVER prompt or output text. A tracing failure never fails
-the wrapped call; a misconfiguration degrades to disabled with exactly
-one warning. The tests pass on both install modes: without the ``otel``
-extra the guarded import keeps everything a no-op (SDK absence is
-simulated explicitly too), so no skip is ever created.
+status — and NEVER prompt or output text. The env-built export path
+(``CAREER_OTEL_EXPORT=console|otlp``) is pinned end-to-end: the exporter
+captured at its construction site must receive a real span, and the
+tracer must come from the provider the sink built. A tracing failure
+never fails the wrapped call; a misconfiguration degrades to disabled
+with exactly one warning. The tests pass on both install modes: without
+the ``otel`` extra the guarded import keeps everything a no-op (SDK
+absence is simulated explicitly too), so no skip is ever created.
 """
 
 import logging
@@ -204,14 +207,17 @@ def test_misconfiguration_disables_with_exactly_one_warning(fresh_sink, caplog):
 
 
 def test_sdk_absence_is_simulated_and_stays_a_noop(fresh_sink, monkeypatch):
-    """Without the `otel` extra (or with it masked, `sys.modules[...] =
-    None`), spans are no-ops and nothing raises — no skip is ever created
-    (plan 168 S4.1)."""
-    monkeypatch.setitem(sys.modules, "opentelemetry", None)
+    """Without the `otel` extra (or with every cached `opentelemetry*`
+    module evicted, simulating true absence), spans are no-ops and nothing
+    raises — no skip is ever created (plan 168 S4.1)."""
     monkeypatch.setattr("app.core.config.settings.otel_export", "console", raising=False)
     import app.core.config as config_module
 
     config_module.settings.otel_export = "console"
+    cached = [name for name in sys.modules if name.startswith("opentelemetry")]
+    for name in cached:
+        monkeypatch.delitem(sys.modules, name)
+    monkeypatch.setitem(sys.modules, "opentelemetry", None)
     with sink().span("llm.call", {"task_type": "probe"}) as span:
         span.set({"status": "ok"})
     assert fresh_sink._provider is None
@@ -228,3 +234,86 @@ def test_otlp_with_an_endpoint_enables_the_mode(fresh_sink):
     assert fresh_sink._enabled_mode() == "otlp"
     config_module.settings.otel_export = ""
     config_module.settings.otel_endpoint = None
+
+
+def test_env_console_path_exports_a_real_span(fresh_sink, monkeypatch):
+    """CAREER_OTEL_EXPORT=console builds the sink's OWN provider and takes
+    the tracer from it: a span driven through the env-built path lands on
+    the exporter captured at that construction site — not via
+    `use_processor` (plan 168 S4.2)."""
+    if not _sdk_available():
+        assert fresh_sink._provider is None
+        return
+    import opentelemetry.sdk.trace.export as export_module
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import (
+        InMemorySpanExporter,
+    )
+
+    exporter = InMemorySpanExporter()
+    monkeypatch.setattr(export_module, "ConsoleSpanExporter", lambda: exporter)
+    monkeypatch.setattr(export_module, "BatchSpanProcessor", lambda exp: SimpleSpanProcessor(exp))
+    import app.core.config as config_module
+
+    config_module.settings.otel_export = "console"
+    try:
+        assert fresh_sink._provider is None, "inert until the env enables the sink"
+        with sink().span("autopilot.node", {"node": "deliver", "kind": "deterministic"}) as span:
+            span.set({"status": "ok", "latency_ms": 12})
+        assert fresh_sink._tracer is not None, "the tracer comes from the built provider"
+        fresh_sink.flush()
+        spans = exporter.get_finished_spans()
+        assert [s.name for s in spans] == ["autopilot.node"]
+        assert spans[0].attributes["node"] == "deliver"
+        assert spans[0].attributes["status"] == "ok"
+    finally:
+        config_module.settings.otel_export = ""
+
+
+def test_env_otlp_path_builds_the_otlp_exporter(fresh_sink, monkeypatch):
+    """CAREER_OTEL_EXPORT=otlp + endpoint builds an OTLPSpanExporter with
+    the configured endpoint on the sink's own provider (plan 168 S4.2)."""
+    import importlib.util
+
+    if (
+        importlib.util.find_spec("opentelemetry.sdk") is None
+        or importlib.util.find_spec("opentelemetry.exporter.otlp") is None
+    ):
+        assert fresh_sink._provider is None
+        return
+    import opentelemetry.exporter.otlp.proto.http.trace_exporter as otlp_module
+    import opentelemetry.sdk.trace.export as export_module
+    from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+    built: dict = {}
+
+    class StubExporter:
+        def __init__(self, endpoint=None, **kwargs):
+            built["endpoint"] = endpoint
+
+        def export(self, _spans):
+            from opentelemetry.sdk.trace.export import SpanExportResult
+
+            return SpanExportResult.SUCCESS
+
+        def force_flush(self, timeout_millis=None):
+            return True
+
+        def shutdown(self):
+            return None
+
+    monkeypatch.setattr(otlp_module, "OTLPSpanExporter", StubExporter)
+    monkeypatch.setattr(export_module, "BatchSpanProcessor", lambda exp: SimpleSpanProcessor(exp))
+    import app.core.config as config_module
+
+    config_module.settings.otel_export = "otlp"
+    config_module.settings.otel_endpoint = "http://127.0.0.1:4318/v1/traces"
+    try:
+        assert fresh_sink._provider is None, "inert until the env enables the sink"
+        with sink().span("llm.call", {"task_type": "assist"}) as span:
+            span.set({"status": "ok"})
+        assert fresh_sink._tracer is not None, "the tracer comes from the built provider"
+        assert built["endpoint"] == "http://127.0.0.1:4318/v1/traces"
+    finally:
+        config_module.settings.otel_export = ""
+        config_module.settings.otel_endpoint = None
