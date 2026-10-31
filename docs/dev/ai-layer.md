@@ -241,6 +241,23 @@ planner and the fit engine honor it:
   remain), and the curator system prompt forbids citing disabled
   dimensions as strengths or weaknesses (`AUTOPILOT_RUN` prompt v7).
 
+```mermaid
+flowchart LR
+    subgraph P["Profile (per-goal usage flags)"]
+        SK[skills] -->|use_skills| V[planner vocabulary + context]
+        ED[education + certs] -->|use_education| F[fit prereqs.parts]
+        LG[languages] -->|use_languages| F
+        LOC[location] -->|use_location| F2[fit location_remote]
+        EX[experience years] -->|use_experience · stage_source| F3[fit seniority_stage]
+        LS[lifestyle tolerance] -->|use_lifestyle| G[lifestyle gates]
+    end
+    V --> PLAN[plan · LLM]
+    F --> SCORE["fit score = weighted blend<br/>(disabled part → neutral 7.0)"]
+    F2 --> SCORE
+    F3 --> SCORE
+    SCORE --> POOL["(must_hits, fit) ordering → pool → findings"]
+```
+
 ### Run trace (plan 168)
 
 Every executed node lands one entry in the `trace_steps` state channel —
