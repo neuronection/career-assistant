@@ -32,6 +32,9 @@ from app.models.taxonomy_model import Skill
 from app.schemas.stats import (
     BreakdownRowOut,
     BucketName,
+    ClockCellOut,
+    ClockPeakOut,
+    ClockworkOut,
     CoverageOut,
     DeltaOut,
     FreshnessOut,
@@ -59,6 +62,8 @@ from app.services.analytics.time_buckets import (
     POSTED_WINDOWS,
     bucket_expr,
     bucket_key,
+    clock_hour_expr,
+    clock_weekday_expr,
     effective_posted_expr,
     zero_filled,
 )
@@ -205,9 +210,11 @@ async def summary(db: AsyncSession, *, status_basis: str = "open", now: datetime
     spark_start = as_of - timedelta(days=13)
     spark_start = spark_start.replace(hour=0, minute=0, second=0, microsecond=0)
     spark_rows = await _bucket_counts(db, status_basis, spark_start, as_of, "day", bounded=False)
+    as_of_day = as_of.strftime("%Y-%m-%d")
     sparkline = [
         SparkPointOut(bucket=point["bucket"], count=point["count"])
         for point in zero_filled(spark_rows, spark_start, as_of, "day", {"count": 0})
+        if point["bucket"] <= as_of_day
     ]
 
     return PostingStatsSummary(
@@ -535,6 +542,87 @@ async def _source_key(db: AsyncSession, value: Any, fallback: str) -> str:
         await db.execute(select(JobSource.key).where(JobSource.id == value))
     ).scalar_one_or_none()
     return row or fallback
+
+
+# ------------------------------------------------------------------- clockwork
+
+
+async def clockwork(
+    db: AsyncSession,
+    *,
+    window: str = "30d",
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    status_basis: str = "all",
+    now: datetime | None = None,
+) -> ClockworkOut:
+    """The weekday x hour posting clock (plan 171 H7): a complete,
+    zero-filled 7x24 matrix over the window population on the shared
+    effective-posted predicate, with the equal-length predecessor per
+    cell and a deterministic peak (ties break weekday-then-hour
+    ascending). Always UTC — the wire carries ``time_zone``."""
+    _check_basis(status_basis)
+    as_of = (now or datetime.now(UTC)).astimezone(UTC)
+    ctx = window_context(window, date_from, date_to, as_of)
+    if ctx.start is None:  # window="all": the clock needs a real start
+        ctx = WindowContext(
+            ctx.as_of,
+            ctx.window,
+            await _earliest(db, basis_conditions(status_basis), ctx.end),
+            ctx.end,
+            None,
+            None,
+        )
+    dialect = db.get_bind().dialect.name
+    column = effective_posted_expr()
+    weekday = clock_weekday_expr(dialect, column)
+    hour = clock_hour_expr(dialect, column)
+
+    async def _grid(conditions: list) -> dict[tuple[int, int], int]:
+        rows = (
+            await db.execute(
+                select(weekday, hour, func.count(JobPosting.id))
+                .where(*conditions)
+                .group_by(weekday, hour)
+            )
+        ).all()
+        return {(int(w), int(h)): int(n) for w, h, n in rows}
+
+    grid = await _grid(current_conditions(ctx, status_basis))
+    prev_grid = (
+        await _grid(prev_conditions(ctx, status_basis)) if ctx.prev_start is not None else {}
+    )
+
+    cells: list[ClockCellOut] = []
+    by_weekday = [0] * 7
+    by_hour = [0] * 24
+    for day in range(1, 8):
+        for slot in range(24):
+            count = grid.get((day, slot), 0)
+            prev = prev_grid.get((day, slot), 0)
+            pct = delta(count, prev).delta_pct
+            cells.append(
+                ClockCellOut(weekday=day, hour=slot, count=count, prev=prev, delta_pct=pct)
+            )
+            by_weekday[day - 1] += count
+            by_hour[slot] += count
+
+    peak: ClockPeakOut | None = None
+    best = max(cells, key=lambda cell: (cell.count, -cell.weekday, -cell.hour))
+    if best.count > 0:
+        peak = ClockPeakOut(weekday=best.weekday, hour=best.hour, count=best.count)
+
+    return ClockworkOut(
+        as_of=as_of,
+        window=ctx.window,
+        status_basis=cast(StatusBasis, status_basis),
+        start=ctx.start,
+        end=ctx.end,
+        cells=cells,
+        peak=peak,
+        by_weekday=by_weekday,
+        by_hour=by_hour,
+    )
 
 
 # ------------------------------------------------------------------- skills
@@ -1067,18 +1155,19 @@ async def _insights(db: AsyncSession, ctx: WindowContext, status_basis: str) -> 
         counts = skill_series[leader_now]
         lead_z = _zscore(counts[0], counts[1:])
         mean = sum(counts[1:]) / len(counts[1:])
-        cards.append(
-            (
-                abs(lead_z),
-                InsightOut(
-                    kind="skill_lead",
-                    subject=leader_now,
-                    delta_pct=round((counts[0] - mean) / mean * 100, 1) if mean else None,
-                    baseline=round(mean, 2),
-                    text_key="insights.skill_lead",
-                ),
+        if abs(lead_z) >= INSIGHT_Z and max(counts[0], mean) >= INSIGHT_MIN_COUNT:
+            cards.append(
+                (
+                    abs(lead_z),
+                    InsightOut(
+                        kind="skill_lead",
+                        subject=leader_now,
+                        delta_pct=round((counts[0] - mean) / mean * 100, 1) if mean else None,
+                        baseline=round(mean, 2),
+                        text_key="insights.skill_lead",
+                    ),
+                )
             )
-        )
 
     cards.sort(key=lambda item: (-item[0], item[1].kind, item[1].subject))
     return [card for _score, card in cards[:INSIGHT_LIMIT]]

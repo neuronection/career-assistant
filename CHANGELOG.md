@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (market statistics stretch, 2026-10-31)
+- **The posting clock** (plan 171 slice 1): `GET /postings/stats/clockwork`
+  joins the market stats API — a complete 7x24 weekday-by-hour matrix over
+  the shared effective-posted predicate (always UTC, stated on the wire),
+  with per-cell previous-window deltas and a deterministic peak
+  (ties break weekday-then-hour). Two stats tightenings ride the same
+  slice: the rail sparkline is clipped to today (future-dated rows still
+  count in every KPI) and the "skill lead changed" insight card now
+  requires the new leader's rise to clear the trailing-baseline gate.
+
 ### Added (market statistics rails, 2026-10-31)
 - **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now
   sits on the right edge of `/postings` and `/companies` — pulse tiles

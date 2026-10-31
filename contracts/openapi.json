@@ -3084,6 +3084,165 @@
         "title": "CheckinStatusOut",
         "type": "object"
       },
+      "ClockCellOut": {
+        "description": "One weekday x hour cell of the posting clock \u2014 a complete,\nzero-filled matrix; ``delta_pct`` is null when the previous window\ncounted zero for the same cell.",
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "hour": {
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Hour",
+            "type": "integer"
+          },
+          "prev": {
+            "minimum": 0.0,
+            "title": "Prev",
+            "type": "integer"
+          },
+          "weekday": {
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "hour",
+          "count",
+          "prev"
+        ],
+        "title": "ClockCellOut",
+        "type": "object"
+      },
+      "ClockPeakOut": {
+        "description": "The single busiest cell \u2014 deterministic tie-break (weekday, hour\nascending); null when the window population is empty.",
+        "properties": {
+          "count": {
+            "minimum": 1.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "hour": {
+            "maximum": 23.0,
+            "minimum": 0.0,
+            "title": "Hour",
+            "type": "integer"
+          },
+          "weekday": {
+            "maximum": 7.0,
+            "minimum": 1.0,
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "hour",
+          "count"
+        ],
+        "title": "ClockPeakOut",
+        "type": "object"
+      },
+      "ClockworkOut": {
+        "description": "The weekday x hour posting clock (plan 171 H7) \u2014 always UTC, the\nwire says so.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "by_hour": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "By Hour",
+            "type": "array"
+          },
+          "by_weekday": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "By Weekday",
+            "type": "array"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/ClockCellOut"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "peak": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ClockPeakOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "time_zone": {
+            "const": "UTC",
+            "default": "UTC",
+            "title": "Time Zone",
+            "type": "string"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end"
+        ],
+        "title": "ClockworkOut",
+        "type": "object"
+      },
       "CompactionItem": {
         "properties": {
           "item_id": {
@@ -45826,6 +45985,96 @@
           }
         },
         "summary": "Postings Stats Breakdown",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/clockwork": {
+      "get": {
+        "description": "The weekday x hour posting clock over the window population \u2014\nalways UTC.",
+        "operationId": "postings_stats_clockwork_api_v1_postings_stats_clockwork_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClockworkOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Clockwork",
         "tags": [
           "postings-stats"
         ]

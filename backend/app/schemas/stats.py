@@ -37,6 +37,43 @@ class SparkPointOut(BaseModel):
     count: int = Field(ge=0)
 
 
+class ClockCellOut(BaseModel):
+    """One weekday x hour cell of the posting clock — a complete,
+    zero-filled matrix; ``delta_pct`` is null when the previous window
+    counted zero for the same cell."""
+
+    weekday: int = Field(ge=1, le=7)
+    hour: int = Field(ge=0, le=23)
+    count: int = Field(ge=0)
+    prev: int = Field(ge=0)
+    delta_pct: float | None = None
+
+
+class ClockPeakOut(BaseModel):
+    """The single busiest cell — deterministic tie-break (weekday, hour
+    ascending); null when the window population is empty."""
+
+    weekday: int = Field(ge=1, le=7)
+    hour: int = Field(ge=0, le=23)
+    count: int = Field(ge=1)
+
+
+class ClockworkOut(BaseModel):
+    """The weekday x hour posting clock (plan 171 H7) — always UTC, the
+    wire says so."""
+
+    as_of: datetime
+    window: str
+    status_basis: StatusBasis
+    start: datetime | None = None
+    end: datetime
+    time_zone: Literal["UTC"] = "UTC"
+    cells: list[ClockCellOut] = Field(default_factory=list)
+    peak: ClockPeakOut | None = None
+    by_weekday: list[int] = Field(default_factory=list)
+    by_hour: list[int] = Field(default_factory=list)
+
+
 class FreshnessSourceOut(BaseModel):
     """One source's ingestion freshness — named when not ``ok``."""
 

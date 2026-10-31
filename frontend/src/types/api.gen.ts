@@ -3331,6 +3331,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/autopilot/profile-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Profile Context
+         * @description The caller's effective profile snapshot for a draft usage block +
+         *     seniority — the goal form's live summary; never touches a goal row.
+         */
+        post: operations["profile_context_api_v1_autopilot_profile_context_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Detail
+         * @description One run's inspectable detail: node trace, AI calls and findings —
+         *     a foreign and a missing run answer the same 404.
+         */
+        get: operations["run_detail_api_v1_autopilot_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/background-jobs": {
         parameters: {
             query?: never;
@@ -8222,6 +8264,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/stats/clockwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Clockwork
+         * @description The weekday x hour posting clock over the window population —
+         *     always UTC.
+         */
+        get: operations["postings_stats_clockwork_api_v1_postings_stats_clockwork_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/stats/overview": {
         parameters: {
             query?: never;
@@ -9484,6 +9547,7 @@ export interface components {
             must_terms?: string[];
             /** Never Terms */
             never_terms?: string[];
+            profile?: components["schemas"]["ProfileUsage"];
             /** Remote */
             remote?: boolean | null;
             /** Salary Min */
@@ -9517,7 +9581,12 @@ export interface components {
             /** Goal Text */
             goal_text: string;
         };
-        /** AutopilotGoalUpdate */
+        /**
+         * AutopilotGoalUpdate
+         * @description Goal patch — ``constraints`` (the whole JSONB, ``profile`` block
+         *     included) replaces what is stored; an update without ``profile``
+         *     resets that block to defaults.
+         */
         AutopilotGoalUpdate: {
             budget?: components["schemas"]["AutopilotBudget"] | null;
             /** Cadence */
@@ -10080,6 +10149,76 @@ export interface components {
             last_at?: string | null;
             /** Next At */
             next_at?: string | null;
+        };
+        /**
+         * ClockCellOut
+         * @description One weekday x hour cell of the posting clock — a complete,
+         *     zero-filled matrix; ``delta_pct`` is null when the previous window
+         *     counted zero for the same cell.
+         */
+        ClockCellOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Hour */
+            hour: number;
+            /** Prev */
+            prev: number;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * ClockPeakOut
+         * @description The single busiest cell — deterministic tie-break (weekday, hour
+         *     ascending); null when the window population is empty.
+         */
+        ClockPeakOut: {
+            /** Count */
+            count: number;
+            /** Hour */
+            hour: number;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * ClockworkOut
+         * @description The weekday x hour posting clock (plan 171 H7) — always UTC, the
+         *     wire says so.
+         */
+        ClockworkOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Hour */
+            by_hour?: number[];
+            /** By Weekday */
+            by_weekday?: number[];
+            /** Cells */
+            cells?: components["schemas"]["ClockCellOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            peak?: components["schemas"]["ClockPeakOut"] | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /**
+             * Time Zone
+             * @default UTC
+             * @constant
+             */
+            time_zone: "UTC";
+            /** Window */
+            window: string;
         };
         /** CompactionItem */
         CompactionItem: {
@@ -15339,6 +15478,15 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /**
+         * ProfileContextPreviewIn
+         * @description A DRAFT profile-usage block + the goal's seniority selection.
+         */
+        ProfileContextPreviewIn: {
+            profile?: components["schemas"]["ProfileUsage"];
+            /** Seniority */
+            seniority?: string[];
+        };
         /** ProfileIn */
         ProfileIn: {
             /** Color */
@@ -15517,6 +15665,54 @@ export interface components {
             likes?: components["schemas"]["LikeDislikeItem"][] | null;
             preferences?: components["schemas"]["PreferencesSection"] | null;
             work_preferences?: components["schemas"]["WorkPreferencesSection"] | null;
+        };
+        /**
+         * ProfileUsage
+         * @description Per-goal profile-usage controls (goal constraints JSONB).
+         *
+         *     Which profile inputs the planner and the fit engine may use for this
+         *     goal, and where the career stage comes from. Defaults reproduce the
+         *     pre-plan behavior exactly (everything on, stage from the profile).
+         *     Updates replace the whole constraints payload — a PATCH without
+         *     ``profile`` resets the block to these defaults.
+         */
+        ProfileUsage: {
+            /**
+             * Stage Source
+             * @default profile
+             * @enum {string}
+             */
+            stage_source: "profile" | "goal";
+            /**
+             * Use Education
+             * @default true
+             */
+            use_education: boolean;
+            /**
+             * Use Experience
+             * @default true
+             */
+            use_experience: boolean;
+            /**
+             * Use Languages
+             * @default true
+             */
+            use_languages: boolean;
+            /**
+             * Use Lifestyle
+             * @default true
+             */
+            use_lifestyle: boolean;
+            /**
+             * Use Location
+             * @default true
+             */
+            use_location: boolean;
+            /**
+             * Use Skills
+             * @default true
+             */
+            use_skills: boolean;
         };
         /**
          * ProposalDiffRow
@@ -23930,6 +24126,74 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profile_context_api_v1_autopilot_profile_context_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileContextPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    run_detail_api_v1_autopilot_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -32527,6 +32791,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PostingStatsBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_clockwork_api_v1_postings_stats_clockwork_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockworkOut"];
                 };
             };
             /** @description Validation Error */

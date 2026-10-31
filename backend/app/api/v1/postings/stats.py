@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.schemas.stats import (
+    ClockworkOut,
     CompanyStatsOverview,
     CompanyStatsSummary,
     PostingStatsBreakdown,
@@ -129,6 +130,21 @@ async def postings_stats_breakdown(
         date_to=date_to,
         status_basis=status_basis,
         limit=limit,
+    )
+
+
+@router.get("/postings/stats/clockwork", response_model=ClockworkOut)
+async def postings_stats_clockwork(
+    window: str = WINDOW_QUERY,
+    date_from: datetime | None = FROM_QUERY,
+    date_to: datetime | None = TO_QUERY,
+    status_basis: str = BASIS_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> ClockworkOut:
+    """The weekday x hour posting clock over the window population —
+    always UTC."""
+    return await stats_service.clockwork(
+        db, window=window, date_from=date_from, date_to=date_to, status_basis=status_basis
     )
 
 

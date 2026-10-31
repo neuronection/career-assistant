@@ -12,7 +12,7 @@ from app.models.posting_model import JobPosting, JobSource, SourceRun
 from app.models.taxonomy_model import Skill
 from app.services.catalog import company_stats_service
 from app.services.postings import stats_service
-from tests.conftest import _make_posting
+from tests.conftest import _add_posting_skill, _make_posting
 
 NOW = datetime(2026, 10, 30, 12, 0, tzinfo=UTC)
 
@@ -39,7 +39,11 @@ async def test_stats_routes_resolve_on_a_seeded_db(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
     await _make_posting(db, source, external_id="route-1")
-    for path in ("/api/v1/postings/stats/summary", "/api/v1/companies/stats/summary"):
+    for path in (
+        "/api/v1/postings/stats/summary",
+        "/api/v1/postings/stats/clockwork",
+        "/api/v1/companies/stats/summary",
+    ):
         response = await client.get(path, headers=auth_headers)
         assert response.status_code == 200, (path, response.text)
 
@@ -407,6 +411,157 @@ async def test_insight_rules_anomaly_fixture_shows_exactly_the_volume_card(db, s
     assert card.text_key == "insights.volume_high"
     assert card.baseline == 5.0
     assert card.delta_pct == 200.0
+
+
+# ----------------------------------------------------------------- clockwork
+
+
+async def test_clockwork_matrix_weekday_hours_and_peak(db, source):
+    rows = [
+        _row(source, "clk-sun", posted_at=datetime(2026, 10, 11, 9, 30, tzinfo=UTC)),
+        _row(source, "clk-sun-2", posted_at=datetime(2026, 10, 11, 9, 50, tzinfo=UTC)),
+        _row(source, "clk-mon", posted_at=datetime(2026, 10, 12, 23, 59, tzinfo=UTC)),
+        _row(source, "clk-boundary", posted_at=datetime(2026, 10, 15, 9, 0, tzinfo=UTC)),
+        _row(source, "clk-out-of-window", posted_at=NOW - timedelta(days=45)),
+    ]
+    await _seed(db, rows)
+    result = await stats_service.clockwork(db, window="30d", now=NOW)
+    assert len(result.cells) == 168
+    assert result.time_zone == "UTC"
+    grid = {(cell.weekday, cell.hour): cell.count for cell in result.cells}
+    assert grid[(7, 9)] == 2
+    assert grid[(1, 23)] == 1
+    assert grid[(4, 9)] == 1
+    assert sum(result.by_weekday) == 4
+    assert result.by_hour[9] == 3
+    assert result.by_hour[23] == 1
+    assert result.peak is not None
+    assert (result.peak.weekday, result.peak.hour, result.peak.count) == (7, 9, 2)
+
+
+async def test_clockwork_peak_tie_breaks_deterministically(db, source):
+    rows = [
+        _row(source, "tie-a", posted_at=datetime(2026, 10, 26, 8, 10, tzinfo=UTC)),
+        _row(source, "tie-b", posted_at=datetime(2026, 10, 27, 14, 20, tzinfo=UTC)),
+    ]
+    await _seed(db, rows)
+    result = await stats_service.clockwork(db, window="30d", now=NOW)
+    assert result.peak is not None
+    assert (result.peak.weekday, result.peak.hour) == (1, 8)
+
+
+async def test_clockwork_coherence_and_empty_shapes(db, source):
+    await _seed(
+        db,
+        [
+            _row(source, "coh-a", posted_at=NOW - timedelta(days=1, hours=3)),
+            _row(source, "coh-b", posted_at=NOW - timedelta(days=2)),
+            _row(source, "coh-prev", posted_at=NOW - timedelta(days=9)),
+            _row(source, "coh-out", posted_at=NOW - timedelta(days=40)),
+        ],
+    )
+    result = await stats_service.clockwork(db, window="7d", status_basis="all", now=NOW)
+    assert sum(cell.count for cell in result.cells) == 2
+    assert sum(cell.prev for cell in result.cells) == 1
+    heated = [cell for cell in result.cells if cell.count]
+    assert heated and all(cell.count == 1 for cell in heated)
+    assert all((cell.prev == 0) == (cell.delta_pct is None) for cell in heated)
+
+    empty = await stats_service.clockwork(db, window="24h", now=NOW)
+    assert len(empty.cells) == 168
+    assert all(cell.count == 0 for cell in empty.cells)
+    assert empty.peak is None
+
+
+async def test_clockwork_window_all_has_no_predecessor(db, source):
+    await _seed(
+        db,
+        [
+            _row(source, "early-a", posted_at=datetime(2025, 9, 20, 6, 0, tzinfo=UTC)),
+            _row(source, "all-b", posted_at=NOW - timedelta(days=3)),
+        ],
+    )
+    result = await stats_service.clockwork(db, window="all", now=NOW)
+    assert result.start is not None
+    assert all(cell.prev == 0 and cell.delta_pct is None for cell in result.cells)
+    edge = {(cell.weekday, cell.hour): cell.count for cell in result.cells}
+    assert edge[(6, 6)] == 1
+
+
+async def test_sparkline_clips_future_buckets_but_kpis_keep_them(db, source):
+    await _seed(
+        db,
+        [
+            _row(source, "spark-now", posted_at=NOW - timedelta(hours=2)),
+            _row(
+                source,
+                "spark-future",
+                posted_at=NOW + timedelta(days=3),
+                created_at=NOW - timedelta(hours=1),
+            ),
+        ],
+    )
+    summary = await stats_service.summary(db, now=NOW)
+    assert len(summary.sparkline) == 14
+    today = NOW.strftime("%Y-%m-%d")
+    assert all(point.bucket <= today for point in summary.sparkline)
+    assert summary.new_7d.count == 2
+
+
+async def test_skill_lead_insight_stays_gated_off_when_the_rise_is_weak(
+    db, source, seeded_catalog, kinds
+):
+    await _seed_lead_fixture(db, source, now_current=(2, 1), strong=False)
+    overview = await stats_service.overview(db, window="7d", status_basis="all", now=NOW)
+    kinds_seen = {card.kind for card in overview.insights}
+    assert "skill_lead" not in kinds_seen
+
+
+async def test_skill_lead_insight_fires_when_the_new_leader_clears_the_gate(
+    db, source, seeded_catalog, kinds
+):
+    await _seed_lead_fixture(db, source, now_current=(6, 0), strong=True)
+    overview = await stats_service.overview(db, window="7d", status_basis="all", now=NOW)
+    leads = [card for card in overview.insights if card.kind == "skill_lead"]
+    assert leads, [card.kind for card in overview.insights]
+    assert leads[0].subject == "problem-solving"
+    assert leads[0].text_key == "insights.skill_lead"
+
+
+async def _seed_lead_fixture(db, source, *, now_current: tuple[int, int], strong: bool) -> None:
+    """Trailing weeks: `wave` problem-solving rows on top of 4 programming
+    rows per week (wave = 1,2,1,2 — a varying baseline). The current
+    window's split decides whether the problem-solving lead-change is a
+    real anomaly. NOW is shared; weak and strong are separate databases."""
+    trailing_wave = [1, 2, 1, 2, 1, 2, 1, 2]
+    rows, attached = [], []
+    for offset, wave in enumerate(trailing_wave, start=1):
+        for index in range(4 + wave):
+            key = "programming" if index < 4 else "problem-solving"
+            row = _row(
+                source,
+                f"{'lead-strong' if strong else 'lead-weak'}-trail-{offset}-{index}",
+                posted_at=NOW - timedelta(days=7 * offset + 1),
+                seniority="mid",
+                onsite_policy="remote",
+            )
+            rows.append(row)
+            attached.append((row, key, "must_have"))
+    ps_now, prog_now = now_current
+    for index in range(ps_now + prog_now):
+        key = "problem-solving" if index < ps_now else "programming"
+        row = _row(
+            source,
+            f"{'lead-strong' if strong else 'lead-weak'}-now-{index}",
+            posted_at=NOW - timedelta(hours=6 + index),
+            seniority="mid",
+            onsite_policy="remote",
+        )
+        rows.append(row)
+        attached.append((row, key, "must_have"))
+    await _seed(db, rows)
+    for posting, key, priority in attached:
+        await _add_posting_skill(db, posting, key, 3, priority)
 
 
 async def test_freshness_names_stale_paused_and_never_sources(db):

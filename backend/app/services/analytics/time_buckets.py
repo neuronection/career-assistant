@@ -87,6 +87,24 @@ def bucket_expr(dialect_name: str, column: Any, bucket: str) -> Any:
     return func.date(func.julianday(column) - days_back)
 
 
+def clock_weekday_expr(dialect_name: str, column: Any) -> Any:
+    """ISO weekday of the column in UTC (Monday=1 .. Sunday=7).
+
+    PostgreSQL reads ``isodow`` off the UTC projection; SQLite builds it
+    from ``%w`` (Sunday=0) with the same shift the week-bucket path uses.
+    The wire is dialect-independent."""
+    if dialect_name == "postgresql":
+        return func.extract("isodow", func.timezone("UTC", column))
+    return (func.cast(func.strftime("%w", column), Integer) + 6) % 7 + 1
+
+
+def clock_hour_expr(dialect_name: str, column: Any) -> Any:
+    """Hour of the column in UTC (0..23), dialect-aware."""
+    if dialect_name == "postgresql":
+        return func.extract("hour", func.timezone("UTC", column))
+    return func.cast(func.strftime("%H", column), Integer)
+
+
 def bucket_key(value: Any, bucket: str) -> str:
     """Canonical text key for one bucket — a datetime (PostgreSQL
     ``date_trunc``) or text (SQLite ``strftime``) both normalize to the
