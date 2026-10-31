@@ -159,6 +159,24 @@ async def test_explore_released_windows_and_fresh_only(
     assert str(fresh.id) in ids and str(old.id) not in ids
 
 
+async def test_explore_posted_windows_fall_back_to_ingestion_date(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    undated = await _make_posting(db, source, external_id="undated-1", posted_at=None)
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"posted_within": "7d"},
+        headers=auth_headers,
+    )
+    ids = {i["id"] for i in response.json()["items"]}
+    assert str(undated.id) in ids
+
+    facets = (
+        await client.get("/api/v1/postings/explore", params={"sort": "fresh"}, headers=auth_headers)
+    ).json()["facets"]["posted"]
+    assert facets == {"24h": 1, "7d": 0, "30d": 0, "90d": 0, "older": 0}
+
+
 async def test_explore_salary_source_and_extracted_only(
     db,
     client,

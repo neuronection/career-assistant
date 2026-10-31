@@ -9,7 +9,7 @@ contract, remote policy and freshness.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 from xml.sax.saxutils import escape, quoteattr
 
@@ -20,13 +20,14 @@ from app.core.errors import NotFoundError
 from app.models.engagement_model import SearchHistory
 from app.models.posting_model import JobPosting
 from app.models.user_model import User
+from app.services.analytics.time_buckets import window_clause
 from app.services.notification_channels import utcnow
 
 FEED_LIMIT = 50
 MAX_LIMIT = 100
 POSTS_PATH = "/postings"
 SEARCH_PATH = "/postings/search?q="
-_POSTED_WINDOWS = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+_POSTED_WINDOW_KEYS = {"1d": "24h", "7d": "7d", "30d": "30d", "90d": "90d"}
 
 
 def encode_cursor(posting: JobPosting) -> str:
@@ -76,8 +77,8 @@ def matching_filters(filters: dict, *, now: datetime | None = None) -> list:
         elif isinstance(value, list) and value:
             clauses.append(column.in_([str(item) for item in value]))
     posted = filters.get("posted_within")
-    if isinstance(posted, str) and posted in _POSTED_WINDOWS:
-        clauses.append(JobPosting.posted_at >= moment - timedelta(days=_POSTED_WINDOWS[posted]))
+    if isinstance(posted, str) and posted in _POSTED_WINDOW_KEYS:
+        clauses.append(window_clause(_POSTED_WINDOW_KEYS[posted], moment))
     return clauses
 
 

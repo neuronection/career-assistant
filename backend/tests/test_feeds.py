@@ -316,3 +316,37 @@ async def test_postings_created_window_is_used(db, auth_headers, search_fixtures
     )
     assert rows == []
     assert user.id
+
+
+def test_matching_filters_posted_within_wire_vocabulary_is_pinned():
+    assert rss_feed._POSTED_WINDOW_KEYS == {"1d": "24h", "7d": "7d", "30d": "30d", "90d": "90d"}
+
+
+async def test_matching_filters_uses_effective_posted_date(db, auth_headers, search_fixtures):
+    undated, stale, fresh = search_fixtures
+    undated.posted_at = None
+    stale.posted_at = utcnow() - timedelta(days=40)
+    await db.commit()
+
+    month_rows = (
+        (
+            await db.execute(
+                select(JobPosting).where(*rss_feed.matching_filters({"posted_within": "30d"}))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    month_ids = {row.id for row in month_rows}
+    assert month_ids == {undated.id, fresh.id}
+
+    day_rows = (
+        (
+            await db.execute(
+                select(JobPosting).where(*rss_feed.matching_filters({"posted_within": "1d"}))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert {row.id for row in day_rows} == {undated.id}

@@ -31,6 +31,12 @@ from app.models.posting_model import JobPosting, JobSource, PostingChange, Sourc
 from app.models.schedule_model import Schedule
 from app.models.taxonomy_model import SkillChange
 from app.models.user_model import User
+from app.services.analytics.time_buckets import (
+    bucket_expr,
+    bucket_key,
+    range_bounds,
+    zero_filled,
+)
 
 WINDOWS: dict[str, timedelta] = {
     "24h": timedelta(hours=24),
@@ -44,54 +50,17 @@ FAILURES_LIMIT = 8
 EXPORT_LIMIT = 10_000
 
 
-def window_bounds(window: str, now: datetime | None = None) -> tuple[datetime, datetime]:
-    """(start, prev_start) for a preset window — UTC aware."""
-    span = WINDOWS[window]
-    current = (now or datetime.now(UTC)).astimezone(UTC)
-    return current - span, current - span * 2
-
-
-def _as_utc(moment: datetime) -> datetime:
-    """Query params may arrive tz-naive (`?from=2026-10-01T00:00:00`) —
-    normalize before any arithmetic against aware 'now'."""
-    return moment if moment.tzinfo is not None else moment.replace(tzinfo=UTC)
-
-
-def _range_bounds(
-    window: str | None,
-    date_from: datetime | None,
-    date_to: datetime | None,
-) -> tuple[datetime, datetime, datetime | None]:
-    """(start, prev_start, end) — an explicit ``from`` overrides the
-    preset; ``end`` is None for open-ended presets. The prev window is the
-    equal-length range before ``from`` (delta math for custom ranges)."""
-    if date_from is not None:
-        date_from = _as_utc(date_from)
-        end = _as_utc(date_to) if date_to is not None else datetime.now(UTC)
-        span = max(end - date_from, timedelta(seconds=1))
-        return date_from, date_from - span, end
-    start, prev_start = window_bounds(window or "24h")
-    return start, prev_start, None
-
-
 def _range_conditions(
     column: Any,
     window: str | None,
     date_from: datetime | None,
     date_to: datetime | None,
 ) -> list[Any]:
-    start, _, end = _range_bounds(window, date_from, date_to)
+    start, _, end = range_bounds(window, date_from, date_to)
     conditions = [column >= start]
     if end is not None:
         conditions.append(column < end)
     return conditions
-
-
-def _bucket_expr(dialect_name: str, column: Any, bucket: str) -> Any:
-    if dialect_name == "postgresql":
-        return func.date_trunc(bucket, column)
-    fmt = "%Y-%m-%dT%H:00:00" if bucket == "hour" else "%Y-%m-%d"
-    return func.strftime(fmt, column)
 
 
 async def _ai_window_stats(
@@ -132,7 +101,7 @@ async def overview(
     date_to: datetime | None = None,
 ) -> dict[str, Any]:
     """One round trip of dashboard KPIs + the recent-failure feed."""
-    start, prev_start, end = _range_bounds(window, date_from, date_to)
+    start, prev_start, end = range_bounds(window, date_from, date_to)
     upper = [BackgroundJob.created_at < end] if end is not None else []
     current = await _ai_window_stats(db, start, end)
     previous = await _ai_window_stats(db, prev_start, start)
@@ -240,21 +209,6 @@ async def overview(
     }
 
 
-def _bucket_key(value: Any, bucket: str) -> str:
-    """Canonical text key for a bucket label — datetime (Postgres
-    ``date_trunc``) or text (SQLite ``strftime``) both normalize to the
-    same `YYYY-MM-DDTHH:00:00` / `YYYY-MM-DD` form."""
-    if isinstance(value, datetime):
-        return _key_for(value, bucket)
-    return str(value).split("+")[0]
-
-
-def _key_for(moment: datetime, bucket: str) -> str:
-    if bucket == "hour":
-        return moment.strftime("%Y-%m-%dT%H:00:00")
-    return moment.strftime("%Y-%m-%d")
-
-
 async def timeseries(
     db: AsyncSession,
     window: str,
@@ -265,30 +219,30 @@ async def timeseries(
     zero-filled across the whole window so sparse activity does not
     compress the timeline. Custom ranges bucket hourly up to 48h, then
     daily."""
-    start, _, end = _range_bounds(window, date_from, date_to)
+    start, _, end = range_bounds(window, date_from, date_to)
     span = (end or datetime.now(UTC)) - start
     if date_from is not None:
         bucket = "hour" if span <= timedelta(hours=48) else "day"
     else:
         bucket = BUCKETS.get(window or "24h", "hour")
     stop = end or datetime.now(UTC)
-    bucket_expr = _bucket_expr(db.get_bind().dialect.name, AIGeneration.created_at, bucket)
+    grouped = bucket_expr(db.get_bind().dialect.name, AIGeneration.created_at, bucket)
     rows = (
         await db.execute(
             select(
-                bucket_expr.label("bucket"),
+                grouped.label("bucket"),
                 func.count(AIGeneration.id),
                 func.sum(case((AIGeneration.status == "error", 1), else_=0)),
                 func.coalesce(func.sum(AIGeneration.tokens_in), 0),
                 func.coalesce(func.sum(AIGeneration.tokens_out), 0),
             )
             .where(*_range_conditions(AIGeneration.created_at, window, date_from, date_to))
-            .group_by(bucket_expr)
-            .order_by(bucket_expr)
+            .group_by(grouped)
+            .order_by(grouped)
         )
     ).all()
     by_key = {
-        _bucket_key(row[0], bucket): {
+        bucket_key(row[0], bucket): {
             "calls": int(row[1] or 0),
             "errors": int(row[2] or 0),
             "tokens_in": int(row[3] or 0),
@@ -297,19 +251,13 @@ async def timeseries(
         for row in rows
     }
 
-    step = timedelta(hours=1) if bucket == "hour" else timedelta(days=1)
-    cursor = start.replace(minute=0, second=0, microsecond=0)
-    if bucket == "day":
-        cursor = cursor.replace(hour=0)
-    points: list[dict[str, Any]] = []
-    while cursor <= stop:
-        key = _key_for(cursor, bucket)
-        point = by_key.pop(key, {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0})
-        points.append({"bucket": key, **point})
-        cursor += step
-    for key in sorted(by_key):
-        points.append({"bucket": key, **by_key[key]})
-    points.sort(key=lambda point: point["bucket"])
+    points = zero_filled(
+        by_key,
+        start,
+        stop,
+        bucket,
+        {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0},
+    )
 
     return {
         "window": window,

@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (market statistics groundwork, 2026-10-31)
+- **One posted-date truth across the postings surfaces** (plan 170): the
+  "posted within" windows of the explore feed, the filter-spec search
+  (`POST /postings/filter`), the RSS saved-search feeds and the explore
+  date facets now read the effective posted date — the market date, or
+  the ingestion date when the source never supplied one — instead of the
+  market date alone. Postings without a market date no longer fall in no
+  window; they surface by the date they were ingested, so "new in the
+  last 7 days" finally matches what the feed shows. The RSS wire
+  vocabulary keeps its `1d` key (translated to the shared `24h` window).
+
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):
   the planner now sees your skills (plus the taxonomy skills around them),

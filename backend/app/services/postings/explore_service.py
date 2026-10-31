@@ -12,7 +12,7 @@ sidebar badges stay live when a facet is active.
 
 import base64
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -33,13 +33,7 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
-
-POSTED_WINDOWS: dict[str, timedelta] = {
-    "24h": timedelta(hours=24),
-    "7d": timedelta(days=7),
-    "30d": timedelta(days=30),
-    "90d": timedelta(days=90),
-}
+from app.services.analytics.time_buckets import POSTED_WINDOWS, window_clause
 
 SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 REMOTE_VALUES = ("onsite", "hybrid", "remote")
@@ -571,9 +565,7 @@ def _conditions_for(
     elif dimension == "released":
         now = _utcnow()
         if filters.get("posted_within"):
-            conditions.append(
-                JobPosting.posted_at >= now - POSTED_WINDOWS[filters["posted_within"]]
-            )
+            conditions.append(window_clause(filters["posted_within"], now))
         if filters.get("posted_after"):
             conditions.append(JobPosting.posted_at >= filters["posted_after"])
         if filters.get("fresh_only"):
@@ -1232,11 +1224,10 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
 
     now = _utcnow()
     bucket = case(
-        (JobPosting.posted_at.is_(None), "older"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["24h"], "24h"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["7d"], "7d"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["30d"], "30d"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["90d"], "90d"),
+        (window_clause("24h", now), "24h"),
+        (window_clause("7d", now), "7d"),
+        (window_clause("30d", now), "30d"),
+        (window_clause("90d", now), "90d"),
         else_="older",
     )
     buckets = {"24h": 0, "7d": 0, "30d": 0, "90d": 0, "older": 0}

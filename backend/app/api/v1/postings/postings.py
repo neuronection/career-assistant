@@ -4,10 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models.application_model import Application
+from app.models.job_model import Job, JobSkill, JobTag
 from app.models.posting_model import JobPosting, JobSource, PostingInteraction
 from app.schemas.posting import (
     AppliedIn,
@@ -545,6 +547,15 @@ async def postings_filter(
     where = build_where(spec)
     query = (
         select(JobPosting, PostingInteraction, Application)
+        .options(
+            selectinload(JobPosting.catalog_job).selectinload(Job.family),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.tag_links)
+            .selectinload(JobTag.tag),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.skill_links)
+            .selectinload(JobSkill.skill),
+        )
         .outerjoin(
             PostingInteraction,
             and_(

@@ -13,6 +13,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
+from app.services.analytics.time_buckets import effective_posted_expr
 from app.services.postings.filter_spec import PostingFilterSpec
 
 _TRUE = func.coalesce(  # a tautology for empty clauses
@@ -199,7 +200,7 @@ def _posted_within(spec: PostingFilterSpec) -> list[ColumnElement]:
     if spec.posted_within.days is None:
         return []
     cutoff = datetime.now(UTC) - timedelta(days=spec.posted_within.days)
-    return [JobPosting.posted_at >= cutoff]
+    return [effective_posted_expr() >= cutoff]
 
 
 def _match_score(spec: PostingFilterSpec) -> list[ColumnElement]:
