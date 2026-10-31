@@ -34,6 +34,10 @@ All notable changes to **Career Assistant** are documented here.
   the matching filters; the URL carries the whole view so analysis
   windows are shareable. Documented in `docs/user/market-stats.md`;
   registered in the feature registry (beta, with a demo-tour scene).
+- **Market stats CSV export** (plan 170 slice 4): the header button downloads the
+  whole loaded dashboard and every data card its own payload; cells beginning
+  with `=`, `+`, `-` or `@` are quote-guarded against spreadsheet formula
+  execution.
 
 ### Added (market statistics API, 2026-10-31)
 - **Market statistics, computed live** (plan 170): new read-only

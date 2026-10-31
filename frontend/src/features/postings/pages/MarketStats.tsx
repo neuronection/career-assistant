@@ -94,7 +94,8 @@ export function MarketStats() {
 
   const load = useCallback(async () => {
     const current = viewRef.current;
-    const id = ++requestId.current;    setLoading(true);
+    const id = ++requestId.current;
+    setLoading(true);
     setError(false);
     const market = { ...rangeQuery(current), status_basis: current.basis };
     const results = await Promise.allSettled([

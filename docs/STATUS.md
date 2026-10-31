@@ -39,6 +39,7 @@ all read.
 | Companies (reviewed profiles + derived hiring stats, all postings per company) | done | Facts are reviewed manual/derived — never guessed; financial claims carry source + as-of; merges re-point or refuse |
 | Explore page (facet filters, saved searches, cursor pagination) | done | Live counts; per-posting match score; tri-state include/exclude on every axis (plan 141) — skills via the catalog picker, organization from the companies catalog, sources include/exclude |
 | Job radar (saved search config + explore integration; digests from 4b) | done | Per profile; salary floor on the normalized annual basis; nothing inferred |
+| Market statistics (stats page `/postings/stats` + pulse rails on /postings and /companies; **beta**) | beta | One effective posted date (`coalesce(posted_at, created_at)`) shared by explore/filter-search/RSS/stats — a rail chip's count equals the list it opens; explicit status basis (open vs all) per metric with equal-length predecessor deltas; deterministic insight cards, per-currency salary bands, demand by career family, source freshness; live bounded aggregation, no cache tables. Documented in `docs/user/market-stats.md`; registry key `/postings/stats` (beta) |
 | Semantic search (embeddings + hybrid RRF retrieval) | done | pgvector optional; semantic is a ranking signal, never a filter gate |
 | Career Autopilot (goal agent, budgets, explainable shortlists) | done | Scheduler cadence or on demand; never auto-applies |
 | Growth toolkit (roadmaps, near-miss radar, market snapshots, check-ins) | done | |

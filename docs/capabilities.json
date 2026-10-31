@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-30",
+  "updated": "2026-10-31",
   "capabilities": [
     {
       "id": "update-checks",
@@ -422,6 +422,24 @@
         "desktop"
       ],
       "order": 70
+    },
+    {
+      "id": "market-stats",
+      "verb": "See how the job market is moving, not just one opening",
+      "summary": "Statistics page and pulse rails over the live postings corpus: volume with previous-period comparison, rising skills with shares, career-family demand, per-currency salary bands, source freshness.",
+      "category": "discover",
+      "status": "beta",
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-stats"
+        }
+      ],
+      "order": 41
     }
   ],
   "useCases": [
