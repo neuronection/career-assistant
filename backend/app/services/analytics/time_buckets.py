@@ -97,7 +97,7 @@ def bucket_key(value: Any, bucket: str) -> str:
 
 
 def zero_filled(
-    rows: dict[str, dict[str, Any]],
+    rows: dict[str, Any],
     start: datetime,
     stop: datetime,
     bucket: str,

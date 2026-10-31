@@ -3587,6 +3587,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/companies/stats/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Companies Stats Overview
+         * @description Top hiring companies, the industry mix and the openings-per-company
+         *     histogram.
+         */
+        get: operations["companies_stats_overview_api_v1_companies_stats_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Companies Stats Summary
+         * @description Companies hiring and companies new in the window.
+         */
+        get: operations["companies_stats_summary_api_v1_companies_stats_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/companies/{key}": {
         parameters: {
             query?: never;
@@ -8160,6 +8201,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/stats/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Breakdown
+         * @description One dimension of market structure — grouped counts with share and
+         *     delta.
+         */
+        get: operations["postings_stats_breakdown_api_v1_postings_stats_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Overview
+         * @description In-range KPIs, the status mix, coverage chips and the
+         *     deterministic insights strip.
+         */
+        get: operations["postings_stats_overview_api_v1_postings_stats_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/salary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Salary
+         * @description Per-currency salary bands, histograms and per-seniority medians on
+         *     the annualized normalized basis.
+         */
+        get: operations["postings_stats_salary_api_v1_postings_stats_salary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Skills
+         * @description Top asked skills with trends, category mix, level histogram and
+         *     priority mix.
+         */
+        get: operations["postings_stats_skills_api_v1_postings_stats_skills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Summary
+         * @description The pulse: fixed-window counts with deltas, sparkline and source
+         *     freshness. Defaults to the open basis — the explore totals' basis.
+         */
+        get: operations["postings_stats_summary_api_v1_postings_stats_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/timeseries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Timeseries
+         * @description Volume over time with the previous-period ghost, ingestion counts
+         *     and an optional split series.
+         */
+        get: operations["postings_stats_timeseries_api_v1_postings_stats_timeseries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/{posting_ref}": {
         parameters: {
             query?: never;
@@ -9559,6 +9726,24 @@ export interface components {
             /** Weights Overridden */
             weights_overridden: boolean;
         };
+        /** BreakdownRowOut */
+        BreakdownRowOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Key */
+            key: string;
+            /** Prev */
+            prev: number;
+            /** Share */
+            share: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
+        };
         /** BriefFit */
         BriefFit: {
             /** Dimensions */
@@ -10020,6 +10205,16 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /** CompanyHiringOut */
+        CompanyHiringOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            new_in_range: components["schemas"]["DeltaOut"];
+            /** Open Postings */
+            open_postings: number;
+        };
         /** CompanyLink */
         CompanyLink: {
             /** Label */
@@ -10112,6 +10307,59 @@ export interface components {
              * @default false
              */
             needs_review: boolean;
+        };
+        /** CompanyStatsOverview */
+        CompanyStatsOverview: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Industry Mix */
+            industry_mix?: components["schemas"]["IndustryMixOut"][];
+            /** Openings Histogram */
+            openings_histogram?: components["schemas"]["OpeningsBucketOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Top Hiring */
+            top_hiring?: components["schemas"]["CompanyHiringOut"][];
+            /** Window */
+            window: string;
+        };
+        /** CompanyStatsSummary */
+        CompanyStatsSummary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Companies Hiring */
+            companies_hiring: number;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            new_companies: components["schemas"]["DeltaOut"];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
         };
         /**
          * CompanyType
@@ -10300,6 +10548,20 @@ export interface components {
             skill_key: string;
             /** User Level */
             user_level?: number | null;
+        };
+        /**
+         * CoverageOut
+         * @description Data-coverage honesty chips over the window population (shares).
+         */
+        CoverageOut: {
+            /** Location */
+            location: number;
+            /** Org Linked */
+            org_linked: number;
+            /** Salary */
+            salary: number;
+            /** Skill Tagged */
+            skill_tagged: number;
         };
         /** CreateRunIn */
         CreateRunIn: {
@@ -11425,6 +11687,26 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * DeltaOut
+         * @description One count with its equal-length predecessor for delta math.
+         *
+         *     ``delta_pct`` is null when the previous window counted zero — the UI
+         *     renders "new", never a divide-by-zero.
+         */
+        DeltaOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Prev */
+            prev: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
+        };
         /** DemandInfo */
         DemandInfo: {
             /**
@@ -12411,6 +12693,31 @@ export interface components {
             items?: components["schemas"]["FollowupItemOut"][];
             rules: components["schemas"]["FollowupRuleOut"];
         };
+        /** FreshnessOut */
+        FreshnessOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Stale Sources */
+            stale_sources?: components["schemas"]["FreshnessSourceOut"][];
+        };
+        /**
+         * FreshnessSourceOut
+         * @description One source's ingestion freshness — named when not ``ok``.
+         */
+        FreshnessSourceOut: {
+            /** Last Success */
+            last_success?: string | null;
+            /** Source Key */
+            source_key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "stale" | "paused" | "never";
+        };
         /**
          * FunnelOut
          * @description Dashboard funnel: saved → applied → interviewing → offers.
@@ -12620,6 +12927,37 @@ export interface components {
             label: string;
             /** Weight */
             weight: number;
+        };
+        /** IndustryMixOut */
+        IndustryMixOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Share */
+            share: number;
+        };
+        /**
+         * InsightOut
+         * @description One deterministic anomaly card (trailing-baseline rule, H2).
+         *
+         *     ``text_key`` is rendered client-side; the server never writes free
+         *     text here.
+         */
+        InsightOut: {
+            /** Baseline */
+            baseline?: number | null;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "volume" | "share" | "skill_lead";
+            /** Subject */
+            subject: string;
+            /** Text Key */
+            text_key: string;
         };
         /** InstanceConfigOut */
         InstanceConfigOut: {
@@ -13655,6 +13993,13 @@ export interface components {
             /** Min */
             min?: number | null;
         };
+        /** OpeningsBucketOut */
+        OpeningsBucketOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
+        };
         /**
          * OverlayDraftIn
          * @description Administrator request to draft overlays for taxonomy rows.
@@ -14630,6 +14975,209 @@ export interface components {
             required_level?: number | null;
         };
         /**
+         * PostingStatsBreakdown
+         * @description One dimension of market structure — grouped counts with share and
+         *     delta, top-N with an ``other`` rollup where the vocabulary is open.
+         */
+        PostingStatsBreakdown: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Dimension */
+            dimension: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Rows */
+            rows?: components["schemas"]["BreakdownRowOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Total */
+            total: number;
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsOverview
+         * @description Page narrative payload: in-range KPIs, the status mix, coverage
+         *     chips and the deterministic insights strip.
+         */
+        PostingStatsOverview: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            coverage: components["schemas"]["CoverageOut"];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Insights */
+            insights?: components["schemas"]["InsightOut"][];
+            new_in_range: components["schemas"]["DeltaOut"];
+            /** Open Total */
+            open_total: number;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Status Mix */
+            status_mix?: {
+                [key: string]: number;
+            };
+            /** Window */
+            window: string;
+        };
+        /** PostingStatsSalary */
+        PostingStatsSalary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Currencies */
+            currencies?: components["schemas"]["SalaryCurrencyOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Primary Currency */
+            primary_currency?: string | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsSkills
+         * @description Skills demand: top asked, rising/cooling trends, category mix,
+         *     level histogram and priority mix over the window.
+         */
+        PostingStatsSkills: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Avg Level */
+            avg_level?: number | null;
+            /**
+             * Avg Skills Per Posting
+             * @default 0
+             */
+            avg_skills_per_posting: number;
+            /** Categories */
+            categories?: components["schemas"]["SkillCategoryOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Falling */
+            falling?: components["schemas"]["SkillStatOut"][];
+            /** Levels */
+            levels?: components["schemas"]["SkillLevelOut"][];
+            /** Priority */
+            priority?: {
+                [key: string]: number;
+            };
+            /** Rising */
+            rising?: components["schemas"]["SkillStatOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Top */
+            top?: components["schemas"]["SkillStatOut"][];
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsSummary
+         * @description The pulse (stats rail + page hero): fixed-window counts on one
+         *     basis, each with its delta, plus the 14-day sparkline and source
+         *     freshness. ``open_total`` is the open set by definition (§A).
+         */
+        PostingStatsSummary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            freshness: components["schemas"]["FreshnessOut"];
+            new_24h: components["schemas"]["DeltaOut"];
+            new_30d: components["schemas"]["DeltaOut"];
+            new_7d: components["schemas"]["DeltaOut"];
+            /** Open Total */
+            open_total: number;
+            /** Sparkline */
+            sparkline?: components["schemas"]["SparkPointOut"][];
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+        };
+        /**
+         * PostingStatsTimeseries
+         * @description Volume-over-time buckets (zero-filled), the equal-length previous
+         *     period ghost, ingestion-vs-market counts and the optional split
+         *     series.
+         */
+        PostingStatsTimeseries: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Bucket
+             * @enum {string}
+             */
+            bucket: "hour" | "day" | "week" | "month";
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Points */
+            points?: components["schemas"]["TimeseriesPointOut"][];
+            /** Split */
+            split?: string | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
+        };
+        /**
          * PostingsHistoryOut
          * @description The posting history read: newest-first journal page.
          */
@@ -15384,6 +15932,45 @@ export interface components {
             /** Items */
             items: components["schemas"]["RuleOut"][];
         };
+        /** SalaryBucketOut */
+        SalaryBucketOut: {
+            /** Ceiling */
+            ceiling: number;
+            /** Count */
+            count: number;
+            /** Floor */
+            floor: number;
+        };
+        /**
+         * SalaryCurrencyOut
+         * @description Per-currency salary statistics on the annualized normalized basis
+         *     (no FX conversion). Bands are suppressed below the disclosure
+         *     floor.
+         */
+        SalaryCurrencyOut: {
+            /** By Seniority */
+            by_seniority?: components["schemas"]["SalarySeniorityOut"][];
+            /** Coverage */
+            coverage: number;
+            /** Currency */
+            currency: string;
+            /** Disclosed */
+            disclosed: number;
+            /** Histogram */
+            histogram?: components["schemas"]["SalaryBucketOut"][];
+            /** P25 */
+            p25?: number | null;
+            /** P50 */
+            p50?: number | null;
+            /** P75 */
+            p75?: number | null;
+            /** Period Basis */
+            period_basis?: {
+                [key: string]: number;
+            };
+            /** Thin Sample */
+            thin_sample: boolean;
+        };
         /** SalaryInfo */
         SalaryInfo: {
             /**
@@ -15406,6 +15993,15 @@ export interface components {
                 number,
                 number
             ] | null;
+        };
+        /** SalarySeniorityOut */
+        SalarySeniorityOut: {
+            /** Count */
+            count: number;
+            /** Median */
+            median?: number | null;
+            /** Seniority */
+            seniority: string;
         };
         /** SavedSearchScheduleIn */
         SavedSearchScheduleIn: {
@@ -15973,6 +16569,15 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["SkillBulkFailure"][];
         };
+        /** SkillCategoryOut */
+        SkillCategoryOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Share */
+            share: number;
+        };
         /**
          * SkillChangeOut
          * @description One skill journal row (plan 148): event kind, actor role and the
@@ -16119,6 +16724,13 @@ export interface components {
             stats?: components["schemas"]["SkillStatsOut"] | null;
             /** Status */
             status: string;
+        };
+        /** SkillLevelOut */
+        SkillLevelOut: {
+            /** Count */
+            count: number;
+            /** Level */
+            level: number;
         };
         /** SkillOut */
         SkillOut: {
@@ -16424,6 +17036,24 @@ export interface components {
             /** Nodes */
             nodes?: components["schemas"]["SkillGraphNodeOut"][];
         };
+        /** SkillStatOut */
+        SkillStatOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Share */
+            share: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
+        };
         /**
          * SkillStatsOut
          * @description The skill page's aggregate block (plan 148) — one server-side
@@ -16476,6 +17106,13 @@ export interface components {
             parent_id?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /** SparkPointOut */
+        SparkPointOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
         };
         /**
          * StageIn
@@ -16821,6 +17458,21 @@ export interface components {
             threads: components["schemas"]["ThreadOut"][];
             /** Unread Count */
             unread_count: number;
+        };
+        /** TimeseriesPointOut */
+        TimeseriesPointOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
+            /** Ingestion */
+            ingestion: number;
+            /** Prev */
+            prev: number;
+            /** Series */
+            series?: {
+                [key: string]: number;
+            };
         };
         /** TranscribeOut */
         TranscribeOut: {
@@ -23770,6 +24422,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompaniesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    companies_stats_overview_api_v1_companies_stats_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyStatsOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    companies_stats_summary_api_v1_companies_stats_summary_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyStatsSummary"];
                 };
             };
             /** @description Validation Error */
@@ -31779,6 +32500,212 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    postings_stats_breakdown_api_v1_postings_stats_breakdown_get: {
+        parameters: {
+            query: {
+                dimension: string;
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_overview_api_v1_postings_stats_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_salary_api_v1_postings_stats_salary_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSalary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_skills_api_v1_postings_stats_skills_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSkills"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_summary_api_v1_postings_stats_summary_get: {
+        parameters: {
+            query?: {
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_timeseries_api_v1_postings_stats_timeseries_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                bucket?: string | null;
+                split?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsTimeseries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (market statistics API, 2026-10-31)
+- **Market statistics, computed live** (plan 170): new read-only
+  endpoints under `/postings/stats/*` — pulse summary (fixed-window
+  counts with deltas and a 14-day sparkline), overview with deterministic
+  "what changed" insight cards and data-coverage chips, volume over time
+  with the previous-period comparison, skills demand with rising/cooling
+  trends, market-structure breakdowns (including demand by career
+  family) and per-currency salary bands — plus `/companies/stats/*`
+  (companies hiring, new companies, top hiring, industry mix). Every
+  count carries an explicit status basis (open vs all) and its delta
+  against the previous window of equal length, and a freshness footer
+  names stale or paused ingestion sources. The pages and rails that
+  surface these numbers land with the frontend slices.
+
 ### Changed (market statistics groundwork, 2026-10-31)
 - **One posted-date truth across the postings surfaces** (plan 170): the
   "posted within" windows of the explore feed, the filter-spec search

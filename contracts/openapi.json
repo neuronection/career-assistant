@@ -2102,6 +2102,59 @@
         "title": "BootstrapOut",
         "type": "object"
       },
+      "BreakdownRowOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "prev": {
+            "minimum": 0.0,
+            "title": "Prev",
+            "type": "integer"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          },
+          "trend": {
+            "enum": [
+              "up",
+              "down",
+              "flat"
+            ],
+            "title": "Trend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "share",
+          "prev",
+          "trend"
+        ],
+        "title": "BreakdownRowOut",
+        "type": "object"
+      },
       "BriefFit": {
         "properties": {
           "dimensions": {
@@ -3321,6 +3374,34 @@
         "title": "CompanyFacets",
         "type": "object"
       },
+      "CompanyHiringOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "new_in_range": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "open_postings": {
+            "minimum": 0.0,
+            "title": "Open Postings",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "open_postings",
+          "new_in_range"
+        ],
+        "title": "CompanyHiringOut",
+        "type": "object"
+      },
       "CompanyLink": {
         "properties": {
           "label": {
@@ -3595,6 +3676,129 @@
           }
         },
         "title": "CompanyProfileIn",
+        "type": "object"
+      },
+      "CompanyStatsOverview": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "industry_mix": {
+            "items": {
+              "$ref": "#/components/schemas/IndustryMixOut"
+            },
+            "title": "Industry Mix",
+            "type": "array"
+          },
+          "openings_histogram": {
+            "items": {
+              "$ref": "#/components/schemas/OpeningsBucketOut"
+            },
+            "title": "Openings Histogram",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "top_hiring": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyHiringOut"
+            },
+            "title": "Top Hiring",
+            "type": "array"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end"
+        ],
+        "title": "CompanyStatsOverview",
+        "type": "object"
+      },
+      "CompanyStatsSummary": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "companies_hiring": {
+            "minimum": 0.0,
+            "title": "Companies Hiring",
+            "type": "integer"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "new_companies": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end",
+          "companies_hiring",
+          "new_companies"
+        ],
+        "title": "CompanyStatsSummary",
         "type": "object"
       },
       "CompanyType": {
@@ -4041,6 +4245,43 @@
           "skill_key"
         ],
         "title": "CoverageEntry",
+        "type": "object"
+      },
+      "CoverageOut": {
+        "description": "Data-coverage honesty chips over the window population (shares).",
+        "properties": {
+          "location": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Location",
+            "type": "number"
+          },
+          "org_linked": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Org Linked",
+            "type": "number"
+          },
+          "salary": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Salary",
+            "type": "number"
+          },
+          "skill_tagged": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Skill Tagged",
+            "type": "number"
+          }
+        },
+        "required": [
+          "salary",
+          "location",
+          "org_linked",
+          "skill_tagged"
+        ],
+        "title": "CoverageOut",
         "type": "object"
       },
       "CreateRunIn": {
@@ -6763,6 +7004,48 @@
         "title": "DeliveryOut",
         "type": "object"
       },
+      "DeltaOut": {
+        "description": "One count with its equal-length predecessor for delta math.\n\n``delta_pct`` is null when the previous window counted zero \u2014 the UI\nrenders \"new\", never a divide-by-zero.",
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "prev": {
+            "minimum": 0.0,
+            "title": "Prev",
+            "type": "integer"
+          },
+          "trend": {
+            "enum": [
+              "up",
+              "down",
+              "flat"
+            ],
+            "title": "Trend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "count",
+          "prev",
+          "trend"
+        ],
+        "title": "DeltaOut",
+        "type": "object"
+      },
       "DemandInfo": {
         "properties": {
           "note": {
@@ -9459,6 +9742,64 @@
         "title": "FollowupSurfaceOut",
         "type": "object"
       },
+      "FreshnessOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "stale_sources": {
+            "items": {
+              "$ref": "#/components/schemas/FreshnessSourceOut"
+            },
+            "title": "Stale Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of"
+        ],
+        "title": "FreshnessOut",
+        "type": "object"
+      },
+      "FreshnessSourceOut": {
+        "description": "One source's ingestion freshness \u2014 named when not ``ok``.",
+        "properties": {
+          "last_success": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success"
+          },
+          "source_key": {
+            "title": "Source Key",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "stale",
+              "paused",
+              "never"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_key",
+          "status"
+        ],
+        "title": "FreshnessSourceOut",
+        "type": "object"
+      },
       "FunnelOut": {
         "description": "Dashboard funnel: saved \u2192 applied \u2192 interviewing \u2192 offers.",
         "properties": {
@@ -9987,6 +10328,83 @@
           "weight"
         ],
         "title": "HobbyItem",
+        "type": "object"
+      },
+      "IndustryMixOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "share"
+        ],
+        "title": "IndustryMixOut",
+        "type": "object"
+      },
+      "InsightOut": {
+        "description": "One deterministic anomaly card (trailing-baseline rule, H2).\n\n``text_key`` is rendered client-side; the server never writes free\ntext here.",
+        "properties": {
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "kind": {
+            "enum": [
+              "volume",
+              "share",
+              "skill_lead"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "text_key": {
+            "title": "Text Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "subject",
+          "text_key"
+        ],
+        "title": "InsightOut",
         "type": "object"
       },
       "InstanceConfigOut": {
@@ -12809,6 +13227,25 @@
         "title": "OpenPostingsSalaryBandOut",
         "type": "object"
       },
+      "OpeningsBucketOut": {
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket",
+          "count"
+        ],
+        "title": "OpeningsBucketOut",
+        "type": "object"
+      },
       "OverlayDraftIn": {
         "description": "Administrator request to draft overlays for taxonomy rows.",
         "properties": {
@@ -15608,6 +16045,445 @@
         "title": "PostingSkillRefOut",
         "type": "object"
       },
+      "PostingStatsBreakdown": {
+        "description": "One dimension of market structure \u2014 grouped counts with share and\ndelta, top-N with an ``other`` rollup where the vocabulary is open.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "dimension": {
+            "title": "Dimension",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end",
+          "dimension",
+          "total"
+        ],
+        "title": "PostingStatsBreakdown",
+        "type": "object"
+      },
+      "PostingStatsOverview": {
+        "description": "Page narrative payload: in-range KPIs, the status mix, coverage\nchips and the deterministic insights strip.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/CoverageOut"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "insights": {
+            "items": {
+              "$ref": "#/components/schemas/InsightOut"
+            },
+            "title": "Insights",
+            "type": "array"
+          },
+          "new_in_range": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "open_total": {
+            "minimum": 0.0,
+            "title": "Open Total",
+            "type": "integer"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "status_mix": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Status Mix",
+            "type": "object"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end",
+          "new_in_range",
+          "open_total",
+          "coverage"
+        ],
+        "title": "PostingStatsOverview",
+        "type": "object"
+      },
+      "PostingStatsSalary": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/SalaryCurrencyOut"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "primary_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Currency"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end"
+        ],
+        "title": "PostingStatsSalary",
+        "type": "object"
+      },
+      "PostingStatsSkills": {
+        "description": "Skills demand: top asked, rising/cooling trends, category mix,\nlevel histogram and priority mix over the window.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "avg_level": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Level"
+          },
+          "avg_skills_per_posting": {
+            "default": 0.0,
+            "minimum": 0.0,
+            "title": "Avg Skills Per Posting",
+            "type": "number"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/SkillCategoryOut"
+            },
+            "title": "Categories",
+            "type": "array"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "falling": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStatOut"
+            },
+            "title": "Falling",
+            "type": "array"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/SkillLevelOut"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "priority": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Priority",
+            "type": "object"
+          },
+          "rising": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStatOut"
+            },
+            "title": "Rising",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "top": {
+            "items": {
+              "$ref": "#/components/schemas/SkillStatOut"
+            },
+            "title": "Top",
+            "type": "array"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end"
+        ],
+        "title": "PostingStatsSkills",
+        "type": "object"
+      },
+      "PostingStatsSummary": {
+        "description": "The pulse (stats rail + page hero): fixed-window counts on one\nbasis, each with its delta, plus the 14-day sparkline and source\nfreshness. ``open_total`` is the open set by definition (\u00a7A).",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/FreshnessOut"
+          },
+          "new_24h": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "new_30d": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "new_7d": {
+            "$ref": "#/components/schemas/DeltaOut"
+          },
+          "open_total": {
+            "minimum": 0.0,
+            "title": "Open Total",
+            "type": "integer"
+          },
+          "sparkline": {
+            "items": {
+              "$ref": "#/components/schemas/SparkPointOut"
+            },
+            "title": "Sparkline",
+            "type": "array"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "status_basis",
+          "new_24h",
+          "new_7d",
+          "new_30d",
+          "open_total",
+          "freshness"
+        ],
+        "title": "PostingStatsSummary",
+        "type": "object"
+      },
+      "PostingStatsTimeseries": {
+        "description": "Volume-over-time buckets (zero-filled), the equal-length previous\nperiod ghost, ingestion-vs-market counts and the optional split\nseries.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "bucket": {
+            "enum": [
+              "hour",
+              "day",
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "type": "string"
+          },
+          "end": {
+            "format": "date-time",
+            "title": "End",
+            "type": "string"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TimeseriesPointOut"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "split": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Split"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "status_basis": {
+            "enum": [
+              "open",
+              "all"
+            ],
+            "title": "Status Basis",
+            "type": "string"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "window",
+          "status_basis",
+          "end",
+          "bucket"
+        ],
+        "title": "PostingStatsTimeseries",
+        "type": "object"
+      },
       "PostingsHistoryOut": {
         "description": "The posting history read: newest-first journal page.",
         "properties": {
@@ -17709,6 +18585,116 @@
         "title": "RulesOut",
         "type": "object"
       },
+      "SalaryBucketOut": {
+        "properties": {
+          "ceiling": {
+            "title": "Ceiling",
+            "type": "number"
+          },
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "floor": {
+            "title": "Floor",
+            "type": "number"
+          }
+        },
+        "required": [
+          "floor",
+          "ceiling",
+          "count"
+        ],
+        "title": "SalaryBucketOut",
+        "type": "object"
+      },
+      "SalaryCurrencyOut": {
+        "description": "Per-currency salary statistics on the annualized normalized basis\n(no FX conversion). Bands are suppressed below the disclosure\nfloor.",
+        "properties": {
+          "by_seniority": {
+            "items": {
+              "$ref": "#/components/schemas/SalarySeniorityOut"
+            },
+            "title": "By Seniority",
+            "type": "array"
+          },
+          "coverage": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Coverage",
+            "type": "number"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "disclosed": {
+            "minimum": 0.0,
+            "title": "Disclosed",
+            "type": "integer"
+          },
+          "histogram": {
+            "items": {
+              "$ref": "#/components/schemas/SalaryBucketOut"
+            },
+            "title": "Histogram",
+            "type": "array"
+          },
+          "p25": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P25"
+          },
+          "p50": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P50"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "period_basis": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Period Basis",
+            "type": "object"
+          },
+          "thin_sample": {
+            "title": "Thin Sample",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "currency",
+          "disclosed",
+          "coverage",
+          "thin_sample"
+        ],
+        "title": "SalaryCurrencyOut",
+        "type": "object"
+      },
       "SalaryInfo": {
         "properties": {
           "currency": {
@@ -17781,6 +18767,36 @@
           }
         },
         "title": "SalaryInfo",
+        "type": "object"
+      },
+      "SalarySeniorityOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "seniority": {
+            "title": "Seniority",
+            "type": "string"
+          }
+        },
+        "required": [
+          "seniority",
+          "count"
+        ],
+        "title": "SalarySeniorityOut",
         "type": "object"
       },
       "SavedSearchScheduleIn": {
@@ -19122,6 +20138,32 @@
         "title": "SkillBulkOut",
         "type": "object"
       },
+      "SkillCategoryOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "share"
+        ],
+        "title": "SkillCategoryOut",
+        "type": "object"
+      },
       "SkillChangeOut": {
         "description": "One skill journal row (plan 148): event kind, actor role and the\nids-only actor ref + capped detail.",
         "properties": {
@@ -19415,6 +20457,27 @@
           "status"
         ],
         "title": "SkillJobsOut",
+        "type": "object"
+      },
+      "SkillLevelOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "level": {
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Level",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "level",
+          "count"
+        ],
+        "title": "SkillLevelOut",
         "type": "object"
       },
       "SkillOut": {
@@ -20027,6 +21090,58 @@
         "title": "SkillRelationsOut",
         "type": "object"
       },
+      "SkillStatOut": {
+        "properties": {
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta Pct"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "share": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Share",
+            "type": "number"
+          },
+          "trend": {
+            "enum": [
+              "up",
+              "down",
+              "flat"
+            ],
+            "title": "Trend",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "count",
+          "share",
+          "trend"
+        ],
+        "title": "SkillStatOut",
+        "type": "object"
+      },
       "SkillStatsOut": {
         "description": "The skill page's aggregate block (plan 148) \u2014 one server-side\naggregate pass, no per-row queries.",
         "properties": {
@@ -20194,6 +21309,25 @@
           }
         },
         "title": "SkillUpdateIn",
+        "type": "object"
+      },
+      "SparkPointOut": {
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket",
+          "count"
+        ],
+        "title": "SparkPointOut",
         "type": "object"
       },
       "StageIn": {
@@ -21052,6 +22186,44 @@
           "unread_count"
         ],
         "title": "ThreadsOut",
+        "type": "object"
+      },
+      "TimeseriesPointOut": {
+        "properties": {
+          "bucket": {
+            "title": "Bucket",
+            "type": "string"
+          },
+          "count": {
+            "minimum": 0.0,
+            "title": "Count",
+            "type": "integer"
+          },
+          "ingestion": {
+            "minimum": 0.0,
+            "title": "Ingestion",
+            "type": "integer"
+          },
+          "prev": {
+            "minimum": 0.0,
+            "title": "Prev",
+            "type": "integer"
+          },
+          "series": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Series",
+            "type": "object"
+          }
+        },
+        "required": [
+          "bucket",
+          "count",
+          "prev",
+          "ingestion"
+        ],
+        "title": "TimeseriesPointOut",
         "type": "object"
       },
       "TranscribeOut": {
@@ -32462,6 +33634,198 @@
         "summary": "List Companies",
         "tags": [
           "companies"
+        ]
+      }
+    },
+    "/api/v1/companies/stats/overview": {
+      "get": {
+        "description": "Top hiring companies, the industry mix and the openings-per-company\nhistogram.",
+        "operationId": "companies_stats_overview_api_v1_companies_stats_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyStatsOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Companies Stats Overview",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/companies/stats/summary": {
+      "get": {
+        "description": "Companies hiring and companies new in the window.",
+        "operationId": "companies_stats_summary_api_v1_companies_stats_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyStatsSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Companies Stats Summary",
+        "tags": [
+          "postings-stats"
         ]
       }
     },
@@ -44193,6 +45557,569 @@
         "summary": "Postings Sources",
         "tags": [
           "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/breakdown": {
+      "get": {
+        "description": "One dimension of market structure \u2014 grouped counts with share and\ndelta.",
+        "operationId": "postings_stats_breakdown_api_v1_postings_stats_breakdown_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dimension",
+            "required": true,
+            "schema": {
+              "pattern": "^(seniority|work_mode|employment|contract|education|source|location|org|family)$",
+              "title": "Dimension",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsBreakdown"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Breakdown",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/overview": {
+      "get": {
+        "description": "In-range KPIs, the status mix, coverage chips and the\ndeterministic insights strip.",
+        "operationId": "postings_stats_overview_api_v1_postings_stats_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Overview",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/salary": {
+      "get": {
+        "description": "Per-currency salary bands, histograms and per-seniority medians on\nthe annualized normalized basis.",
+        "operationId": "postings_stats_salary_api_v1_postings_stats_salary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsSalary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Salary",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/skills": {
+      "get": {
+        "description": "Top asked skills with trends, category mix, level histogram and\npriority mix.",
+        "operationId": "postings_stats_skills_api_v1_postings_stats_skills_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 15,
+              "maximum": 15,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsSkills"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Skills",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/summary": {
+      "get": {
+        "description": "The pulse: fixed-window counts with deltas, sparkline and source\nfreshness. Defaults to the open basis \u2014 the explore totals' basis.",
+        "operationId": "postings_stats_summary_api_v1_postings_stats_summary_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Summary",
+        "tags": [
+          "postings-stats"
+        ]
+      }
+    },
+    "/api/v1/postings/stats/timeseries": {
+      "get": {
+        "description": "Volume over time with the previous-period ghost, ingestion counts\nand an optional split series.",
+        "operationId": "postings_stats_timeseries_api_v1_postings_stats_timeseries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "30d",
+              "pattern": "^(24h|7d|30d|90d|all)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(hour|day|week|month)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bucket"
+            }
+          },
+          {
+            "in": "query",
+            "name": "split",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(status|source|work_mode|seniority|employment)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Split"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status_basis",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(open|all)$",
+              "title": "Status Basis",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostingStatsTimeseries"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Stats Timeseries",
+        "tags": [
+          "postings-stats"
         ]
       }
     },

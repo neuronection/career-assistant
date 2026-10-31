@@ -37,6 +37,7 @@ from app.api.v1.postings import applications as applications
 from app.api.v1.postings import engagement as engagement
 from app.api.v1.postings import history as history
 from app.api.v1.postings import postings as postings
+from app.api.v1.postings import stats as stats
 from app.api.v1.profile import documents as documents
 from app.api.v1.profile import experience as experience
 from app.api.v1.profile import me_cv_data as me_cv_data
@@ -50,6 +51,7 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(instance.router)
 api_router.include_router(autopilot.router)
 api_router.include_router(me.router)
+api_router.include_router(stats.router)
 api_router.include_router(applications.router)
 api_router.include_router(me_cv_data.router)
 api_router.include_router(me_photo.router)
