@@ -9,6 +9,7 @@ import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
+import { PostingsStatsRail } from "@/components/stats/StatsRail";
 import { PresetBar } from "@/features/postings/components/postings/PresetBar";
 import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
@@ -194,7 +195,7 @@ export function Explore() {
   ).map((option) => ({ value: option.value, label: t(option.labelKey) }));
 
   return (
-    <div className="space-y-6" data-testid="explore">
+    <div className="ca-stats-page space-y-6" data-testid="explore">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 text-sm text-slate-500">
           {radarActive ? t("explore.radarActive") : t("explore.intro")}
@@ -227,9 +228,9 @@ export function Explore() {
         onApply={(next) => setSearchParams(toSearchParams(next), { replace: true })}
       />
 
-      <div className="flex gap-6">
+      <div className="ca-stats-cols">
         <aside
-          className="w-64 shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
           data-testid="explore-filters"
         >
           <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
@@ -636,6 +637,19 @@ export function Explore() {
             </button>
           )}
         </div>
+
+        <PostingsStatsRail
+          onPostedWithin={(value) =>
+            patch({
+              postedWithin: filters.postedWithin === value ? "" : value,
+            })
+          }
+          onSkill={addSkillFilter}
+          onSource={(key) => {
+            const next = triStateToggle(filters.source, filters.sourceExclude, key, "include");
+            patch({ source: next.include, sourceExclude: next.exclude });
+          }}
+        />
       </div>
     </div>
   );

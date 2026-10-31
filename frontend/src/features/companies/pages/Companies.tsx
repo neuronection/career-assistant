@@ -16,6 +16,7 @@ import {
 } from "@/components/filters/filterBits";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
+import { CompaniesStatsRail } from "@/components/stats/StatsRail";
 import type { Company, CompanyFacets } from "@/types/wire";
 import {
   MIN_OPEN_OPTIONS,
@@ -43,6 +44,7 @@ function employeesRange(company: Company): string | null {
  * One filter language with Explore via the shared filter bits. */
 export function Companies() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -125,12 +127,12 @@ export function Companies() {
   const clearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
 
   return (
-    <div className="space-y-4" data-testid="companies">
+    <div className="ca-stats-page space-y-4" data-testid="companies">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
-      <div className="flex gap-6">
+      <div className="ca-stats-cols">
         <aside
-          className="w-64 shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
           data-testid="company-filters"
         >
           <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
@@ -327,6 +329,19 @@ export function Companies() {
         </div>
       )}
         </div>
+
+        <CompaniesStatsRail
+          onNewCompanies={() => patch({ status: "new" })}
+          onIndustry={(key) =>
+            toggleAxis(
+              "industries",
+              "industriesExclude",
+              key,
+              filters.industries.includes(key) ? "clear" : "include"
+            )
+          }
+          onCompany={(key) => navigate(`/companies/${key}`)}
+        />
       </div>
     </div>
   );

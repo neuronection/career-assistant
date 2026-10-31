@@ -5260,6 +5260,12 @@
       "stale": "Holt auf: {{sources}}"
     },
     "error": "Marktdaten konnten nicht geladen werden.",
-    "noData": "Keine Daten in diesem Zeitraum"
+    "noData": "Keine Daten in diesem Zeitraum",
+    "rail": {
+      "title": "Marktpuls",
+      "topSources": "Top-Quellen",
+      "openFull": "Vollständige Marktdaten öffnen",
+      "unavailable": "Der Marktpuls ist gerade nicht verfügbar."
+    }
   }
 }

@@ -10,6 +10,32 @@ import { Companies } from "@/features/companies/pages/Companies";
 import type { Company, CompanyDetail as CompanyDetailType } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 
+vi.mock("@/api/stats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/stats")>();
+  return {
+    ...actual,
+    fetchCompanyStatsSummary: vi.fn().mockResolvedValue({
+      as_of: "2026-10-31T12:00:00Z",
+      window: "30d",
+      status_basis: "open",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      companies_hiring: 0,
+      new_companies: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    }),
+    fetchCompanyStatsOverview: vi.fn().mockResolvedValue({
+      as_of: "2026-10-31T12:00:00Z",
+      window: "30d",
+      status_basis: "open",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      top_hiring: [],
+      industry_mix: [],
+      openings_histogram: [],
+    }),
+  };
+});
+
 vi.mock("@/api/companies", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/api/companies")>();
   return {

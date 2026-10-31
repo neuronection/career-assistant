@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (market statistics rails, 2026-10-31)
+- **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now
+  sits on the right edge of `/postings` and `/companies` — pulse tiles
+  (new in 24h/7d/30d with deltas), the 14-day volume sparkline, rising
+  skills and top sources on the postings feed; companies hiring, the
+  new-companies chip, top hiring companies and the industry mix on the
+  directory. Every chip that has an honest filter mapping applies it to
+  the host page's URL state (posted-within, skill include, source
+  include, new-companies status, industry facet), the rest render plain,
+  and both rails link into the full `/postings/stats` analysis. The rail
+  keys off the page column's own width (container query — chat-dock
+  safe) and collapses to a "Market pulse" card above the results when
+  the page is narrow.
+
 ### Added (market statistics page, 2026-10-31)
 - **Market statistics page** (plan 170 slice 2): `/postings/stats`, reached
   from the sidebar (after Companies), turns the market statistics API into

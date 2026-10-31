@@ -77,6 +77,15 @@ through the admin API (`PUT /api/v1/admin/companies/{key}` — an in-app
 settings surface is planned); when two company entries are merged, a
 moved profile is flagged for review rather than silently combined.
 
+## Market pulse rail
+
+The companies list carries a **market pulse rail** on its right edge:
+how many companies are hiring, how many appeared in the last 30 days
+(the chip filters the list to new companies), the busiest hiring
+companies and the industry mix. Each chip applies its filter or opens
+the company page it names; the market-wide picture lives on the
+[market statistics](market-stats.md) page.
+
 ## Related
 
 - [Postings and search](postings-and-search.md) — the live feed and

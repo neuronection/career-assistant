@@ -41,6 +41,48 @@ vi.mock("@/api/skills", () => ({
   ]),
 }));
 
+vi.mock("@/api/stats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/stats")>();
+  const pulse = {
+    as_of: "2026-10-31T12:00:00Z",
+    status_basis: "open" as const,
+    new_24h: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    new_7d: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    new_30d: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    open_total: 0,
+    sparkline: [],
+    freshness: { as_of: "2026-10-31T12:00:00Z", stale_sources: [] },
+  };
+  return {
+    ...actual,
+    fetchPostingStatsSummary: vi.fn().mockResolvedValue(pulse),
+    fetchPostingStatsSkills: vi.fn().mockResolvedValue({
+      ...pulse,
+      window: "30d",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      top: [],
+      rising: [],
+      falling: [],
+      categories: [],
+      levels: [],
+      avg_level: null,
+      priority: {},
+      avg_skills_per_posting: 0,
+    }),
+    fetchPostingStatsBreakdown: vi.fn().mockResolvedValue({
+      as_of: "2026-10-31T12:00:00Z",
+      window: "30d",
+      status_basis: "open",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      dimension: "source",
+      total: 0,
+      rows: [],
+    }),
+  };
+});
+
 vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();
   return {

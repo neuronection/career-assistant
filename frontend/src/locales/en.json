@@ -5261,6 +5261,12 @@
       "stale": "Catching up: {{sources}}"
     },
     "error": "Could not load market statistics.",
-    "noData": "No data in this window"
+    "noData": "No data in this window",
+    "rail": {
+      "title": "Market pulse",
+      "topSources": "Top sources",
+      "openFull": "Open full market stats",
+      "unavailable": "Market pulse is unavailable right now."
+    }
   }
 }

@@ -321,3 +321,42 @@ body {
     display: none;
   }
 }
+
+/* Market stats rail (plan 170 slice 3): the stats rail is a THIRD column
+   on /postings and /companies, gated by the page column's own width
+   (container query, plan-95 rule — the chat dock narrows the column
+   without moving the viewport; never a `lg:` switch). Below 64rem of
+   page width the rail renders as one compact "Market pulse" collapsible
+   card above the results (same content, stacked; single grid column).
+   Must stay AFTER @tailwind utilities so the container rules win the
+   cascade. */
+.ca-stats-page {
+  container-type: inline-size;
+}
+
+.ca-stats-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.ca-stats-rail {
+  align-self: start;
+  min-width: 0;
+}
+
+@container (min-width: 64rem) {
+  .ca-stats-cols {
+    grid-template-columns:
+      minmax(215px, 255px)
+      minmax(0, 1fr)
+      minmax(230px, 280px);
+  }
+
+  .ca-stats-rail {
+    position: sticky;
+    top: 4rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+  }
+}

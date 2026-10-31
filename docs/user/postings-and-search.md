@@ -213,6 +213,16 @@ new company, anything unsettled becomes a merge suggestion. Filter by company wi
 filter, and open any card's company name to see all of that employer's
 postings on `/companies/:key`.
 
+## Market pulse rail
+
+The Explore page carries a **market pulse rail** on its right edge:
+new-posting counts for the last 24 hours / 7 days / 30 days, a 14-day
+volume sparkline, the currently rising skills and the most productive
+sources. Every chip that has a matching filter applies it to the feed —
+click `New in 7 days` to filter by posted-within, a rising skill to
+require it, a source to restrict the feed to it. The full picture lives
+on the [market statistics](market-stats.md) page.
+
 ## Related
 
 - [Career Autopilot](career-autopilot.md) — let an agent search for you

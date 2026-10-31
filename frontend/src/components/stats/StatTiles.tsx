@@ -20,6 +20,9 @@ export interface StatTile {
   active?: boolean;
   /** Daily counts (latest last) rendered as the inline sparkline. */
   sparkline?: { count: number }[];
+  /** Stable test id for §7-testable chips (falls back to the generic
+   * `stat-tile` / `stat-tile-action`). */
+  testId?: string;
 }
 
 const ACCENT = "var(--as-accent, var(--chart-1, #6172f3))";
@@ -88,7 +91,7 @@ export function StatTiles({
           </>
         );
         const shared = {
-          "data-testid": tile.onClick ? "stat-tile-action" : "stat-tile",
+          "data-testid": tile.testId ?? (tile.onClick ? "stat-tile-action" : "stat-tile"),
           className: `rounded-[var(--as-radius)] border p-3 text-left ${
             tile.onClick
               ? "cursor-pointer border-[var(--as-border)] bg-[var(--as-surface)] transition-colors hover:bg-[var(--as-surface-raised)]"
