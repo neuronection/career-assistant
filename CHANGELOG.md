@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (autopilot profile usage, 2026-10-31)
+- **Per-goal profile controls** (plan 169): every autopilot goal gains a
+  "What the autopilot uses from your profile" section — six toggles
+  (skills, education & certificates, languages, location, experience,
+  lifestyle constraints) plus a stage source (your profile or the goal's
+  seniority). Defaults reproduce today's behavior; a live preview
+  (`POST /autopilot/profile-context`) shows the effective snapshot while
+  you edit. Disabled inputs score neutral instead of penalizing, and the
+  search itself honors them.
+
 ### Added (autopilot run trace, 2026-10-31)
 - **Every autopilot call is now linked to its run in the AI audit ledger**
   (plan 168): plan, replan, curation and the semantic-sweep embedding call

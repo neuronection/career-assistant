@@ -289,6 +289,16 @@ async def _certification_names(db: AsyncSession, user_id: UUID) -> list[str]:
     return [str(name).strip().lower() for name in rows.scalars().all() if name]
 
 
+LIFESTYLE_CONSTRAINT_KEYS = (
+    "salary_min",
+    "salary_negotiable",
+    "travel_days_per_month",
+    "shift_tolerance",
+    "commute_radius_km",
+    "hours_available_per_week",
+)
+
+
 def _inputs_payload(
     user_id: UUID,
     posting: JobPosting,
@@ -308,15 +318,7 @@ def _inputs_payload(
         "stage": stage_value,
         "certifications": sorted(certifications or []),
         "lifestyle_constraints": {
-            key: (constraints or {}).get(key)
-            for key in (
-                "salary_min",
-                "salary_negotiable",
-                "travel_days_per_month",
-                "shift_tolerance",
-                "commute_radius_km",
-                "hours_available_per_week",
-            )
+            key: (constraints or {}).get(key) for key in LIFESTYLE_CONSTRAINT_KEYS
         },
     }
 
