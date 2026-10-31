@@ -20,6 +20,13 @@ All notable changes to **Career Assistant** are documented here.
   weekday axis localized and hour ticks at 0/6/12/18/23, plus a
   screen-reader summary of the condensed totals. UTC is stated in the
   docs (`docs/user/market-stats.md`).
+- **Chart⇄Data table views** (plan 171 slice 3): every data card on the
+  stats page (volume, dimensions, salary, top hiring, the posting clock)
+  grows a segmented Chart⇄Data toggle — default Chart, local state — and
+  the Data view renders the same rows the card's CSV export downloads
+  (the shared per-card builders), so the table is the chart's textual
+  twin by construction. Backed by the assistant-ui `Table` module; the
+  skills lists and the demand quadrant carry `sr-only` captions instead.
 
 ### Added (market statistics rails, 2026-10-31)
 - **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now

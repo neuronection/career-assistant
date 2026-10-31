@@ -5309,6 +5309,18 @@
     "series": {
       "prev": "Previous period"
     },
+    "table": {
+      "toggleAria": "Chart or data table view",
+      "chart": "Chart",
+      "data": "Data",
+      "volume": "Postings per bucket, with the previous window's counts.",
+      "dimensions": "Counts and shares for one market dimension.",
+      "salary": "Salary bands per currency, with medians by seniority.",
+      "companies": "Top hiring companies: open postings and the window delta.",
+      "rhythm": "Posting clock totals by weekday and by hour, with the peak.",
+      "skillsCaption": "Ranked skill rows — count, share of postings and trend.",
+      "quadrantCaption": "Skills placed by demand (count) and momentum (trend arrows)."
+    },
     "rhythm": {
       "gridAria": "Posting counts by weekday and hour (UTC)",
       "peak": "Busiest: {{cell}} UTC",

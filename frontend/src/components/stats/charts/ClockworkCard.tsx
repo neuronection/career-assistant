@@ -2,7 +2,8 @@ import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ClockCell, PostingStatsClockwork } from "@/api/stats";
-import { ChartCard } from "@/components/stats/charts/chartKit";
+import { ChartCard, type ChartTable } from "@/components/stats/charts/chartKit";
+import type { CsvValue } from "@/components/stats/statsExport";
 
 export const HOUR_TICKS = [0, 6, 12, 18, 23];
 
@@ -25,6 +26,10 @@ export function heatFill(level: number): string {
   return `color-mix(in srgb, var(--ca-heat-hot) ${mix}%, transparent)`;
 }
 
+/* The condensed a11y twin of the matrix (H8): by_weekday (7 rows),
+ * by_hour (24 rows) and the peak — never the 168 cells — lives in the
+ * card's `table` payload below. */
+
 function zeroPad(value: number): string {
   return String(value).padStart(2, "0");
 }
@@ -35,8 +40,9 @@ function zeroPad(value: number): string {
  * (never Tailwind opacity modifiers on tokens). Zero cells tone muted,
  * the deterministic peak cell ringed, the weekday axis Mon..Sun
  * localized, hour ticks at 0/6/12/18/23, and a condensable `sr-only`
- * summary for the whole matrix. Times are UTC — the wire says so and the
- * caption repeats it. */
+ * summary for the whole matrix. The H8 table view condenses to
+ * by_weekday + by_hour + peak rows, never the 168 cells. Times are UTC —
+ * the wire says so and the caption repeats it. */
 export function ClockworkCard({ clock }: { clock: PostingStatsClockwork }) {
   const { t } = useTranslation();
   const cellAt = new Map<string, ClockCell>(
@@ -72,11 +78,29 @@ export function ClockworkCard({ clock }: { clock: PostingStatsClockwork }) {
     .filter(Boolean)
     .join(" ");
 
+  const table: ChartTable = {
+    caption: t("marketStats.table.rhythm"),
+    head: ["when", "postings"],
+    rows: [
+      ...clock.by_weekday.map((count, index) => [weekdayLabel(index + 1), count]),
+      ...clock.by_hour.map((count, hour) => [hourLabel(hour), count]),
+      ...(clock.peak
+        ? [
+            [
+              cellLabel(clock.peak.weekday, clock.peak.hour),
+              clock.peak.count,
+            ] as CsvValue[],
+          ]
+        : []),
+    ],
+  };
+
   return (
     <ChartCard
       title={t("marketStats.cards.rhythm")}
       subtitle={t("marketStats.cards.rhythmHint")}
       testId="rhythm"
+      table={table}
     >
       <div
         className="overflow-x-auto"

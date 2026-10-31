@@ -157,6 +157,11 @@ export function MarketStats() {
     label: t(`marketStats.dimension.${value}`),
   }));
 
+  // The H8 table payloads reuse the card CSV builders — table ≡ export by
+  // construction (one number in exactly one shape vocabulary).
+  const volumeRows = series ? volumeCsv(series) : [];
+  const breakdownRows = breakdown ? breakdownCsv(breakdown) : [];
+
   return (
     <div className="space-y-4" data-testid="market-stats">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -315,6 +320,15 @@ export function MarketStats() {
               title={t("marketStats.cards.volume")}
               subtitle={t("marketStats.cards.volumeHint")}
               testId="volume"
+              table={
+                series
+                  ? {
+                      caption: t("marketStats.table.volume"),
+                      head: CSV_HEADER_VOLUME,
+                      rows: volumeRows.slice(1),
+                    }
+                  : undefined
+              }
               actions={
                 <>
                   <SegmentedTabs
@@ -326,7 +340,7 @@ export function MarketStats() {
                   {series ? (
                     <ChartExport
                       name={`volume-${view.window}`}
-                      rows={volumeCsv(series)}
+                      rows={volumeRows}
                       title={t("marketStats.export")}
                       testId="stats-export-volume"
                     />
@@ -420,6 +434,7 @@ export function MarketStats() {
                     </span>
                   ) : null}
                 </p>
+                <span className="sr-only">{t("marketStats.table.skillsCaption")}</span>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
@@ -442,6 +457,7 @@ export function MarketStats() {
                     <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
                       {t("marketStats.quadrant.title")}
                     </h4>
+                    <span className="sr-only">{t("marketStats.table.quadrantCaption")}</span>
                     <ScatterQuadrant
                       rows={[...skills.top, ...skills.rising, ...skills.falling]
                         .filter((row, index, all) => all.findIndex((r) => r.key === row.key) === index)
@@ -532,6 +548,15 @@ export function MarketStats() {
             title={t("marketStats.cards.dimensions")}
             subtitle={t("marketStats.cards.dimensionsHint")}
             testId="dimensions"
+            table={
+              breakdownRows.length > 0
+                ? {
+                    caption: t("marketStats.table.dimensions"),
+                    head: breakdownRows[0].map(String),
+                    rows: breakdownRows.slice(1),
+                  }
+                : undefined
+            }
             actions={
               <>
                 <div className="w-56">
@@ -546,7 +571,7 @@ export function MarketStats() {
                 {breakdown ? (
                   <ChartExport
                     name={`breakdown-${view.dimension}-${view.window}`}
-                    rows={breakdownCsv(breakdown)}
+                    rows={breakdownRows}
                     title={t("marketStats.export")}
                     testId="stats-export-dimensions"
                   />
@@ -821,15 +846,25 @@ function SalaryCard({
 }) {
   const { t } = useTranslation();
   const currencies = salary?.currencies ?? [];
+  const salaryRows = currencies.length > 0 ? salaryCsv(salary as PostingStatsSalary) : [];
   return (
     <ChartCard
       title={t("marketStats.cards.salary")}
       subtitle={t("marketStats.cards.salaryHint")}
       testId="salary"
+      table={
+        salaryRows.length > 0
+          ? {
+              caption: t("marketStats.table.salary"),
+              head: salaryRows[0].map(String),
+              rows: salaryRows.slice(1),
+            }
+          : undefined
+      }
       actions={currencies.length > 0 ? (
         <ChartExport
           name={`salary-${salary?.window ?? ""}`}
-          rows={salaryCsv(salary as PostingStatsSalary)}
+          rows={salaryRows}
           title={t("marketStats.export")}
           testId="stats-export-salary"
         />
@@ -971,6 +1006,8 @@ function CompaniesCard({
   onCompany: (key: string) => void;
 }) {
   const { t } = useTranslation();
+  const companiesRows =
+    overview && overview.top_hiring.length > 0 ? companiesCsv(overview) : [];
   if (!summary && !overview) return <NoData />;
   const tiles: StatTile[] = [];
   if (summary) {
@@ -993,10 +1030,19 @@ function CompaniesCard({
       <ChartCard
         title={t("marketStats.companies.topHiring")}
         testId="companies-top"
+        table={
+          companiesRows.length > 0
+            ? {
+                caption: t("marketStats.table.companies"),
+                head: companiesRows[0].map(String),
+                rows: companiesRows.slice(1),
+              }
+            : undefined
+        }
         actions={overview && overview.top_hiring.length > 0 ? (
           <ChartExport
             name={`companies-${overview.window}`}
-            rows={companiesCsv(overview)}
+            rows={companiesRows}
             title={t("marketStats.export")}
             testId="stats-export-companies"
           />

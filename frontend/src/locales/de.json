@@ -5308,6 +5308,18 @@
     "series": {
       "prev": "Vorzeitraum"
     },
+    "table": {
+      "toggleAria": "Diagramm- oder Datentabelle",
+      "chart": "Diagramm",
+      "data": "Daten",
+      "volume": "Postings je Intervall, mit den Zählungen des Vorzeitraums.",
+      "dimensions": "Zählungen und Anteile je Marktdimension.",
+      "salary": "Gehaltsspannen je Währung, mit Medians nach Seniorität.",
+      "companies": "Top-Employer: offene Postings und Δ im Zeitraum.",
+      "rhythm": "Posting-Uhr — Summen nach Wochentag und Stunde, mit Peak.",
+      "skillsCaption": "Sortierte Skill-Zeilen — Zählung, Anteil und Trend.",
+      "quadrantCaption": "Skills nach Nachfrage (Zählung) und Schwung (Trendpfeilen)."
+    },
     "rhythm": {
       "gridAria": "Posting-Zählungen nach Wochentag und Stunde (UTC)",
       "peak": "Stärkster Moment: {{cell}} UTC",
