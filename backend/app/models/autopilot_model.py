@@ -18,6 +18,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -84,6 +85,13 @@ class AutopilotRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     finished_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     tokens_used: Mapped[int] = mapped_column(nullable=False, default=0)
     searches_executed: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    # Durable per-node step trace (plan 168): one append-return entry per
+    # executed node — step/kind/iteration/timing + whitelisted args/output
+    # summaries. A ledger, not checkpoint history (checkpoints are
+    # TTL-pruned); dies with the goal via the run cascade.
+    run_steps: Mapped[list] = mapped_column(
+        StructuredJSON, nullable=False, default=list, server_default=text("'[]'")
+    )
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 
     goal = relationship("AutopilotGoal", viewonly=True)

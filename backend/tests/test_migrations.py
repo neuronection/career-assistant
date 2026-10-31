@@ -128,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0078"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0079"], (
         "revision chain stays linear on one head"
     )
 
@@ -154,6 +154,20 @@ def test_0078_search_preset_name_roundtrip():
 
     command.upgrade(config, "head")
     assert _column_present("search_history", "name"), "re-upgrade restores the column"
+
+
+def test_0079_autopilot_run_steps_roundtrip():
+    """Plan 168: the durable step-trace ledger lives on the run row; the
+    NOT NULL add carries a dialect-safe server default."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("autopilot_runs", "run_steps"), "trace ledger exists at head"
+
+    command.downgrade(config, "0078")
+    assert not _column_present("autopilot_runs", "run_steps"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("autopilot_runs", "run_steps"), "re-upgrade restores the column"
 
 
 def test_0033_profile_proposals_roundtrip():

@@ -9,11 +9,15 @@ provider synthesizes deterministic vectors for tests/dev).
 
 import hashlib
 import uuid
+from typing import TYPE_CHECKING
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.embedding_model import AIEmbedding
+
+if TYPE_CHECKING:
+    from app.ai.gateway import RunRef
 
 # Which entity kinds embed; the store is open but the seed/recompute
 # surfaces only serve these.
@@ -141,19 +145,21 @@ class EmbeddingService:
         kind: str | None = KIND_POSTING,
         limit: int = 20,
         stats: dict | None = None,
+        run: "RunRef | None" = None,
     ) -> list[dict]:
         """Cosine ranking over the stored vectors (semantic SIGNAL only —
         callers must keep SQL hard filters upstream).
 
         ``stats``, when supplied, receives ``skipped_dim_rows``: the number
         of stored rows of a different dimension than the query vector,
-        which the dimension filter excludes without raising.
+        which the dimension filter excludes without raising. ``run``
+        opt-in links the query-embedding gateway call to a flow run.
         """
         from app.ai.gateway import embed_texts
 
         if not query.strip():
             return []
-        query_vector = (await embed_texts(self.db, [query]))[0]
+        query_vector = (await embed_texts(self.db, [query], run=run))[0]
         query_dim = len(query_vector)
         stmt = select(AIEmbedding).where(AIEmbedding.dim == query_dim)
         if kind is not None:

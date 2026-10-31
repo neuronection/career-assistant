@@ -16,6 +16,7 @@ auto-apply node: findings are suggestions, applying stays a user click.
 import json
 import logging
 import re
+import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -27,7 +28,7 @@ from langgraph.types import RetryPolicy
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gateway import ainvoke_structured, register_mock_fixture
+from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.ai.schemas import Curation, SearchPlan
 from app.core.errors import sanitize_error_detail
 from app.models.ai_model import AIGeneration
@@ -102,6 +103,7 @@ class AutopilotState(TypedDict, total=False):
     abort_reason: str
     error: str
     tokens_used: int
+    trace_steps: list
 
 
 @dataclass
@@ -618,6 +620,227 @@ def _cap_candidates(candidates: list[dict]) -> list[dict]:
     return ordered[:CANDIDATE_CAP]
 
 
+# ------------------------------------------------------------- trace channel
+
+
+def record_step(
+    state: AutopilotState,
+    *,
+    step: str,
+    kind: str,
+    duration_ms: int,
+    args: dict,
+    output: dict,
+    error: str = "",
+    abort: str = "",
+) -> list[dict]:
+    """Append one trace entry and return the ACCUMULATED list.
+
+    Append-return, exactly the ``searches`` precedent: a retried node
+    contributes nothing on its failed attempt (the exception propagates
+    before any update is returned), so entries never duplicate or drop.
+    ``iteration`` (``replan_attempts`` + 1 in the pre-update state) marks
+    the legitimate second ``search``/``filter`` pass after a replan. The
+    list persists on ``autopilot_runs.run_steps`` — a durable ledger, not
+    checkpoint history (checkpoints are TTL-pruned).
+    """
+    entry = {
+        "step": step,
+        "kind": kind,
+        "iteration": int(state.get("replan_attempts") or 0) + 1,
+        "at": _utcnow().isoformat(),
+        "duration_ms": duration_ms,
+        "args": args,
+        "output": output,
+        "error": str(error or "")[:300],
+        "abort": str(abort or ""),
+    }
+    return [*(state.get("trace_steps") or []), entry]
+
+
+def _traced(step: str, kind: str, args_of, output_of, node):
+    """Run one node and land exactly one trace entry per execution.
+
+    The wrapper is what LangGraph invokes, so a retry or a replan
+    re-entry starts fresh (and records fresh); a node that raises
+    contributes no entry — the service's failure path reads the last
+    completed superstep from the checkpointer instead.
+    """
+
+    async def traced(state: AutopilotState) -> dict:
+        started = time.perf_counter()
+        update = await node(state)
+        update["trace_steps"] = record_step(
+            state,
+            step=step,
+            kind=kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            args=args_of(state),
+            output=output_of(state, update),
+            error=str(update.get("error") or ""),
+            abort=str(update.get("abort_reason") or ""),
+        )
+        return update
+
+    return traced
+
+
+def _fresh_entries(state: AutopilotState, update: dict) -> list[dict]:
+    timeline = update.get("searches") or []
+    return timeline[len(state.get("searches") or []) :]
+
+
+def _plan_args(state: AutopilotState) -> dict:
+    profile = state.get("profile_context") or {}
+    return {
+        "goal": str(state.get("goal_text") or "")[:400],
+        "constraints": sorted(_constraints(state).keys()),
+        "budget": sorted((state.get("budget") or {}).keys()),
+        "profile": {
+            "skills": len(profile.get("skills") or []),
+            "education_level": profile.get("education_level"),
+            "country": profile.get("country"),
+            "city": profile.get("city"),
+            "target_seniority": profile.get("target_seniority") or [],
+        },
+    }
+
+
+def _plan_output(_state: AutopilotState, update: dict) -> dict:
+    return {"variants": len((update.get("plan") or {}).get("variants") or [])}
+
+
+def _search_args(state: AutopilotState) -> dict:
+    variants = (state.get("plan") or {}).get("variants") or []
+    return {
+        "variants": [
+            {
+                "query": str(variant.get("query") or ""),
+                "filters": variant.get("filters") or {},
+            }
+            for variant in variants[:SEARCH_VARIANTS]
+        ]
+    }
+
+
+def _search_output(state: AutopilotState, update: dict) -> dict:
+    keys = ("step", "query", "filters", "rationale", "found", "examined", "error")
+    return {
+        "searches": [
+            {key: entry.get(key) for key in keys} for entry in _fresh_entries(state, update)
+        ],
+        "pool": len(update.get("candidates") or []),
+    }
+
+
+def _filter_args(state: AutopilotState) -> dict:
+    constraints = _constraints(state)
+    return {
+        "pool": len(state.get("candidates") or []),
+        "never_terms": len(constraints.get("never_terms") or []),
+        "exclude_seen": bool(constraints.get("exclude_seen", True)),
+    }
+
+
+def _filter_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(
+        (e for e in reversed(_fresh_entries(state, update)) if e.get("step") == "filter"),
+        {},
+    )
+    return {
+        "kept": int(entry.get("kept") or 0),
+        "seen": int(entry.get("seen") or 0),
+        "never": int(entry.get("never") or 0),
+        "cooldown": int(entry.get("cooldown") or 0),
+        "pool": len(update.get("candidates") or []),
+    }
+
+
+def _evaluate_args(state: AutopilotState) -> dict:
+    return {"pool": len(state.get("candidates") or [])}
+
+
+def _evaluate_output(_state: AutopilotState, update: dict) -> dict:
+    pool = update.get("candidates") or []
+    fits = [float(c.get("fit") or 0) for c in pool]
+    histogram: dict[str, int] = {}
+    for candidate in pool:
+        hits = str(candidate.get("must_hits") or 0)
+        histogram[hits] = histogram.get(hits, 0) + 1
+    return {
+        "pool": len(pool),
+        "top_fit_range": [min(fits), max(fits)] if fits else [],
+        "must_hits_histogram": histogram,
+    }
+
+
+def _replan_args(state: AutopilotState) -> dict:
+    previous = [entry for entry in state.get("searches") or [] if entry.get("step") == "search"]
+    return {
+        "previous_variants": [str(entry.get("query") or "") for entry in previous],
+        "attempts": int(state.get("replan_attempts") or 0),
+    }
+
+
+def _replan_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(
+        (e for e in reversed(_fresh_entries(state, update)) if e.get("step") == "replan"),
+        {},
+    )
+    return {
+        "queries": entry.get("queries") or [],
+        "variants": len((update.get("plan") or {}).get("variants") or []),
+        "note": str(entry.get("error") or entry.get("rationale") or ""),
+    }
+
+
+def _sweep_args(state: AutopilotState) -> dict:
+    pool = sorted(state.get("candidates") or [], key=_pool_order, reverse=True)
+    return {"pool": len(pool), "seeds": [str(c.get("title") or "") for c in pool[:GRAPH_SEEDS]]}
+
+
+def _sweep_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(iter(_fresh_entries(state, update)), {})
+    return {
+        "found": int(entry.get("found") or 0),
+        "examined": int(entry.get("examined") or 0),
+        "pool": len(update.get("candidates") or []),
+        "error": str(entry.get("error") or ""),
+    }
+
+
+def _guard_args(state: AutopilotState) -> dict:
+    budget = state.get("budget") or {}
+    return {
+        "max_tokens": int(budget.get("max_tokens") or 0),
+        "max_calls": int(budget.get("max_calls") or 0),
+    }
+
+
+def _guard_output(_state: AutopilotState, update: dict) -> dict:
+    return {
+        "tokens_used": update.get("tokens_used"),
+        "abort": str(update.get("abort_reason") or ""),
+    }
+
+
+def _curate_args(state: AutopilotState) -> dict:
+    return {
+        "pool": min(
+            len(state.get("candidates") or []),
+            curator_pool(state.get("top_n")),
+        ),
+        "top_n": int(state.get("top_n") or DEFAULT_TOP_N),
+    }
+
+
+def _curate_output(_state: AutopilotState, update: dict) -> dict:
+    return {
+        "picked": len((update.get("curation") or {}).get("findings") or []),
+        "abort": str(update.get("abort_reason") or ""),
+    }
+
+
 async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str, dict]) -> dict:
     """One prediction-free recall pass over the stored posting embeddings.
 
@@ -640,7 +863,11 @@ async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str
         query = " ".join([state.get("goal_text") or "", *_must_terms(state)]).strip()
         stats: dict = {}
         hits = await EmbeddingService(deps.db).search_similar(
-            query, kind=KIND_POSTING, limit=SEMANTIC_K, stats=stats
+            query,
+            kind=KIND_POSTING,
+            limit=SEMANTIC_K,
+            stats=stats,
+            run=RunRef(id=UUID(state["run_id"]), stage="autopilot.semantic_sweep"),
         )
         ids = [UUID(hit["entity_id"]) for hit in hits if float(hit.get("score") or 0) > 0]
         rows = await _gated_rows(deps, state, posting_ids=ids)
@@ -674,6 +901,7 @@ def make_plan_node(deps: GraphDeps):
                 system=_plan_system(),
                 user=_plan_user_prompt(state, vocabulary),
                 user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.plan"),
             )
             return {"plan": result.model_dump(mode="json")}
         except Exception as exc:
@@ -936,6 +1164,7 @@ def make_replan_node(deps: GraphDeps):
                 system=_replan_system(),
                 user=_replan_user_prompt(state, previous, vocabulary),
                 user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.replan"),
             )
             variants = [variant.model_dump(mode="json") for variant in result.variants]
         except Exception as exc:
@@ -1055,6 +1284,7 @@ def make_curate_node(deps: GraphDeps):
                 system=_curate_system(int(state.get("top_n") or DEFAULT_TOP_N)),
                 user=_curate_user_prompt(state, pool),
                 user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.curate"),
             )
             return {"curation": result.model_dump(mode="json")}
         except Exception as exc:
@@ -1080,6 +1310,7 @@ def make_deliver_node(deps: GraphDeps):
         )
         from app.services.notification_service import NotificationService
 
+        deliver_started = time.perf_counter()
         top_n = int(state.get("top_n") or DEFAULT_TOP_N)
         pool = state.get("candidates") or []
         by_id = {str(c["posting_id"]): c for c in pool}
@@ -1159,6 +1390,7 @@ def make_deliver_node(deps: GraphDeps):
             goal.last_run_at = now
         await deps.db.flush()
         status = run.status if run is not None else AutopilotRunStatus.COMPLETED.value
+        notified = False
         if findings and status in (
             AutopilotRunStatus.COMPLETED.value,
             AutopilotRunStatus.BUDGET_ABORTED.value,
@@ -1180,8 +1412,26 @@ def make_deliver_node(deps: GraphDeps):
                 source_ref={"goal_id": state["goal_id"], "run_id": state["run_id"]},
                 dedup_key=f"autopilot:{state['run_id']}",
             )
+            notified = True
         await _report(deps, 100, "delivered")
-        return {"findings": findings, "tokens_used": tokens}
+        steps = record_step(
+            state,
+            step="deliver",
+            kind="deterministic",
+            duration_ms=int((time.perf_counter() - deliver_started) * 1000),
+            args={"pool": len(pool), "top_n": top_n},
+            output={
+                "findings": [{"id": f["posting_id"], "score": float(f["score"])} for f in findings],
+                "status": status,
+                "tokens": tokens,
+                "notified": notified,
+            },
+            error=str(state.get("error") or ""),
+            abort=str(state.get("abort_reason") or ""),
+        )
+        if run is not None:
+            run.run_steps = steps
+        return {"findings": findings, "tokens_used": tokens, "trace_steps": steps}
 
     return deliver
 
@@ -1215,14 +1465,45 @@ def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
     checkpointer (thread_id = run id)."""
     builder = StateGraph(AutopilotState)
     retry = RetryPolicy(max_attempts=2)
-    builder.add_node("plan", make_plan_node(deps), retry_policy=retry)
-    builder.add_node("budget_guard", make_guard_node(deps))
-    builder.add_node("search", make_search_node(deps))
-    builder.add_node("filter", make_filter_node(deps))
-    builder.add_node("replan", make_replan_node(deps), retry_policy=retry)
-    builder.add_node("evaluate", make_evaluate_node(deps))
-    builder.add_node("graph_sweep", make_graph_sweep_node(deps))
-    builder.add_node("curate", make_curate_node(deps), retry_policy=retry)
+    builder.add_node(
+        "plan",
+        _traced("plan", "llm", _plan_args, _plan_output, make_plan_node(deps)),
+        retry_policy=retry,
+    )
+    builder.add_node(
+        "budget_guard",
+        _traced("budget_guard", "deterministic", _guard_args, _guard_output, make_guard_node(deps)),
+    )
+    builder.add_node(
+        "search",
+        _traced("search", "deterministic", _search_args, _search_output, make_search_node(deps)),
+    )
+    builder.add_node(
+        "filter",
+        _traced("filter", "deterministic", _filter_args, _filter_output, make_filter_node(deps)),
+    )
+    builder.add_node(
+        "replan",
+        _traced("replan", "llm", _replan_args, _replan_output, make_replan_node(deps)),
+        retry_policy=retry,
+    )
+    builder.add_node(
+        "evaluate",
+        _traced(
+            "evaluate", "deterministic", _evaluate_args, _evaluate_output, make_evaluate_node(deps)
+        ),
+    )
+    builder.add_node(
+        "graph_sweep",
+        _traced(
+            "graph_sweep", "deterministic", _sweep_args, _sweep_output, make_graph_sweep_node(deps)
+        ),
+    )
+    builder.add_node(
+        "curate",
+        _traced("curate", "llm", _curate_args, _curate_output, make_curate_node(deps)),
+        retry_policy=retry,
+    )
     builder.add_node("deliver", make_deliver_node(deps))
 
     builder.add_edge(START, "plan")
@@ -1281,6 +1562,7 @@ def initial_state(
         replan_attempts=0,
         replans=[],
         progress_pct=0,
+        trace_steps=[],
     )
 
 

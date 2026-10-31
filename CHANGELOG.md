@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (autopilot run trace, 2026-10-31)
+- **Every autopilot call is now linked to its run in the AI audit ledger**
+  (plan 168): plan, replan, curation and the semantic-sweep embedding call
+  record which run and stage they served, so the `/settings/audit` run-id
+  filter works for autopilot like it already did for CV runs.
+- **Each run now persists a durable step trace** (plan 168): plan → search
+  → filter → replan → evaluate → graph sweep → budget guard → curate →
+  deliver record timing and argument/output summaries on the run row —
+  surviving restarts and checkpoint pruning — including failed and
+  cancelled runs, which used to lose everything.
+
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):
   the planner now sees your skills (plus the taxonomy skills around them),

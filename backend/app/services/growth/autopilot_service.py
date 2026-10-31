@@ -447,23 +447,29 @@ class AutopilotService:
             checkpointer = await get_checkpointer()
         graph = build_autopilot_graph(deps, checkpointer)
         config = {"configurable": {"thread_id": str(run.id)}}
-        if resume:
-            final = await graph.ainvoke(None, config)
-        else:
-            final = await graph.ainvoke(
-                initial_state(
-                    user_id=user_id,
-                    goal_id=goal.id,
-                    run_id=run.id,
-                    goal_text=goal.goal_text,
-                    constraints=constraints,
-                    budget=goal.budget or {},
-                    top_n=int(constraints.get("top_n") or 5),
-                    cooldown_days=cooldown_days or None,
-                    profile_context=await collect_profile_context(self.db, user_id, constraints),
-                ),
-                config,
-            )
+        try:
+            if resume:
+                final = await graph.ainvoke(None, config)
+            else:
+                final = await graph.ainvoke(
+                    initial_state(
+                        user_id=user_id,
+                        goal_id=goal.id,
+                        run_id=run.id,
+                        goal_text=goal.goal_text,
+                        constraints=constraints,
+                        budget=goal.budget or {},
+                        top_n=int(constraints.get("top_n") or 5),
+                        cooldown_days=cooldown_days or None,
+                        profile_context=await collect_profile_context(
+                            self.db, user_id, constraints
+                        ),
+                    ),
+                    config,
+                )
+        except Exception as exc:
+            await self._persist_failed_run(graph, config, run, exc)
+            raise
         await self.db.commit()
         await self.db.refresh(run)
         await self._maybe_stale_nudge(goal)
@@ -476,6 +482,37 @@ class AutopilotService:
             "searches": final.get("searches") or [],
             "resumed": resume,
         }
+
+    async def _persist_failed_run(
+        self, graph, config, run: AutopilotRun | None, exc: Exception
+    ) -> None:
+        """Persist a run that died mid-graph, then let the exception fly.
+
+        The trace is read from the checkpointer's last completed superstep
+        (the raising node contributes no step); the run row is re-fetched
+        on the rolled-back session under the run id captured before the
+        invoke, so the durable steps, the ``failed`` status and the error
+        commit even though the request session's uncommitted audit rows
+        cannot.
+        """
+        run_id = run.id if run is not None else None
+        await self.db.rollback()
+        steps: list = []
+        try:
+            snapshot = await graph.aget_state(config)
+            steps = list((snapshot.values or {}).get("trace_steps") or [])
+        except Exception:
+            logger.warning("autopilot failed-run trace recovery failed", exc_info=True)
+        if run_id is None:
+            return
+        row = await self.db.get(AutopilotRun, run_id)
+        if row is None:
+            return
+        row.run_steps = steps
+        row.status = AutopilotRunStatus.FAILED.value
+        row.error = f"{type(exc).__name__}: {exc}"[:1000]
+        row.finished_at = _utcnow()
+        await self.db.commit()
 
     async def _stale_running_run(self, goal_id: UUID) -> AutopilotRun | None:
         """A `running` row left behind by a dead worker (crash resume)."""

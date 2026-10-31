@@ -562,7 +562,7 @@ async def test_migration_head_is_linear():
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0078"]
+    assert script.get_heads() == ["0079"]
 
 
 # --------------------------------------------------- S1 planner grounding
@@ -1473,3 +1473,296 @@ async def test_graph_sweep_recuts_the_pool_and_degrades_without_relations(
         if str(entry.get("rationale") or "").startswith("curated graph expansion")
     )
     assert sweep["found"] == 0, "no relations ⇒ no-op entry"
+
+
+# ------------------------------------------------- run trace (plan 168 S1)
+
+
+async def _trace_of(db, run_id: str) -> list[dict]:
+    run = await db.get(AutopilotRun, UUID(run_id))
+    return list(run.run_steps or [])
+
+
+def _broad_planner():
+    """One filterless variant — a wide net with no replan trigger."""
+
+    def scripted(schema, user_prompt):
+        from app.ai.graphs.autopilot import _mock_autopilot
+        from app.ai.schemas import SearchPlan
+
+        if schema is SearchPlan:
+            return {"variants": [{"rationale": "broad net", "query": "", "filters": {}}]}
+        return _mock_autopilot(schema, user_prompt)
+
+    return scripted
+
+
+async def test_run_steps_record_the_full_node_sequence(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """A clean mock run lands one trace entry per executed node, in
+    execution order, with the full entry shape (plan 168 S1.2)."""
+    autopilot_mock(_broad_planner())
+    created = await _goal(client, auth_headers, constraints={"top_n": 1})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    steps = await _trace_of(db, result["run_id"])
+    assert [entry["step"] for entry in steps] == [
+        "plan",
+        "search",
+        "filter",
+        "evaluate",
+        "graph_sweep",
+        "budget_guard",
+        "curate",
+        "deliver",
+    ]
+    for entry in steps:
+        assert {
+            "step",
+            "kind",
+            "iteration",
+            "at",
+            "duration_ms",
+            "args",
+            "output",
+            "error",
+            "abort",
+        } <= set(entry)
+        assert entry["iteration"] == 1
+        assert entry["abort"] == ""
+    assert steps[0]["kind"] == "llm" and steps[-1]["kind"] == "deterministic"
+    assert steps[-1]["output"]["status"] == "completed"
+    assert steps[-1]["output"]["notified"] is True
+
+
+async def test_run_stages_land_on_ledger_rows(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """Every autopilot gateway call carries run_id + stage: plan, curate
+    and the semantic sweep out of the box, replan when it fires (plan 168
+    S1.1) — the existing /admin/audit run_id filter starts working."""
+    from app.models.ai_model import AIGeneration
+
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration).where(AIGeneration.run_id == UUID(result["run_id"]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    stages = {row.run_stage for row in rows}
+    assert {"autopilot.plan", "autopilot.curate", "autopilot.semantic_sweep"} <= stages
+    assert all(row.run_id == UUID(result["run_id"]) for row in rows)
+
+    autopilot_mock(_empty_then_broad())
+    replanned = await AutopilotService(db, checkpointer=InMemorySaver()).run_goal(
+        UUID(created["id"]), user_id
+    )
+    await db.commit()
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration).where(AIGeneration.run_id == UUID(replanned["run_id"]))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert "autopilot.replan" in {row.run_stage for row in rows}
+
+
+async def test_replan_loop_is_marked_in_the_trace(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """The broaden pass shows up once, and the re-entered search/filter
+    carry iteration=2 (plan 168 S1.2/S1.5)."""
+    autopilot_mock(_empty_then_broad())
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    steps = await _trace_of(db, result["run_id"])
+    replans = [entry for entry in steps if entry["step"] == "replan"]
+    assert len(replans) == 1
+    second_pass = [entry for entry in steps if entry["iteration"] == 2]
+    assert {"search", "filter"} <= {entry["step"] for entry in second_pass}
+    assert replans[0]["iteration"] == 1
+    searches = [entry for entry in steps if entry["step"] == "search"]
+    assert len(searches) == 2, "one search per pass"
+    pairs = [(entry["step"], entry["iteration"]) for entry in steps]
+    assert len(pairs) == len(set(pairs)), "no duplicate (step, iteration) entries"
+
+
+async def test_budget_aborted_run_persists_steps(client, auth_headers, db, search_fixtures):
+    """The soft-abort path funnels through deliver: entries up to the
+    guard's abort persist, curate never ran (plan 168 S1.4)."""
+    created = await _goal(client, auth_headers, budget={"max_calls": 1})
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+    assert result["status"] == "budget_aborted"
+
+    steps = await _trace_of(db, result["run_id"])
+    names = [entry["step"] for entry in steps]
+    assert "curate" not in names
+    guard = next(entry for entry in steps if entry["step"] == "budget_guard")
+    assert guard["abort"] == "budget"
+    assert steps[-1]["step"] == "deliver"
+    assert steps[-1]["output"]["status"] == "budget_aborted"
+    assert steps[-1]["output"]["notified"] is bool(result["findings"])
+
+
+async def test_cancelled_run_persists_steps(client, auth_headers, db, search_fixtures):
+    """A user cancel mid-search still persists the trace with the abort
+    marker (plan 168 S1.5)."""
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+
+    async def cancelled() -> bool:
+        return True
+
+    result = await service.run_goal(UUID(created["id"]), user_id, cancelled=cancelled)
+    await db.commit()
+    assert result["status"] == "cancelled"
+
+    steps = await _trace_of(db, result["run_id"])
+    aborted = [entry for entry in steps if entry["abort"]]
+    assert aborted and all(entry["abort"] == "cancelled" for entry in aborted)
+    assert steps[-1]["step"] == "deliver"
+    assert steps[-1]["output"]["status"] == "cancelled"
+    assert steps[-1]["output"]["notified"] is False
+
+
+async def test_raised_exception_persists_partial_trace(
+    client, auth_headers, db, search_fixtures, monkeypatch
+):
+    """A node that dies loses its own entry but the run persists the steps
+    up to the last completed node, `failed` + error set (plan 168 S1.4) —
+    today a raise lost the trace with the session."""
+    from app.services.notification_service import NotificationService
+
+    async def exploding(self, *args, **kwargs):
+        raise RuntimeError("notification funnel exploded")
+
+    monkeypatch.setattr(NotificationService, "emit", exploding)
+
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    with pytest.raises(RuntimeError, match="notification funnel exploded"):
+        await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    rows = (
+        (await db.execute(select(AutopilotRun).where(AutopilotRun.goal_id == UUID(created["id"]))))
+        .scalars()
+        .all()
+    )
+    run = rows[0]
+    assert run.status == "failed"
+    assert "RuntimeError" in run.error
+    assert run.finished_at is not None
+    names = [entry["step"] for entry in run.run_steps or []]
+    assert "deliver" not in names, "the raising node contributes no step"
+    assert names[-1] == "curate", "steps run up to the last completed node"
+
+
+async def test_resume_yields_one_step_per_node_without_duplicates(
+    db, auth_headers, seeded_catalog, source, kinds
+):
+    """Resume-from-checkpoint records exactly one entry per executed node
+    (plan 168 S1.5, the `test_graph_resume_from_checkpoint` pattern)."""
+    from app.ai.graphs.autopilot import (
+        GraphDeps,
+        build_autopilot_graph,
+        initial_state,
+    )
+
+    user_id = _uid(auth_headers)
+    goal = AutopilotGoal(
+        user_id=user_id,
+        goal_text="programming work",
+        constraints={},
+        budget={},
+    )
+    db.add(goal)
+    await db.flush()
+    run = AutopilotRun(goal_id=goal.id)
+    db.add(run)
+    await db.commit()
+
+    deps = GraphDeps(db=db)
+    graph = build_autopilot_graph(deps, InMemorySaver())
+    config = {"configurable": {"thread_id": str(run.id)}}
+    state = initial_state(
+        user_id=user_id,
+        goal_id=goal.id,
+        run_id=run.id,
+        goal_text=goal.goal_text,
+        constraints={},
+        budget={},
+    )
+    graph.update_state(
+        config,
+        {
+            **state,
+            "plan": {
+                "variants": [
+                    {
+                        "rationale": "resume sweep",
+                        "query": "",
+                        "filters": {"keywords": ["programming"]},
+                    }
+                ]
+            },
+        },
+        as_node="plan",
+    )
+    final = await graph.ainvoke(None, config)
+    await db.commit()
+
+    pairs = [(entry["step"], entry["iteration"]) for entry in final.get("trace_steps") or []]
+    assert pairs, "the resumed run records its trace"
+    assert len(pairs) == len(set(pairs)), "no duplicates across the resume boundary"
+    assert pairs[-1][0] == "deliver"
+
+
+async def test_trace_summaries_stay_within_caps(
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+):
+    """Trace args/output are whitelisted summaries: no full serialized
+    candidate (snippet/responsibilities), ids bounded by CANDIDATE_CAP
+    (plan 168 S1.2, plan 158 S4.6)."""
+    from app.ai.graphs.autopilot import CANDIDATE_CAP
+    from tests.conftest import _make_posting
+
+    for index in range(CANDIDATE_CAP + 5):
+        await _make_posting(
+            db,
+            source,
+            external_id=f"trace-{index}",
+            title=f"Trace Bulk Role {index}",
+        )
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    steps = await _trace_of(db, result["run_id"])
+    assert steps
+    for entry in steps:
+        blob = json.dumps(entry)
+        assert '"snippet"' not in blob
+        assert '"responsibilities"' not in blob
+        assert len(str(entry["args"].get("goal", ""))) <= 400
+        assert entry["duration_ms"] >= 0

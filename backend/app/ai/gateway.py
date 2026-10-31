@@ -1041,6 +1041,7 @@ async def embed_texts(
     db: AsyncSession,
     texts: list[str],
     user_id=None,
+    run: RunRef | None = None,
 ) -> list[list[float]]:
     """Embed a batch of texts via the ``embed`` task.
 
@@ -1048,7 +1049,8 @@ async def embed_texts(
     unassigned), budgets, audit. The mock provider synthesizes
     deterministic unit vectors (dim ``MOCK_EMBED_DIM``) so ranking is
     testable without a provider; real providers go through the
-    embeddings model factory.
+    embeddings model factory. ``run`` opt-in links the audit row to a
+    multi-step flow run and stage, like ``ainvoke_structured``.
     """
     from app.ai.providers.resolution import resolve_task_model
 
@@ -1063,6 +1065,8 @@ async def embed_texts(
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
     resolved = await resolve_task_model(db, AITaskType.EMBED.value, user_id)
+    run_id = run.id if run is not None else None
+    run_stage = run.stage if run is not None else None
     started = time.perf_counter()
     if resolved is None:
         error = (
@@ -1083,6 +1087,8 @@ async def embed_texts(
             "error",
             error,
             provider_type="none",
+            run_id=run_id,
+            run_stage=run_stage,
         )
         raise AINotConfiguredError(error)
     if resolved.provider_type == "mock" and settings.is_production:
@@ -1115,6 +1121,8 @@ async def embed_texts(
             "ok",
             model_name=resolved.model_name,
             provider_type=resolved.provider_type,
+            run_id=run_id,
+            run_stage=run_stage,
         )
         return vectors
     except Exception as exc:
@@ -1131,6 +1139,8 @@ async def embed_texts(
             latency,
             "error",
             f"{type(exc).__name__}: {exc}",
+            run_id=run_id,
+            run_stage=run_stage,
         )
         raise
 
