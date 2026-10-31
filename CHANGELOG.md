@@ -14,6 +14,11 @@ All notable changes to **Career Assistant** are documented here.
   deliver record timing and argument/output summaries on the run row —
   surviving restarts and checkpoint pruning — including failed and
   cancelled runs, which used to lose everything.
+- **`GET /autopilot/runs/{run_id}` opens one run's detail** (plan 168):
+  the step trace, the graph's node list, the run's AI calls (metadata
+  only — no prompt text), its findings and its timeline, addressed by id
+  so runs beyond the 30-row history resolve. A foreign and a missing run
+  answer the same 404.
 
 ### Changed (autopilot retrieval quality, 2026-10-30)
 - **Autopilot plans from your profile and searches by keyword** (plan 158):

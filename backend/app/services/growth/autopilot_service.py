@@ -10,6 +10,7 @@ is never automated — findings are suggestions only.
 
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -29,6 +30,37 @@ from app.schemas.autopilot import (
 logger = logging.getLogger(__name__)
 
 STALE_STREAK = 3
+
+EXECUTION_NODE_ORDER = [
+    "plan",
+    "search",
+    "filter",
+    "replan",
+    "evaluate",
+    "graph_sweep",
+    "budget_guard",
+    "curate",
+    "deliver",
+]
+
+
+def execution_nodes() -> list[str]:
+    """The compiled graph's nodes in EXECUTION order.
+
+    Compiled-graph insertion order is not execution order (``budget_guard``
+    is added second but runs late), so the run detail derives its node list
+    from this sequence, filtered against the compiled set — no frontend
+    copy that drifts; a future node joins through both the graph and this
+    list or the set assertion in the tests fails. The deps are never
+    invoked for the node set, so the session placeholder is an explicit
+    cast.
+    """
+    from app.ai.graphs.autopilot import GraphDeps, build_autopilot_graph
+
+    compiled = set(build_autopilot_graph(GraphDeps(db=cast(AsyncSession, None))).nodes)
+    compiled -= {"__start__", "__end__"}
+    ordered = [node for node in EXECUTION_NODE_ORDER if node in compiled]
+    return ordered + sorted(compiled - set(EXECUTION_NODE_ORDER))
 
 
 def _utcnow() -> datetime:
@@ -513,6 +545,77 @@ class AutopilotService:
         row.error = f"{type(exc).__name__}: {exc}"[:1000]
         row.finished_at = _utcnow()
         await self.db.commit()
+
+    async def _run_ai_calls(self, run_id: UUID) -> list[dict]:
+        """The run's audited gateway calls, metadata only — never prompt or
+        output text (those stay in the admin detail modal, ADR-0044 §4)."""
+        from app.models.ai_model import AIGeneration
+
+        rows = (
+            (
+                await self.db.execute(
+                    select(AIGeneration)
+                    .where(AIGeneration.run_id == run_id)
+                    .order_by(AIGeneration.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        return [
+            {
+                "id": str(row.id),
+                "task_type": row.task_type,
+                "run_stage": row.run_stage,
+                "provider": row.provider,
+                "model": row.model,
+                "status": row.status,
+                "tokens_in": row.tokens_in,
+                "tokens_out": row.tokens_out,
+                "latency_ms": row.latency_ms,
+                "prompt_version": row.prompt_version,
+            }
+            for row in rows
+        ]
+
+    async def run_detail(self, user_id: UUID, run_id: UUID) -> dict:
+        """One run, fully inspectable: trace steps, graph nodes, AI calls
+        and findings — addressed by id so runs beyond the 30-row listing
+        resolve (ADR-0044 §9).
+
+        Owner-scoped product detail, not an admin facet view: a foreign or
+        missing run answer the SAME 404, the payload carries no prompt or
+        output text, and there are no ledger-wide filters or export.
+        """
+        if isinstance(user_id, str):
+            user_id = UUID(user_id)
+        row = (
+            (
+                await self.db.execute(
+                    select(AutopilotRun)
+                    .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+                    .where(AutopilotRun.id == run_id, AutopilotGoal.user_id == user_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if row is None:
+            raise NotFoundError("Autopilot run not found")
+        goal = await self.db.get(AutopilotGoal, row.goal_id)
+        return {
+            "run": {
+                **_run_out(row),
+                "goal_id": str(row.goal_id),
+                "goal_text": goal.goal_text if goal is not None else "",
+            },
+            "steps": list(row.run_steps or []),
+            "nodes": execution_nodes(),
+            "ai_calls": await self._run_ai_calls(row.id),
+            "findings": await self._findings_out(row.id),
+            "timeline": list(row.searches_executed or []),
+            "trace_available": bool(row.run_steps),
+        }
 
     async def _stale_running_run(self, goal_id: UUID) -> AutopilotRun | None:
         """A `running` row left behind by a dead worker (crash resume)."""

@@ -31563,6 +31563,52 @@
         ]
       }
     },
+    "/api/v1/autopilot/runs/{run_id}": {
+      "get": {
+        "description": "One run's inspectable detail: node trace, AI calls and findings \u2014\na foreign and a missing run answer the same 404.",
+        "operationId": "run_detail_api_v1_autopilot_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Run Detail Api V1 Autopilot Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Detail",
+        "tags": [
+          "autopilot"
+        ]
+      }
+    },
     "/api/v1/background-jobs": {
       "get": {
         "description": "The caller's background jobs, newest first.",

@@ -1766,3 +1766,124 @@ async def test_trace_summaries_stay_within_caps(
         assert '"responsibilities"' not in blob
         assert len(str(entry["args"].get("goal", ""))) <= 400
         assert entry["duration_ms"] >= 0
+
+
+# ------------------------------------------- run detail endpoint (S2)
+
+
+async def test_run_detail_endpoint_serves_owner(
+    client, auth_headers, db, search_fixtures, autopilot_mock
+):
+    """The owner opens a run by id: steps, execution-ordered nodes, ledger
+    metadata without prompt text, findings, timeline (plan 168 S2.1)."""
+    from app.ai.graphs.autopilot import GraphDeps, build_autopilot_graph
+
+    autopilot_mock(_broad_planner())
+    goal_text = "Find me a junior QA or data job where I can use programming"
+    created = await _goal(
+        client,
+        auth_headers,
+        goal_text=goal_text,
+        constraints={"top_n": 1},
+    )
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    response = await client.get(f"/api/v1/autopilot/runs/{result['run_id']}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["run"]["id"] == result["run_id"]
+    assert body["run"]["goal_id"] == created["id"]
+    assert body["trace_available"] is True
+    assert [entry["step"] for entry in body["steps"]] == [
+        "plan",
+        "search",
+        "filter",
+        "evaluate",
+        "graph_sweep",
+        "budget_guard",
+        "curate",
+        "deliver",
+    ]
+    compiled = set(build_autopilot_graph(GraphDeps(db=None)).nodes) - {
+        "__start__",
+        "__end__",
+    }
+    assert set(body["nodes"]) == compiled
+    assert body["nodes"] == [
+        "plan",
+        "search",
+        "filter",
+        "replan",
+        "evaluate",
+        "graph_sweep",
+        "budget_guard",
+        "curate",
+        "deliver",
+    ]
+    calls = body["ai_calls"]
+    assert calls, "the run's gateway calls are listed"
+    for call in calls:
+        assert {"id", "task_type", "run_stage", "provider", "model", "status"} <= set(call)
+        assert "prompt" not in call and "output" not in call
+    assert goal_text not in json.dumps(calls), "no prompt text leaks"
+    assert body["timeline"], "the searches_executed timeline rides along"
+    assert body["findings"], "the run's findings ride along"
+
+
+async def test_run_detail_is_404_for_foreign_and_missing(client, auth_headers, db, search_fixtures):
+    """A foreign run and a missing run answer the SAME 404 — the explicit
+    owner lookup leaks nothing (plan 168 S2.1/S2.3; the goal-keyed
+    endpoints keep their 403)."""
+    created = await _goal(client, auth_headers)
+    service, user_id = _service(db, auth_headers)
+    result = await service.run_goal(UUID(created["id"]), user_id)
+    await db.commit()
+
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "run-thief@example.com", "password": "supersecret1"},
+    )
+    assert other.status_code == 201
+    other_headers = session_headers(other)
+
+    foreign = await client.get(f"/api/v1/autopilot/runs/{result['run_id']}", headers=other_headers)
+    missing = await client.get(
+        f"/api/v1/autopilot/runs/{UUID(int=0xDEADBEEF)}", headers=other_headers
+    )
+    assert foreign.status_code == 404
+    assert missing.status_code == 404
+    assert foreign.json() == missing.json()
+
+
+async def test_run_detail_falls_back_without_trace(client, auth_headers, db):
+    """A pre-trace (or pruned) run still resolves: timeline rides along,
+    steps stay empty and trace_available is false — never an empty surface
+    (plan 168 S2.1/S2.3); runs beyond the 30-row listing resolve by id."""
+    created = await _goal(client, auth_headers)
+    for _index in range(35):
+        db.add(AutopilotRun(goal_id=UUID(created["id"]), status="completed"))
+    await db.commit()
+    rows = (
+        (
+            await db.execute(
+                select(AutopilotRun)
+                .where(AutopilotRun.goal_id == UUID(created["id"]))
+                .order_by(AutopilotRun.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
+    oldest = rows[0]
+
+    response = await client.get(f"/api/v1/autopilot/runs/{oldest.id}", headers=auth_headers)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["trace_available"] is False
+    assert body["steps"] == []
+    assert body["run"]["id"] == str(oldest.id)
+    listed = await client.get(f"/api/v1/autopilot/goals/{created['id']}/runs", headers=auth_headers)
+    assert listed.status_code == 200
+    assert len(listed.json()) == 30, "the list caps at 30 — the detail endpoint does not"

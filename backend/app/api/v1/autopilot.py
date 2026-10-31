@@ -102,6 +102,17 @@ async def goal_runs(
     return await AutopilotService(db).runs(user.id, goal_id)
 
 
+@router.get("/runs/{run_id}")
+async def run_detail(
+    run_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One run's inspectable detail: node trace, AI calls and findings —
+    a foreign and a missing run answer the same 404."""
+    return await AutopilotService(db).run_detail(user.id, run_id)
+
+
 @router.post("/findings/{finding_id}/feedback")
 async def finding_feedback(
     finding_id: UUID,
