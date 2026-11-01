@@ -226,6 +226,9 @@ async def test_run_e2e_mock_provider(client, auth_headers, db, search_fixtures, 
     )
     assert notification is not None
     assert notification.source_ref["goal_id"] == created["id"]
+    assert notification.payload["link"] == f"/autopilot/runs/{result['run_id']}", (
+        "the deliver notification deep-links the run page (plan 175)"
+    )
 
 
 async def test_runs_endpoint_transparency_timeline(client, auth_headers, db, search_fixtures):
@@ -2454,6 +2457,21 @@ async def test_run_detail_endpoint_serves_owner(
     assert goal_text not in json.dumps(calls), "no prompt text leaks"
     assert body["timeline"], "the searches_executed timeline rides along"
     assert body["findings"], "the run's findings ride along"
+
+
+async def test_run_detail_offers_no_filters_or_export(client):
+    """ADR-0044 addendum, condition 3 (plan 175 S3): the owner's run
+    detail is addressed by id alone — no ledger-wide filter or export
+    parameters, no request body."""
+    from app.main import app
+
+    schema = app.openapi()
+    operation = schema["paths"]["/api/v1/autopilot/runs/{run_id}"]["get"]
+    query_params = [
+        param for param in operation.get("parameters") or [] if param.get("in") == "query"
+    ]
+    assert query_params == [], "no filter or export parameters"
+    assert "requestBody" not in operation
 
 
 async def test_run_detail_is_404_for_foreign_and_missing(client, auth_headers, db, search_fixtures):

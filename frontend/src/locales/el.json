@@ -988,7 +988,10 @@
       },
       "profileSkills": "{{skills}} δεξιότητες",
       "profileLanguages": "{{count}} γλώσσες",
-      "profileStage": "στάδιο {{stage}}"
+      "profileStage": "στάδιο {{stage}}",
+      "openFull": "Πλήρης προβολή",
+      "backToFeed": "Όλα τα ευρήματα",
+      "viewInFeed": "Εμφάνιση στο feed"
     },
     "summary": {
       "skills": "Δεξιότητες: {{items}}",

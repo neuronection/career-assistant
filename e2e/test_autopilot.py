@@ -6,9 +6,9 @@ stays unapplied (the tracker journey applies to `E2E00001` first, and the
 run's seen/applied exclusions are real behavior). The run is synchronous
 (`POST /autopilot/goals/{id}/run`), which lets the spec assert findings
 without polling a background job. Plan 175 rebuilt the page as a findings
-workspace: a flat feed of job cards, a runs rail on the right (rows with
-counts — the run page arrives with the next slice), and the goal
-switcher; the inline per-run timeline toggle is gone.
+workspace: a flat feed of job cards, a runs rail on the right whose rows
+link into the full run page, and the goal switcher; the inline per-run
+timeline toggle is gone.
 """
 
 from conftest import BASE_URL, api_headers
@@ -46,6 +46,12 @@ def test_autopilot_goal_run_returns_findings(page) -> None:
     rail_row = page.locator('[data-testid^="runs-rail-row-"]').first
     expect(rail_row).to_be_visible(timeout=20_000)
     expect(rail_row.locator('[data-testid^="runs-rail-counts-"]')).to_contain_text("finding")
+
+    # The rail row links to the run page (plan 175 S3), which renders the
+    # trace for the run that just finished.
+    rail_row.click()
+    page.wait_for_selector('[data-testid="autopilot-run-page"]')
+    expect(page.locator('[data-testid="run-detail-body"]')).to_be_visible(timeout=20_000)
 
     goals = page.request.get(f"{BASE_URL}/api/v1/autopilot/goals", headers=api_headers())
     assert goals.ok, goals.text()

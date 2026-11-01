@@ -1502,7 +1502,7 @@ def make_deliver_node(deps: GraphDeps):
                     "run_id": state["run_id"],
                     "count": len(findings),
                     "status": status,
-                    "link": "/autopilot",
+                    "link": f"/autopilot/runs/{state['run_id']}",
                 },
                 source_ref={"goal_id": state["goal_id"], "run_id": state["run_id"]},
                 dedup_key=f"autopilot:{state['run_id']}",

@@ -310,7 +310,7 @@ flowchart LR
     Graph -- "RunRef per gateway call" --> AG[("ai_generations<br/>run_id + run_stage")]
     ST --> RE["GET /autopilot/runs/{id}"]
     AG --> RE
-    RE --> UI["Run detail modal ?run=id<br/>steps · graph chips · AI-call links"]
+    RE --> UI["/autopilot/runs/:id<br/>steps · graph chips · AI-call links"]
 ```
 
 ### Tracing export (plan 168)

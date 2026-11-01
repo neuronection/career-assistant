@@ -42,6 +42,7 @@ import { Compare } from "@/features/catalog/pages/Compare";
 import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
 import { Explore } from "@/features/catalog/pages/Explore";
 import { Autopilot } from "@/features/growth/pages/Autopilot";
+import { AutopilotRunPage } from "@/features/growth/pages/AutopilotRunPage";
 import { Assessment } from "@/features/assessment/pages/Assessment";
 import { Universities } from "@/features/university/pages/Universities";
 import { UniversityDetail } from "@/features/university/pages/UniversityDetail";
@@ -89,6 +90,7 @@ export function App() {
           <Route path="/explore" element={<Navigate to="/postings" replace />} />
           <Route path="/radar" element={<JobRadarSettings />} />
           <Route path="/autopilot" element={<Autopilot />} />
+          <Route path="/autopilot/runs/:runId" element={<AutopilotRunPage />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
           <Route path="/paths" element={<PathExplorer />} />

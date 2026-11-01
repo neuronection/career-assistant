@@ -988,7 +988,10 @@
       },
       "profileSkills": "{{skills}} Skills",
       "profileLanguages": "{{count}} Sprachen",
-      "profileStage": "Stufe {{stage}}"
+      "profileStage": "Stufe {{stage}}",
+      "openFull": "Vollansicht öffnen",
+      "backToFeed": "Alle Treffer",
+      "viewInFeed": "Im Feed zeigen"
     },
     "summary": {
       "skills": "Skills: {{items}}",

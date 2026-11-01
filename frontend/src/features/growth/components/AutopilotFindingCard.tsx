@@ -46,10 +46,13 @@ export function AutopilotFindingCard({
   item,
   onFeedback,
   onApplied,
+  onOpenRun,
 }: {
   item: AutopilotFindingFeedItem;
   onFeedback: (id: string, kind: "more_like_this" | "hide_like_this") => void;
   onApplied?: (id: string) => void;
+  /** Opens the run's quick-peek modal (plan 175 S3). */
+  onOpenRun?: () => void;
 }) {
   const { t } = useTranslation();
   const [markedApplied, setMarkedApplied] = useState(false);
@@ -254,9 +257,14 @@ export function AutopilotFindingCard({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--as-muted-fg)]">
-          <span data-testid={`finding-run-provenance-${item.id}`}>
+          <button
+            type="button"
+            className="-my-1 -ml-1 rounded px-1 underline decoration-dotted underline-offset-2 hover:text-[var(--as-accent)]"
+            onClick={onOpenRun}
+            data-testid={`finding-run-${item.id}`}
+          >
             {t("autopilot.workspace.runProvenance", { date: runDate })}
-          </span>
+          </button>
           <span className="text-[var(--as-border)]">|</span>
           <span>{item.goal_text.length > 48 ? `${item.goal_text.slice(0, 48)}…` : item.goal_text}</span>
           <span className="text-[var(--as-border)]">|</span>

@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed (autopilot findings workspace, 2026-11-01)
+- **Each run gets a full page: `/autopilot/runs/:id`.** The runs rail
+  links there, `?run=<id>` deep links land on the page, and the deliver
+  notification points at it — old notifications keep working. The page
+  shows the step trace, the graph, the run's AI calls (admin-gated
+  audit links), the "what I searched & why" timeline and the run's
+  findings with a one-click "show in the feed" filter; the feed's
+  finding cards open the quick-peek modal from their run/date line, now
+  with an "Open full view" shortcut.
 - **`/autopilot` is now a findings workspace.** The shortlist is the
   surface: a flat feed of the same job cards `/postings` uses — each with
   its evidence row (why, verified quote, must-have coverage, 👍/👎), a

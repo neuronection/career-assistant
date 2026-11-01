@@ -1,9 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { Autopilot } from "@/features/growth/pages/Autopilot";
+import { AutopilotRunPage } from "@/features/growth/pages/AutopilotRunPage";
 import {
   createGoal,
   DEFAULT_PROFILE_USAGE,
@@ -166,7 +167,10 @@ function feedResponse(
 function renderPage(initialEntry = "/autopilot") {
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <Autopilot />
+      <Routes>
+        <Route path="/autopilot" element={<Autopilot />} />
+        <Route path="/autopilot/runs/:runId" element={<AutopilotRunPage />} />
+      </Routes>
     </MemoryRouter>
   );
 }
@@ -258,7 +262,7 @@ describe("Autopilot workspace feed", () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId("coverage-f1")).toHaveTextContent("Must-haves 1/2");
     expect(screen.getByTestId("finding-evidence-f1")).toBeInTheDocument();
-    expect(screen.getByTestId("finding-run-provenance-f1")).toBeInTheDocument();
+    expect(screen.getByTestId("finding-run-f1")).toBeInTheDocument();
     expect(mockFeed).toHaveBeenCalledWith(
       expect.objectContaining({ state: "open", latest_per_posting: true })
     );
@@ -647,26 +651,40 @@ describe("Autopilot goals", () => {
   });
 });
 
-describe("Autopilot run detail modal", () => {
-  it("opens the run detail modal from the Details affordance", async () => {
+describe("Autopilot run quick-peek modal", () => {
+  it("opens the quick-peek modal from the finding's run provenance", async () => {
     const user = userEvent.setup();
-    renderPage("/autopilot?run=r1");
+    renderPage();
+    await screen.findByTestId("finding-title-f1");
+    await user.click(screen.getByTestId("finding-run-f1"));
     expect(await screen.findByTestId("run-detail-modal")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(mockRunDetail).toHaveBeenCalledWith("r1")
-    );
+    await waitFor(() => expect(mockRunDetail).toHaveBeenCalledWith("r1"));
     expect(screen.getByTestId("run-detail-steps")).toBeInTheDocument();
-    void user;
   });
 
-  it("opens a run by ?run= deep link even when it is not in the loaded list", async () => {
-    mockFeed.mockResolvedValue(feedResponse([]));
+  it("links the quick-peek to the full run page", async () => {
+    renderPage();
+    await screen.findByTestId("finding-title-f1");
+    await userEvent.setup().click(screen.getByTestId("finding-run-f1"));
+    const openFull = await screen.findByTestId("run-detail-open-full");
+    expect(openFull).toHaveAttribute("href", "/autopilot/runs/r1");
+  });
+
+  it("navigates a ?run= deep link to the run page", async () => {
     renderPage("/autopilot?run=r-remote");
-    expect(await screen.findByTestId("run-detail-modal")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(mockRunDetail).toHaveBeenCalledWith("r-remote")
-    );
+    expect(await screen.findByTestId("autopilot-run-page")).toBeInTheDocument();
+    await waitFor(() => expect(mockRunDetail).toHaveBeenCalledWith("r-remote"));
     expect(screen.getByTestId("run-detail-steps")).toBeInTheDocument();
+  });
+});
+
+describe("Autopilot run page", () => {
+  it("renders a run by id, even one absent from every loaded list", async () => {
+    renderPage("/autopilot/runs/r-lone");
+    expect(await screen.findByTestId("autopilot-run-page")).toBeInTheDocument();
+    await waitFor(() => expect(mockRunDetail).toHaveBeenCalledWith("r-lone"));
+    expect(screen.getByTestId("run-detail-steps")).toBeInTheDocument();
+    expect(screen.getByTestId("run-page-back")).toHaveAttribute("href", "/autopilot");
   });
 
   it("renders the step trace and the replan loop branch", async () => {
@@ -683,8 +701,8 @@ describe("Autopilot run detail modal", () => {
         ],
       })
     );
-    renderPage("/autopilot?run=r1");
-    await screen.findByTestId("run-detail-modal");
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
     expect(screen.getByTestId("run-detail-branch")).toBeInTheDocument();
     const steps = screen.getAllByTestId(/^run-detail-step-\d+$/);
     expect(steps).toHaveLength(7);
@@ -704,8 +722,8 @@ describe("Autopilot run detail modal", () => {
         ],
       })
     );
-    renderPage("/autopilot?run=r1");
-    await screen.findByTestId("run-detail-modal");
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
     const chips = screen.getAllByTestId(/^run-detail-node-/);
     expect(chips.map((chip) => chip.textContent)).toEqual([
       "Plan",
@@ -739,33 +757,61 @@ describe("Autopilot run detail modal", () => {
         ],
       })
     );
-    renderPage("/autopilot?run=r1");
+    renderPage("/autopilot/runs/r1");
     await screen.findByTestId("run-detail-fallback");
     expect(screen.queryByTestId("run-detail-steps")).toBeNull();
-    expect(screen.getByTestId("run-detail-fallback")).toHaveTextContent("search timeline");
+    expect(screen.getByTestId("run-timeline-r1")).toBeInTheDocument();
+    expect(screen.getByTestId("run-timeline-r1")).toHaveTextContent("40 examined");
+  });
+
+  it("links the run's findings into the feed filtered by run_id", async () => {
+    mockRunDetail.mockResolvedValue(
+      runDetail({
+        findings: [
+          {
+            id: "f1",
+            posting_id: "p1",
+            ref: "AB12CD34",
+            title: "QA Automation Engineer",
+            org: "SynthCo",
+            url: "",
+            score: 7.8,
+            why: "why",
+            evidence: {},
+            feedback: null,
+            dismissed_at: null,
+            created_at: "2026-09-05T08:00:10Z",
+          },
+        ],
+      })
+    );
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
+    const link = await screen.findByTestId("run-findings-feed-link");
+    expect(link).toHaveAttribute("href", "/autopilot?run_id=r1");
   });
 
   it("links each AI call to the audit detail modal for admins", async () => {
     useAuthStore.setState({ user: { email: "a@b.c", is_admin: true } as never });
-    renderPage("/autopilot?run=r1");
-    await screen.findByTestId("run-detail-modal");
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
     const link = await screen.findByTestId("run-detail-call-link-gen-77");
     expect(link).toHaveAttribute("href", "/settings/audit?tab=ai&detail=gen-77");
   });
 
   it("hides the audit link from non-admins but keeps the call metadata", async () => {
     useAuthStore.setState({ user: { email: "a@b.c", is_admin: false } as never });
-    renderPage("/autopilot?run=r1");
-    await screen.findByTestId("run-detail-modal");
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
     await waitFor(() =>
       expect(screen.getByTestId("run-detail-call-gen-77")).toBeInTheDocument()
     );
     expect(screen.queryByTestId("run-detail-call-link-gen-77")).toBeNull();
   });
 
-  it("shows the missing-run note instead of an empty modal", async () => {
+  it("shows the missing-run note for a foreign or missing id", async () => {
     mockRunDetail.mockRejectedValue(new Error("404"));
-    renderPage("/autopilot?run=r-gone");
+    renderPage("/autopilot/runs/r-gone");
     expect(await screen.findByTestId("run-detail-missing")).toBeInTheDocument();
   });
 
@@ -792,7 +838,7 @@ describe("Autopilot run detail modal", () => {
       }),
     ];
     mockRunDetail.mockResolvedValue(detail);
-    renderPage("/autopilot?run=r1");
+    renderPage("/autopilot/runs/r1");
     const inputs = await screen.findByTestId("run-detail-inputs");
     await waitFor(() => {
       expect(inputs.textContent).toContain("2 skills");

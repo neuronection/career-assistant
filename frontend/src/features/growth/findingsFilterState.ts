@@ -20,6 +20,7 @@ export const FINDINGS_SORTS: FindingFeedSort[] = ["newest", "score"];
 
 export interface FindingsFilters {
   goal: string | null;
+  runId: string | null;
   view: "flat" | "byrun";
   state: FindingFeedState;
   latest: boolean;
@@ -36,6 +37,7 @@ export interface FindingsFilters {
 
 export const DEFAULT_FINDINGS_FILTERS: FindingsFilters = {
   goal: null,
+  runId: null,
   view: "flat",
   state: "open",
   latest: true,
@@ -72,6 +74,7 @@ export function countActiveFindingsFilters(f: FindingsFilters): number {
 export function toFeedParams(f: FindingsFilters): FindingFeedParams {
   return {
     goal_id: f.goal ?? undefined,
+    run_id: f.runId ?? undefined,
     state: f.state,
     latest_per_posting: f.latest,
     sort: f.sort,
@@ -95,6 +98,7 @@ export function parseFindingsFilters(params: URLSearchParams): FindingsFilters {
   const seniority = params.get("seniority");
   return {
     goal: params.get("goal"),
+    runId: params.get("run_id"),
     view: VIEW_VALUES.includes(view as "flat" | "byrun")
       ? (view as "flat" | "byrun")
       : DEFAULT_FINDINGS_FILTERS.view,
@@ -126,6 +130,7 @@ export function parseFindingsFilters(params: URLSearchParams): FindingsFilters {
 export function toFindingsSearchParams(f: FindingsFilters): URLSearchParams {
   const params = new URLSearchParams();
   if (f.goal) params.set("goal", f.goal);
+  if (f.runId) params.set("run_id", f.runId);
   if (f.view !== DEFAULT_FINDINGS_FILTERS.view) params.set("view", f.view);
   if (f.state !== DEFAULT_FINDINGS_FILTERS.state) params.set("state", f.state);
   if (!f.latest) params.set("latest", "0");

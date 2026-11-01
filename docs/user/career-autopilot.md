@@ -77,7 +77,8 @@ flowchart LR
 5. **Explains** the shortlist: every explanation cites verbatim quotes
    verified against the posting's own text.
 
-A **"what I searched & why"** timeline shows each run's work, so the agent's
+A **"what I searched & why"** timeline shows each run's work on its run
+page, so the agent's
 reasoning is inspectable rather than opaque. Each search reports how many
 postings it found in total and how many it actually examined, and the windows
 it scans hold **fresh** postings only — ones you have not seen, applied to or
@@ -117,8 +118,10 @@ these toggles.
 
 ## Open a run
 
-Every run card has a **Details** action (deep-linkable with `?run=<id>` on
-`/autopilot`). The run's detail view shows the **step trace** — what the plan,
+Every run opens its own **run page**: click a run in the **runs rail** (or
+a finding card's run/date line for the inline quick-peek). The run page at
+`/autopilot/runs/:id` (deep-linkable; `?run=<id>` on `/autopilot` lands
+there too) shows the **step trace** — what the plan,
 each search, the filters, the ranking, the broaden pass, the budget check, the
 curation and the delivery actually did, with timing and each step's arguments
 and output summaries — plus the run's **AI calls** (which stage served which
