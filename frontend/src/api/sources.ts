@@ -23,6 +23,7 @@ export type SourceQueryInfo = {
 export type PostingSource = {
   id: string;
   key: string;
+  title?: string;
   connector_key: string;
   kind: string;
   schedule_kind: string | null;

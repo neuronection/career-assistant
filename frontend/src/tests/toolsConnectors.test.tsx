@@ -402,6 +402,49 @@ describe("SourcesSection job sources", () => {
     ).toBeNull();
   });
 
+  it("filters the sources list through the search field", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    expect(await screen.findByTestId("integration-instance-src-1")).toBeTruthy();
+    expect(screen.getByTestId("integration-instance-src-2")).toBeTruthy();
+    await userEvent.type(
+      screen.getByTestId("job-sources-search").querySelector("input")!,
+      "acme",
+    );
+    expect(screen.getByTestId("integration-instance-src-1")).toBeTruthy();
+    expect(screen.queryByTestId("integration-instance-src-2")).toBeNull();
+  });
+
+  it("bulk-pauses selected sources from the selection bar", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    vi.mocked(sourcesApi.updateSource).mockResolvedValue(sources[0] as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    const select = (key: string) =>
+      screen.getByRole("checkbox", {
+        name: `toolsSettings.connectors.sources.selectAria: ${key}`,
+      });
+    await screen.findByTestId("integration-instance-src-1");
+    const pausedBefore = vi
+      .mocked(sourcesApi.updateSource)
+      .mock.calls.filter(([, payload]) => (payload as { paused?: boolean }).paused === true).length;
+    await userEvent.click(select("acme-board"));
+    await userEvent.click(select("tokenless"));
+    expect(await screen.findByTestId("job-sources-bulk")).toBeTruthy();
+    await userEvent.click(screen.getByTestId("bulk-pause"));
+    await waitFor(() => {
+      const pausedCalls = vi
+        .mocked(sourcesApi.updateSource)
+        .mock.calls.filter(([, payload]) => (payload as { paused?: boolean }).paused === true);
+      expect(pausedCalls.length).toBe(pausedBefore + 2);
+    });
+  });
+
   it("shows a health strip (active count + failing badge) over the rows", async () => {
     const withHealth = [
       { ...sources[0], kind: "posting", last_status: "ok", paused_at: null },

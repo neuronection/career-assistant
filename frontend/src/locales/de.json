@@ -1900,6 +1900,8 @@
         "hint": "Eingabe von Job-Quellen über den sicheren Runtime — SSRF-geschützte Abfragen, robots.txt und pro-Host-Rate-Limits werden durchgesetzt. Anmeldeinformationen werden im Ruhezustand verschlüsselt und nur als Hinweise angezeigt.",
         "empty": "Noch keine Job-Quellen konfiguriert.",
         "add": "Quelle hinzufügen",
+        "searchPlaceholder": "Quellen suchen…",
+        "selectAria": "Quelle auswählen",
         "edit": "Bearbeiten",
         "key": "Quell-Schlüssel (eindeutig)",
         "queryMode": "Suchquelle",
@@ -1978,7 +1980,13 @@
         "originBundled": "Eingebaut",
         "statusOk": "Gesund",
         "statusDegraded": "Beeinträchtigt",
-        "statusFailing": "Fehlerhaft"
+        "statusFailing": "Fehlerhaft",
+        "pauseSelected": "Auswahl pausieren",
+        "resumeSelected": "Auswahl fortsetzen",
+        "syncSelected": "Jetzt synchronisieren",
+        "bulkPauseDone": "{{count}} Quellen pausiert.",
+        "bulkResumeDone": "{{count}} Quellen fortgesetzt.",
+        "bulkSyncDone": "{{count}} Synchronisierungen eingeplant."
       },
       "presets": {
         "title": "Job-Quelle hinzufügen",
