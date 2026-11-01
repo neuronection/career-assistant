@@ -43,6 +43,8 @@ def test_ai_layer_formula_matches_the_code():
         "the seen demotion is pinned by name and value"
     )
     assert f"`SMART_ORG_CAP` = {SMART_ORG_CAP}" in text
+    assert "clamp(cosine" in text, "the affinity clamp is documented, not implicit"
+    assert SMART_AFFINITY_WEIGHT == 0.35, "the blend weight stays pinned"
 
 
 def test_ai_layer_names_the_task_and_cache_contract():

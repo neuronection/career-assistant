@@ -87,6 +87,32 @@ async def test_smart_sort_ranks_by_affinity_with_neutral_degrade(
     assert {str(a.id), str(b.id), str(c.id)} <= set(order)
 
 
+async def test_negative_cosine_clamps_to_zero_affinity(
+    client, auth_headers, profile_ready, seeded_catalog, db, source
+):
+    """A profile-contradicting posting (cosine -1) clamps to zero
+    affinity: it ranks with a reduced blend (never negative) and is
+    never gated out -- semantic is a ranking signal, never a filter
+    (ADR-0012 par. 13)."""
+    user_id = UUID(_uid(auth_headers))
+    neutral = await _make_posting(db, source, external_id="sm-neutral", title="Data Analyst", org="AlphaCo")
+    contra = await _make_posting(db, source, external_id="sm-contra", title="Data Analyst", org="BetaCo")
+    await _profile_vector_override(db, user_id, [1.0, 0.0, 0.0, 0.0])
+    await _seed_posting_vector(db, contra, [-1.0, 0.0, 0.0, 0.0])
+
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"sort": "smart"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    order = [item["id"] for item in response.json()["items"]]
+    assert {str(neutral.id), str(contra.id)} <= set(order), "semantic never gates"
+    assert order.index(str(neutral.id)) < order.index(str(contra.id)), (
+        "clamped-zero affinity (no contribution) ranks below the neutral tier"
+    )
+
+
 async def test_smart_survives_the_commit_seam_and_dedupes_spend(
     client, auth_headers, profile_ready, seeded_catalog, db, source
 ):
