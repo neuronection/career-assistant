@@ -465,6 +465,67 @@ retrieval (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine
 rankings over the hard-filtered candidate set in Explore's relevance sort —
 **semantic is a ranking signal, never a filter gate**.
 
+## Smart discovery (plan 179)
+
+Cost-tiered by design — LLM appears exactly once in the whole feature:
+
+| Component | LLM cost | When AI runs |
+|---|---|---|
+| `sort=smart` on /postings | **zero** | one `embed` per profile *change* (content-hash deduped, `KIND_PROFILE`), recomputed lazily inside the smart path |
+| NL smart search box | **one small `SMART_SEARCH` call per UNIQUE query**, cross-user cached (`smart_query_cache`, TTL 7d) | on submit only |
+| daily smart digest | **zero** | scheduler job per opted-in user, notifies only when ≥1 new match |
+
+The smart sort blends two deterministic signals over the ranked window:
+`smart = 0.65·fit + 0.35·affinity` with `affinity = clamp(cosine(profile
+embedding, posting embedding), 0, 1) · 10` (constants
+`SMART_FIT_WEIGHT`/`SMART_AFFINITY_WEIGHT`/`SMART_KEY_DECIMALS` in
+`app/services/postings/explore_service.py`), then the seen demotion
+(`SMART_SEEN_DEMOTION` = -1.5 — seen postings sink, never disappear) and a
+display-level org-diversity cap (`SMART_ORG_CAP` = 2 per organization, first
+page composition only; a displaced entry ranks above the page-1 cursor and
+skips later pages — documented session drift, the ranking itself is never
+mutated). Every degrade — missing profile/posting embedding, dim mismatch,
+unconfigured AI (pre-flighted through the resolver: no gateway call, no
+audit row), limiter exhaustion (rejected before the gateway's audit write),
+provider failure (the gateway's own audit row, discarded by the read-only
+explore request) — lands on the neutral affinity term 7.0
+(`SMART_AFFINITY_NEUTRAL`); the request never fails. Smart always ranks
+**canonical fits** (plan-169 goal overrides do not apply outside a goal).
+
+NL smart search (`POST /postings/smart-search`): normalize (casefold +
+whitespace collapse) → sha256 → cache hit returns the stored spec with
+zero AI; a miss goes through the gateway funnel (fast tier, per-user
+limiter, budgets, audit) into the closed `SmartSearchSpec`
+(`app/ai/agents/smart_search.py`, `extra="forbid"` over the explore
+vocabulary, prompt version v1 + golden case in `app/ai/evals/`), then a
+deterministic resolver maps `skill_labels` onto `skills.key`/`aliases`
+(exact, then deprecated-exact fallback; unresolvable labels are dropped and
+echoed in `interpreted`). The cache is **cross-user by design** — the
+mapping has no personal inputs — and is TTL-pruned (7 days) by the daily
+digest job.
+
+```mermaid
+flowchart LR
+    subgraph Smart["Smart sort (zero LLM)"]
+        FIT["posting_fits cache"] --> B["0.65·fit + 0.35·affinity<br/>− seen demotion · org cap"]
+        PE[("ai_embeddings<br/>KIND_PROFILE + KIND_POSTING")] --> AFF["cosine affinity<br/>window-bounded"]
+        AFF --> B
+    end
+    B --> EX["explore sort=smart<br/>cursor (smart_key, id)"]
+    subgraph NL["Smart search (1 cached call / unique query)"]
+        BOX["smart search box"] --> GW["SMART_SEARCH task<br/>fast tier · limiter · budget"]
+        GW --> RES["deterministic resolver<br/>labels → taxonomy keys"]
+        RES --> CACHE[("smart_query_cache<br/>cross-user · TTL 7d")]
+        CACHE --> SPEC["SmartSearchSpec"]
+    end
+    SPEC --> EX
+    subgraph Daily["Daily digest (zero LLM, opt-in)"]
+        JOB["scheduler: smart_digest"] --> RANK["S1 recipe over fresh/unseen"]
+        RANK -- "≥1 new match" --> N["notification → smart view"]
+        JOB -- "TTL prune" --> CACHE
+    end
+```
+
 ## Run linkage and budgets
 
 Multi-step flows opt each gateway call into the audit ledger with a `RunRef`

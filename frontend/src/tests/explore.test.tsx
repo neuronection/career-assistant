@@ -471,7 +471,6 @@ describe("Explore page", () => {
   });
 
   it("maps a natural-language query into the URL filters and echoes the interpretation", async () => {
-    const user = userEvent.setup();
     render(
       <MemoryRouter>
         <Explore />
