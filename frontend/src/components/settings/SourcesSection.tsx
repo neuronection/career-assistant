@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw, Sparkles } from "lucide-react";
+import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { useTranslation } from "react-i18next";
 import {
@@ -506,24 +506,7 @@ function JobSourceConnectors() {
             </span>
             <Button
               size="sm"
-              variant="outline"
               onClick={() => setPresetOpen(true)}
-              data-testid="browse-source-presets"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.presets.browse")}
-            </Button>
-            <Button
-              size="sm"
-              onClick={() =>
-                setDraft({
-                  id: null,
-                  key: "",
-                  connector_key: "",
-                  config: {},
-                  query_mode: "radar",
-                  query_batch_size: 2,
-                })
-              }
               data-testid="add-job-source"
             >
               <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.sources.add")}

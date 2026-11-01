@@ -1929,7 +1929,6 @@
         "statusFailing": "Failing"
       },
       "presets": {
-        "browse": "Browse presets",
         "title": "Add a job source",
         "subtitle": "Verified presets — one click, no configuration needed.",
         "searchPlaceholder": "Search companies, providers, countries…",

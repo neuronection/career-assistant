@@ -216,6 +216,7 @@ describe("SourcesSection job sources", () => {
 
     const add = await screen.findByTestId("add-job-source");
     await userEvent.click(add);
+    await userEvent.click(await screen.findByTestId("preset-custom"));
     await screen.findByTestId("source-tiles");
     await userEvent.click(await screen.findByTestId("source-tile-ats_api"));
     const form = await screen.findByTestId("integration-config-form");
@@ -234,6 +235,7 @@ describe("SourcesSection job sources", () => {
     renderSection();
 
     await userEvent.click(await screen.findByTestId("add-job-source"));
+    await userEvent.click(await screen.findByTestId("preset-custom"));
     await userEvent.click(await screen.findByTestId("source-tile-ats_api"));
     const form = await screen.findByTestId("integration-config-form");
     await userEvent.type(form.querySelector("input[type='password']")!, "tok");
@@ -272,7 +274,7 @@ describe("SourcesSection job sources", () => {
     const { userEvent } = await import("@testing-library/user-event");
     renderSection();
 
-    await userEvent.click(await screen.findByTestId("browse-source-presets"));
+    await userEvent.click(await screen.findByTestId("add-job-source"));
     await userEvent.click(await screen.findByTestId("preset-ballysintralotsa"));
     const form = await screen.findByTestId("integration-config-form");
     const company = form.querySelector("input") as HTMLInputElement;

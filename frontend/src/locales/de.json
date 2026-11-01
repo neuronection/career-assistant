@@ -1929,7 +1929,6 @@
         "statusFailing": "Fehlerhaft"
       },
       "presets": {
-        "browse": "Vorlagen durchsuchen",
         "title": "Job-Quelle hinzufügen",
         "subtitle": "Verifizierte Vorlagen — ein Klick, keine Konfiguration nötig.",
         "searchPlaceholder": "Unternehmen, Anbieter, Länder suchen…",
