@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { BookOpen, Globe, Loader2, MoreHorizontal, Pencil, Plus, Radar, RefreshCw } from "lucide-react";
 import { SwitchRow } from "@/components/ui/switch-row";
+import { SearchInput } from "@/components/ui";
+import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 import { useTranslation } from "react-i18next";
 import {
   Badge,
@@ -79,6 +81,8 @@ function JobSourceCard({
   onManage,
   onEdit,
   onRemove,
+  selected,
+  onSelect,
 }: {
   source: PostingSource;
   connector?: ConnectorCatalogEntry;
@@ -94,6 +98,8 @@ function JobSourceCard({
   onManage: () => void;
   onEdit: () => void;
   onRemove: () => void;
+  selected?: boolean;
+  onSelect?: (next: boolean) => void;
 }) {
   const { t } = useTranslation();
   const paused = Boolean(source.paused_at);
@@ -111,6 +117,19 @@ function JobSourceCard({
       className="gap-3 p-3.5"
       actions={
         <>
+          {onSelect ? (
+            <span
+              className="shrink-0"
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => event.stopPropagation()}
+            >
+              <SelectionToggle
+                selected={selected ?? false}
+                label={`${t("toolsSettings.connectors.sources.selectAria")}: ${source.key}`}
+                onToggle={() => onSelect(!selected)}
+              />
+            </span>
+          ) : null}
           {isPosting ? (
             <Button size="sm" variant="outline" disabled={probing} onClick={onTest}>
               {probing ? (
@@ -283,6 +302,8 @@ function JobSourceConnectors() {
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
   const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
   const [presetOpen, setPresetOpen] = useState(false);
+  const [sourceQuery, setSourceQuery] = useState("");
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<string | null>(null);
@@ -415,49 +436,60 @@ function JobSourceConnectors() {
     }
   };
 
-  const addPresets = async (presets: JobSourcePreset[]) => {
-    setPresetOpen(false);
+  const addPresets = async (
+    presets: JobSourcePreset[],
+  ): Promise<{ preset: JobSourcePreset; ok: boolean; detail?: string }[]> => {
     setBusy(true);
-    let added = 0;
-    const failures: string[] = [];
-    try {
-      for (const preset of presets) {
-        try {
-          await sourcesApi.createSource({
-            key: preset.slug,
-            connector_key: preset.connectorKey,
-            config: { ...preset.config },
-            query_mode: "static",
-            query_batch_size: 2,
-            title: preset.name,
-          });
-          added += 1;
-        } catch (err) {
-          failures.push(`${preset.name}: ${apiDetail(err)}`);
-        }
+    const outcomes: { preset: JobSourcePreset; ok: boolean; detail?: string }[] = [];
+    for (const preset of presets) {
+      try {
+        await sourcesApi.createSource({
+          key: preset.slug,
+          connector_key: preset.connectorKey,
+          config: { ...preset.config },
+          query_mode: "static",
+          query_batch_size: 2,
+          title: preset.name,
+        });
+        outcomes.push({ preset, ok: true });
+      } catch (err) {
+        outcomes.push({ preset, ok: false, detail: apiDetail(err) });
       }
-      await refresh();
-      const parts = [
-        t("toolsSettings.connectors.presets.addedNotice", { count: added, total: presets.length }),
-      ];
-      if (failures.length) parts.push(failures.join(" · "));
-      setNotice(parts.join(" — "));
-    } finally {
-      setBusy(false);
     }
+    await refresh();
+    setBusy(false);
+    if (outcomes.every((outcome) => outcome.ok)) {
+      setPresetOpen(false);
+      setNotice(
+        t("toolsSettings.connectors.presets.addedNotice", {
+          count: outcomes.length,
+          total: outcomes.length,
+        }),
+      );
+    }
+    return outcomes;
   };
 
   const kindOrder = ["posting", "market", "university", "search", "webhook_in"] as const;
+  const query = sourceQuery.trim().toLowerCase();
+  const visibleSources = sources.filter(
+    (source) =>
+      !query ||
+      [source.key, source.connector_key, source.title ?? "", source.error ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(query),
+  );
   const groups = useMemo(
     () =>
       kindOrder
         .map((kind) => ({
           kind,
           label: t(`toolsSettings.connectors.sources.kind.${kind}`),
-          sources: sources.filter((source) => (source.kind || "posting") === kind),
+          sources: visibleSources.filter((source) => (source.kind || "posting") === kind),
         }))
         .filter((group) => group.sources.length > 0),
-    [sources, t]
+    [visibleSources, t],
   );
   const needsSecret = (source: PostingSource) => {
     // Only REQUIRED credentials badge (plan 180): optional slots (e.g. the
@@ -497,8 +529,44 @@ function JobSourceConnectors() {
     )}`;
   }, [draft?.id, sources, t]);
 
-  const failing = sources.filter((s) => sourceStatus(s) === "failing").length;
-  const degraded = sources.filter((s) => sourceStatus(s) === "degraded").length;
+  const runBulk = async (action: "pause" | "resume" | "sync") => {
+    const targets = sources.filter((source) => selectedSources.has(source.id));
+    setBusy(true);
+    let ok = 0;
+    const failures: string[] = [];
+    try {
+      for (const source of targets) {
+        try {
+          if (action === "sync") {
+            await sourcesApi.syncSource(source.id);
+          } else {
+            await sourcesApi.updateSource(
+              source.id,
+              action === "pause" ? { paused: true } : { enabled: true, paused: false },
+            );
+          }
+          ok += 1;
+        } catch (err) {
+          failures.push(`${source.key}: ${apiDetail(err)}`);
+        }
+      }
+      setSelectedSources(new Set());
+      await refresh();
+      const label =
+        action === "pause"
+          ? t("toolsSettings.connectors.sources.bulkPauseDone", { count: ok })
+          : action === "resume"
+            ? t("toolsSettings.connectors.sources.bulkResumeDone", { count: ok })
+            : t("toolsSettings.connectors.sources.bulkSyncDone", { count: ok });
+      const parts = [label];
+      if (failures.length) parts.push(failures.join(" · "));
+      setNotice(parts.join(" — "));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const failing = sources.filter((s) => sourceStatus(s) === "failing").length;  const degraded = sources.filter((s) => sourceStatus(s) === "degraded").length;
   const active = sources.filter((s) => s.enabled && !s.paused_at).length;
   const lastSync = sources
     .map((s) => s.last_run_at)
@@ -558,6 +626,56 @@ function JobSourceConnectors() {
           </div>
         </div>
 
+        {sources.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            <div className="max-w-xs" data-testid="job-sources-search">
+              <SearchInput
+                value={sourceQuery}
+                onChange={setSourceQuery}
+                placeholder={t("toolsSettings.connectors.sources.searchPlaceholder")}
+                ariaLabel={t("toolsSettings.connectors.sources.searchPlaceholder")}
+                clearLabel={t("common.clear")}
+              />
+            </div>
+            <BulkBar
+              count={selectedSources.size}
+              total={visibleSources.length}
+              onClear={() => setSelectedSources(new Set())}
+              onSelectAll={() =>
+                setSelectedSources(new Set(visibleSources.map((source) => source.id)))
+              }
+              testid="job-sources-bulk"
+            >
+              <button
+                type="button"
+                data-testid="bulk-pause"
+                disabled={busy}
+                onClick={() => void runBulk("pause")}
+                className="text-xs text-[var(--as-fg)] underline-offset-2 hover:underline"
+              >
+                {t("toolsSettings.connectors.sources.pauseSelected")}
+              </button>
+              <button
+                type="button"
+                data-testid="bulk-resume"
+                disabled={busy}
+                onClick={() => void runBulk("resume")}
+                className="text-xs text-[var(--as-fg)] underline-offset-2 hover:underline"
+              >
+                {t("toolsSettings.connectors.sources.resumeSelected")}
+              </button>
+              <button
+                type="button"
+                data-testid="bulk-sync"
+                disabled={busy}
+                onClick={() => void runBulk("sync")}
+                className="text-xs text-[var(--as-accent)] underline-offset-2 hover:underline"
+              >
+                {t("toolsSettings.connectors.sources.syncSelected")}
+              </button>
+            </BulkBar>
+          </div>
+        ) : null}
         <div className="mt-4 space-y-5">
           {groups.length === 0 ? (
             <p className="text-xs text-[var(--as-muted-fg)]">
@@ -584,6 +702,18 @@ function JobSourceConnectors() {
                       probing={probingId === source.id}
                       busy={busy}
                       needsSecret={needsSecret(source)}
+                      selected={selectedSources.has(source.id)}
+                      onSelect={(next) =>
+                        setSelectedSources((current) => {
+                          const nextSet = new Set(current);
+                          if (next) {
+                            nextSet.add(source.id);
+                          } else {
+                            nextSet.delete(source.id);
+                          }
+                          return nextSet;
+                        })
+                      }
                       onToggle={(next) => {
                         setBusy(true);
                         try {
@@ -690,7 +820,7 @@ function JobSourceConnectors() {
         onOpenChange={setPresetOpen}
         existingKeys={sources.map((row) => row.key)}
         busy={busy}
-        onAddPresets={(presets) => void addPresets(presets)}
+        onAddPresets={addPresets}
         onCustom={() => {
           setPresetOpen(false);
           setDraft({

@@ -49,6 +49,12 @@ function PresetLogo({ preset }: { preset: JobSourcePreset }) {
   return <OrgAvatar name={preset.name} size={40} className="rounded-lg" />;
 }
 
+export interface PresetAddOutcome {
+  preset: JobSourcePreset;
+  ok: boolean;
+  detail?: string;
+}
+
 export function JobSourcePresetDialog({
   open,
   onOpenChange,
@@ -59,7 +65,9 @@ export function JobSourcePresetDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddPresets: (presets: JobSourcePreset[]) => void;
+  onAddPresets: (
+    presets: JobSourcePreset[],
+  ) => Promise<PresetAddOutcome[]> | Promise<never[]>;
   onCustom: () => void;
   existingKeys?: string[];
   busy?: boolean;
@@ -69,9 +77,14 @@ export function JobSourcePresetDialog({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState(false);
+  const [report, setReport] = useState<PresetAddOutcome[] | null>(null);
 
   useEffect(() => {
-    if (open) setSelected(new Set());
+    if (open) {
+      setSelected(new Set());
+      setReport(null);
+    }
   }, [open]);
 
   const countryName = (code?: string) =>
@@ -149,6 +162,32 @@ export function JobSourcePresetDialog({
         </div>
 
         <div className="mt-4 max-h-[60vh] space-y-5 overflow-y-auto pr-1">
+          {report ? (
+            <div
+              className="space-y-1 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="preset-report"
+            >
+              {report.map(({ preset, ok, detail }) => (
+                <p key={preset.slug} className="flex items-center gap-2 text-xs">
+                  {ok ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-[var(--as-success)]" aria-hidden />
+                  ) : (
+                    <span
+                      className="text-[var(--as-danger)]"
+                      aria-hidden
+                      data-testid={`preset-report-failed-${preset.slug}`}
+                    >
+                      ✕
+                    </span>
+                  )}
+                  <span className="font-medium text-[var(--as-fg)]">{preset.name}</span>
+                  {detail ? (
+                    <span className="truncate text-[var(--as-muted-fg)]">{detail}</span>
+                  ) : null}
+                </p>
+              ))}
+            </div>
+          ) : null}
           {groups.length === 0 ? (
             <p className="py-6 text-center text-sm text-[var(--as-muted-fg)]">
               {t("toolsSettings.connectors.presets.noMatches")}
@@ -230,8 +269,19 @@ export function JobSourcePresetDialog({
             </Button>
             <Button
               size="sm"
-              onClick={() => onAddPresets(selectedPresets)}
-              disabled={selectedPresets.length === 0 || busy}
+              onClick={() => {
+                if (adding) return;
+                setAdding(true);
+                void (async () => {
+                  const outcomes = await onAddPresets(selectedPresets);
+                  setAdding(false);
+                  setReport(outcomes);
+                  setSelected(
+                    new Set(outcomes.filter((o) => !o.ok).map((o) => o.preset.slug)),
+                  );
+                })();
+              }}
+              disabled={selectedPresets.length === 0 || busy || adding}
               data-testid="presets-add"
             >
               {t("toolsSettings.connectors.presets.addSelected", {

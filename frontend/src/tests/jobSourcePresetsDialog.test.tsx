@@ -85,6 +85,30 @@ describe("JobSourcePresetDialog", () => {
     expect(picked.map((entry) => entry.slug)).toEqual(["ballysintralotsa", "skroutz"]);
   });
 
+  it("reports per-item outcomes and keeps failures selected for retry", async () => {
+    const user = userEvent.setup();
+    const { onAddPresets } = renderDialog();
+    await screen.findByTestId("job-source-presets");
+    const ballys = screen.getByTestId("preset-ballysintralotsa");
+    const skroutz = screen.getByTestId("preset-skroutz");
+    await user.click(ballys);
+    await user.click(skroutz);
+    onAddPresets.mockResolvedValueOnce([
+      { preset: JOB_SOURCE_PRESETS.find((p) => p.slug === "ballysintralotsa"), ok: true },
+      {
+        preset: JOB_SOURCE_PRESETS.find((p) => p.slug === "skroutz"),
+        ok: false,
+        detail: "a source with this key already exists",
+      },
+    ]);
+    await user.click(screen.getByTestId("presets-add"));
+    const report = await screen.findByTestId("preset-report");
+    expect(report.textContent).toContain("Skroutz");
+    expect(report.textContent).toContain("already exists");
+    expect(skroutz.getAttribute("aria-pressed")).toBe("true");
+    expect(ballys.getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("renders already-added presets as badges and never selects them", async () => {
     const user = userEvent.setup();
     const { onAddPresets } = renderDialog({ existingKeys: ["ballysintralotsa", "jobicy"] });
