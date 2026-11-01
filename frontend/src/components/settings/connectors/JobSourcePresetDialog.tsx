@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Plus, Sparkles } from "lucide-react";
+import { Check, Plus, Sparkles } from "lucide-react";
 import { countryDisplayName, findCountry } from "@neuronection/assistant-ui/countries";
 
 import {
+  Badge,
   Button,
   Modal,
   ModalContent,
@@ -22,10 +23,12 @@ import {
 } from "@/config/jobSourcePresets";
 
 /**
- * Preset gallery for adding a job source (plan 176): curated connector
- * instances as cards (logo, company, provider, country) — the LLM-provider
- * tile pattern. A pick emits the preset; "Custom source" falls back to the
- * generic connector wizard.
+ * Preset gallery for adding job sources (plan 176/178): curated connector
+ * instances as selectable cards (logo, company, provider, country) — the
+ * LLM-provider tile pattern. Selection is multi (aria-pressed toggles);
+ * the footer bulk-adds everything selected; "Custom source" falls back to
+ * the generic connector wizard. Presets whose source key already exists
+ * render added and inert.
  */
 
 type Filter = "all" | JobSourcePresetCategory;
@@ -49,18 +52,27 @@ function PresetLogo({ preset }: { preset: JobSourcePreset }) {
 export function JobSourcePresetDialog({
   open,
   onOpenChange,
-  onPick,
+  onAddPresets,
   onCustom,
+  existingKeys = [],
+  busy = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onPick: (preset: JobSourcePreset) => void;
+  onAddPresets: (presets: JobSourcePreset[]) => void;
   onCustom: () => void;
+  existingKeys?: string[];
+  busy?: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (open) setSelected(new Set());
+  }, [open]);
 
   const countryName = (code?: string) =>
     code ? countryDisplayName(code, language) : t("toolsSettings.connectors.presets.worldwide");
@@ -79,6 +91,19 @@ export function JobSourcePresetDialog({
   }, [query, filter, language, t]);
 
   const groups = useMemo(() => presetGroups(visible), [visible]);
+  const selectedPresets = JOB_SOURCE_PRESETS.filter((preset) => selected.has(preset.slug));
+
+  const toggle = (slug: string) => {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(slug)) {
+        next.delete(slug);
+      } else {
+        next.add(slug);
+      }
+      return next;
+    });
+  };
 
   return (
     <Modal open={open} onOpenChange={onOpenChange}>
@@ -141,14 +166,24 @@ export function JobSourcePresetDialog({
                 </p>
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {group.presets.map((preset) => {
+                    const added = existingKeys.includes(preset.slug);
+                    const isSelected = selected.has(preset.slug);
                     const country = findCountry(preset.country);
                     return (
                       <button
                         key={preset.slug}
                         type="button"
-                        onClick={() => onPick(preset)}
+                        disabled={added || busy}
+                        aria-pressed={isSelected}
+                        onClick={() => toggle(preset.slug)}
                         data-testid={`preset-${preset.slug}`}
-                        className="group flex items-center gap-3 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3 text-left transition-colors hover:border-[var(--as-accent)] hover:bg-[var(--as-surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
+                        className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                          added
+                            ? "cursor-default border-[var(--as-border)] bg-[var(--as-muted)] opacity-70"
+                            : isSelected
+                              ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))]"
+                              : "border-[var(--as-border)] bg-[var(--as-surface)] hover:border-[var(--as-accent)] hover:bg-[var(--as-surface-raised)]"
+                        }`}
                       >
                         <PresetLogo preset={preset} />
                         <span className="min-w-0 flex-1">
@@ -159,10 +194,23 @@ export function JobSourcePresetDialog({
                             {preset.provider} · {country ? `${country.flag} ${countryName(preset.country)}` : countryName()}
                           </span>
                         </span>
-                        <ArrowRight
-                          className="h-4 w-4 shrink-0 text-[var(--as-muted-fg)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
-                          aria-hidden
-                        />
+                        {added ? (
+                          <Badge variant="secondary" data-testid={`preset-added-${preset.slug}`}>
+                            {t("toolsSettings.connectors.presets.addedBadge")}
+                          </Badge>
+                        ) : isSelected ? (
+                          <span
+                            className="grid size-6 shrink-0 place-items-center rounded-full bg-[var(--as-accent)] text-white"
+                            aria-hidden
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </span>
+                        ) : (
+                          <Plus
+                            className="h-4 w-4 shrink-0 text-[var(--as-muted-fg)]"
+                            aria-hidden
+                          />
+                        )}
                       </button>
                     );
                   })}
@@ -176,9 +224,21 @@ export function JobSourcePresetDialog({
           <p className="text-xs text-[var(--as-muted-fg)]">
             {t("toolsSettings.connectors.presets.footerHint")}
           </p>
-          <Button size="sm" variant="outline" onClick={onCustom} data-testid="preset-custom">
-            <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.presets.custom")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onCustom} data-testid="preset-custom">
+              <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.presets.custom")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => onAddPresets(selectedPresets)}
+              disabled={selectedPresets.length === 0 || busy}
+              data-testid="presets-add"
+            >
+              {t("toolsSettings.connectors.presets.addSelected", {
+                count: selectedPresets.length,
+              })}
+            </Button>
+          </div>
         </ModalFooter>
       </ModalContent>
     </Modal>

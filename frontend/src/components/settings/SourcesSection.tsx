@@ -18,6 +18,7 @@ import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
 import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
+import type { JobSourcePreset } from "@/config/jobSourcePresets";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
@@ -408,6 +409,38 @@ function JobSourceConnectors() {
     }
   };
 
+  const addPresets = async (presets: JobSourcePreset[]) => {
+    setPresetOpen(false);
+    setBusy(true);
+    let added = 0;
+    const failures: string[] = [];
+    try {
+      for (const preset of presets) {
+        try {
+          await sourcesApi.createSource({
+            key: preset.slug,
+            connector_key: preset.connectorKey,
+            config: { ...preset.config },
+            query_mode: "radar",
+            query_batch_size: 2,
+            title: preset.name,
+          });
+          added += 1;
+        } catch (err) {
+          failures.push(`${preset.name}: ${apiDetail(err)}`);
+        }
+      }
+      await refresh();
+      const parts = [
+        t("toolsSettings.connectors.presets.addedNotice", { count: added, total: presets.length }),
+      ];
+      if (failures.length) parts.push(failures.join(" · "));
+      setNotice(parts.join(" — "));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const kindOrder = ["posting", "market", "university", "search", "webhook_in"] as const;
   const groups = useMemo(
     () =>
@@ -634,18 +667,9 @@ function JobSourceConnectors() {
       <JobSourcePresetDialog
         open={presetOpen}
         onOpenChange={setPresetOpen}
-        onPick={(preset) => {
-          setPresetOpen(false);
-          setDraft({
-            id: null,
-            key: preset.slug,
-            connector_key: preset.connectorKey,
-            config: { ...preset.config },
-            query_mode: "radar",
-            query_batch_size: 2,
-            title: preset.name,
-          });
-        }}
+        existingKeys={sources.map((row) => row.key)}
+        busy={busy}
+        onAddPresets={(presets) => void addPresets(presets)}
         onCustom={() => {
           setPresetOpen(false);
           setDraft({

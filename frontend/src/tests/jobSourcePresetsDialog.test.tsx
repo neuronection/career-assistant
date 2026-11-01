@@ -6,23 +6,34 @@ import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourc
 import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: "en" } }),
+  useTranslation: () => ({
+    t: (key: string, params?: Record<string, unknown>) => {
+      let out = key;
+      for (const [name, value] of Object.entries(params ?? {})) {
+        out = out.split(`{{${name}}}`).join(String(value));
+      }
+      return out;
+    },
+    i18n: { language: "en" },
+  }),
 }));
 
-function renderDialog(overrides: Partial<Parameters<typeof JobSourcePresetDialog>[0]> = {}) {
-  const onPick = vi.fn();
+function renderDialog(
+  overrides: Partial<Parameters<typeof JobSourcePresetDialog>[0]> = {},
+) {
+  const onAddPresets = vi.fn();
   const onCustom = vi.fn();
   const onOpenChange = vi.fn();
   render(
     <JobSourcePresetDialog
       open
       onOpenChange={onOpenChange}
-      onPick={onPick}
+      onAddPresets={onAddPresets}
       onCustom={onCustom}
       {...overrides}
     />,
   );
-  return { onPick, onCustom, onOpenChange };
+  return { onAddPresets, onCustom, onOpenChange };
 }
 
 describe("JobSourcePresetDialog", () => {
@@ -33,7 +44,7 @@ describe("JobSourcePresetDialog", () => {
       expect(screen.getByTestId(`preset-${preset.slug}`)).toBeTruthy();
     }
     expect(screen.getByTestId("preset-group-Recruitee")).toBeTruthy();
-    expect(screen.getByTestId("preset-group-Teamtailor")).toBeTruthy();
+    expect(screen.getByTestId("preset-group-Workable")).toBeTruthy();
     expect(screen.getByTestId("preset-group-Remote boards")).toBeTruthy();
   });
 
@@ -59,17 +70,38 @@ describe("JobSourcePresetDialog", () => {
     expect(screen.queryByTestId("preset-ballysintralotsa")).toBeNull();
   });
 
-  it("emits the picked preset and the custom fallback", async () => {
+  it("multi-selects and bulk-adds the picked presets", async () => {
     const user = userEvent.setup();
-    const { onPick, onCustom } = renderDialog();
-    await user.click(screen.getByTestId("preset-ballysintralotsa"));
-    expect(onPick).toHaveBeenCalledWith(
-      expect.objectContaining({
-        slug: "ballysintralotsa",
-        connectorKey: "recruitee",
-        config: { company: "ballysintralotsa" },
-      }),
-    );
+    const { onAddPresets } = renderDialog();
+    const ballys = screen.getByTestId("preset-ballysintralotsa");
+    expect(ballys.getAttribute("aria-pressed")).toBe("false");
+    await user.click(ballys);
+    expect(ballys.getAttribute("aria-pressed")).toBe("true");
+    await user.click(screen.getByTestId("preset-skroutz"));
+    expect(screen.getByTestId("presets-add")).not.toHaveProperty("disabled", true);
+    await user.click(screen.getByTestId("presets-add"));
+    expect(onAddPresets).toHaveBeenCalledTimes(1);
+    const picked = onAddPresets.mock.calls[0][0] as { slug: string }[];
+    expect(picked.map((entry) => entry.slug)).toEqual(["ballysintralotsa", "skroutz"]);
+  });
+
+  it("renders already-added presets as badges and never selects them", async () => {
+    const user = userEvent.setup();
+    const { onAddPresets } = renderDialog({ existingKeys: ["ballysintralotsa", "jobicy"] });
+    const addedCard = await screen.findByTestId("preset-ballysintralotsa");
+    expect(addedCard.getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByTestId("preset-added-ballysintralotsa")).toBeTruthy();
+    await user.click(addedCard);
+    expect(onAddPresets).not.toHaveBeenCalled();
+    await user.click(screen.getByTestId("preset-affideagreece"));
+    await user.click(screen.getByTestId("presets-add"));
+    const picked = onAddPresets.mock.calls[0][0] as { slug: string }[];
+    expect(picked.map((entry) => entry.slug)).toEqual(["affideagreece"]);
+  });
+
+  it("falls back to the custom wizard", async () => {
+    const user = userEvent.setup();
+    const { onCustom } = renderDialog();
     await user.click(screen.getByTestId("preset-custom"));
     expect(onCustom).toHaveBeenCalled();
   });

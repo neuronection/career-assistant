@@ -1939,6 +1939,9 @@
         "worldwide": "Worldwide",
         "noMatches": "No presets match this search.",
         "footerHint": "Presets fill in the connector for you — everything stays adjustable before saving.",
+        "addSelected": "Add {{count}} selected",
+        "addedBadge": "Added",
+        "addedNotice": "Added {{count}} of {{total}} presets.",
         "custom": "Custom source"
       },
       "extSources": {

@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Add source*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters. Cards **multi-select**: tick as many
+  as you like (already-added presets show an *Added* badge and stay
+  inert) and the footer adds them all in one action, reporting per-item
+  failures. Ships 12 Greek-employer tenants (Recruitee, Teamtailor,
+  Workable), the three remote boards; the catalog is a JSON file with a
+  contract test, and missing artwork degrades to a deterministic monogram
+  until the logo is dropped into `public/presets/<slug>.svg`.
+
 ### Added (Workable connector, 2026-11-01)
 - **New bundled connector: Workable careers feed** — Workable is the ATS
   behind much of the Greek product scene (Skroutz, Hack The Box, Plum,

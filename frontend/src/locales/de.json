@@ -1939,6 +1939,9 @@
         "worldwide": "Weltweit",
         "noMatches": "Keine Vorlagen passen zu dieser Suche.",
         "footerHint": "Vorlagen füllen den Connector für dich aus — alles bleibt vor dem Speichern anpassbar.",
+        "addSelected": "{{count}} ausgewählte hinzufügen",
+        "addedBadge": "Hinzugefügt",
+        "addedNotice": "{{count}} von {{total}} Vorlagen hinzugefügt.",
         "custom": "Eigene Quelle"
       },
       "extSources": {

@@ -65,6 +65,7 @@ vi.mock("react-i18next", () => ({
         "toolsSettings.connectors.sources.secretSetShort": "set — leave empty to keep",
         "toolsSettings.connectors.sources.secretMissingShort": "not set",
         "toolsSettings.connectors.sources.needsConfig": "needs config",
+        "toolsSettings.connectors.presets.addSelected": "Add {{count}} selected",
       };
       let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
@@ -246,7 +247,7 @@ describe("SourcesSection job sources", () => {
     expect(JSON.stringify(payload.config)).not.toContain("tok");
   });
 
-  it("adds a source from a preset with the connector, config and title prefilled", async () => {
+  it("bulk-adds a preset with the connector, config and title prefilled", async () => {
     const withRecruitee = [
       ...catalog,
       {
@@ -276,10 +277,7 @@ describe("SourcesSection job sources", () => {
 
     await userEvent.click(await screen.findByTestId("add-job-source"));
     await userEvent.click(await screen.findByTestId("preset-ballysintralotsa"));
-    const form = await screen.findByTestId("integration-config-form");
-    const company = form.querySelector("input") as HTMLInputElement;
-    expect(company.value).toBe("ballysintralotsa");
-    await userEvent.click(screen.getByRole("button", { name: "Save source" }));
+    await userEvent.click(await screen.findByTestId("presets-add"));
     await waitFor(() => expect(sourcesApi.createSource).toHaveBeenCalled());
     const calls = vi.mocked(sourcesApi.createSource).mock.calls;
     const payload = calls[calls.length - 1]![0];
@@ -287,6 +285,57 @@ describe("SourcesSection job sources", () => {
     expect(payload.key).toBe("ballysintralotsa");
     expect(payload.title).toBe("Bally's Intralot");
     expect(payload.config).toMatchObject({ company: "ballysintralotsa" });
+    expect(payload.query_mode).toBe("radar");
+  });
+
+  it("bulk-adds several zero-config presets at once", async () => {
+    const withWorkable = [
+      ...catalog,
+      {
+        key: "workable",
+        title: "Workable",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        config_schema: {
+          type: "object" as const,
+          properties: { account: { type: "string" as const, title: "Workable account" } },
+          required: ["account"],
+        },
+        manifest: { id: "workable", capabilities: ["net", "sync"], supportsIncremental: true },
+      },
+    ];
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(withWorkable as never);
+    vi.mocked(
+      sourcesApi.createSource,
+    ).mockImplementation(async (payload) => ({
+      id: `src-${payload.key}`,
+      key: payload.key,
+      connector_key: payload.connector_key,
+    }) as never);
+    vi.mocked(aiApi.fetchWebSettings).mockResolvedValue({ github_token_set: false });
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await userEvent.click(await screen.findByTestId("add-job-source"));
+    await userEvent.click(await screen.findByTestId("preset-jobicy"));
+    await userEvent.click(await screen.findByTestId("preset-remotive"));
+    await userEvent.click(await screen.findByTestId("preset-arbeitnow"));
+    const before = vi.mocked(sourcesApi.createSource).mock.calls.length;
+    await userEvent.click(await screen.findByTestId("presets-add"));
+    await waitFor(() =>
+      expect(vi.mocked(sourcesApi.createSource).mock.calls.length).toBe(before + 3),
+    );
+    const payloads = vi
+      .mocked(sourcesApi.createSource)
+      .mock.calls.slice(before)
+      .map(([payload]) => payload);
+    expect(payloads.map((payload) => payload.key)).toEqual(["jobicy", "remotive", "arbeitnow"]);
+    for (const payload of payloads) {
+      expect(payload.config).toEqual({});
+      expect(payload.title).toBeTruthy();
+    }
   });
 
   it("shows a health strip (active count + failing badge) over the rows", async () => {
