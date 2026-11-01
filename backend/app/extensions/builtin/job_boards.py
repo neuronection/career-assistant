@@ -669,3 +669,123 @@ class JobicyConnector(PostingConnector):
             next_state=_stamp_watermark(state or {}, items, etag, last_modified),
             partial_errors=errors,
         )
+
+
+# ----------------------------------------------------------------- workable
+
+
+class WorkableConfig(BaseModel):
+    account: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+    )
+    max_items: int = Field(default=100, ge=1, le=300)
+
+
+WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts"
+WORKABLE_DOMAINS = ("apply.workable.com",)
+
+
+def workable_feed_url(account: str) -> str:
+    # `details=true` embeds each job's full HTML description — one request
+    # carries everything the extraction pipeline needs.
+    return f"{WORKABLE_URL}/{account}?details=true"
+
+
+def parse_workable_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
+    """The careers-widget account payload (the same JSON the embeddable
+    widget loads, with ``details=true``): ``{name, description, jobs:
+    [{title, shortcode, url, shortlink, city, state, country, department,
+    description (HTML), published_on (date), created_at (ISO),
+    telecommuting, employment_type, …}]}``."""
+    data = json.loads(body)
+    rows = data.get("jobs")
+    if not isinstance(rows, list):
+        raise ValueError("payload 'jobs' is not a list")
+    org = str(data.get("name") or "").strip()[:200]
+    items: list[RawPosting] = []
+    errors: list[ConnectorError] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            errors.append(_invalid_row("workable row is not an object"))
+            continue
+        external_id = str(row.get("shortcode") or "").strip()
+        title = str(row.get("title") or "").strip()
+        if not external_id or not title:
+            errors.append(
+                _invalid_row(f"workable row missing shortcode/title (shortcode={external_id!r})")
+            )
+            continue
+        city = str(row.get("city") or "").strip()
+        country = str(row.get("country") or "").strip()
+        remote = _coerce_bool(row.get("telecommuting"))
+        items.append(
+            RawPosting(
+                external_id=external_id[:300],
+                title=title[:300],
+                org=org,
+                location=LocationSpec(
+                    city=city or None,
+                    country=country or None,
+                    remote=remote or "remote" in title.lower(),
+                ),
+                url=str(row.get("url") or row.get("shortlink") or "")[:1000],
+                posted_at=_parse_iso_utc(row.get("published_on") or row.get("created_at")),
+                employment_type=_employment_type([row.get("employment_type")]),  # type: ignore[arg-type]
+                raw={
+                    "description": html.unescape(str(row.get("description") or ""))[:8000],
+                    "department": str(row.get("department") or "")[:120],
+                    "state": str(row.get("state") or "")[:120],
+                    "function": str(row.get("function") or "")[:120],
+                    "work_type": "remote" if remote else "on-site",
+                },
+            )
+        )
+    return items, errors
+
+
+class WorkableConnector(PostingConnector):
+    """Workable public widget API — free, no auth. One source per account
+    (the slug in the tenant's ``apply.workable.com/<account>`` URL); the
+    payload is the careers widget's own JSON, not a scraped page."""
+
+    key = "workable"
+    title = "Workable careers feed"
+    docs_url = "https://docs.career-assistant.local/connectors/workable"
+    capabilities = ConnectorCapabilities(
+        network_scopes=list(WORKABLE_DOMAINS),
+        supports_incremental=True,
+        max_requests_per_minute=10,
+    )
+    fixture_payload = ""
+
+    def config_model(self) -> type[BaseModel]:
+        return WorkableConfig
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
+        cfg = WorkableConfig.model_validate(config)
+        if transport is None:
+            return _not_ready()
+        resp = await transport(workable_feed_url(cfg.account), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
+        if resp.status == 429:
+            return ConnectorResult(partial_errors=[_rate_limited("workable", resp.headers)])
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"workable fetch failed with status {resp.status}")]
+            )
+        try:
+            items, row_errors = parse_workable_payload(resp.body)
+        except (json.JSONDecodeError, ValueError) as exc:
+            return ConnectorResult(partial_errors=[_protocol_error(f"workable parse: {exc}")])
+        items = _apply_watermark(items, state or {})
+        items = _sort_and_cap(items, cfg.max_items)
+        return ConnectorResult(
+            items=items,
+            next_state=_stamp_watermark(state or {}, items, resp.etag, resp.last_modified),
+            partial_errors=row_errors,
+        )

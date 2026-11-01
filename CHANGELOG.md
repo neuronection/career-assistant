@@ -35,6 +35,68 @@ All notable changes to **Career Assistant** are documented here.
   run-grouped listing with the inline timeline is replaced (the run
   detail keeps the searched-queries timeline; a dedicated run page
   follows).
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Add source*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters. Cards **multi-select**: tick as many
+  as you like (already-added presets show an *Added* badge and stay
+  inert) and the footer adds them all in one action, reporting per-item
+  failures. Ships 12 Greek-employer tenants (Recruitee, Teamtailor,
+  Workable), the three remote boards; the catalog is a JSON file with a
+  contract test, and missing artwork degrades to a deterministic monogram
+  until the logo is dropped into `public/presets/<slug>.svg`.
+
+### Added (Workable connector, 2026-11-01)
+- **New bundled connector: Workable careers feed** — Workable is the ATS
+  behind much of the Greek product scene (Skroutz, Hack The Box, Plum,
+  Epignosis, Spotawheel…), and its public careers-widget API needs no
+  credentials. One source per account (the slug of the tenant's
+  `apply.workable.com/<account>` URL), free like the Recruitee/Teamtailor
+  feeds, with title, department, city/country, remote flag and publish
+  date per posting — fetched with `details=true` so every posting carries
+  its full description for skills extraction. Ships with 5 Greek tenants
+  as presets (Skroutz, Spotawheel, Hack The Box, Plum, Epignosis — 130+
+  open roles combined) and a captured-payload connector wall.
+
+### Fixed (first ingest of a known employer crashed, 2026-11-01)
+- A **new posting whose organization resolved to an existing org** (exact
+  name match) crashed the whole sync with `ValueError: badly formed
+  hexadecimal UUID string` — the change journal received the posting's id
+  before the row's first flush. The preset gallery's ATS tenants exposed
+  it (their employers already existed in the org catalog from other
+  sources); it also affected every connector ingesting a known employer.
+  New postings now get their id assigned before any journal record.
+
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Browse presets*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters; picking one opens the source wizard
+  with the connector, company slug and display title already filled.
+  Ships 12 Greek-employer tenants (Recruitee, Teamtailor) and the three
+  remote boards; the catalog is a JSON file with a contract test, and
+  missing artwork degrades to a deterministic monogram until the logo is
+  dropped into `public/presets/<slug>.svg`.
+
+### Fixed (blocked sources pause themselves, 2026-11-01)
+- A job source that hits a **non-retryable operator-action error** — a
+  provider block, a sign-in wall, missing credentials, or an unsupported
+  host — now **pauses itself** with the reason on the source row and
+  alerts admins once (the existing background-failure notification
+  funnel). Previously the hourly schedule kept retrying an external block,
+  refreshing the provider's bot score and extending it, while the ledger
+  filled with identical failures. Retryable errors (empty result pages,
+  rate limits) keep scheduling as before; resuming a paused source stays
+  an explicit user act.
+
+### Fixed (run status honesty, 2026-11-01)
+- A radar-mode sync whose searches fail (e.g. Indeed served pages with no
+  readable job cards) is now recorded as **degraded**, not **skipped** —
+  every radar run carries a rotation note, and the old precedence let that
+  note mask real provider errors at zero items, hiding failed runs in the
+  ledger. Genuine polite skips ("radar has no keywords yet") are still
+  skipped.
 
 ### Changed (sources — radar by default, card picker, 2026-10-30)
 - **New job sources follow your job radar by default.** `query_mode`

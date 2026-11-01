@@ -190,6 +190,7 @@ export async function createSource(payload: {
   query_mode?: string;
   query_batch_size?: number;
   secrets?: Record<string, string>;
+  title?: string;
 }): Promise<{ id: string; key: string; connector_key: string }> {
   const response = await api.post("/admin/postings/sources", payload);
   return response.data;

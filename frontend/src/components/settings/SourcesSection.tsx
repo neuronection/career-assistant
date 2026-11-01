@@ -17,6 +17,8 @@ import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
+import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
+import type { JobSourcePreset } from "@/config/jobSourcePresets";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
@@ -274,6 +276,7 @@ function JobSourceConnectors() {
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
   const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
+  const [presetOpen, setPresetOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<string | null>(null);
@@ -350,6 +353,7 @@ function JobSourceConnectors() {
           query_mode: form.query_mode,
           query_batch_size: form.query_batch_size,
           secrets,
+          ...(form.title ? { title: form.title } : {}),
         });
       }
       setDraft(null);
@@ -400,6 +404,38 @@ function JobSourceConnectors() {
       setNotice(t("toolsSettings.connectors.sources.syncQueued", { key: source.key }));
     } catch (err) {
       setNotice(apiDetail(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addPresets = async (presets: JobSourcePreset[]) => {
+    setPresetOpen(false);
+    setBusy(true);
+    let added = 0;
+    const failures: string[] = [];
+    try {
+      for (const preset of presets) {
+        try {
+          await sourcesApi.createSource({
+            key: preset.slug,
+            connector_key: preset.connectorKey,
+            config: { ...preset.config },
+            query_mode: "radar",
+            query_batch_size: 2,
+            title: preset.name,
+          });
+          added += 1;
+        } catch (err) {
+          failures.push(`${preset.name}: ${apiDetail(err)}`);
+        }
+      }
+      await refresh();
+      const parts = [
+        t("toolsSettings.connectors.presets.addedNotice", { count: added, total: presets.length }),
+      ];
+      if (failures.length) parts.push(failures.join(" · "));
+      setNotice(parts.join(" — "));
     } finally {
       setBusy(false);
     }
@@ -503,16 +539,7 @@ function JobSourceConnectors() {
             </span>
             <Button
               size="sm"
-              onClick={() =>
-                setDraft({
-                  id: null,
-                  key: "",
-                  connector_key: "",
-                  config: {},
-                  query_mode: "radar",
-                  query_batch_size: 2,
-                })
-              }
+              onClick={() => setPresetOpen(true)}
               data-testid="add-job-source"
             >
               <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.sources.add")}
@@ -637,6 +664,24 @@ function JobSourceConnectors() {
           </div>
         ) : null}
       </section>
+      <JobSourcePresetDialog
+        open={presetOpen}
+        onOpenChange={setPresetOpen}
+        existingKeys={sources.map((row) => row.key)}
+        busy={busy}
+        onAddPresets={(presets) => void addPresets(presets)}
+        onCustom={() => {
+          setPresetOpen(false);
+          setDraft({
+            id: null,
+            key: "",
+            connector_key: "",
+            config: {},
+            query_mode: "radar",
+            query_batch_size: 2,
+          });
+        }}
+      />
     </div>
   );
 }

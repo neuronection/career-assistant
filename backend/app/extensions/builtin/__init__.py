@@ -44,6 +44,9 @@ from app.extensions.builtin.job_boards import (
 from app.extensions.builtin.job_boards import (
     RemotiveConnector as RemotiveConnector,
 )
+from app.extensions.builtin.job_boards import (
+    WorkableConnector as WorkableConnector,
+)
 from app.extensions.polite_http import conditional_headers, merge_cache_state
 from app.extensions.sdk import (
     ConnectorCapabilities,

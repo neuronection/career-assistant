@@ -27,6 +27,7 @@ export interface SourceWizardDraft {
   config: IntegrationConfigValues;
   query_mode: string;
   query_batch_size: number;
+  title?: string;
 }
 
 /** Tools → connectors → add-source wizard (plan 148 phase 2): step 1
