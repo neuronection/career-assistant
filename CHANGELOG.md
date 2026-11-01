@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (first ingest of a known employer crashed, 2026-11-01)
+- A **new posting whose organization resolved to an existing org** (exact
+  name match) crashed the whole sync with `ValueError: badly formed
+  hexadecimal UUID string` — the change journal received the posting's id
+  before the row's first flush. The preset gallery's ATS tenants exposed
+  it (their employers already existed in the org catalog from other
+  sources); it also affected every connector ingesting a known employer.
+  New postings now get their id assigned before any journal record.
+
 ### Added (job-source presets, 2026-11-01)
 - **Adding a job source is now one click.** A new preset gallery (Tools →
   Connectors → *Browse presets*) lists verified employers and boards as

@@ -536,6 +536,10 @@ async def upsert_posting(
             from app.services.catalog.organization_service import OrganizationService
 
             org_service = OrganizationService(db)
+        # The PK is assigned at INSERT — the org-match journal below takes
+        # posting.id, and a decision that doesn't flush (a link to an
+        # existing org) would hand it None (plan 176 follow-up).
+        await db.flush()
         await org_service.attach_to_posting(posting, run_id=run_id)
     posting.location = raw.location.model_dump(mode="json")
     posting.url = raw.url[:1000]

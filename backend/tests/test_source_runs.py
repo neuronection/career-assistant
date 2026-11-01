@@ -220,6 +220,46 @@ async def test_paused_source_is_skipped_by_the_sync_job(db, typed_error_connecto
     assert len(after) == len(before)
 
 
+async def test_new_posting_linking_an_existing_org_ingests(db, synthetic_connector):
+    """Regression (plan 176 follow-up): a NEW posting whose org resolved to
+    an EXISTING org crashed the whole sync — the change journal received
+    posting.id before the first flush ('badly formed hexadecimal UUID').
+    The preset ATS tenants exposed it: their postings match orgs that
+    other sources already created."""
+    from app.models.experience_model import Organization
+    from app.models.posting_model import JobPosting
+    from app.services.catalog.company_names import name_key
+
+    db.add(
+        Organization(
+            key="synthco",
+            name="SynthCo",
+            name_key=name_key("SynthCo"),
+            initials_key="SC",
+        )
+    )
+    await db.commit()
+
+    src = await _source(db, "org-link-sync", "synthetic")
+    report = await sync_source(db, src, trigger="manual")
+    assert report.get("error") is None, report
+    assert report["synced"] == 1
+
+    await db.refresh(src)
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.source_id == src.id)))
+        .scalars()
+        .one()
+    )
+    assert posting.org_id is not None, "the exact-name org link still ran"
+    row = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == src.id)))
+        .scalars()
+        .one()
+    )
+    assert row.status == "ok"
+
+
 async def test_run_sync_job_passes_trigger(db, synthetic_connector, client, auth_headers):
     created = await client.post(
         "/api/v1/admin/postings/sources",
