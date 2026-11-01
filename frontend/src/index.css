@@ -360,3 +360,33 @@ body {
     overflow-y: auto;
   }
 }
+
+/* Autopilot findings workspace (plan 175): left filter rail · feed ·
+   right runs rail over the shared ca-stats grid (container query,
+   plan-95 rule — the chat dock narrows the column, not the viewport).
+   Below the page-width breakpoint the runs rail stacks ABOVE the feed
+   and the filter rail collapses into a toggled section; the toggle
+   button itself only exists below the breakpoint. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-ap-filters-toggle {
+  display: none;
+}
+
+@container (max-width: 63.99rem) {
+  .ca-ap-filter-rail {
+    display: none;
+  }
+
+  .ca-ap-filter-rail[data-open="true"] {
+    display: block;
+    order: -2;
+  }
+
+  .ca-ap-runs-rail {
+    order: -3;
+  }
+
+  .ca-ap-filters-toggle {
+    display: inline-flex;
+  }
+}

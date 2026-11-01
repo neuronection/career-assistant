@@ -7,6 +7,29 @@ deterministic fit score, and delivers a curated shortlist.
 
 Open it at `/autopilot`.
 
+## The findings workspace
+
+The page is organized around the shortlist, not the runs that produced
+it:
+
+- **The feed** (center) lists every finding as a flat job card — the same
+  card `/postings` uses, extended with an **evidence row**: why it
+  matched, the verified quote from the posting's own text, how many of
+  your must-terms it covers, and 👍/👎 buttons. **Mark applied** records a
+  real application; when you have already applied, an **Applied** badge
+  appears (read from your applications, not stored on the finding). Each
+  card shows its provenance: the run that surfaced it, when, and the
+  board it came from. By default you see the **latest evaluation per
+  posting** — the same posting surfaced by several runs shows once.
+- **The runs rail** (right) lists your latest runs across all goals with
+  their status, how many live findings each produced, how many postings
+  were examined, and the tokens spent.
+- **The goal switcher** (top) filters the feed to one goal's findings;
+  selecting a goal also shows its constraints and actions (run now,
+  pause, edit, delete). The left rail carries the feed's filters; on
+  small screens both rails collapse (the runs rail into a collapsible
+  section above the feed, the filters behind a toggle button).
+
 ## What a run does
 
 ```mermaid

@@ -124,11 +124,33 @@ def _column_present(table: str, column: str) -> bool:
     return bool(asyncio.run(run()))
 
 
+def _index_present(table: str, index: str) -> bool:
+    from sqlalchemy import inspect
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                names = await conn.run_sync(
+                    lambda sync_conn: [
+                        entry["name"] for entry in inspect(sync_conn).get_indexes(table)
+                    ]
+                )
+            return index in names
+        finally:
+            await engine.dispose()
+
+    return bool(asyncio.run(run()))
+
+
 def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0081"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0082"], (
         "revision chain stays linear on one head"
     )
 
@@ -182,6 +204,23 @@ def test_0080_source_display_title_roundtrip():
 
     command.upgrade(config, "head")
     assert _column_present("job_sources", "title"), "re-upgrade restores the column"
+
+
+def test_0082_findings_feed_indexes_roundtrip():
+    """Plan 175: the findings feed's two indexes exist at head and die on
+    the downgrade (created_at ordering, posting_id dedupe/applied join)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+    command.downgrade(config, "0081")
+    assert not _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert not _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+    command.upgrade(config, "head")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_posting")
 
 
 def test_0033_profile_proposals_roundtrip():

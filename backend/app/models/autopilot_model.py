@@ -113,6 +113,8 @@ class AutopilotFinding(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="score_range",
         ),
         Index("ix_autopilot_findings_run", "run_id"),
+        Index("ix_autopilot_findings_created", "created_at"),
+        Index("ix_autopilot_findings_posting", "posting_id"),
     )
 
     run_id: Mapped[uuid.UUID] = mapped_column(

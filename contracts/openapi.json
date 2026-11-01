@@ -32584,23 +32584,133 @@
     },
     "/api/v1/autopilot/findings": {
       "get": {
-        "description": "Recent runs across goals with their findings (grouped by run).",
+        "description": "The flat findings feed: filters, dedupe, keyset pagination.",
         "operationId": "list_findings_api_v1_autopilot_findings_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "goal_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Goal Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "run_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "dismissed",
+                "all"
+              ],
+              "title": "State",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "latest_per_posting",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "Latest Per Posting",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "newest",
+              "enum": [
+                "newest",
+                "score"
+              ],
+              "title": "Sort",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "additionalProperties": true,
-                    "type": "object"
-                  },
+                  "additionalProperties": true,
                   "title": "Response List Findings Api V1 Autopilot Findings Get",
-                  "type": "array"
+                  "type": "object"
                 }
               }
             },
             "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
           }
         },
         "summary": "List Findings",
@@ -33002,6 +33112,33 @@
           }
         },
         "summary": "Profile Context",
+        "tags": [
+          "autopilot"
+        ]
+      }
+    },
+    "/api/v1/autopilot/runs": {
+      "get": {
+        "description": "The runs rail, cross-goal: status, tokens, live findings, examined.",
+        "operationId": "list_runs_api_v1_autopilot_runs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Runs Api V1 Autopilot Runs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Runs",
         "tags": [
           "autopilot"
         ]

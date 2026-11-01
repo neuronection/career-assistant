@@ -493,6 +493,315 @@ async def test_no_apply_invariant(client, auth_headers, db, search_fixtures):
     assert rows.scalars().all() == []
 
 
+# ------------------------------------------ findings feed + runs rail (175)
+
+
+async def _feed_posting(db, external_id, **kw):
+    from app.models.posting_model import JobPosting, JobSource
+
+    source = kw.pop("source", None)
+    if source is None:
+        source = JobSource(
+            key=f"feed-{external_id}", connector_key="synthetic", config={}, enabled=True
+        )
+        db.add(source)
+        await db.flush()
+    posting = JobPosting(
+        source_id=source.id,
+        external_id=external_id,
+        title=kw.pop("title", f"Role {external_id}"),
+        org=kw.pop("org", "FeedCo"),
+        url=kw.pop("url", f"https://feed.example/{external_id}"),
+        content_hash="0" * 64,
+        **kw,
+    )
+    db.add(posting)
+    await db.flush()
+    return posting
+
+
+def _feed_finding(run, posting, score, created_at, **kw):
+    return AutopilotFinding(
+        run_id=run.id,
+        posting_id=posting.id,
+        score=score,
+        why=kw.pop("why", f"Fit {score}/10."),
+        evidence=kw.pop(
+            "evidence",
+            {
+                "quotes": [f"{posting.title} needs programming"],
+                "verified": True,
+                "must_coverage": {"hits": 1, "total": 2},
+                "breakdown": {
+                    "skills": {"score": 7.0},
+                    "prereqs": {"score": 7.0, "neutral": True, "disabled": True},
+                },
+            },
+        ),
+        created_at=created_at,
+        dismissed_at=kw.pop("dismissed_at", None),
+        **kw,
+    )
+
+
+async def _seed_feed(db, user_id):
+    """Goal + two runs + three postings at fixed timestamps.
+
+    r1 (older): posting-a 6.0, posting-b 8.0 (dismissed).
+    r2 (newer, examined 40+12 in the timeline): posting-a 7.5,
+    posting-b 9.1, posting-c 5.2 — the latest evaluations.
+    """
+    from app.models.autopilot_model import AutopilotRun
+
+    goal = AutopilotGoal(user_id=user_id, goal_text="feed goal", constraints={}, budget={})
+    db.add(goal)
+    await db.flush()
+    run1 = AutopilotRun(
+        goal_id=goal.id,
+        status="completed",
+        tokens_used=100,
+        searches_executed=[{"step": "search", "query": "old", "examined": 7}],
+        created_at=datetime(2026, 9, 1, tzinfo=UTC),
+        started_at=datetime(2026, 9, 1, tzinfo=UTC),
+        finished_at=datetime(2026, 9, 1, minute=1, tzinfo=UTC),
+    )
+    run2 = AutopilotRun(
+        goal_id=goal.id,
+        status="completed",
+        tokens_used=250,
+        searches_executed=[
+            {"step": "search", "query": "qa", "examined": 40},
+            {"step": "search", "query": "data", "examined": 12},
+        ],
+        created_at=datetime(2026, 9, 5, tzinfo=UTC),
+        started_at=datetime(2026, 9, 5, tzinfo=UTC),
+        finished_at=datetime(2026, 9, 5, minute=2, tzinfo=UTC),
+    )
+    db.add_all([run1, run2])
+    await db.flush()
+    a = await _feed_posting(db, "ex-a", title="Analyst A")
+    b = await _feed_posting(db, "ex-b", title="Analyst B")
+    c = await _feed_posting(db, "ex-c", title="Analyst C")
+    db.add_all(
+        [
+            _feed_finding(run1, a, 6.0, datetime(2026, 9, 1, second=1, tzinfo=UTC)),
+            _feed_finding(
+                run1,
+                b,
+                8.0,
+                datetime(2026, 9, 1, second=2, tzinfo=UTC),
+                dismissed_at=datetime(2026, 9, 2, tzinfo=UTC),
+            ),
+            _feed_finding(run2, a, 7.5, datetime(2026, 9, 5, second=1, tzinfo=UTC)),
+            _feed_finding(run2, b, 9.1, datetime(2026, 9, 5, second=2, tzinfo=UTC)),
+            _feed_finding(run2, c, 5.2, datetime(2026, 9, 5, second=3, tzinfo=UTC)),
+        ]
+    )
+    await db.commit()
+    return goal, run1, run2, (a, b, c)
+
+
+async def test_findings_feed_default_dedupes_and_hides_dismissed(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    goal, _run1, _run2, (a, b, c) = await _seed_feed(db, user_id)
+
+    body = (await client.get("/api/v1/autopilot/findings", headers=auth_headers)).json()
+    refs = [item["posting"]["ref"] for item in body["items"]]
+    assert refs == [c.ref, b.ref, a.ref], "newest first, one row per posting"
+    top = next(item for item in body["items"] if item["score"] == 9.1)
+    assert top["posting"]["ref"] == b.ref
+    assert top["score"] == 9.1
+    assert top["quotes"] == ["Analyst B needs programming"]
+    assert top["must_coverage"] == {"hits": 1, "total": 2}
+    assert top["disabled_dims"] == 1, "plan-169 disabled dims counted"
+    assert top["run_status"] == "completed"
+    assert top["goal_id"] == str(goal.id)
+    assert top["goal_text"] == "feed goal"
+    assert top["applied"] is False
+    assert top["dismissed_at"] is None
+    assert all(item["score"] not in (6.0, 8.0) for item in body["items"]), (
+        "older evaluations deduped away"
+    )
+    posting = top["posting"]
+    assert posting["title"] == "Analyst B"
+    assert posting["org"] == "FeedCo"
+    assert posting["url"].startswith("https://feed.example/")
+    assert posting["status"] == "new"
+    assert posting["source"] == f"feed-{b.external_id}"
+    assert posting["extracted"] is False
+
+
+async def test_findings_feed_state_param(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    _goal_row, _run1, _run2, (a, b, c) = await _seed_feed(db, user_id)
+
+    all_body = (
+        await client.get(
+            "/api/v1/autopilot/findings", params={"state": "all"}, headers=auth_headers
+        )
+    ).json()
+    assert len(all_body["items"]) == 3, "latest rows across states"
+
+    dismissed = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"state": "dismissed"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert len(dismissed["items"]) == 0, "only newest evaluations count"
+
+    open_latest = (
+        await client.get(
+            "/api/v1/autopilot/findings", params={"state": "open"}, headers=auth_headers
+        )
+    ).json()
+    assert {item["posting"]["ref"] for item in open_latest["items"]} == {a.ref, b.ref, c.ref}
+
+
+async def test_findings_feed_latest_per_posting_toggle(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    _goal_row, run1, _run2, (a, b, _c) = await _seed_feed(db, user_id)
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"latest_per_posting": "false", "state": "all"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert len(body["items"]) == 5, "history preserved"
+    run_ids = {item["run_id"] for item in body["items"]}
+    assert len(run_ids) == 2, "both runs' evaluations ride the flat feed"
+    old_b = next(item for item in body["items"] if item["dismissed_at"] is not None)
+    assert old_b["run_id"] == str(run1.id)
+    assert old_b["posting"]["ref"] == b.ref
+    assert a.ref in {item["posting"]["ref"] for item in body["items"]}
+
+
+async def test_findings_feed_ownership_cross_user(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    await _seed_feed(db, user_id)
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "feed-other@example.com", "password": "supersecret1"},
+    )
+    assert other.status_code == 201
+    other_headers = session_headers(other)
+    body = (await client.get("/api/v1/autopilot/findings", headers=other_headers)).json()
+    assert body["items"] == [], "another user's findings are invisible"
+    rail = (await client.get("/api/v1/autopilot/runs", headers=other_headers)).json()
+    assert rail == []
+
+
+async def test_findings_feed_sort_score_orders_desc(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    await _seed_feed(db, user_id)
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings", params={"sort": "score"}, headers=auth_headers
+        )
+    ).json()
+    scores = [item["score"] for item in body["items"]]
+    assert scores == sorted(scores, reverse=True)
+    assert scores[0] == 9.1
+
+
+async def test_findings_feed_cursor_pages_without_repeats(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    await _seed_feed(db, user_id)
+    seen = []
+    cursor = None
+    for _page in range(5):
+        params = {"limit": 2, "sort": "score"}
+        if cursor:
+            params["cursor"] = cursor
+        body = (
+            await client.get("/api/v1/autopilot/findings", params=params, headers=auth_headers)
+        ).json()
+        seen.extend(item["id"] for item in body["items"])
+        cursor = body["next_cursor"]
+        if cursor is None:
+            break
+    assert len(seen) == 3, "paged through the whole feed"
+    assert len(seen) == len(set(seen)), "no repeats across pages"
+
+
+async def test_findings_feed_applied_badge_from_join(client, auth_headers, db):
+    from app.models.application_model import Application
+
+    user_id = _uid(auth_headers)
+    _goal_row, _run1, _run2, (a, _b, _c) = await _seed_feed(db, user_id)
+    db.add(
+        Application(
+            user_id=user_id,
+            posting_id=a.id,
+            applied_at=datetime(2026, 9, 6, tzinfo=UTC),
+        )
+    )
+    await db.commit()
+
+    body = (await client.get("/api/v1/autopilot/findings", headers=auth_headers)).json()
+    applied = {item["posting"]["ref"]: item["applied"] for item in body["items"]}
+    assert applied[a.ref] is True, "badge derives from the applications join"
+    assert len([flag for flag in applied.values() if not flag]) == 2
+
+
+async def test_findings_feed_goal_and_run_filters(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    goal, run1, _run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+
+    by_goal = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"goal_id": str(goal.id), "state": "all", "latest_per_posting": "false"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert len(by_goal["items"]) == 5, "everything under the goal"
+
+    by_run = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={
+                "run_id": str(run1.id),
+                "state": "all",
+                "latest_per_posting": "false",
+            },
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["run_id"] for item in by_run["items"]} == {str(run1.id)}
+    assert all(item["goal_text"] == "feed goal" for item in by_run["items"])
+    assert all(item["goal_id"] == str(goal.id) for item in by_run["items"])
+
+
+async def test_runs_rail_rows_carry_counts(client, auth_headers, db):
+    from app.models.application_model import Application
+
+    user_id = _uid(auth_headers)
+    goal, run1, run2, (a, _b, _c) = await _seed_feed(db, user_id)
+
+    rows = (await client.get("/api/v1/autopilot/runs", headers=auth_headers)).json()
+    assert [row["id"] for row in rows] == [str(run2.id), str(run1.id)], "newest first"
+    top = rows[0]
+    assert top["goal_id"] == str(goal.id)
+    assert top["goal_text"] == "feed goal"
+    assert top["status"] == "completed"
+    assert top["tokens_used"] == 250
+    assert top["findings_count"] == 3, "live findings"
+    assert top["examined_sum"] == 52, "Σ the timeline's examined"
+    assert "searches_executed" not in top, "the timeline stays on run detail"
+    older = rows[1]
+    assert older["findings_count"] == 1, "the dismissed evaluation is not live"
+    assert older["examined_sum"] == 7
+
+    db.add(Application(user_id=user_id, posting_id=a.id))
+    await db.commit()
+    rows = (await client.get("/api/v1/autopilot/runs", headers=auth_headers)).json()
+    assert rows[0]["findings_count"] == 3, "applied findings stay on the rail"
+
+
 # ------------------------------------------------------------ graph internals
 
 
@@ -562,7 +871,7 @@ async def test_migration_head_is_linear():
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0081"]
+    assert script.get_heads() == ["0082"]
 
 
 # --------------------------------------------------- S1 planner grounding

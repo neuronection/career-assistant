@@ -863,8 +863,6 @@
     "lastRun": "letzter Durchlauf {{date}}",
     "openCount": "{{count}} offene",
     "tokens": "{{count}} Token",
-    "hideWork": "Arbeit ausblenden",
-    "whatSearched": "Was ich gesucht habe",
     "noSurvivors": "Keine Ergebnisse haben die Filter dieses Durchlaufs überstanden.",
     "deleteTitle": "Diese Aufgabe löschen?",
     "deleteBody": "Es wird und die Ergebnisse gehen mit. Dies kann nicht rückgängig gemacht werden.",
@@ -951,7 +949,6 @@
     "createGoal": "Ziel erstellen",
     "runDetail": {
       "title": "Lauf-Details",
-      "open": "Details",
       "missing": "Dieser Lauf wurde nicht gefunden (möglicherweise gelöscht).",
       "unavailable": "Dieser Lauf stammt aus der Zeit vor dem detaillierten Schritt-Trace — stattdessen wird die Such-Chronik angezeigt.",
       "inputs": "Eingaben",
@@ -1058,6 +1055,25 @@
         "use_lifestyle": "keine Lebensstil-Flags",
         "stage_source": "Stufe aus Ziel"
       }
+    },
+    "workspace": {
+      "allGoals": "Alle Ziele",
+      "viewLabel": "Ansicht",
+      "viewFlat": "Flach",
+      "viewByRun": "Nach Lauf",
+      "runsRail": "Läufe",
+      "railFindings": "{{count}} Treffer",
+      "railExamined": "{{count}} geprüft",
+      "filtersTitle": "Filter",
+      "feedCount": "{{count}} Treffer",
+      "loadMore": "Mehr laden",
+      "markApplied": "Als beworben markieren",
+      "applied": "Beworben",
+      "viewPosting": "Anzeige öffnen",
+      "evidence": "Warum dieser Treffer",
+      "disabledDims": "{{count}} Profil-Eingaben für dieses Ziel aus",
+      "estimateFootnote": "Schätzung — diese Anzeige wurde noch nicht tief gelesen; Profil-Schalter bleiben unberücksichtigt.",
+      "runProvenance": "Lauf · {{date}}"
     }
   },
   "scheduler": {

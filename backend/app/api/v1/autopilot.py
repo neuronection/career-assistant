@@ -1,8 +1,9 @@
 """Career Autopilot endpoints."""
 
+from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -41,11 +42,36 @@ async def list_goals(
 
 @router.get("/findings")
 async def list_findings(
+    goal_id: UUID | None = None,
+    run_id: UUID | None = None,
+    state: Literal["open", "dismissed", "all"] = "open",
+    latest_per_posting: bool = True,
+    sort: Literal["newest", "score"] = "newest",
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = None,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The flat findings feed: filters, dedupe, keyset pagination."""
+    return await AutopilotService(db).findings_feed(
+        user.id,
+        goal_id=goal_id,
+        run_id=run_id,
+        state=state,
+        latest_per_posting=latest_per_posting,
+        sort=sort,
+        limit=limit,
+        cursor=cursor,
+    )
+
+
+@router.get("/runs")
+async def list_runs(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
-    """Recent runs across goals with their findings (grouped by run)."""
-    return await AutopilotService(db).findings_by_run(user.id)
+    """The runs rail, cross-goal: status, tokens, live findings, examined."""
+    return await AutopilotService(db).runs_rail(user.id)
 
 
 @router.post("/profile-context")

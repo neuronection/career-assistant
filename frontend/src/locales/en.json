@@ -863,8 +863,6 @@
     "lastRun": "last run {{date}}",
     "openCount": "{{count}} open",
     "tokens": "{{count}} tokens",
-    "hideWork": "Hide work",
-    "whatSearched": "What I searched",
     "noSurvivors": "No matches survived the filters this run.",
     "deleteTitle": "Delete this goal?",
     "deleteBody": "Its runs and findings go with it. This cannot be undone.",
@@ -951,7 +949,6 @@
     "createGoal": "Create goal",
     "runDetail": {
       "title": "Run details",
-      "open": "Details",
       "missing": "This run could not be found (it may have been deleted).",
       "unavailable": "This run predates the detailed step trace — showing its search timeline instead.",
       "inputs": "Inputs",
@@ -1058,6 +1055,25 @@
         "use_lifestyle": "no lifestyle flags",
         "stage_source": "stage from goal"
       }
+    },
+    "workspace": {
+      "allGoals": "All goals",
+      "viewLabel": "View",
+      "viewFlat": "Flat",
+      "viewByRun": "By run",
+      "runsRail": "Runs",
+      "railFindings": "{{count}} findings",
+      "railExamined": "{{count}} examined",
+      "filtersTitle": "Filters",
+      "feedCount": "{{count}} findings",
+      "loadMore": "Load more",
+      "markApplied": "Mark applied",
+      "applied": "Applied",
+      "viewPosting": "View posting",
+      "evidence": "Why this match",
+      "disabledDims": "{{count}} profile inputs off for this goal",
+      "estimateFootnote": "Estimate — this posting has not been deep-read yet, so profile toggles are ignored for it.",
+      "runProvenance": "Run · {{date}}"
     }
   },
   "scheduler": {

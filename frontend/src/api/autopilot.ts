@@ -104,9 +104,74 @@ export interface AutopilotFinding {
   created_at: string;
 }
 
-export interface AutopilotRunWithFindings extends AutopilotRunSummary {
+export interface FeedPosting {
+  id: string;
+  ref: string;
+  title: string;
+  org: string;
+  url: string;
+  location: { city?: string | null; country?: string | null };
+  salary: {
+    currency: string | null;
+    min: number | null;
+    max: number | null;
+    period: string | null;
+  } | null;
+  posted_at: string | null;
+  remote: string | null;
+  status: string;
+  expires_at: string | null;
+  source: string;
+  extracted: boolean;
+  seniority: string | null;
+}
+
+export type FindingFeedState = "open" | "dismissed" | "all";
+export type FindingFeedSort = "newest" | "score";
+
+export interface FindingFeedParams {
   goal_id?: string;
-  findings: AutopilotFinding[];
+  run_id?: string;
+  state?: FindingFeedState;
+  latest_per_posting?: boolean;
+  sort?: FindingFeedSort;
+  limit?: number;
+  cursor?: string;
+}
+
+export interface AutopilotFindingFeedItem {
+  id: string;
+  score: number;
+  why: string;
+  quotes: string[];
+  must_coverage: { hits: number; total: number } | null;
+  disabled_dims: number;
+  dismissed_at: string | null;
+  feedback: "more_like_this" | "hide_like_this" | null;
+  created_at: string;
+  run_id: string;
+  run_status: string;
+  goal_id: string;
+  goal_text: string;
+  applied: boolean;
+  posting: FeedPosting;
+}
+
+export interface FindingFeedResponse {
+  items: AutopilotFindingFeedItem[];
+  next_cursor: string | null;
+}
+
+export interface RunsRailRow {
+  id: string;
+  goal_id: string;
+  goal_text: string;
+  status: string;
+  created_at: string;
+  finished_at: string | null;
+  tokens_used: number;
+  findings_count: number;
+  examined_sum: number;
 }
 
 export interface TimelineEntry {
@@ -203,8 +268,17 @@ export async function runGoal(
   const { data } = await api.post(`/autopilot/goals/${goalId}/run`);
   return data;
 }
-export async function fetchFindingsByRun(): Promise<AutopilotRunWithFindings[]> {
-  const { data } = await api.get<AutopilotRunWithFindings[]>("/autopilot/findings");
+export async function fetchFindingsFeed(
+  params: FindingFeedParams = {}
+): Promise<FindingFeedResponse> {
+  const { data } = await api.get<FindingFeedResponse>("/autopilot/findings", {
+    params,
+  });
+  return data;
+}
+
+export async function fetchRunsRail(): Promise<RunsRailRow[]> {
+  const { data } = await api.get<RunsRailRow[]>("/autopilot/runs");
   return data;
 }
 

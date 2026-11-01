@@ -10,6 +10,7 @@ import {
   Pencil,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Sparkles,
   ThumbsDown,
   ThumbsUp,
@@ -41,10 +42,11 @@ import {
   createGoal,
   DEFAULT_PROFILE_USAGE,
   deleteGoal,
-  fetchFindingsByRun,
+  fetchFindingsFeed,
   fetchGoals,
   fetchProfileContext,
   fetchRunDetail,
+  fetchRunsRail,
   patchGoal,
   runGoal,
   sendFindingFeedback,
@@ -53,13 +55,16 @@ import { apiDetail } from "@/api/client";
 import type {
   AutopilotConstraints,
   AutopilotFinding,
+  AutopilotFindingFeedItem,
   AutopilotGoal,
   AutopilotRunDetail,
-  AutopilotRunWithFindings,
   AutopilotTraceStep,
+  FindingFeedResponse,
   ProfileContextSnapshot,
   ProfileUsage,
+  RunsRailRow,
 } from "@/api/autopilot";
+import { AutopilotFindingCard } from "@/features/growth/components/AutopilotFindingCard";
 import { useAuthStore } from "@/stores/authStore";
 
 const SENIORITY_OPTIONS = [
@@ -649,7 +654,13 @@ function FindingCard({
   );
 }
 
-function Timeline({ runId, entries }: { runId: string; entries: AutopilotRunWithFindings["searches_executed"] }) {
+function Timeline({
+  runId,
+  entries,
+}: {
+  runId: string;
+  entries: AutopilotRunDetail["timeline"];
+}) {
   const { t } = useTranslation();
   return (
     <div
@@ -1072,18 +1083,100 @@ function RunDetailModal({
   );
 }
 
+function RunsRail({
+  runs,
+  open,
+  onToggle,
+}: {
+  runs: RunsRailRow[] | null;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <aside className="ca-ap-runs-rail shrink-0 self-start" data-testid="autopilot-runs-rail">
+      <div className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between gap-2 text-sm font-semibold text-slate-700"
+          aria-expanded={open}
+          onClick={onToggle}
+          data-testid="runs-rail-toggle"
+        >
+          {t("autopilot.workspace.runsRail")}
+          <span className="flex items-center gap-2">
+            {runs && runs.length > 0 ? (
+              <span className="text-xs text-primary-600" data-testid="runs-rail-count">
+                {runs.length}
+              </span>
+            ) : null}
+            <span aria-hidden>{open ? "−" : "+"}</span>
+          </span>
+        </button>
+        {open ? (
+          <ul className="mt-2 space-y-2">
+            {(runs ?? []).map((run) => (
+              <li
+                key={run.id}
+                className="rounded-lg border border-[var(--as-border)] p-2"
+                data-testid={`runs-rail-row-${run.id}`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] ${
+                      RUN_STATUS_STYLE[run.status] ?? "bg-slate-100 text-slate-600"
+                    }`}
+                  >
+                    {RUN_STATUS_KEYS[run.status] ? t(RUN_STATUS_KEYS[run.status]) : run.status}
+                  </span>
+                  <span className="text-[11px] text-[var(--as-muted-fg)]">
+                    {dateLabel(run.created_at)}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs font-medium text-slate-800" title={run.goal_text}>
+                  {run.goal_text}
+                </p>
+                <p
+                  className="mt-0.5 text-[11px] tabular-nums text-[var(--as-muted-fg)]"
+                  data-testid={`runs-rail-counts-${run.id}`}
+                >
+                  {t("autopilot.workspace.railFindings", { count: run.findings_count })}
+                  {` · `}
+                  {t("autopilot.workspace.railExamined", { count: run.examined_sum })}
+                  {run.tokens_used
+                    ? ` · ${t("autopilot.tokens", { count: run.tokens_used })}`
+                    : ""}
+                </p>
+              </li>
+            ))}
+            {runs !== null && runs.length === 0 ? (
+              <li className="text-xs text-[var(--as-muted-fg)]">{t("autopilot.noRunsTitle")}</li>
+            ) : null}
+          </ul>
+        ) : null}
+      </div>
+    </aside>
+  );
+}
+
 export function Autopilot() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [goals, setGoals] = useState<AutopilotGoal[] | null>(null);
-  const [runs, setRuns] = useState<AutopilotRunWithFindings[] | null>(null);
+  const [rail, setRail] = useState<RunsRailRow[] | null>(null);
+  const [feed, setFeed] = useState<FindingFeedResponse | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<AutopilotGoal | null>(null);
   const [deleting, setDeleting] = useState<AutopilotGoal | null>(null);
   const [busyGoal, setBusyGoal] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [openTimelines, setOpenTimelines] = useState<Set<string>>(new Set());
+  const [runsOpen, setRunsOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const runParam = searchParams.get("run");
+  const goalParam = searchParams.get("goal");
+  const viewParam = searchParams.get("view");
+  const view = viewParam === "byrun" ? "byrun" : "flat";
+  const latestOnly = view === "flat";
 
   const closeRun = useCallback(() => {
     const next = new URLSearchParams(searchParams);
@@ -1091,21 +1184,55 @@ export function Autopilot() {
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const openRun = useCallback(
-    (runId: string) => {
+  const writeParams = useCallback(
+    (patch: Record<string, string | null>) => {
       const next = new URLSearchParams(searchParams);
-      next.set("run", runId);
-      setSearchParams(next);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value === null) next.delete(key);
+        else next.set(key, value);
+      }
+      setSearchParams(next, { replace: true });
     },
     [searchParams, setSearchParams],
   );
 
-  const load = useCallback(() => {
+  const loadGoalsAndRail = useCallback(() => {
     void fetchGoals().then(setGoals).catch(() => setGoals([]));
-    void fetchFindingsByRun().then(setRuns).catch(() => setRuns([]));
+    void fetchRunsRail().then(setRail).catch(() => setRail([]));
   }, []);
 
-  useEffect(load, [load]);
+  const loadFeed = useCallback(
+    (cursor?: string) => {
+      void fetchFindingsFeed({
+        goal_id: goalParam ?? undefined,
+        state: "open",
+        latest_per_posting: latestOnly,
+        sort: "newest",
+        limit: 20,
+        cursor,
+      })
+        .then((page) =>
+          setFeed((prev) =>
+            cursor && prev
+              ? { items: [...prev.items, ...page.items], next_cursor: page.next_cursor }
+              : page,
+          ),
+        )
+        .catch(() => setFeed({ items: [], next_cursor: null }));
+    },
+    [goalParam, latestOnly],
+  );
+
+  useEffect(loadGoalsAndRail, [loadGoalsAndRail]);
+  useEffect(() => {
+    setFeed(null);
+    loadFeed();
+  }, [loadFeed]);
+
+  const reload = useCallback(() => {
+    loadGoalsAndRail();
+    loadFeed();
+  }, [loadGoalsAndRail, loadFeed]);
 
   const runNow = async (goal: AutopilotGoal) => {
     setBusyGoal(goal.id);
@@ -1117,7 +1244,7 @@ export function Autopilot() {
           ? t("autopilot.notice.found", { count: result.findings.length })
           : t("autopilot.notice.quiet")
       );
-      load();
+      reload();
     } catch (err) {
       setNotice(apiDetail(err));
     } finally {
@@ -1129,7 +1256,7 @@ export function Autopilot() {
     await patchGoal(goal.id, { status: goal.status === "active" ? "paused" : "active" }).catch(
       (err) => setNotice(apiDetail(err))
     );
-    load();
+    reload();
   };
 
   const feedback = async (
@@ -1145,29 +1272,26 @@ export function Autopilot() {
             ? t("autopilot.notice.learned", { terms: result.learned_terms.join(", ") })
             : null
       );
-      load();
+      reload();
     } catch (err) {
       setNotice(apiDetail(err));
     }
   };
 
-  const toggleTimeline = (runId: string) => {
-    setOpenTimelines((prev) => {
-      const next = new Set(prev);
-      if (next.has(runId)) next.delete(runId);
-      else next.add(runId);
-      return next;
-    });
-  };
-
-  const goalById = useMemo(() => {
-    const map = new Map<string, AutopilotGoal>();
-    for (const goal of goals ?? []) map.set(goal.id, goal);
-    return map;
-  }, [goals]);
+  const selectedGoal = goalParam ? (goals ?? []).find((g) => g.id === goalParam) ?? null : null;
+  const groupedByRun = useMemo(() => {
+    if (view !== "byrun") return [];
+    const groups = new Map<string, AutopilotFindingFeedItem[]>();
+    for (const item of feed?.items ?? []) {
+      const bucket = groups.get(item.run_id) ?? [];
+      bucket.push(item);
+      groups.set(item.run_id, bucket);
+    }
+    return [...groups.entries()];
+  }, [view, feed]);
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6" data-testid="autopilot-page">
+    <div className="ca-stats-page space-y-4" data-testid="autopilot-page">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
@@ -1200,208 +1324,261 @@ export function Autopilot() {
         </div>
       )}
 
-      {goals === null || runs === null ? (
-        <div className="flex justify-center py-16">
-          <Spinner />
-        </div>
+      {goals !== null && goals.length === 0 ? (
+        <EmptyState
+          title={t("autopilot.emptyTitle")}
+          description={t("autopilot.emptyBody")}
+          action={
+            <Button
+              size="sm"
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+            >
+              {t("autopilot.emptyAction")}
+            </Button>
+          }
+        />
       ) : (
         <>
-          {goals.length === 0 ? (
-            <EmptyState
-              title={t("autopilot.emptyTitle")}
-              description={t("autopilot.emptyBody")}
-              action={
+          <div className="flex flex-wrap items-center gap-1.5" data-testid="goal-switcher">
+            <button
+              type="button"
+              aria-pressed={!goalParam}
+              onClick={() => writeParams({ goal: null })}
+              className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                !goalParam
+                  ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                  : "border-[var(--as-border)] text-slate-600 hover:bg-slate-50"
+              }`}
+              data-testid="goal-chip-all"
+            >
+              {t("autopilot.workspace.allGoals")}
+            </button>
+            {(goals ?? []).map((goal) => (
+              <button
+                key={goal.id}
+                type="button"
+                aria-pressed={goalParam === goal.id}
+                onClick={() => writeParams({ goal: goalParam === goal.id ? null : goal.id })}
+                className={`max-w-[280px] truncate rounded-full border px-3 py-1 text-xs transition-colors ${
+                  goalParam === goal.id
+                    ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                    : "border-[var(--as-border)] text-slate-600 hover:bg-slate-50"
+                }`}
+                data-testid={`goal-chip-${goal.id}`}
+                title={goal.goal_text}
+              >
+                {goal.goal_text}
+              </button>
+            ))}
+          </div>
+
+          {selectedGoal ? (
+            <div
+              className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+              data-testid={`goal-card-${selectedGoal.id}`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <p className="min-w-0 flex-1 text-sm font-medium text-slate-900">
+                  {selectedGoal.goal_text}
+                </p>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
+                    selectedGoal.status === "active"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-amber-50 text-amber-700"
+                  }`}
+                >
+                  {t(`autopilot.status.${selectedGoal.status}`, {
+                    defaultValue: selectedGoal.status,
+                  })}
+                </span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {constraintChips(selectedGoal).map((chip) => (
+                  <span
+                    key={chip}
+                    className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-xs text-[var(--as-muted-fg)]"
+                  >
+                    {chip}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
+                {cadenceLabel(selectedGoal)}
+                {selectedGoal.last_run
+                  ? ` · ${t("autopilot.lastRun", {
+                      date: dateLabel(selectedGoal.last_run.created_at),
+                    })}`
+                  : ""}
+                {selectedGoal.open_findings
+                  ? ` · ${t("autopilot.openCount", { count: selectedGoal.open_findings })}`
+                  : ""}
+              </p>
+              <div className="mt-3 flex items-center gap-1">
                 <Button
                   size="sm"
+                  variant="outline"
+                  disabled={busyGoal === selectedGoal.id || selectedGoal.status !== "active"}
+                  onClick={() => void runNow(selectedGoal)}
+                  data-testid={`run-now-${selectedGoal.id}`}
+                >
+                  {busyGoal === selectedGoal.id
+                    ? t("autopilot.searching")
+                    : t("autopilot.runNow")}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={
+                    selectedGoal.status === "active"
+                      ? t("autopilot.pauseGoal")
+                      : t("autopilot.resumeGoal")
+                  }
+                  title={
+                    selectedGoal.status === "active"
+                      ? t("autopilot.pauseGoal")
+                      : t("autopilot.resumeGoal")
+                  }
+                  onClick={() => void togglePause(selectedGoal)}
+                  data-testid={`pause-goal-${selectedGoal.id}`}
+                >
+                  {selectedGoal.status === "active" ? (
+                    <CirclePause className="h-4 w-4" />
+                  ) : (
+                    <CirclePlay className="h-4 w-4" />
+                  )}
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("autopilot.editGoal")}
+                  title={t("autopilot.editGoal")}
                   onClick={() => {
-                    setEditing(null);
+                    setEditing(selectedGoal);
                     setModalOpen(true);
                   }}
+                  data-testid={`edit-goal-${selectedGoal.id}`}
                 >
-                  {t("autopilot.emptyAction")}
+                  <Pencil className="h-4 w-4" />
                 </Button>
-              }
-            />
-          ) : (
-            <div className="grid gap-3 md:grid-cols-2">
-              {goals.map((goal) => (
-                <div
-                  key={goal.id}
-                  className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
-                  data-testid={`goal-card-${goal.id}`}
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t("autopilot.deleteGoal")}
+                  title={t("autopilot.deleteGoal")}
+                  onClick={() => setDeleting(selectedGoal)}
+                  data-testid={`delete-goal-${selectedGoal.id}`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="min-w-0 flex-1 text-sm font-medium text-slate-900">
-                      {goal.goal_text}
-                    </p>
-                    <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${
-                        goal.status === "active"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {t(`autopilot.status.${goal.status}`, {
-                        defaultValue: goal.status,
-                      })}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {constraintChips(goal).map((chip) => (
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="ca-stats-cols">
+            <aside
+              className="ca-ap-filter-rail shrink-0 self-start"
+              data-open={filtersOpen ? "true" : "false"}
+              data-testid="autopilot-filters"
+            >
+              <div className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
+                <div className="text-sm font-semibold text-slate-700">
+                  {t("autopilot.workspace.filtersTitle")}
+                </div>
+              </div>
+            </aside>
+
+            <section className="min-w-0 space-y-3" data-testid="findings-feed">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs text-slate-500" data-testid="feed-count">
+                  {feed
+                    ? t("autopilot.workspace.feedCount", { count: feed.items.length })
+                    : ""}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className="ca-ap-filters-toggle items-center gap-1 rounded-lg border border-[var(--as-border)] px-2 py-1 text-xs text-slate-600"
+                    aria-expanded={filtersOpen}
+                    onClick={() => setFiltersOpen((next) => !next)}
+                    data-testid="filters-toggle"
+                  >
+                    <SlidersHorizontal className="h-3 w-3" />
+                    {t("autopilot.workspace.filtersTitle")}
+                  </button>
+                  <SegmentedRow
+                    label={t("autopilot.workspace.viewLabel")}
+                    value={view}
+                    options={[
+                      { value: "flat", label: t("autopilot.workspace.viewFlat") },
+                      { value: "byrun", label: t("autopilot.workspace.viewByRun") },
+                    ]}
+                    onChange={(value) => writeParams({ view: value === "flat" ? null : value })}
+                  />
+                </div>
+              </div>
+
+              {goals !== null && (goals ?? []).length === 0 ? null : feed === null ? (
+                <div className="flex justify-center py-16">
+                  <Spinner />
+                </div>
+              ) : feed.items.length === 0 ? (
+                <EmptyState
+                  title={t("autopilot.noRunsTitle")}
+                  description={t("autopilot.noRunsBody")}
+                />
+              ) : view === "byrun" ? (
+                groupedByRun.map(([runId, items]) => (
+                  <div key={runId} className="space-y-2" data-testid={`feed-run-group-${runId}`}>
+                    <div className="flex items-center gap-2 text-xs text-[var(--as-muted-fg)]">
                       <span
-                        key={chip}
-                        className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-xs text-[var(--as-muted-fg)]"
+                        className={`rounded-full px-2 py-0.5 ${
+                          RUN_STATUS_STYLE[items[0].run_status] ?? "bg-slate-100 text-slate-600"
+                        }`}
                       >
-                        {chip}
+                        {items[0].run_status}
                       </span>
+                      <span>{dateLabel(items[0].created_at)}</span>
+                      <span className="truncate">{items[0].goal_text}</span>
+                    </div>
+                    {items.map((item) => (
+                      <AutopilotFindingCard
+                        key={item.id}
+                        item={item}
+                        onFeedback={(id, kind) => void feedback(id, kind)}
+                      />
                     ))}
                   </div>
-                  <p className="mt-2 text-xs text-[var(--as-muted-fg)]">
-                    {cadenceLabel(goal)}
-                    {goal.last_run
-                      ? ` · ${t("autopilot.lastRun", {
-                          date: dateLabel(goal.last_run.created_at),
-                        })}`
-                      : ""}
-                    {goal.open_findings
-                      ? ` · ${t("autopilot.openCount", { count: goal.open_findings })}`
-                      : ""}
-                  </p>
-                  <div className="mt-3 flex items-center gap-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busyGoal === goal.id || goal.status !== "active"}
-                      onClick={() => void runNow(goal)}
-                      data-testid={`run-now-${goal.id}`}
-                    >
-                      {busyGoal === goal.id ? t("autopilot.searching") : t("autopilot.runNow")}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={
-                        goal.status === "active"
-                          ? t("autopilot.pauseGoal")
-                          : t("autopilot.resumeGoal")
-                      }
-                      title={
-                        goal.status === "active"
-                          ? t("autopilot.pauseGoal")
-                          : t("autopilot.resumeGoal")
-                      }
-                      onClick={() => void togglePause(goal)}
-                      data-testid={`pause-goal-${goal.id}`}
-                    >
-                      {goal.status === "active" ? (
-                        <CirclePause className="h-4 w-4" />
-                      ) : (
-                        <CirclePlay className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t("autopilot.editGoal")}
-                      title={t("autopilot.editGoal")}
-                      onClick={() => {
-                        setEditing(goal);
-                        setModalOpen(true);
-                      }}
-                      data-testid={`edit-goal-${goal.id}`}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      aria-label={t("autopilot.deleteGoal")}
-                      title={t("autopilot.deleteGoal")}
-                      onClick={() => setDeleting(goal)}
-                      data-testid={`delete-goal-${goal.id}`}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))
+              ) : (
+                feed.items.map((item) => (
+                  <AutopilotFindingCard
+                    key={item.id}
+                    item={item}
+                    onFeedback={(id, kind) => void feedback(id, kind)}
+                  />
+                ))
+              )}
 
-          <section className="space-y-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
-              {t("autopilot.findings")}
-            </h2>
-            {(runs ?? []).length === 0 ? (
-              <EmptyState
-                title={t("autopilot.noRunsTitle")}
-                description={t("autopilot.noRunsBody")}
-              />
-            ) : (
-              (runs ?? []).map((run) => (
-                <div
-                  key={run.id}
-                  className="rounded-2xl border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
-                  data-testid={`run-${run.id}`}
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs ${RUN_STATUS_STYLE[run.status] ?? "bg-slate-100 text-slate-600"}`}
-                    >
-                      {RUN_STATUS_KEYS[run.status]
-                        ? t(RUN_STATUS_KEYS[run.status])
-                        : run.status}
-                    </span>
-                    <span className="text-xs text-[var(--as-muted-fg)]">
-                      {dateLabel(run.created_at)}
-                      {run.goal_id && goalById.has(run.goal_id)
-                        ? ` · ${goalById.get(run.goal_id)?.goal_text.slice(0, 48)}`
-                        : ""}
-                      {run.tokens_used ? ` · ${t("autopilot.tokens", { count: run.tokens_used })}` : ""}
-                    </span>
-                    <button
-                      type="button"
-                      className="ml-auto text-xs text-[var(--as-accent)] hover:underline"
-                      onClick={() => toggleTimeline(run.id)}
-                      data-testid={`timeline-toggle-${run.id}`}
-                    >
-                      {openTimelines.has(run.id)
-                        ? t("autopilot.hideWork")
-                        : t("autopilot.whatSearched")}
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs text-[var(--as-accent)] hover:underline"
-                      onClick={() => openRun(run.id)}
-                      data-testid={`run-details-${run.id}`}
-                    >
-                      {t("autopilot.runDetail.open")}
-                    </button>
-                  </div>
-                  {openTimelines.has(run.id) && (
-                    <Timeline runId={run.id} entries={run.searches_executed} />
-                  )}
-                  <div className="mt-3 space-y-2">
-                    {run.findings.length === 0 ? (
-                      <p className="text-sm text-[var(--as-muted-fg)]">
-                        {t("autopilot.noSurvivors")}
-                      </p>
-                    ) : (
-                      run.findings
-                        .filter((finding) => finding.dismissed_at == null)
-                        .map((finding) => (
-                          <FindingCard
-                            key={finding.id}
-                            finding={finding}
-                            onFeedback={(id, kind) => void feedback(id, kind)}
-                          />
-                        ))
-                    )}
-                  </div>
+              {feed?.next_cursor ? (
+                <div className="flex justify-center">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => loadFeed(feed.next_cursor ?? undefined)}
+                    data-testid="feed-load-more"
+                  >
+                    {t("autopilot.workspace.loadMore")}
+                  </Button>
                 </div>
-              ))
-            )}
-          </section>
+              ) : null}
+            </section>
+
+            <RunsRail runs={rail} open={runsOpen} onToggle={() => setRunsOpen((v) => !v)} />
+          </div>
         </>
       )}
 
@@ -1409,7 +1586,7 @@ export function Autopilot() {
         open={modalOpen}
         goal={editing}
         onClose={() => setModalOpen(false)}
-        onSaved={load}
+        onSaved={reload}
       />
 
       {runParam && <RunDetailModal runId={runParam} onClose={closeRun} />}
@@ -1423,7 +1600,8 @@ export function Autopilot() {
           onConfirm={() => {
             void deleteGoal(deleting.id).then(() => {
               setDeleting(null);
-              load();
+              if (goalParam === deleting.id) writeParams({ goal: null });
+              reload();
             });
           }}
           onOpenChange={(open) => (open ? undefined : setDeleting(null))}

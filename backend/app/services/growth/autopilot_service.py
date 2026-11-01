@@ -8,14 +8,16 @@ pause-on-total-dismissal and the stale-goal nudge. Applying to a posting
 is never automated — findings are suggestions only.
 """
 
+import base64
+import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, literal, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import aliased, selectinload
 
 from app.core.errors import NotFoundError, PermissionDeniedError
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
@@ -238,31 +240,201 @@ class AutopilotService:
 
     # ----------------------------------------------------------- findings
 
-    async def findings_by_run(self, user_id: UUID) -> list[dict]:
-        """The user's runs across goals, newest first, findings attached."""
-        rows = (
-            (
-                await self.db.execute(
-                    select(AutopilotRun)
-                    .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
-                    .where(AutopilotGoal.user_id == user_id)
-                    .order_by(AutopilotRun.created_at.desc())
-                    .limit(30)
+    async def findings_feed(
+        self,
+        user_id: UUID,
+        *,
+        goal_id: UUID | None = None,
+        run_id: UUID | None = None,
+        state: str = "open",
+        latest_per_posting: bool = True,
+        sort: str = "newest",
+        limit: int = 20,
+        cursor: str | None = None,
+    ) -> dict:
+        """The flat findings feed: one row per (latest) evaluation.
+
+        Ownership rides the run → goal join (`goal.user_id == caller`);
+        the applied badge derives from the caller's `applications` row —
+        never a stored flag. `latest_per_posting` keeps only each
+        posting's newest evaluation (row-value comparison on
+        ``(created_at, id)``, stable on both dialects); the state filter
+        applies to the surviving row, so a dismissed newest evaluation
+        hides the posting under the default `open`. Cursors are opaque
+        `(sort_key, id)` keyset markers per sort — score ties are
+        guaranteed (Numeric(4,2)), so a single-key cursor would loop.
+        """
+        from app.models.application_model import Application
+        from app.models.posting_model import JobPosting, JobSource
+
+        if sort not in ("newest", "score"):
+            from app.core.errors import ValidationError
+
+            raise ValidationError("sort must be newest|score")
+        if state not in ("open", "dismissed", "all"):
+            from app.core.errors import ValidationError
+
+            raise ValidationError("state must be open|dismissed|all")
+
+        conditions = []
+        if goal_id is not None:
+            conditions.append(AutopilotRun.goal_id == goal_id)
+        if run_id is not None:
+            conditions.append(AutopilotFinding.run_id == run_id)
+        if state == "open":
+            conditions.append(AutopilotFinding.dismissed_at.is_(None))
+        elif state == "dismissed":
+            conditions.append(AutopilotFinding.dismissed_at.is_not(None))
+        if latest_per_posting:
+            sibling = aliased(AutopilotFinding)
+            newer = (
+                select(sibling.id)
+                .where(
+                    sibling.posting_id == AutopilotFinding.posting_id,
+                    tuple_(sibling.created_at, sibling.id)
+                    > tuple_(AutopilotFinding.created_at, AutopilotFinding.id),
+                )
+                .exists()
+            )
+        if cursor:
+            cursor_sort, key, after_id = _decode_feed_cursor(cursor)
+            if cursor_sort != sort:
+                from app.core.errors import ValidationError
+
+                raise ValidationError("Cursor does not match the requested sort")
+        else:
+            key, after_id = None, None
+
+        order_col = AutopilotFinding.created_at if sort == "newest" else AutopilotFinding.score
+        query = (
+            select(
+                AutopilotFinding,
+                JobPosting,
+                AutopilotRun,
+                AutopilotGoal,
+                Application,
+                JobSource.key,
+            )
+            .join(AutopilotRun, AutopilotRun.id == AutopilotFinding.run_id)
+            .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+            .join(JobPosting, JobPosting.id == AutopilotFinding.posting_id)
+            .join(JobSource, JobSource.id == JobPosting.source_id)
+            .outerjoin(
+                Application,
+                (Application.posting_id == AutopilotFinding.posting_id)
+                & (Application.user_id == user_id),
+            )
+            .where(AutopilotGoal.user_id == user_id, *conditions)
+        )
+        if latest_per_posting:
+            query = query.where(~newer)
+        if key is not None:
+            query = query.where(
+                tuple_(order_col, AutopilotFinding.id)
+                < tuple_(
+                    literal(key, type_=order_col.type),
+                    literal(after_id, type_=AutopilotFinding.id.type),
                 )
             )
-            .scalars()
-            .all()
-        )
-        out = []
-        for run in rows:
-            out.append(
+        query = query.order_by(order_col.desc(), AutopilotFinding.id.desc()).limit(limit)
+        rows = (await self.db.execute(query)).all()
+
+        items = []
+        for finding, posting, run, goal, application, source_key in rows:
+            evidence = finding.evidence or {}
+            breakdown = evidence.get("breakdown") or {}
+            items.append(
                 {
-                    **_run_out(run),
-                    "goal_id": str(run.goal_id),
-                    "findings": await self._findings_out(run.id),
+                    "id": str(finding.id),
+                    "score": float(finding.score),
+                    "why": finding.why,
+                    "quotes": evidence.get("quotes") or [],
+                    "must_coverage": evidence.get("must_coverage"),
+                    "disabled_dims": sum(
+                        1
+                        for part in breakdown.values()
+                        if isinstance(part, dict) and part.get("disabled")
+                    ),
+                    "dismissed_at": finding.dismissed_at,
+                    "feedback": finding.feedback,
+                    "created_at": finding.created_at,
+                    "run_id": str(run.id),
+                    "run_status": run.status,
+                    "goal_id": str(goal.id),
+                    "goal_text": goal.goal_text,
+                    "applied": application is not None,
+                    "posting": {
+                        "id": str(posting.id),
+                        "ref": posting.ref,
+                        "title": posting.title,
+                        "org": posting.org,
+                        "url": posting.url,
+                        "location": posting.location or {},
+                        "salary": _salary_out(posting),
+                        "posted_at": posting.posted_at,
+                        "remote": posting.onsite_policy,
+                        "status": posting.status,
+                        "expires_at": posting.expires_at,
+                        "source": source_key,
+                        "extracted": posting.extract_version is not None,
+                        "seniority": posting.seniority,
+                    },
                 }
             )
-        return out
+        next_cursor = None
+        if len(items) == limit:
+            last_finding = rows[-1][0]
+            last_key = last_finding.created_at if sort == "newest" else float(last_finding.score)
+            next_cursor = _encode_feed_cursor(sort, last_key, last_finding.id)
+        return {"items": items, "next_cursor": next_cursor}
+
+    async def runs_rail(self, user_id: UUID, limit: int = 20) -> list[dict]:
+        """The runs rail, cross-goal, newest first.
+
+        One row per run: status, spend and the two counts the rail renders
+        — live (undismissed) findings and the Σ `examined` over the run's
+        searches-executed timeline. The timeline itself stays on
+        `run_detail`; the rail never ships it.
+        """
+        rows = (
+            await self.db.execute(
+                select(AutopilotRun, AutopilotGoal)
+                .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+                .where(AutopilotGoal.user_id == user_id)
+                .order_by(AutopilotRun.created_at.desc())
+                .limit(limit)
+            )
+        ).all()
+        run_ids = [run.id for run, _goal in rows]
+        live: dict[UUID, int] = {}
+        if run_ids:
+            counts = await self.db.execute(
+                select(AutopilotFinding.run_id, func.count())
+                .where(
+                    AutopilotFinding.run_id.in_(run_ids),
+                    AutopilotFinding.dismissed_at.is_(None),
+                )
+                .group_by(AutopilotFinding.run_id)
+            )
+            live = dict(counts.all())
+        return [
+            {
+                "id": str(run.id),
+                "goal_id": str(goal.id),
+                "goal_text": goal.goal_text,
+                "status": run.status,
+                "created_at": run.created_at,
+                "finished_at": run.finished_at,
+                "tokens_used": run.tokens_used,
+                "findings_count": live.get(run.id, 0),
+                "examined_sum": sum(
+                    int(entry.get("examined") or 0)
+                    for entry in (run.searches_executed or [])
+                    if isinstance(entry, dict)
+                ),
+            }
+            for run, goal in rows
+        ]
 
     async def _findings_out(self, run_id: UUID) -> list[dict]:
         from app.models.posting_model import JobPosting
@@ -774,3 +946,36 @@ def _run_out(run: AutopilotRun) -> dict:
         "error": run.error,
         "created_at": run.created_at,
     }
+
+
+def _salary_out(posting) -> dict | None:
+    if posting.salary_min is None and posting.salary_max is None:
+        return None
+    return {
+        "currency": posting.salary_currency,
+        "min": float(posting.salary_min) if posting.salary_min is not None else None,
+        "max": float(posting.salary_max) if posting.salary_max is not None else None,
+        "period": posting.salary_period,
+    }
+
+
+def _encode_feed_cursor(sort: str, key: datetime | float, finding_id: UUID) -> str:
+    payload = {
+        "s": sort,
+        "k": key.isoformat() if isinstance(key, datetime) else key,
+        "id": str(finding_id),
+    }
+    return base64.urlsafe_b64encode(json.dumps(payload).encode()).decode()
+
+
+def _decode_feed_cursor(cursor: str) -> tuple[str, datetime | float, UUID]:
+    try:
+        payload = json.loads(base64.urlsafe_b64decode(cursor.encode()))
+        key = payload["k"]
+        if isinstance(key, str):
+            key = datetime.fromisoformat(key)
+        return payload["s"], key, UUID(payload["id"])
+    except Exception as exc:
+        from app.core.errors import ValidationError
+
+        raise ValidationError("Invalid pagination cursor") from exc

@@ -3210,7 +3210,7 @@ export interface paths {
         };
         /**
          * List Findings
-         * @description Recent runs across goals with their findings (grouped by run).
+         * @description The flat findings feed: filters, dedupe, keyset pagination.
          */
         get: operations["list_findings_api_v1_autopilot_findings_get"];
         put?: never;
@@ -3346,6 +3346,26 @@ export interface paths {
          *     seniority — the goal form's live summary; never touches a goal row.
          */
         post: operations["profile_context_api_v1_autopilot_profile_context_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description The runs rail, cross-goal: status, tokens, live findings, examined.
+         */
+        get: operations["list_runs_api_v1_autopilot_runs_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -23860,7 +23880,15 @@ export interface operations {
     };
     list_findings_api_v1_autopilot_findings_get: {
         parameters: {
-            query?: never;
+            query?: {
+                goal_id?: string | null;
+                run_id?: string | null;
+                state?: "open" | "dismissed" | "all";
+                latest_per_posting?: boolean;
+                sort?: "newest" | "score";
+                limit?: number;
+                cursor?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -23875,7 +23903,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    }[];
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -24170,6 +24207,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_autopilot_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };

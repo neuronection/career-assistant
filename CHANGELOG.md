@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (autopilot findings workspace, 2026-11-01)
+- **`/autopilot` is now a findings workspace.** The shortlist is the
+  surface: a flat, filterable feed of the same job cards `/postings`
+  uses — each with its evidence row (why, verified quote, must-have
+  coverage, 👍/👎), a **Mark applied** button (an Applied badge appears
+  when the posting is already in your applications), and run/date
+  provenance. A **runs rail** on the right lists the latest runs across
+  all goals with status, live findings, examined counts and tokens; the
+  goal switcher filters the feed, and Flat/By-run toggles between the
+  latest evaluation per posting and the full history. Dismissed findings
+  are hidden by default; both rails collapse on small screens. The old
+  run-grouped listing with the inline timeline is replaced (the run
+  detail keeps the searched-queries timeline; a dedicated run page
+  follows).
+
 ### Changed (sources — radar by default, card picker, 2026-10-30)
 - **New job sources follow your job radar by default.** `query_mode`
   now ships a `radar` default (migration 0081, model + create/update
