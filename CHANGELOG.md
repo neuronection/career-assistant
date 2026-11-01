@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (blocked sources pause themselves, 2026-11-01)
+- A job source that hits a **non-retryable operator-action error** — a
+  provider block, a sign-in wall, missing credentials, or an unsupported
+  host — now **pauses itself** with the reason on the source row and
+  alerts admins once (the existing background-failure notification
+  funnel). Previously the hourly schedule kept retrying an external block,
+  refreshing the provider's bot score and extending it, while the ledger
+  filled with identical failures. Retryable errors (empty result pages,
+  rate limits) keep scheduling as before; resuming a paused source stays
+  an explicit user act.
+
 ### Fixed (run status honesty, 2026-11-01)
 - A radar-mode sync whose searches fail (e.g. Indeed served pages with no
   readable job cards) is now recorded as **degraded**, not **skipped** —

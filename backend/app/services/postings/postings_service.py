@@ -160,7 +160,63 @@ async def sync_source(
         logger.warning("company triage enqueue failed for %s", source.key, exc_info=True)
     if run_row is not None:
         await _finish_run(db, run_row.id, started=started, report=report)
+    await _pause_on_operator_action(db, source, report)
     return report
+
+
+PAUSE_ON_CODES = frozenset({"provider", "auth", "needs-secret", "unsupported"})
+
+
+def _pause_reason(errors: list[dict]) -> str:
+    """The first typed error that needs a human (a provider block, a
+    sign-in wall, missing credentials, an unsupported host) — retrying
+    those on the schedule only deepens the problem, so the source pauses
+    instead (plan 174 follow-up: hourly retries against a Cloudflare block
+    refresh the bot score and extend it)."""
+    for error in errors:
+        if error.get("code") in PAUSE_ON_CODES and error.get("retryable") != "yes":
+            return f"{error.get('code')}: {error.get('detail')}"
+    return ""
+
+
+async def _pause_on_operator_action(db: AsyncSession, source: JobSource, report: dict) -> None:
+    """Auto-pause on a non-retryable operator-action error + alert admins.
+
+    The run itself keeps its honest status; the pause stops the scheduler
+    (and the sources list's paused filter) from retrying an external block
+    every hour. Resuming stays an explicit user act."""
+    if source.paused_at is not None:
+        return
+    reason = _pause_reason(report.get("errors") or [])
+    if not reason:
+        return
+    source.paused_at = _utcnow()
+    source.error = f"{reason} — source paused until you resume it"[:2000]
+    await db.commit()
+    await _notify_source_paused(db, source, reason)
+
+
+async def _notify_source_paused(db: AsyncSession, source: JobSource, reason: str) -> None:
+    from app.models.user_model import User
+    from app.services.notification_service import NotificationService
+
+    admins = (await db.execute(select(User.id).where(User.is_admin.is_(True)))).scalars().all()
+    name = getattr(source, "title", None) or source.key
+    for user_id in list(admins)[:20]:
+        await NotificationService(db).emit(
+            "background_failed",
+            [user_id],
+            title=f"Job source paused: {name}",
+            body=(
+                f"{reason[:300]} — the source was paused so the scheduler stops "
+                "retrying; resume it when the provider is reachable again."
+            ),
+            payload={"source_id": str(source.id), "link": f"/sources/{source.id}"},
+            source_ref={"source_id": str(source.id)},
+            dedup_key=f"source-paused:{source.id}:{user_id}",
+            dedup_ttl_days=1,
+            max_per_day=10,
+        )
 
 
 def _run_status(report: dict) -> str:

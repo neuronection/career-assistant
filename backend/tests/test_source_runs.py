@@ -2,11 +2,15 @@
 visible through the runs endpoint (the management page's history)."""
 
 import uuid
+from typing import ClassVar
 
+import pytest
 from sqlalchemy import select
 
+from app.extensions.sdk import ConnectorCapabilities, ConnectorError, ConnectorResult
 from app.models.posting_model import JobSource, SourceRun
 from app.services.postings.postings_service import run_sync_job, sync_source
+from tests.conftest import SyntheticConnector, register_connector, reset_registry
 
 
 async def _source(db, key: str, connector_key: str, **extra) -> JobSource:
@@ -99,6 +103,121 @@ def test_run_status_errors_outrank_the_radar_note():
         == "skipped"
     )
     assert _run_status({"synced": 3}) == "ok"
+
+
+# ------------------------------------------------- operator-action pause
+
+
+class TypedErrorConnector(SyntheticConnector):
+    """Returns one typed partial error — the shape a blocked provider has."""
+
+    key = "typed-error"
+    capabilities = ConnectorCapabilities(supports_incremental=True)
+    error: ClassVar[ConnectorError] = ConnectorError(
+        code="provider", detail="Indeed blocked this browser (block page)", retryable="no"
+    )
+
+    async def fetch(self, config, state, *, transport=None, **_kw):
+        return ConnectorResult(next_state={}, partial_errors=[TypedErrorConnector.error])
+
+
+@pytest.fixture
+def typed_error_connector():
+    register_connector(TypedErrorConnector())
+    yield TypedErrorConnector
+    reset_registry()
+
+
+async def _admin(db):
+    from app.models.user_model import User
+
+    user = User(email=f"pause-admin-{uuid.uuid4().hex[:8]}@example.com", is_admin=True)
+    db.add(user)
+    await db.commit()
+    return user
+
+
+async def test_blocked_provider_pauses_the_source_and_alerts_admins(
+    db, client, kinds, typed_error_connector
+):
+    """A non-retryable block must stop the scheduler from retrying hourly —
+    the source pauses with the reason, admins get one notification, and a
+    second failing run does not re-notify."""
+    from app.models.engagement_model import Notification
+
+    admin = await _admin(db)
+    src = await _source(db, "pause-blocked", "typed-error")
+
+    report = await sync_source(db, src)
+    assert report["errors"][0]["code"] == "provider"
+    await db.refresh(src)
+    assert src.paused_at is not None
+    assert "paused" in src.error
+
+    notes = (
+        (
+            await db.execute(
+                select(Notification).where(
+                    Notification.dedup_key == f"source-paused:{src.id}:{admin.id}",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(notes) == 1
+    assert notes[0].kind_id is not None
+    assert "paused" in notes[0].title.lower()
+
+    await sync_source(db, src)
+    again = (
+        (
+            await db.execute(
+                select(Notification).where(
+                    Notification.dedup_key == f"source-paused:{src.id}:{admin.id}",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(again) == 1, "an already-paused source never re-notifies"
+
+
+async def test_retryable_provider_error_does_not_pause(db, typed_error_connector):
+    """'No job cards' is retryable — the next run must still be attempted."""
+    typed_error_connector.error = ConnectorError(
+        code="provider",
+        detail="search page rendered no job cards — no results for this search",
+        retryable="yes",
+    )
+    src = await _source(db, "pause-retryable", "typed-error")
+    try:
+        await sync_source(db, src)
+        await db.refresh(src)
+        assert src.paused_at is None
+    finally:
+        typed_error_connector.error = ConnectorError(
+            code="provider", detail="Indeed blocked this browser (block page)", retryable="no"
+        )
+
+
+async def test_paused_source_is_skipped_by_the_sync_job(db, typed_error_connector):
+    """After the pause, the hourly job leaves the source alone — no new
+    run rows, no browser launches."""
+    src = await _source(db, "pause-skipped", "typed-error")
+    await sync_source(db, src)
+    await db.refresh(src)
+    assert src.paused_at is not None
+    before = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == src.id))).scalars().all()
+    )
+
+    await run_sync_job(db, {})
+    after = (
+        (await db.execute(select(SourceRun).where(SourceRun.source_id == src.id))).scalars().all()
+    )
+    assert len(after) == len(before)
 
 
 async def test_run_sync_job_passes_trigger(db, synthetic_connector, client, auth_headers):
