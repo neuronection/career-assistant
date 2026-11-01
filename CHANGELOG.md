@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (integrations UI audit, 2026-11-01)
+- **Job-source configs are editable again.** The source page's
+  Configuration tab now renders the connector's own settings form for
+  every builtin source (Recruitee, Workable, RSS, CSV…) — previously only
+  managed bundles had a form, so a wrong company slug or a size cap could
+  not be fixed after adding the source. The list page's ⋯ menu also gained
+  **Edit**, opening the source wizard in update mode.
+- **The mode picker no longer promises what a connector can't do**:
+  sources whose connector ingests a whole board (no search rotation) show
+  the radar option disabled with an explanation, and preset-added tenants
+  now start in **static** mode instead of an inert radar.
+- **The "needs secret" badge only fires for required credentials** —
+  optional slots (e.g. an unused bearer token) no longer paint a working
+  source as incomplete.
+- **Run history shows ingestion runs**: detail-enrichment ticks (the 3 ms
+  "Completed · 0 items" rows) are no longer mixed into the sync history,
+  where they could mask a fully-failed source.
+
 ### Changed (autopilot findings workspace, 2026-11-01)
 - **"Dismiss all from this run"** on the run page clears that run's open
   findings from the feed in one action — cleanup, not feedback: it

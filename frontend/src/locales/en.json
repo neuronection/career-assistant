@@ -1893,6 +1893,7 @@
         "hint": "Posting ingestion sources through the polite runtime — SSRF-guarded fetches, robots.txt and per-host rate caps enforced. Credentials are sealed at rest and shown as hints only.",
         "empty": "No job sources configured yet.",
         "add": "Add source",
+        "edit": "Edit",
         "key": "Source key (unique)",
         "queryMode": "Search source",
         "queryModeStatic": "Static config (this source's own settings)",
@@ -4719,7 +4720,7 @@
     "radarMode": "Follow my job radar",
     "staticMode": "Static config",
     "staticNeedsFields": "Set {{fields}} in the configuration below before switching to static mode — radar mode supplies them per sync.",
-    "configHint": "Full bundle settings (keywords, filters, pacing) live on the Tools page under this source's Edit form.",
+    "configHint": "This connector has no settings to edit here.",
     "runsEmpty": "No runs recorded yet — hit Run now.",
     "runStarted": "Started",
     "runTrigger": "Trigger",
@@ -4786,7 +4787,9 @@
     "customValue": "Custom…",
     "customValueFor": "{{label}} — custom value",
     "customRange": "{{min}}–{{max}}",
-    "openSource": "Open the source page"
+    "openSource": "Open the source page",
+    "radarNotCapable": "This connector ingests the provider's full board — the job-radar rotation does not apply to it.",
+    "connectorSettings": "Connector settings"
   },
   "filters": {
     "title": "Filters",

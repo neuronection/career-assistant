@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
+import { BookOpen, Globe, Loader2, MoreHorizontal, Pencil, Plus, Radar, RefreshCw } from "lucide-react";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { useTranslation } from "react-i18next";
 import {
@@ -77,6 +77,7 @@ function JobSourceCard({
   onDocs,
   onPlan,
   onManage,
+  onEdit,
   onRemove,
 }: {
   source: PostingSource;
@@ -91,6 +92,7 @@ function JobSourceCard({
   onDocs: () => void;
   onPlan: () => void;
   onManage: () => void;
+  onEdit: () => void;
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
@@ -131,6 +133,10 @@ function JobSourceCard({
               </Button>
             </MenuTrigger>
             <MenuContent align="end">
+              <MenuItem data-testid={`edit-source-${source.key}`} disabled={busy} onSelect={onEdit}>
+                <Pencil className="h-3.5 w-3.5" />
+                {t("toolsSettings.connectors.sources.edit")}
+              </MenuItem>
               {isPosting ? (
                 <MenuItem
                   data-testid={`sync-source-${source.key}`}
@@ -421,7 +427,7 @@ function JobSourceConnectors() {
             key: preset.slug,
             connector_key: preset.connectorKey,
             config: { ...preset.config },
-            query_mode: "radar",
+            query_mode: "static",
             query_batch_size: 2,
             title: preset.name,
           });
@@ -453,10 +459,15 @@ function JobSourceConnectors() {
         .filter((group) => group.sources.length > 0),
     [sources, t]
   );
-  const needsSecret = (source: PostingSource) =>
-    Object.entries(source.secret_hints).some(
-      ([slot, hint]) => catalogByKey[source.connector_key]?.secret_fields.includes(slot) && !hint.set
+  const needsSecret = (source: PostingSource) => {
+    // Only REQUIRED credentials badge (plan 180): optional slots (e.g. the
+    // mcp bearer token) must not paint a working source as incomplete.
+    const entry = catalogByKey[source.connector_key];
+    if (entry?.capabilities?.requires_credentials !== true) return false;
+    return Object.entries(source.secret_hints).some(
+      ([slot, hint]) => entry.secret_fields.includes(slot) && !hint.set,
     );
+  };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
@@ -594,6 +605,16 @@ function JobSourceConnectors() {
                       onManage={() =>
                         navigate(`/sources/${source.id}`, {
                           state: { from: `${location.pathname}${location.search}` },
+                        })
+                      }
+                      onEdit={() =>
+                        setDraft({
+                          id: source.id,
+                          key: source.key,
+                          connector_key: source.connector_key,
+                          config: { ...source.config },
+                          query_mode: source.query_mode,
+                          query_batch_size: source.query_batch_size,
                         })
                       }
                       onRemove={() => setRemoveTarget(source)}

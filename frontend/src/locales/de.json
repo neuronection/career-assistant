@@ -1893,6 +1893,7 @@
         "hint": "Eingabe von Job-Quellen über den sicheren Runtime — SSRF-geschützte Abfragen, robots.txt und pro-Host-Rate-Limits werden durchgesetzt. Anmeldeinformationen werden im Ruhezustand verschlüsselt und nur als Hinweise angezeigt.",
         "empty": "Noch keine Job-Quellen konfiguriert.",
         "add": "Quelle hinzufügen",
+        "edit": "Bearbeiten",
         "key": "Quell-Schlüssel (eindeutig)",
         "queryMode": "Suchquelle",
         "queryModeStatic": "Statische Konfiguration (Einstellungen dieser Quelle)",
@@ -4718,7 +4719,7 @@
     "radarMode": "Meinem Job-Radar folgen",
     "staticMode": "Statische Konfiguration",
     "staticNeedsFields": "Setze {{fields}} unten in der Konfiguration, bevor du in den statischen Modus wechselst — der Radar-Modus liefert sie pro Sync.",
-    "configHint": "Vollständige Paket-Einstellungen (Stichwörter, Filter, Taktung) liegen auf der Tools-Seite im Bearbeiten-Formular dieser Quelle.",
+    "configHint": "Dieser Connector hat hier keine zu bearbeitenden Einstellungen.",
     "runsEmpty": "Noch keine Ausführungen — klicken Sie auf „Jetzt ausführen“.",
     "runStarted": "Start",
     "runTrigger": "Auslöser",
@@ -4785,7 +4786,9 @@
     "customValue": "Eigener Wert…",
     "customValueFor": "{{label}} — eigener Wert",
     "customRange": "{{min}}–{{max}}",
-    "openSource": "Quellenseite öffnen"
+    "openSource": "Quellenseite öffnen",
+    "radarNotCapable": "Dieser Connector übernimmt das gesamte Angebot des Anbieters — die Job-Radar-Rotation gilt hier nicht.",
+    "connectorSettings": "Connector-Einstellungen"
   },
   "filters": {
     "title": "Filter",

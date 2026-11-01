@@ -65,6 +65,7 @@ vi.mock("react-i18next", () => ({
         "toolsSettings.connectors.sources.secretSetShort": "set — leave empty to keep",
         "toolsSettings.connectors.sources.secretMissingShort": "not set",
         "toolsSettings.connectors.sources.needsConfig": "needs config",
+        "toolsSettings.connectors.sources.edit": "Edit",
         "toolsSettings.connectors.presets.addSelected": "Add {{count}} selected",
       };
       let out = templates[key] ?? key;
@@ -83,6 +84,7 @@ const catalog = [
     docs_url: "",
     builtin: true,
     secret_fields: ["api_token"],
+    capabilities: { requires_credentials: true },
     config_schema: {
       type: "object" as const,
       properties: {
@@ -285,7 +287,7 @@ describe("SourcesSection job sources", () => {
     expect(payload.key).toBe("ballysintralotsa");
     expect(payload.title).toBe("Bally's Intralot");
     expect(payload.config).toMatchObject({ company: "ballysintralotsa" });
-    expect(payload.query_mode).toBe("radar");
+    expect(payload.query_mode).toBe("static");
   });
 
   it("bulk-adds several zero-config presets at once", async () => {
@@ -336,6 +338,68 @@ describe("SourcesSection job sources", () => {
       expect(payload.config).toEqual({});
       expect(payload.title).toBeTruthy();
     }
+  });
+
+  it("edits an existing source through the wizard (update, never create)", async () => {
+    const createBefore = vi.mocked(sourcesApi.createSource).mock.calls.length;
+    const updateBefore = vi.mocked(sourcesApi.updateSource).mock.calls.length;
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(sources as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    vi.mocked(sourcesApi.updateSource).mockResolvedValue(sources[0] as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await userEvent.click(await screen.findByTestId("source-actions-acme-board"));
+    await userEvent.click(await screen.findByTestId("edit-source-acme-board"));
+    const form = await screen.findByTestId("integration-config-form");
+    expect(form).toBeTruthy();
+    await userEvent.click(screen.getByRole("button", { name: "Save source" }));
+    await waitFor(() =>
+      expect(vi.mocked(sourcesApi.updateSource).mock.calls.length).toBe(updateBefore + 1),
+    );
+    expect(vi.mocked(sourcesApi.createSource).mock.calls.length).toBe(createBefore);
+  });
+
+  it("hides the needs-secret badge for connectors without required credentials", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([
+      {
+        id: "src-mcp",
+        key: "board-optional",
+        connector_key: "mcp",
+        config: { transport: "stdio", command: "python serve.py" },
+        secret_hints: { token: { set: false, hint: null } },
+        enabled: true,
+        last_run_at: null,
+        sync_state: {},
+        error: "",
+      },
+    ] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue([
+      ...catalog,
+      {
+        key: "mcp",
+        title: "MCP script (external process)",
+        docs_url: "",
+        builtin: true,
+        secret_fields: ["token"],
+        capabilities: {},
+        config_schema: {
+          type: "object" as const,
+          properties: {
+            transport: { type: "string" as const, title: "Transport" },
+            command: { type: "string" as const, title: "Command" },
+            token: { type: "string" as const, title: "Token", "x-secret": true },
+          },
+        },
+        manifest: { id: "mcp", capabilities: ["sync"], supportsIncremental: true },
+      },
+    ] as never);
+    renderSection();
+
+    expect(await screen.findByTestId("integration-instance-src-mcp")).toBeTruthy();
+    expect(
+      screen.queryByTestId("integration-condition-src-mcp-needs-secret"),
+    ).toBeNull();
   });
 
   it("shows a health strip (active count + failing badge) over the rows", async () => {
