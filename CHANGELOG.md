@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (JOIN.com connector, 2026-11-01)
+- **JOIN.com postings now carry full descriptions.** The board's public
+  list feed has no description field, so JOIN postings previously never
+  got one — and because detail enrichment drives extraction, they never
+  gained skills either. The connector now honors the same `detail_ids`
+  targeted-fetch knob the enrichment funnel already sends: it fetches
+  each job's own page (addressable by the list id) and reads its embedded
+  schema.org JobPosting JSON-LD, so descriptions, employment type,
+  salary and skills extraction land like on every other connector.
+  Existing description-less JOIN postings backfill on the next
+  enrichment run.
+
 ### Fixed (integrations UI audit, 2026-11-01)
 - **Job-source configs are editable again.** The source page's
   Configuration tab now renders the connector's own settings form for
