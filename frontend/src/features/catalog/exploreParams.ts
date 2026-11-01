@@ -31,6 +31,7 @@ export const SORT_OPTIONS = [
   { value: "fresh", labelKey: "explore.sortFresh" },
   { value: "salary", labelKey: "explore.sortSalary" },
   { value: "relevance", labelKey: "explore.sortRelevance" },
+  { value: "smart", labelKey: "explore.sortSmart" },
 ] as const;
 
 export const SORTS = SORT_OPTIONS.map((option) => option.value) as ReadonlyArray<string>;

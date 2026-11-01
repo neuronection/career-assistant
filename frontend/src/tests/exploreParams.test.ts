@@ -51,6 +51,13 @@ describe("explore URL params", () => {
     expect(parseFilters(new URLSearchParams("sort=relevance&q=dev")).sort).toBe("relevance");
   });
 
+  it("accepts the smart sort in the URL state and re-emits it", () => {
+    const filters = parseFilters(new URLSearchParams("sort=smart&seen_exclude=true"));
+    expect(filters.sort).toBe("smart");
+    expect(toSearchParams(filters).get("sort")).toBe("smart");
+    expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("fit");
+  });
+
   it("omits defaults from the URL but keeps the state toggle count", () => {
     expect(toSearchParams(DEFAULT_FILTERS).toString()).toBe("");
     expect(countActive(DEFAULT_FILTERS)).toBe(0);

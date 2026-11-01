@@ -54,10 +54,13 @@ export function PostingCard({
   posting,
   onOpen,
   onChanged,
+  smartSort = false,
 }: {
   posting: PostingOut;
   onOpen?: (posting: PostingOut) => void;
   onChanged?: () => void;
+  /** The smart sort is active: a small chip marks the blended ranking. */
+  smartSort?: boolean;
 }) {
   const { t } = useTranslation();
   const peek = useSkillPeek();
@@ -149,6 +152,15 @@ export function PostingCard({
         <span className="text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--as-muted-fg)]">
           {t("card.fit")}
         </span>
+        {smartSort ? (
+          <span
+            className="text-[9px] font-semibold uppercase tracking-[0.07em] rounded-full border border-[var(--as-border)] px-1.5 py-px text-[var(--as-muted-fg)]"
+            title={t("card.smartBadgeInfo")}
+            data-testid="posting-smart-chip"
+          >
+            {t("card.smartBadge")}
+          </span>
+        ) : null}
         {posting.coverage != null ? (
           <span
             className="text-[10px] text-[var(--as-muted-fg)]"

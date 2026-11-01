@@ -444,7 +444,9 @@
     "sortFit": "Beste Passung",
     "sortFresh": "Neueste",
     "sortSalary": "Höchstes Gehalt",
-    "sortRelevance": "Relevanz"
+    "sortRelevance": "Relevanz",
+    "sortSmart": "Smart",
+    "smartChipInfo": "Sortiert nach Ihrer Passung, vermischt mit Interessen-Affinität. Gesehene Stellen rutschen nach hinten, pro Arbeitgeber führen höchstens zwei der ersten Seite; fehlen Interessen­daten, fällt die Sortierung auf die Passung zurück."
   },
   "applications": {
     "title": "Meine Bewerbungen",
@@ -4888,7 +4890,9 @@
     "perYear": "≈ {{range}} {{currency}}/Jahr",
     "type": "Typ",
     "size": "Größe",
-    "founded": "gegründet"
+    "founded": "gegründet",
+    "smartBadge": "Smart",
+    "smartBadgeInfo": "Smart-Treffer: Passung + Interessen-Affinität. Fällt auf reine Passung zurück, wenn Interessen­daten fehlen."
   },
   "companyRules": {
     "title": "Unternehmensregeln",

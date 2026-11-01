@@ -651,7 +651,11 @@ export function Explore() {
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />
               <span>{t("explore.sortBy")}</span>
-              <div className="w-44">
+              <div
+                className="w-44"
+                data-testid="explore-sort-wrap"
+                title={filters.sort === "smart" ? t("explore.smartChipInfo") : undefined}
+              >
                 <SearchableDropdown
                   options={sortOptions}
                   value={filters.sort}
@@ -673,6 +677,7 @@ export function Explore() {
             <PostingCard
               key={posting.id}
               posting={posting}
+              smartSort={filters.sort === "smart"}
               onOpen={(item) => navigate(`/postings/${item.ref}`)}
               onChanged={() => load(filters, false)}
             />

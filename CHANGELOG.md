@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (smart discovery, 2026-11-01)
+- **Smart sort on `/postings`.** The new **Smart** option ranks the feed
+  by your fit score blended with a semantic interest-affinity signal
+  (`0.65·fit + 0.35·affinity`), demotes already-seen postings (they stay
+  visible, just lower) and caps the first page at two postings per
+  employer. Zero AI per request: the interest signal reads stored
+  embeddings, refreshed lazily only when your profile changes
+  (content-hash deduped). Missing interest data, a dimension mismatch or
+  an unconfigured AI provider all degrade to the neutral fit ranking —
+  the request never fails. Cards show a small **Smart** chip while the
+  sort is active.
+
 ### Changed (autopilot findings workspace, 2026-11-01)
 - **"Dismiss all from this run"** on the run page clears that run's open
   findings from the feed in one action — cleanup, not feedback: it

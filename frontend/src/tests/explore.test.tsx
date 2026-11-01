@@ -462,8 +462,31 @@ describe("Explore page", () => {
     expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
   });
 
-  it("sorts from the results toolbar and offers relevance only with a query", async () => {
+  it("offers the smart sort and marks the cards while it is active", async () => {
     const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    expect(screen.queryByTestId("posting-smart-chip")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Smart" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "smart" })
+      )
+    );
+    expect(await screen.findByTestId("posting-smart-chip")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-sort-wrap")).toHaveAttribute(
+      "title",
+      expect.stringContaining("interest affinity")
+    );
+  });
+
+  it("sorts from the results toolbar and offers relevance only with a query", async () => {    const user = userEvent.setup();
     render(
       <MemoryRouter>
         <Explore />

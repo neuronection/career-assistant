@@ -444,7 +444,9 @@
     "sortFit": "Best fit",
     "sortFresh": "Newest",
     "sortSalary": "Highest salary",
-    "sortRelevance": "Relevance"
+    "sortRelevance": "Relevance",
+    "sortSmart": "Smart",
+    "smartChipInfo": "Ranked by your fit blended with interest affinity. Seen postings rank lower and at most two per employer lead the first page; when interest data is missing it degrades to the fit ranking."
   },
   "applications": {
     "title": "My applications",
@@ -4889,7 +4891,9 @@
     "perYear": "≈ {{range}} {{currency}}/yr",
     "type": "type",
     "size": "size",
-    "founded": "founded"
+    "founded": "founded",
+    "smartBadge": "Smart",
+    "smartBadgeInfo": "Smart match: fit + interest affinity. Degrades to fit-only when interest data is missing."
   },
   "companyRules": {
     "title": "Companies rules",

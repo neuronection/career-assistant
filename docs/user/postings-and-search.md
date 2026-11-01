@@ -123,10 +123,27 @@ speaks the same language as the feed's:
 
 The results header sorts the list without changing the filters: **Best
 fit** (the default), **Newest** (posted date), **Highest salary**
-(annualized range; unknown salary sorts last) and — once you type a
-search query — **Relevance**, which fuses the lexical match with the
-semantic ranking. Changing the sort restarts the list at page one; the
-fit score stays on every card whichever order you pick.
+(annualized range; unknown salary sorts last), **Smart** and — once you
+type a search query — **Relevance**, which fuses the lexical match with
+the semantic ranking. Changing the sort restarts the list at page one;
+the fit score stays on every card whichever order you pick.
+
+**Smart** is the one-click "rank for me" order. It blends your
+deterministic fit score with an interest-affinity signal — how close a
+posting's embedded content sits to your profile's embedded interests,
+skills and experience (0.65 × fit + 0.35 × affinity, where the affinity
+runs 0–10). Postings you have already seen sink by a fixed penalty (they
+stay visible), and the first page shows at most two postings per
+employer so one company cannot occupy the whole screen. The smart sort
+is deterministic — no AI runs per request; the interest signal comes
+from a stored profile embedding that refreshes only when your profile
+changes. When interest data is missing (an empty profile or an
+unconfigured AI provider) the affinity part simply sits at its neutral
+value and the ranking degrades to the fit order; the request never
+fails. Cards carry a small **Smart** chip while the sort is active. One
+honest quirk at this scale: an employer-capped posting that would have
+appeared on page one does not reappear on page two — paging continues
+below the page-one cutoff.
 
 **Every filter and the sort live in the URL** — the address bar carries
 the whole search (`/postings?sort=salary&seniority=mid&seen_exclude=true`,

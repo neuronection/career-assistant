@@ -129,6 +129,17 @@ RANKED_WINDOW_MULTIPLIER = 5
 RANKED_WINDOW_MIN = 100
 RANKED_WINDOW_MAX = 500
 
+# Smart sort (plan 179): the pinned deterministic blend. Affinity is the
+# 0-10 interest term (cosine clamped [0,1] then scaled); degrades --
+# missing profile embedding, dim mismatch, gateway embed failure -- all
+# land on the neutral term, never a failed request.
+SMART_FIT_WEIGHT = 0.65
+SMART_AFFINITY_WEIGHT = 0.35
+SMART_AFFINITY_NEUTRAL = 7.0
+SMART_SEEN_DEMOTION = 1.5
+SMART_ORG_CAP = 2
+SMART_KEY_DECIMALS = 4
+
 _EPOCH = datetime.fromtimestamp(0, tz=UTC)
 
 
@@ -893,6 +904,84 @@ def _ranked_window(limit: int) -> int:
     return min(max(limit * RANKED_WINDOW_MULTIPLIER, RANKED_WINDOW_MIN), RANKED_WINDOW_MAX)
 
 
+def smart_score(fit: float, affinity: float, *, seen: bool) -> float:
+    """The pinned smart blend: ``0.65*fit + 0.35*affinity`` (affinity is
+    the 0-10 term, neutral 7.0), then the seen demotion (-1.5 -- seen
+    postings sink, they never disappear)."""
+    value = SMART_FIT_WEIGHT * float(fit or 0.0) + SMART_AFFINITY_WEIGHT * float(affinity)
+    if seen:
+        value -= SMART_SEEN_DEMOTION
+    return round(value, SMART_KEY_DECIMALS)
+
+
+async def _apply_smart_affinity(db: AsyncSession, user_id: UUID, entries: list[dict]) -> None:
+    """Interest affinity per window entry: cosine(profile, posting) —
+    semantic as a RANKING signal only (ADR-0012 §13): it reorders the
+    hard-filtered window, never gates it.
+
+    All degrade lands on the neutral term without failing the request:
+    missing profile/posting embedding, dim mismatch, and gateway embed
+    failures (unconfigured AI — the production default — limiter
+    exhaustion, provider timeout). The unconfigured case is pre-flighted
+    through the resolver so it never reaches the gateway; a limiter
+    rejection happens before the gateway's audit write; a provider
+    failure leaves the gateway's own audit row to the caller's commit
+    (the explore read path never commits, so nothing persists there).
+    """
+    for entry in entries:
+        entry["affinity"] = SMART_AFFINITY_NEUTRAL
+    if not entries:
+        return
+    try:
+        from app.ai.providers.resolution import resolve_task_model
+        from app.models.enums import AITaskType
+
+        if await resolve_task_model(db, AITaskType.EMBED.value, user_id) is None:
+            return
+        from app.services.embedding_service import KIND_POSTING, EmbeddingService, cosine
+
+        service = EmbeddingService(db)
+        profile_row = await service.upsert_profile_embedding(user_id, commit=False)
+        if profile_row is None:
+            return
+        await db.commit()
+        profile_vector = profile_row.vector or []
+        profile_dim = len(profile_vector)
+        if not profile_dim:
+            return
+        stored = await service.embeddings_by_ids(
+            KIND_POSTING, [entry["posting"].id for entry in entries]
+        )
+        for entry in entries:
+            row = stored.get(entry["posting"].id)
+            if row is None or not row.vector or len(row.vector) != profile_dim:
+                continue
+            affinity = max(0.0, min(1.0, cosine(profile_vector, row.vector)))
+            entry["affinity"] = round(affinity * 10.0, SMART_KEY_DECIMALS)
+    except Exception:
+        return
+
+
+def _cap_org_diversity(entries: list[dict], limit: int) -> list[dict]:
+    """Display-level org diversity: max ``SMART_ORG_CAP`` per organization
+    inside the FIRST page composition. The ranking is never mutated —
+    displaced entries skip the page and, ranking above the page-1
+    cursor, later pages too (documented session drift, plan 179)."""
+    kept: list[dict] = []
+    per_org: dict = {}
+    for entry in entries:
+        org_id = entry["posting"].org_id
+        if org_id is not None:
+            count = per_org.get(org_id, 0)
+            if count >= SMART_ORG_CAP:
+                continue
+            per_org[org_id] = count + 1
+        kept.append(entry)
+        if len(kept) >= limit:
+            break
+    return kept
+
+
 async def _keyset_page(
     db: AsyncSession,
     user_id: UUID,
@@ -945,6 +1034,7 @@ async def _ranked_page(
         )
     ).all()
     entries = _row_entries(rows)
+    window_size = len(entries)
     if not entries:
         return [], None
     window_frontier = _frontier_payload(entries[0]["posting"])
@@ -961,15 +1051,26 @@ async def _ranked_page(
         for entry in entries:
             entry["fit"] = fits[entry["posting"].id]["score"]
 
+    if sort == "smart":
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
+        for entry in entries:
+            entry["fit"] = fits[entry["posting"].id]["score"]
+        await _apply_smart_affinity(db, user_id, entries)
+
     entries = _sort_entries(entries, filters, sort)
     if sort == "relevance":
         await _apply_hybrid_relevance(db, entries, filters.get("q") or "")
         entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
     if after_key is not None and after_id is not None:
         entries = [entry for entry in entries if _after_cursor(entry, sort, after_key, after_id)]
+    elif sort == "smart":
+        entries = _cap_org_diversity(entries, limit)
     page = entries[:limit]
+    remaining = window_size if sort == "smart" and after_key is None else len(entries)
     next_cursor = None
-    if len(entries) > limit and page:
+    if remaining > limit and page:
         last_key, last_id = _sort_key(page[-1], sort)
         next_cursor = encode_cursor(sort, last_key, last_id, frontier=window_frontier)
     return page, next_cursor
@@ -990,6 +1091,8 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
         key = float(normalized) if normalized is not None else float("-inf")
     elif sort == "fit":
         key = float(entry.get("fit") or 0.0)
+    elif sort == "smart":
+        key = float(entry.get("smart") or 0.0)
     elif sort == "relevance":
         key = float(entry.get("relevance") or 0.0)
     else:
@@ -1056,6 +1159,17 @@ def _sort_entries(entries: list[dict], filters: dict, sort: str) -> list[dict]:
 
         for entry in entries:
             entry["relevance"] = relevance(entry)
+    elif sort == "smart":
+        for entry in entries:
+            entry["smart"] = smart_score(
+                entry.get("fit") or 0.0,
+                (
+                    entry["affinity"]
+                    if entry.get("affinity") is not None
+                    else SMART_AFFINITY_NEUTRAL
+                ),
+                seen=entry["interaction"] is not None and entry["interaction"].seen_at is not None,
+            )
     entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
     return entries
 
@@ -1073,7 +1187,7 @@ async def explore(
 ) -> dict:
     """The explore query: SQL filters → count → keyset page → facets.
 
-    `fresh`/`salary` page entirely in SQL. `fit`/`relevance` rank a
+    `fresh`/`salary` page entirely in SQL. `fit`/`relevance`/`smart` rank a
     bounded recency window (page size times a small multiplier) because a global fit
     order would require scoring every posting; `total` stays the exact
     filtered count. ``with_facets=False`` skips the (grouped, self-excluding)
@@ -1081,10 +1195,12 @@ async def explore(
     ``fit_overrides`` (plan 169) scores the fit sort's ranking window with
     the goal's disabled profile inputs so window selection honors them;
     endpoint/chat/radar callers omit it and stay canonical, and the
-    non-fit-sort enrichment below stays canonical regardless.
+    non-fit-sort enrichment below stays canonical regardless — the smart
+    sort included: it always ranks canonical fits (plan-169 goal
+    overrides intentionally don't apply outside a goal).
     """
-    if sort not in ("fit", "fresh", "salary", "relevance"):
-        raise ValidationError("sort must be fit|fresh|salary|relevance")
+    if sort not in ("fit", "fresh", "salary", "relevance", "smart"):
+        raise ValidationError("sort must be fit|fresh|salary|relevance|smart")
     if sort == "relevance" and not filters.get("q"):
         raise ValidationError("sort=relevance requires the q filter")
 
@@ -1121,7 +1237,7 @@ async def explore(
             fit_overrides=fit_overrides,
         )
 
-    if sort != "fit" and page:
+    if sort not in ("fit", "smart") and page:
         from app.services.postings.posting_fit_service import get_posting_fits_batch
 
         fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in page])
