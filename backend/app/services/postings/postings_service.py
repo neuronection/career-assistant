@@ -166,10 +166,10 @@ async def sync_source(
 def _run_status(report: dict) -> str:
     if report.get("error"):
         return "failed"
-    if report.get("note") and not report.get("synced"):
-        return "skipped"
     if report.get("errors"):
         return "degraded"
+    if report.get("note") and not report.get("synced"):
+        return "skipped"
     return "ok"
 
 

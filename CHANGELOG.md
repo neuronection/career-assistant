@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (run status honesty, 2026-11-01)
+- A radar-mode sync whose searches fail (e.g. Indeed served pages with no
+  readable job cards) is now recorded as **degraded**, not **skipped** —
+  every radar run carries a rotation note, and the old precedence let that
+  note mask real provider errors at zero items, hiding failed runs in the
+  ledger. Genuine polite skips ("radar has no keywords yet") are still
+  skipped.
+
 ### Changed (sources — radar by default, card picker, 2026-10-30)
 - **New job sources follow your job radar by default.** `query_mode`
   now ships a `radar` default (migration 0081, model + create/update

@@ -76,6 +76,31 @@ async def test_skipped_radar_sync_is_recorded(db, dynamic_connector):
     assert row.status == "skipped"
 
 
+def test_run_status_errors_outrank_the_radar_note():
+    """A radar run always carries a rotation note — provider partials on
+    top of it are degraded, never 'skipped' (plan 174 follow-up: the
+    2026-11-01 12:53 indeed run burned 42s on two dead SERPs and was
+    labelled skipped, hiding the failure)."""
+    from app.services.postings.postings_service import _run_status
+
+    assert _run_status({"error": "boom"}) == "failed"
+    assert (
+        _run_status(
+            {
+                "synced": 0,
+                "note": "searching radar group(s) 1-2/4: x @ Athens",
+                "errors": [{"code": "provider", "detail": "search page rendered no job cards"}],
+            }
+        )
+        == "degraded"
+    )
+    assert (
+        _run_status({"synced": 0, "note": "radar has no keywords yet — nothing to search"})
+        == "skipped"
+    )
+    assert _run_status({"synced": 3}) == "ok"
+
+
 async def test_run_sync_job_passes_trigger(db, synthetic_connector, client, auth_headers):
     created = await client.post(
         "/api/v1/admin/postings/sources",
