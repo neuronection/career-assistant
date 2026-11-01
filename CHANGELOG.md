@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (sources — radar by default, card picker, 2026-10-30)
+- **New job sources follow your job radar by default.** `query_mode`
+  now ships a `radar` default (migration 0081, model + create/update
+  fallbacks + the add-source wizard) — a fresh source rotates your
+  radar's role groups instead of asking for manual keywords; existing
+  sources keep their mode until you switch. The Configuration tab's
+  "Search source" control is now a two-card picker (radar / static, with
+  icons and accessible radio semantics) instead of a native dropdown.
+
 ### Fixed (source config guard, 2026-11-01)
 - A managed bundle source can no longer be saved into a state that only
   fails at sync: the `options` passthrough is now validated against the

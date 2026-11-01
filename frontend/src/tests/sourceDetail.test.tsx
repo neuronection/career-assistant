@@ -162,7 +162,7 @@ describe("SourceDetailPage", () => {
     ]);
     renderPage();
     await user.click(await screen.findByRole("tab", { name: "Configuration" }));
-    await user.selectOptions(screen.getByLabelText("Search source"), "static");
+    await user.click(screen.getByRole("radio", { name: "Static config" }));
     const notes = await screen.findAllByText(/switching to static mode/);
     expect(notes[0].textContent).toContain("keywords");
     expect(mocks.updateSource).not.toHaveBeenCalled();
@@ -188,7 +188,7 @@ describe("SourceDetailPage", () => {
     mocks.updateSource.mockResolvedValue({});
     renderPage();
     await user.click(await screen.findByRole("tab", { name: "Configuration" }));
-    await user.selectOptions(screen.getByLabelText("Search source"), "static");
+    await user.click(screen.getByRole("radio", { name: "Static config" }));
     await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
     const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
     expect(call.query_mode).toBe("static");

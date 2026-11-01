@@ -509,7 +509,7 @@ function JobSourceConnectors() {
                   key: "",
                   connector_key: "",
                   config: {},
-                  query_mode: "static",
+                  query_mode: "radar",
                   query_batch_size: 2,
                 })
               }

@@ -781,7 +781,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     connector_key = str(payload.get("connector_key") or "").strip()
     title = str(payload.get("title") or "").strip()[:80] or None
     kind = str(payload.get("kind") or "posting").strip()
-    query_mode = str(payload.get("query_mode") or "static").strip()
+    query_mode = str(payload.get("query_mode") or "radar").strip()
     if query_mode not in {"static", "radar"}:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {query_mode}")
     query_batch_size = int(payload.get("query_batch_size") or 2)
@@ -849,7 +849,7 @@ async def update_posting_source(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
     was_enabled = source.enabled
     if "config" in payload and payload["config"] is not None:
-        effective_mode = str(payload.get("query_mode") or source.query_mode or "static").strip()
+        effective_mode = str(payload.get("query_mode") or source.query_mode or "radar").strip()
         relax = ("keywords", "location") if effective_mode == "radar" else ()
         try:
             if source.kind == "market":

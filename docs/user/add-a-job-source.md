@@ -103,8 +103,10 @@ derived from them go with it.
 
 ## Follow my radar (search source)
 
-The source form's **Search source** switch decides where the search
-comes from:
+The source form's **Search source** setting decides where the search
+comes from — **new sources default to Follow my job radar** (the static
+config is the explicit alternative, and the reverse switch is guarded
+until the required fields exist):
 
 - **Static config** — the source's own settings (keywords etc. in its
   Tool options) drive every sync.

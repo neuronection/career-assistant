@@ -107,8 +107,8 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query_mode: Mapped[str] = mapped_column(
         String(12),
         nullable=False,
-        default=SourceQueryMode.STATIC.value,
-        server_default=SourceQueryMode.STATIC.value,
+        default=SourceQueryMode.RADAR.value,
+        server_default=SourceQueryMode.RADAR.value,
     )
     # The merged-query artifact (plan 130): {query, provenance, radar_ids,
     # curated, computed_at, radar_fp} — rebuilt on radar change, read by

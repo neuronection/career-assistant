@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Radar, SlidersHorizontal } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -494,39 +495,74 @@ export function SourceDetailPage() {
 
       {tab === "config" && source ? (
         <div className="space-y-4 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="block text-sm" htmlFor="src-query-mode">
-                {t("sourceDetail.queryMode")}
-              </label>
-              <select
-                id="src-query-mode"
-                className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
-                value={source.query_mode}
-                onChange={(event) => {
-                  const next = event.target.value as "static" | "radar";
-                  if (next === "static" && source.query_mode !== "static" && missingForStatic.length) {
-                    setNotice(
-                      t("sourceDetail.staticNeedsFields", { fields: missingForStatic.join(", ") }),
-                    );
-                    return;
-                  }
-                  void act(() =>
-                    updateSource(sourceId, {
-                      query_mode: next,
-                      config: source.tool_config_schema
-                        ? {
-                            ...(source.config as Record<string, unknown>),
-                            options: packOptions(configValues),
-                          }
-                        : source.config,
-                    }),
-                  );
-                }}
-              >
-                <option value="static">{t("sourceDetail.staticMode")}</option>
-                <option value="radar">{t("sourceDetail.radarMode")}</option>
-              </select>
+          <div className="space-y-1">
+            <span className="block text-sm" id="src-query-mode-label">
+              {t("sourceDetail.queryMode")}
+            </span>
+            <div
+              role="radiogroup"
+              aria-labelledby="src-query-mode-label"
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              {(
+                [
+                  {
+                    value: "radar" as const,
+                    label: t("sourceDetail.radarMode"),
+                    icon: Radar,
+                  },
+                  {
+                    value: "static" as const,
+                    label: t("sourceDetail.staticMode"),
+                    icon: SlidersHorizontal,
+                  },
+                ] as const
+              ).map((option) => {
+                const selected = source.query_mode === option.value;
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      if (option.value === source.query_mode) return;
+                      if (
+                        option.value === "static" &&
+                        source.query_mode !== "static" &&
+                        missingForStatic.length
+                      ) {
+                        setNotice(
+                          t("sourceDetail.staticNeedsFields", {
+                            fields: missingForStatic.join(", "),
+                          }),
+                        );
+                        return;
+                      }
+                      void act(() =>
+                        updateSource(sourceId, {
+                          query_mode: option.value,
+                          config: source.tool_config_schema
+                            ? {
+                                ...(source.config as Record<string, unknown>),
+                                options: packOptions(configValues),
+                              }
+                            : source.config,
+                        }),
+                      );
+                    }}
+                    className={`flex items-center gap-2 rounded-[var(--as-radius-md)] border px-3 py-2.5 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-[var(--as-accent)] bg-[var(--as-surface)] font-medium"
+                        : "border-[var(--as-border)] bg-[var(--as-surface)]/60 text-[var(--as-muted-fg)] hover:bg-[var(--as-surface)]"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
           {source.tool_config_schema ? (

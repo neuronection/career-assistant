@@ -128,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0080"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0081"], (
         "revision chain stays linear on one head"
     )
 
