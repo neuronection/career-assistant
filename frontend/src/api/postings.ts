@@ -1,6 +1,6 @@
 import { api } from "@/api/client";
 import type { PostingsResponse, PostingSourceInfo } from "@/types/wire";
-import type { ExploreResponse } from "@/types/wire";
+import type { ExploreResponse, SmartSearchResponse } from "@/types/wire";
 import type { PostingDetailOut } from "@/types/wire";
 import type { ExploreParams } from "@/types";
 
@@ -79,6 +79,11 @@ export async function explorePostings(
     // contain commas and the backend reads them via getlist
     paramsSerializer: { indexes: null },
   });
+  return data;
+}
+
+export async function smartSearch(query: string): Promise<SmartSearchResponse> {
+  const { data } = await api.post<SmartSearchResponse>("/postings/smart-search", { query });
   return data;
 }
 

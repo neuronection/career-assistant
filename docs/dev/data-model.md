@@ -154,6 +154,13 @@ deletion).
 
 ### Migration notes
 
+- **0083** — plan 179: `smart_query_cache`, the cross-user NL-search
+  cache (`query_hash` PK = sha256 of the normalized query — casefold +
+  whitespace collapse, so keys are stable across users; closed
+  `SmartSearchSpec` JSONB; `created_at`). Cache data, not records: the
+  daily smart-digest job prunes rows older than 7 days (explicit,
+  documented purge). The downgrade drops the table — rebuildable by
+  definition.
 - **0080** — plan 173: `job_sources.title`, the display name for imported
   sources (the extension manifest's root `title` — "LinkedIn", not the
   generic connector label). Nullable: builtin sources keep NULL and fall
@@ -418,6 +425,7 @@ deletion).
 | `growth_plans`, `growth_plan_steps` | `growth_model.py` | Roadmaps |
 | `learning_resources` | `growth_model.py` | Resources for skill gaps |
 | `search_history` | `engagement_model.py` | Saved/recent searches |
+| `smart_query_cache` | `smart_search_model.py` | Cross-user NL-search cache (plan 179): `query_hash` PK = sha256 of the normalized query, closed `SmartSearchSpec` JSONB, `created_at`. TTL-pruned (7 days) by the daily smart-digest job — cache data, never a record |
 | `notifications`, `notification_recipients`, `notification_deliveries` | `engagement_model.py` | The notification funnel (dedup keys, delivery state); `channel` spans `in_app`/`desktop`/`browser`/`email`/`webhook`. A `pending` delivery with `error = deferred:<quiet_hours|digest_mode>` is email waiting for the next digest run; webhook rows stay `pending` until the queued delivery job reports |
 | `user_channel_configs` | `engagement_model.py` | Per-user, per-channel config — email: `address` override, `digest_mode`, `pending_address`/`verification_hash`/`verification_expires_at` while double opt-in is open; webhook: `url` + `template` (`generic`/`slack`/`teams`/`telegram`/`ntfy`) — sealed `secrets` (webhook token only; URLs are not secrets) + `verified_at` |
 | `notification_kinds`, `notification_kind_prefs`, `notification_rules`, `notification_preferences`, `notification_subscriptions` | `engagement_model.py` | Kind registry, per-rule caps/cooldowns, quiet hours |

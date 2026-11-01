@@ -8263,6 +8263,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/smart-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Postings Smart Search
+         * @description Natural-language search (plan 179): the sentence maps onto the
+         *     explore filter vocabulary through one small cached AI call (per-user
+         *     limiter and budget apply on misses; cache hits cost zero). The
+         *     client then runs the normal explore query with the returned
+         *     filters — facets stay live.
+         */
+        post: operations["postings_smart_search_api_v1_postings_smart_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/sources": {
         parameters: {
             query?: never;
@@ -17342,6 +17366,33 @@ export interface components {
             parent_id?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /**
+         * SmartSearchIn
+         * @description One free-text search sentence (plan 179).
+         */
+        SmartSearchIn: {
+            /** Query */
+            query: string;
+        };
+        /**
+         * SmartSearchOut
+         * @description The mapped spec, its honest echo, cache state and the resolved
+         *     explore-filter params the client applies into the URL state.
+         */
+        SmartSearchOut: {
+            /** Cached */
+            cached: boolean;
+            /** Filters */
+            filters: {
+                [key: string]: unknown;
+            };
+            /** Interpreted */
+            interpreted: string;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
         };
         /** SparkPointOut */
         SparkPointOut: {
@@ -32853,6 +32904,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_smart_search_api_v1_postings_smart_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmartSearchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmartSearchOut"];
                 };
             };
             /** @description Validation Error */

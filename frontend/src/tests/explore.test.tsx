@@ -5,7 +5,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
 import { resetExploreListCache } from "@/features/catalog/exploreListCache";
-import { explorePostings } from "@/api/postings";
+import { explorePostings, smartSearch } from "@/api/postings";
 import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
 import type { ExploreResponse } from "@/types/wire";
@@ -16,6 +16,7 @@ vi.mock("@/api/postings", async (importOriginal) => {
   return {
     ...mod,
     explorePostings: vi.fn(),
+    smartSearch: vi.fn(),
     fetchPostingSources: vi.fn().mockResolvedValue([
       { key: "synth", connector_key: "synthetic", open_postings: 3 },
     ]),
@@ -115,6 +116,7 @@ class MockIntersectionObserver {
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
 
 const mockExplore = vi.mocked(explorePostings);
+const mockSmartSearch = vi.mocked(smartSearch);
 const mockRecord = vi.mocked(recordSearch);
 const mockCompanies = vi.mocked(fetchCompanies);
 
@@ -170,6 +172,12 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
 beforeEach(() => {
   resetExploreListCache();
   mockExplore.mockResolvedValue(exploreResponse());
+  mockSmartSearch.mockResolvedValue({
+    spec: { seniority: ["junior"], remote_policy: ["remote"], skill_labels: ["programming"], interpreted: "Filtered on remote; junior" },
+    interpreted: "Filtered on remote; junior",
+    cached: false,
+    filters: { seniority: ["junior"], remote_policy: ["remote"], skills: "programming" },
+  });
   mockCompanies.mockResolvedValue({
     items: [
     {
@@ -460,6 +468,43 @@ describe("Explore page", () => {
       )
     );
     expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+  });
+
+  it("maps a natural-language query into the URL filters and echoes the interpretation", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    fireEvent.change(screen.getByTestId("smart-search-input"), {
+      target: { value: "remote junior programming roles" },
+    });
+    fireEvent.click(screen.getByTestId("smart-search-submit"));
+    await waitFor(() =>
+      expect(mockSmartSearch).toHaveBeenCalledWith("remote junior programming roles")
+    );
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          seniority: "junior",
+          remote_policy: "remote",
+          skills: "programming",
+        })
+      )
+    );
+    expect(screen.getByTestId("smart-interpreted")).toHaveTextContent("Filtered on remote");
+    expect(screen.getByTestId("smart-chip-seniority")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("smart-chip-remove-seniority"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ seniority: "junior" })
+      )
+    );
+    expect(screen.queryByTestId("smart-chip-seniority")).not.toBeInTheDocument();
   });
 
   it("offers the smart sort and marks the cards while it is active", async () => {

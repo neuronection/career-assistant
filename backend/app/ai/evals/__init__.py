@@ -154,6 +154,53 @@ def _check_skill_edge_verdicts(reply: SkillEdgeVerdictSet) -> None:
     assert "Evidence quote: ML required" in by_ref["p2"].rationale
 
 
+def _smart_search_prompt(query: str) -> tuple[str, str]:
+    from app.ai.agents.smart_search import SMART_SEARCH_SYSTEM, build_smart_search_prompt
+
+    return SMART_SEARCH_SYSTEM, build_smart_search_prompt(query)
+
+
+def _smart_search_schema():
+    from app.ai.agents.smart_search import SmartSearchSpec
+
+    return SmartSearchSpec
+
+
+def _check_smart_search_spec(spec) -> None:
+    from app.services.postings.explore_service import ALLOWED_FILTER_KEYS
+
+    assert spec.seniority == ["junior"]
+    assert spec.remote_policy == ["remote"]
+    assert spec.city == "Athens"
+    assert spec.skill_labels == ["python"]
+    assert spec.posted_within is None and spec.salary_min is None
+    assert spec.interpreted
+    assert set(spec.model_dump()) <= {
+        "seniority",
+        "remote_policy",
+        "posted_within",
+        "city",
+        "country",
+        "employment_type",
+        "salary_min",
+        "mapped_family",
+        "skill_labels",
+        "interpreted",
+    }, "the spec stays closed over the explore vocabulary"
+    for key in (
+        "seniority",
+        "remote_policy",
+        "posted_within",
+        "city",
+        "country",
+        "employment_type",
+        "salary_min",
+        "mapped_family",
+        "skills",
+    ):
+        assert key in ALLOWED_FILTER_KEYS or key == "skills", key
+
+
 _AUTOPILOT_STATE = {
     "goal_text": "junior data analyst role, remote, where I can use programming",
     "constraints": {
@@ -294,6 +341,14 @@ def _build_cases() -> list[GoldenCase]:
     from app.schemas.cv_extract import CvExtract
 
     cases = [
+        GoldenCase(
+            task=AITaskType.SMART_SEARCH.value,
+            schema=_smart_search_schema(),
+            system=_smart_search_prompt("remote junior python roles in Athens")[0],
+            user=_smart_search_prompt("remote junior python roles in Athens")[1],
+            prompt_version=_blessed(AITaskType.SMART_SEARCH.value),
+            check=_check_smart_search_spec,
+        ),
         GoldenCase(
             task=AITaskType.CHAT.value,
             schema=ChatReply,

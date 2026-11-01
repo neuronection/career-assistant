@@ -51,6 +51,10 @@ export interface Filters {
   skillMode: "all" | "any";
   postedWithin: string;
   salaryMin: string;
+  city: string;
+  country: string;
+  employmentType: string[];
+  mappedFamily: string[];
   seniority: string[];
   seniorityExclude: string[];
   remotePolicy: string[];
@@ -78,6 +82,10 @@ export const DEFAULT_FILTERS: Filters = {
   skillMode: "all",
   postedWithin: "",
   salaryMin: "",
+  city: "",
+  country: "",
+  employmentType: [],
+  mappedFamily: [],
   seniority: [],
   seniorityExclude: [],
   remotePolicy: [],
@@ -157,6 +165,10 @@ export function parseFilters(params: URLSearchParams): Filters {
     skillMode: (params.get("skill_mode") === "any" ? "any" : "all") as "all" | "any",
     postedWithin: axis(params, "posted_within")[0] ?? "",
     salaryMin: Number.isFinite(salary) && salary > 0 ? String(salary) : "",
+    city: (params.get("city") ?? "").trim().slice(0, 120),
+    country: (params.get("country") ?? "").trim().slice(0, 120),
+    employmentType: csv(params.get("employment_type")),
+    mappedFamily: csv(params.get("mapped_family")),
     seniority: axis(params, "seniority"),
     seniorityExclude: axis(params, "seniority_exclude"),
     remotePolicy: axis(params, "remote_policy"),
@@ -190,6 +202,10 @@ export function toParams(filters: Filters): ExploreParams {
   if (filters.skillsExclude.length) params.skill_exclude = filters.skillsExclude.join(",");
   if (filters.postedWithin) params.posted_within = filters.postedWithin;
   if (filters.salaryMin) params.salary_min = Number(filters.salaryMin);
+  if (filters.city) params.city = filters.city;
+  if (filters.country) params.country = filters.country;
+  if (filters.employmentType.length) params.employment_type = filters.employmentType.join(",");
+  if (filters.mappedFamily.length) params.mapped_family = filters.mappedFamily.join(",");
   if (filters.seniority.length) params.seniority = filters.seniority.join(",");
   if (filters.seniorityExclude.length)
     params.seniority_exclude = filters.seniorityExclude.join(",");
@@ -246,6 +262,9 @@ export function countActive(filters: Filters): number {
   if (filters.skillMode !== "all" && filters.skills.length) count++;
   if (filters.postedWithin) count++;
   if (filters.salaryMin) count++;
+  if (filters.city) count++;
+  if (filters.country) count++;
+  count += filters.employmentType.length + filters.mappedFamily.length;
   count += filters.seniority.length + filters.seniorityExclude.length;
   count += filters.remotePolicy.length + filters.remotePolicyExclude.length;
   count += filters.source.length + filters.sourceExclude.length;

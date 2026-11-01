@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added (smart discovery, 2026-11-01)
+- **Smart search on `/postings`.** Describe what you are looking for in
+  plain language ("remote junior python roles") and the smart search box
+  maps the sentence onto the real explore filters through one small
+  cached AI call — the feed reruns with live facets, and an
+  "Interpreted as …" chip row shows (and lets you remove) every applied
+  filter. Repeat phrasings cost nothing: the mapping is cached
+  cross-user, resolved against the skill taxonomy (exact names and
+  aliases), and never personalized.
 - **Smart sort on `/postings`.** The new **Smart** option ranks the feed
   by your fit score blended with a semantic interest-affinity signal
   (`0.65·fit + 0.35·affinity`), demotes already-seen postings (they stay

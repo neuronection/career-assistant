@@ -446,7 +446,12 @@
     "sortSalary": "Highest salary",
     "sortRelevance": "Relevance",
     "sortSmart": "Smart",
-    "smartChipInfo": "Ranked by your fit blended with interest affinity. Seen postings rank lower and at most two per employer lead the first page; when interest data is missing it degrades to the fit ranking."
+    "smartChipInfo": "Ranked by your fit blended with interest affinity. Seen postings rank lower and at most two per employer lead the first page; when interest data is missing it degrades to the fit ranking.",
+    "smartSearchPlaceholder": "Describe what you are looking for (e.g. remote junior python roles in Athens)",
+    "smartSearchSubmit": "Search",
+    "interpretedAs": "Interpreted as",
+    "removeInterpreted": "Remove the {key} filter",
+    "dismissInterpreted": "Dismiss"
   },
   "applications": {
     "title": "My applications",

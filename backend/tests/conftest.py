@@ -115,6 +115,7 @@ TABLES = [
     "notification_rules",
     "notification_preferences",
     "notification_kinds",
+    "smart_query_cache",
     "search_history",
     "assessment_answers",
     "assessment_questions",

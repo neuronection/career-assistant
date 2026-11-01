@@ -121,6 +121,7 @@ export type PostingDetailSkill = Schemas["PostingExtractSkillOut"];
 export type PostingDetailOut = Schemas["PostingDetailOut"];
 export type PostingsResponse = Schemas["PostingsOut"];
 export type ExploreResponse = Schemas["ExploreOut"];
+export type SmartSearchResponse = Schemas["SmartSearchOut"];
 
 // ---------------------------------------------------------------- skills
 export type SkillDetail = Schemas["SkillJobsOut"];

@@ -58,6 +58,22 @@ describe("explore URL params", () => {
     expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("fit");
   });
 
+  it("carries the smart-search axes (city, country, employment, family) in the URL state", () => {
+    const search =
+      "city=Athens&country=Greece&employment_type=full-time,internship&mapped_family=technology";
+    const filters = parseFilters(new URLSearchParams(search));
+    expect(filters.city).toBe("Athens");
+    expect(filters.country).toBe("Greece");
+    expect(filters.employmentType).toEqual(["full-time", "internship"]);
+    expect(filters.mappedFamily).toEqual(["technology"]);
+    const canonical = toSearchParams(filters);
+    expect(canonical.get("city")).toBe("Athens");
+    expect(canonical.get("employment_type")).toBe("full-time,internship");
+    expect(canonical.get("mapped_family")).toBe("technology");
+    expect(parseFilters(canonical)).toEqual(filters);
+    expect(countActive(filters)).toBe(5);
+  });
+
   it("omits defaults from the URL but keeps the state toggle count", () => {
     expect(toSearchParams(DEFAULT_FILTERS).toString()).toBe("");
     expect(countActive(DEFAULT_FILTERS)).toBe(0);

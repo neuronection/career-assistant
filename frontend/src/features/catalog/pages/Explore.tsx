@@ -1,9 +1,9 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowUpDown, Radar, Search, X } from "lucide-react";
+import { ArrowUpDown, Radar, Search, Sparkles, X } from "lucide-react";
 
-import { explorePostings, fetchPostingSources } from "@/api/postings";
+import { explorePostings, fetchPostingSources, smartSearch } from "@/api/postings";
 import { fetchRadar, previewRadar } from "@/api/radar";
 import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
@@ -69,6 +69,12 @@ export function Explore() {
   const navigate = useNavigate();
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
+  const [smartQuery, setSmartQuery] = useState("");
+  const [smartBusy, setSmartBusy] = useState(false);
+  const [smartApplied, setSmartApplied] = useState<{
+    interpreted: string;
+    keys: string[];
+  } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
   const itemsRef = useRef<PostingOut[]>(items);
@@ -240,6 +246,86 @@ export function Explore() {
     setRadarActive(false);
     resetFilters();
     setCursor(null);
+  };
+
+  const runSmartSearch = async () => {
+    const query = smartQuery.trim();
+    if (!query || smartBusy) return;
+    setSmartBusy(true);
+    setError("");
+    try {
+      const response = await smartSearch(query);
+      const next: Filters = { ...filters };
+      const raw = response.filters as Record<string, unknown>;
+      const keys: string[] = [];
+      const list = (value: unknown) =>
+        Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+      if ("seniority" in raw) {
+        next.seniority = list(raw.seniority);
+        keys.push("seniority");
+      }
+      if ("remote_policy" in raw) {
+        next.remotePolicy = list(raw.remote_policy);
+        keys.push("remote_policy");
+      }
+      if ("posted_within" in raw) {
+        next.postedWithin = String(raw.posted_within ?? "");
+        keys.push("posted_within");
+      }
+      if ("salary_min" in raw) {
+        next.salaryMin = raw.salary_min != null ? String(raw.salary_min) : "";
+        keys.push("salary_min");
+      }
+      if ("city" in raw) {
+        next.city = String(raw.city ?? "");
+        keys.push("city");
+      }
+      if ("country" in raw) {
+        next.country = String(raw.country ?? "");
+        keys.push("country");
+      }
+      if ("employment_type" in raw) {
+        next.employmentType = list(raw.employment_type);
+        keys.push("employment_type");
+      }
+      if ("mapped_family" in raw) {
+        next.mappedFamily = list(raw.mapped_family);
+        keys.push("mapped_family");
+      }
+      if ("skills" in raw) {
+        const value = String(raw.skills ?? "");
+        next.skills = value
+          .split(",")
+          .filter(Boolean)
+          .map((key) => ({ key, level: null }));
+        keys.push("skills");
+      }
+      setSearchParams(toSearchParams(next), { replace: true });
+      setSmartApplied({ interpreted: response.interpreted, keys });
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSmartBusy(false);
+    }
+  };
+
+  const removeSmartKey = (key: string) => {
+    const next: Filters = { ...filters };
+    if (key === "seniority") next.seniority = [];
+    else if (key === "remote_policy") next.remotePolicy = [];
+    else if (key === "posted_within") next.postedWithin = "";
+    else if (key === "salary_min") next.salaryMin = "";
+    else if (key === "city") next.city = "";
+    else if (key === "country") next.country = "";
+    else if (key === "employment_type") next.employmentType = [];
+    else if (key === "mapped_family") next.mappedFamily = [];
+    else if (key === "skills") next.skills = [];
+    setSmartApplied((current) =>
+      current
+        ? { interpreted: current.interpreted, keys: current.keys.filter((k) => k !== key) }
+        : current
+    );
+    setSearchParams(toSearchParams(next), { replace: true });
   };
 
   const activeCount = countActive(filters);
@@ -644,6 +730,63 @@ export function Explore() {
         </aside>
 
         <div className="flex-1 space-y-3">
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void runSmartSearch();
+            }}
+            data-testid="smart-search"
+          >
+            <Sparkles aria-hidden className="h-3.5 w-3.5 text-slate-400" />
+            <input
+              value={smartQuery}
+              onChange={(e) => setSmartQuery(e.target.value)}
+              placeholder={t("explore.smartSearchPlaceholder")}
+              className="flex-1 min-w-[12rem] border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+              aria-label={t("explore.smartSearchPlaceholder")}
+              data-testid="smart-search-input"
+            />
+            <button
+              type="submit"
+              disabled={smartBusy || !smartQuery.trim()}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-50"
+              data-testid="smart-search-submit"
+            >
+              {t("explore.smartSearchSubmit")}
+            </button>
+          </form>
+          {smartApplied && (
+            <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+              <span>{t("explore.interpretedAs")}</span>
+              {smartApplied.interpreted && <span data-testid="smart-interpreted">{smartApplied.interpreted}</span>}
+              {smartApplied.keys.map((key) => (
+                <span
+                  key={key}
+                  className="bg-primary-50 text-primary-700 border border-primary-200 rounded-full px-2 py-0.5 flex items-center gap-1"
+                  data-testid={`smart-chip-${key}`}
+                >
+                  {key}
+                  <button
+                    onClick={() => removeSmartKey(key)}
+                    aria-label={t("explore.removeInterpreted", { key })}
+                    data-testid={`smart-chip-remove-${key}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {smartApplied.keys.length === 0 && (
+                <button
+                  onClick={() => setSmartApplied(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                  aria-label={t("explore.dismissInterpreted")}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500" data-testid="explore-result-count">
               {total ? t("explore.matching", { count: total }) : ""}

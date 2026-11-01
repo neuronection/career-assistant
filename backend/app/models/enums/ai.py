@@ -46,6 +46,7 @@ class AITaskType(StrEnum):
     TRANSLATE = "translate"  # plan 121: UI catalog + catalog-label translation batches
     PATH_DRAFT = "path_draft"  # plan 125: the chat career-path draft flow
     SKILL_RELATION_SUGGEST = "skill_relation_suggest"
+    SMART_SEARCH = "smart_search"  # plan 179: NL query -> explore filters
     DECISION = "decision"  # ADR-0036: the decision default slot beside the kind overrides
     DECISION_TOOL_DISPATCH = "decision_tool_dispatch"
     DECISION_BOOLEAN_GATE = "decision_boolean_gate"

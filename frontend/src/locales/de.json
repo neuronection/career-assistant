@@ -446,7 +446,12 @@
     "sortSalary": "Höchstes Gehalt",
     "sortRelevance": "Relevanz",
     "sortSmart": "Smart",
-    "smartChipInfo": "Sortiert nach Ihrer Passung, vermischt mit Interessen-Affinität. Gesehene Stellen rutschen nach hinten, pro Arbeitgeber führen höchstens zwei der ersten Seite; fehlen Interessen­daten, fällt die Sortierung auf die Passung zurück."
+    "smartChipInfo": "Sortiert nach Ihrer Passung, vermischt mit Interessen-Affinität. Gesehene Stellen rutschen nach hinten, pro Arbeitgeber führen höchstens zwei der ersten Seite; fehlen Interessen­daten, fällt die Sortierung auf die Passung zurück.",
+    "smartSearchPlaceholder": "Beschreiben Sie, was Sie suchen (z. B. remote Junior Python Stellen in Athen)",
+    "smartSearchSubmit": "Suchen",
+    "interpretedAs": "Interpretiert als",
+    "removeInterpreted": "Filter {key} entfernen",
+    "dismissInterpreted": "Ausblenden"
   },
   "applications": {
     "title": "Meine Bewerbungen",

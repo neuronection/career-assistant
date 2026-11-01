@@ -24,6 +24,8 @@ from app.schemas.posting import (
     PostingsOut,
     SaveIn,
     SeenIn,
+    SmartSearchIn,
+    SmartSearchOut,
 )
 from app.schemas.radar import RadarIn
 from app.services.deps import get_current_user
@@ -342,6 +344,24 @@ async def preview_job_radar(
         next_cursor=result["next_cursor"],
         facets=result["facets"],
     )
+
+
+@router.post("/postings/smart-search", response_model=SmartSearchOut)
+async def postings_smart_search(
+    data: SmartSearchIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SmartSearchOut:
+    """Natural-language search (plan 179): the sentence maps onto the
+    explore filter vocabulary through one small cached AI call (per-user
+    limiter and budget apply on misses; cache hits cost zero). The
+    client then runs the normal explore query with the returned
+    filters — facets stay live."""
+    from app.services.postings.smart_search_service import run_smart_search
+
+    result = await run_smart_search(db, user.id, data.query)
+    await db.commit()
+    return SmartSearchOut.model_validate(result)
 
 
 @router.get("/postings/sources", response_model=list[dict])

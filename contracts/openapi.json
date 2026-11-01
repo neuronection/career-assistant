@@ -21539,6 +21539,53 @@
         "title": "SkillUpdateIn",
         "type": "object"
       },
+      "SmartSearchIn": {
+        "description": "One free-text search sentence (plan 179).",
+        "properties": {
+          "query": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "title": "SmartSearchIn",
+        "type": "object"
+      },
+      "SmartSearchOut": {
+        "description": "The mapped spec, its honest echo, cache state and the resolved\nexplore-filter params the client applies into the URL state.",
+        "properties": {
+          "cached": {
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "filters": {
+            "additionalProperties": true,
+            "title": "Filters",
+            "type": "object"
+          },
+          "interpreted": {
+            "title": "Interpreted",
+            "type": "string"
+          },
+          "spec": {
+            "additionalProperties": true,
+            "title": "Spec",
+            "type": "object"
+          }
+        },
+        "required": [
+          "spec",
+          "interpreted",
+          "cached",
+          "filters"
+        ],
+        "title": "SmartSearchOut",
+        "type": "object"
+      },
       "SparkPointOut": {
         "properties": {
           "bucket": {
@@ -46149,6 +46196,48 @@
           }
         },
         "summary": "Postings Seen",
+        "tags": [
+          "postings"
+        ]
+      }
+    },
+    "/api/v1/postings/smart-search": {
+      "post": {
+        "description": "Natural-language search (plan 179): the sentence maps onto the\nexplore filter vocabulary through one small cached AI call (per-user\nlimiter and budget apply on misses; cache hits cost zero). The\nclient then runs the normal explore query with the returned\nfilters \u2014 facets stay live.",
+        "operationId": "postings_smart_search_api_v1_postings_smart_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SmartSearchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SmartSearchOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Postings Smart Search",
         "tags": [
           "postings"
         ]

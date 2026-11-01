@@ -145,6 +145,24 @@ honest quirk at this scale: an employer-capped posting that would have
 appeared on page one does not reappear on page two — paging continues
 below the page-one cutoff.
 
+### Smart search — describe it instead of filtering
+
+Next to the sort control sits the **smart search box**. Type what you are
+looking for in plain language — *"remote junior python roles"* — and
+press **Search** (submit only, never per keystroke). One small AI call
+translates the sentence into the same filters the rail uses, and the
+feed reruns with live facet counts. The mapping is cached and shared:
+the same phrasing asked by anyone costs nothing the second time. The
+mapping is never personalized — it maps *your sentence*, not *you*.
+
+Under the box an **"Interpreted as …"** row shows exactly what the
+sentence mapped onto (one chip per applied filter, one click to remove
+any of them). Skill names resolve against the skill taxonomy
+(exact names and known aliases); a label the taxonomy does not know is
+dropped and honestly echoed in the interpretation. Unknown filter
+vocabulary is rejected outright — the filter set is data, not free
+text. If AI is not configured yet the box says so instead of guessing.
+
 **Every filter and the sort live in the URL** — the address bar carries
 the whole search (`/postings?sort=salary&seniority=mid&seen_exclude=true`,
 skills as `skills=programming:4`, organizations as repeated `org=` values).

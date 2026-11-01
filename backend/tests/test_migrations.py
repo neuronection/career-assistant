@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0082"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0083"], (
         "revision chain stays linear on one head"
     )
 
@@ -221,6 +221,20 @@ def test_0082_findings_feed_indexes_roundtrip():
     command.upgrade(config, "head")
     assert _index_present("autopilot_findings", "ix_autopilot_findings_created")
     assert _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+
+def test_0083_smart_query_cache_roundtrip():
+    """Plan 179: the cross-user NL-query cache exists at head and drops on
+    the downgrade (cache data is rebuildable, never a record)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _table_present("smart_query_cache"), "smart_query_cache exists at head"
+
+    command.downgrade(config, "0082")
+    assert not _table_present("smart_query_cache"), "downgrade drops the cache table"
+
+    command.upgrade(config, "head")
+    assert _table_present("smart_query_cache"), "re-upgrade restores the cache table"
 
 
 def test_0033_profile_proposals_roundtrip():

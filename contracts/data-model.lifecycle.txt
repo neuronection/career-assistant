@@ -28,3 +28,5 @@ organization_merge_suggestions :: record
 posting_filter_presets :: record
 posting_changes :: record
 skill_changes :: record
+# plan 179: the NL-search cache is TTL-pruned (7d) by the daily smart-digest job — cache data, never a record
+smart_query_cache :: transient
