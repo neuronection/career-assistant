@@ -10,6 +10,14 @@ One periodic engine runs everything scheduled:
 
 - **Scheduled saved searches** run on your rhythm and ping you on new matches.
 - A **weekly digest** rolls up postings and near-misses.
+- A **daily smart digest** (opt-in) notifies you when the smart ranking
+  finds fresh, unseen postings — see [postings and
+  search](postings-and-search.md) for the ranking it uses. Enable it in
+  **Settings → Notifications** with the **Daily smart matches**
+  (`smart_digest`) toggle; the notification deep-links into the living
+  smart view (`/postings?sort=smart`) and only fires on days with at
+  least one new match. The same daily job prunes the natural-language
+  search cache (7 days).
 - **Source syncs** refresh your connected boards.
 - **Check-ins** and **re-fit sweeps** keep your plan and scores current.
 - Follow-up nudges for applications you have not heard back on.

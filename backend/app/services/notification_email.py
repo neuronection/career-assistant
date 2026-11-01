@@ -67,6 +67,8 @@ COPY: dict[str, dict[str, str]] = {
         "email.alert_threshold.lead": "A career alert crossed your threshold.",
         "email.digest_ready.subject": "Your weekly career digest",
         "email.digest_ready.lead": "Here is your digest.",
+        "email.smart_digest.subject": "Your daily smart matches",
+        "email.smart_digest.lead": "Fresh postings your smart ranking found.",
         "email.interview_checkin.subject": "{title}",
         "email.interview_checkin.lead": "Interview check-in.",
         "email.proposal_resolved.subject": "{title}",
@@ -117,6 +119,7 @@ KIND_TEMPLATES = frozenset(
     {
         "followup_due",
         "digest_ready",
+        "smart_digest",
         "interview_checkin",
         "proposal_resolved",
         "channel_test",

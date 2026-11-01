@@ -40,6 +40,10 @@ from app.schemas.engagement import (
 from app.services import notification_stream
 from app.services.deps import get_current_user, require_admin
 from app.services.notification_service import NotificationService
+from app.services.postings.digest_service import (
+    SMART_DIGEST_KIND,
+    sync_smart_digest_schedule,
+)
 
 router = APIRouter(tags=["notifications"])
 
@@ -179,6 +183,8 @@ async def put_kind_preference(
     result = await NotificationService(db).set_kind_pref(
         user.id, kind_key, enabled=data.enabled, channels=data.channels
     )
+    if kind_key == SMART_DIGEST_KIND:
+        await sync_smart_digest_schedule(db, user.id, enabled=bool(data.enabled))
     await db.commit()
     return KindPrefUpdateOut.model_validate(result)
 
@@ -191,6 +197,8 @@ async def delete_kind_preference(
 ) -> None:
     """Reset one kind to its seeded defaults (drops the override row)."""
     await NotificationService(db).delete_kind_pref(user.id, kind_key)
+    if kind_key == SMART_DIGEST_KIND:
+        await sync_smart_digest_schedule(db, user.id, enabled=False)
     await db.commit()
 
 

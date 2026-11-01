@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0083"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0084"], (
         "revision chain stays linear on one head"
     )
 
@@ -2264,6 +2264,26 @@ def test_0058_radar_digest_check_roundtrip():
     checks = _schedules_checks()
     assert "user_radar_digest" in checks["kind_allowed"]
     assert "radar_digest" in checks["task_allowed"]
+
+
+def test_0084_smart_digest_schedule_roundtrip():
+    """Plan 179: the smart-digest schedule kind + task widen both CHECKs
+    (the 0058 recipe); the downgrade restores the previous text."""
+    config = _configured()
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_smart_digest" in checks["kind_allowed"]
+    assert "smart_digest" in checks["task_allowed"]
+
+    command.downgrade(config, "0083")
+    checks = _schedules_checks()
+    assert "user_smart_digest" not in checks["kind_allowed"]
+    assert "smart_digest" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_smart_digest" in checks["kind_allowed"]
+    assert "smart_digest" in checks["task_allowed"]
 
 
 def _job_sources_shape() -> tuple[set[str], dict[str, str]]:

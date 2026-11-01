@@ -5,6 +5,13 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added (smart discovery, 2026-11-01)
+- **Daily smart digest (opt-in).** Enable **Daily smart matches** in
+  Settings → Notifications and the daily job ranks fresh, unseen,
+  unapplied postings with the smart recipe and notifies you — only on
+  days when at least one new match exists, once per day (payload carries
+  the count and date; the notification deep-links into the living smart
+  view `/postings?sort=smart`). The same job prunes the smart-search
+  cache (7-day TTL). Zero AI in the daily path.
 - **Smart search on `/postings`.** Describe what you are looking for in
   plain language ("remote junior python roles") and the smart search box
   maps the sentence onto the real explore filters through one small

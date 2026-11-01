@@ -42,6 +42,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_SKILL_RELATION_LEARN.value: (BackgroundJobType.SKILL_RELATION_LEARN.value),
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
+    ScheduleKind.USER_SMART_DIGEST.value: BackgroundJobType.SMART_DIGEST.value,
     ScheduleKind.USER_AUTOPILOT.value: BackgroundJobType.AUTOPILOT_RUN.value,
     ScheduleKind.USER_CHECKIN.value: None,
 }
@@ -364,6 +365,40 @@ class SchedulerService:
             task=BackgroundJobType.AUTOPILOT_RUN.value,
             trigger=trigger,
             payload={"goal_id": str(goal_id)},
+            misfire_policy=MisfirePolicy.NEXT_SLOT.value,
+            default_interval_minutes=24 * 60,
+        )
+        schedule.enabled = True
+        schedule.next_run_at = trigger_registry.next_after(trigger, _utcnow())
+        await self.db.commit()
+        await self.db.refresh(schedule)
+        return schedule
+
+    async def set_smart_digest_schedule(
+        self, user_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
+        """Attach/remove the daily smart-digest schedule for one user
+        (plan 179). The radar-digest wiring with an empty payload — the
+        toggle IS the schedule's existence."""
+        existing = await self.db.execute(
+            select(Schedule).where(
+                Schedule.kind == ScheduleKind.USER_SMART_DIGEST.value,
+                Schedule.owner_user_id == user_id,
+            )
+        )
+        for schedule in existing.scalars().all():
+            await self.db.delete(schedule)
+        await self.db.flush()
+        if trigger is None:
+            await self.db.commit()
+            return None
+        trigger_registry.resolve_trigger(trigger)
+        schedule = await self.ensure_schedule(
+            kind=ScheduleKind.USER_SMART_DIGEST.value,
+            owner_user_id=user_id,
+            task=BackgroundJobType.SMART_DIGEST.value,
+            trigger=trigger,
+            payload={},
             misfire_policy=MisfirePolicy.NEXT_SLOT.value,
             default_interval_minutes=24 * 60,
         )
