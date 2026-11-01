@@ -102,6 +102,9 @@ def test_captured_shape():
     assert first.url.startswith("https://apply.workable.com/j/")
     assert first.posted_at is not None and first.posted_at.tzinfo is not None
     assert isinstance(first.raw.get("work_type"), str)
+    # the extraction pipeline reads raw.description — the widget call must
+    # always carry details=true or skills starve
+    assert len(first.raw["description"]) > 200
 
 
 def test_registers_with_manifest_and_docs():

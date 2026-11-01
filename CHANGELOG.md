@@ -23,9 +23,10 @@ All notable changes to **Career Assistant** are documented here.
   credentials. One source per account (the slug of the tenant's
   `apply.workable.com/<account>` URL), free like the Recruitee/Teamtailor
   feeds, with title, department, city/country, remote flag and publish
-  date per posting. Ships with 5 Greek tenants as presets (Skroutz,
-  Spotawheel, Hack The Box, Plum, Epignosis — 130+ open roles combined)
-  and a captured-payload connector wall.
+  date per posting — fetched with `details=true` so every posting carries
+  its full description for skills extraction. Ships with 5 Greek tenants
+  as presets (Skroutz, Spotawheel, Hack The Box, Plum, Epignosis — 130+
+  open roles combined) and a captured-payload connector wall.
 
 ### Fixed (first ingest of a known employer crashed, 2026-11-01)
 - A **new posting whose organization resolved to an existing org** (exact

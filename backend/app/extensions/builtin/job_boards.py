@@ -688,14 +688,17 @@ WORKABLE_DOMAINS = ("apply.workable.com",)
 
 
 def workable_feed_url(account: str) -> str:
-    return f"{WORKABLE_URL}/{account}?details=false"
+    # `details=true` embeds each job's full HTML description — one request
+    # carries everything the extraction pipeline needs.
+    return f"{WORKABLE_URL}/{account}?details=true"
 
 
 def parse_workable_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
     """The careers-widget account payload (the same JSON the embeddable
-    widget loads): ``{name, description, jobs: [{title, shortcode, url,
-    shortlink, city, state, country, department, published_on (date),
-    created_at (ISO), telecommuting, employment_type, …}]}``."""
+    widget loads, with ``details=true``): ``{name, description, jobs:
+    [{title, shortcode, url, shortlink, city, state, country, department,
+    description (HTML), published_on (date), created_at (ISO),
+    telecommuting, employment_type, …}]}``."""
     data = json.loads(body)
     rows = data.get("jobs")
     if not isinstance(rows, list):
@@ -731,6 +734,7 @@ def parse_workable_payload(body: str) -> tuple[list[RawPosting], list[ConnectorE
                 posted_at=_parse_iso_utc(row.get("published_on") or row.get("created_at")),
                 employment_type=_employment_type([row.get("employment_type")]),  # type: ignore[arg-type]
                 raw={
+                    "description": html.unescape(str(row.get("description") or ""))[:8000],
                     "department": str(row.get("department") or "")[:120],
                     "state": str(row.get("state") or "")[:120],
                     "function": str(row.get("function") or "")[:120],
