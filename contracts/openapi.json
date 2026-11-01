@@ -32584,7 +32584,7 @@
     },
     "/api/v1/autopilot/findings": {
       "get": {
-        "description": "The flat findings feed: filters, dedupe, keyset pagination.",
+        "description": "The flat findings feed: filters, dedupe, facets, keyset pagination.",
         "operationId": "list_findings_api_v1_autopilot_findings_get",
         "parameters": [
           {
@@ -32686,6 +32686,126 @@
                 }
               ],
               "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_score",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 10,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Min Score"
+            }
+          },
+          {
+            "in": "query",
+            "name": "coverage_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 20,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Coverage Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "org",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Org"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
+            }
+          },
+          {
+            "in": "query",
+            "name": "seniority",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Seniority"
+            }
+          },
+          {
+            "in": "query",
+            "name": "remote",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Remote",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "posted_within",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Posted Within"
+            }
+          },
+          {
+            "in": "query",
+            "name": "hide_applied",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Hide Applied",
+              "type": "boolean"
             }
           }
         ],

@@ -3210,7 +3210,7 @@ export interface paths {
         };
         /**
          * List Findings
-         * @description The flat findings feed: filters, dedupe, keyset pagination.
+         * @description The flat findings feed: filters, dedupe, facets, keyset pagination.
          */
         get: operations["list_findings_api_v1_autopilot_findings_get"];
         put?: never;
@@ -23888,6 +23888,14 @@ export interface operations {
                 sort?: "newest" | "score";
                 limit?: number;
                 cursor?: string | null;
+                min_score?: number | null;
+                coverage_min?: number | null;
+                org?: string | null;
+                source?: string | null;
+                seniority?: string | null;
+                remote?: boolean;
+                posted_within?: string | null;
+                hide_applied?: boolean;
             };
             header?: never;
             path?: never;

@@ -149,8 +149,18 @@ function railRow(overrides: Partial<RunsRailRow> = {}): RunsRailRow {
   };
 }
 
-function feedResponse(items: AutopilotFindingFeedItem[], nextCursor: string | null = null) {
-  return { items, next_cursor: nextCursor };
+const EMPTY_FACETS = {
+  goal: {},
+  source: {},
+  seniority: {},
+  state: { open: 0, dismissed: 0 },
+};
+
+function feedResponse(
+  items: AutopilotFindingFeedItem[],
+  nextCursor: string | null = null
+) {
+  return { items, next_cursor: nextCursor, facets: { ...EMPTY_FACETS } };
 }
 
 function renderPage(initialEntry = "/autopilot") {
@@ -333,6 +343,88 @@ describe("Autopilot workspace feed", () => {
     expect(screen.getByTestId("feed-run-group-r2")).toBeInTheDocument();
   });
 
+  it("renders facet counts on the rail chips", async () => {
+    mockFeed.mockResolvedValue({
+      items: [feedItem()],
+      next_cursor: null,
+      facets: {
+        goal: { g1: 3 },
+        source: { "board-postings": 2, other: 1 },
+        seniority: { junior: 2, mid: 1 },
+        state: { open: 3, dismissed: 1 },
+      },
+    });
+    renderPage();
+    await screen.findByTestId("finding-title-f1");
+    expect(screen.getByTestId("findings-rail")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Source" }));
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: /Seniority/ }));
+    expect(screen.getByTestId("source-board-postings")).toHaveTextContent("· 2");
+    expect(screen.getByTestId("seniority-mid")).toHaveTextContent("· 1");
+  });
+
+  it("rides the filter set through the URL and refetches", async () => {
+    renderPage(
+      "/autopilot?state=all&latest=0&min_score=7&org=acme&seniority=junior&posted_within=7d&sort=score"
+    );
+    await screen.findByTestId("findings-rail");
+    await waitFor(() =>
+      expect(mockFeed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          state: "all",
+          latest_per_posting: false,
+          min_score: 7,
+          org: "acme",
+          seniority: "junior",
+          posted_within: "7d",
+          sort: "score",
+        })
+      )
+    );
+    expect(screen.getByTestId("findings-filter-count")).toBeInTheDocument();
+  });
+
+  it("toggles dedupe, hide-applied and remote from the rail", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("findings-rail");
+    await user.click(screen.getByRole("button", { name: "State" }));
+    await user.click(screen.getByTestId("findings-latest-toggle"));
+    await waitFor(() =>
+      expect(mockFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ latest_per_posting: false })
+      )
+    );
+    await user.click(screen.getByTestId("findings-hide-applied-toggle"));
+    await waitFor(() =>
+      expect(mockFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ hide_applied: true })
+      )
+    );
+    await user.click(screen.getByRole("button", { name: "Location" }));
+    await user.click(screen.getByTestId("findings-remote-toggle"));
+    await waitFor(() =>
+      expect(mockFeed).toHaveBeenCalledWith(
+        expect.objectContaining({ remote: true })
+      )
+    );
+  });
+
+  it("shows the filtered empty state with a clear action", async () => {
+    const user = userEvent.setup();
+    mockFeed.mockResolvedValue(feedResponse([]));
+    renderPage("/autopilot?min_score=9");
+    expect(await screen.findByTestId("feed-clear-filters")).toBeInTheDocument();
+    await user.click(screen.getByTestId("feed-clear-filters"));
+    await waitFor(() =>
+      expect(mockFeed).toHaveBeenLastCalledWith(
+        expect.objectContaining({ min_score: undefined })
+      )
+    );
+  });
+
   it("filters the feed through the goal switcher", async () => {
     const user = userEvent.setup();
     mockGoals.mockResolvedValue([goal(), goal({ id: "g2", goal_text: "Data job" })]);
@@ -357,7 +449,7 @@ describe("Autopilot workspace feed", () => {
         )
       );
     renderPage();
-    await screen.findByText("QA Automation Engineer");
+    await screen.findByTestId("finding-title-f1");
     await user.click(screen.getByTestId("feed-load-more"));
     expect(await screen.findByText("Second Wave")).toBeInTheDocument();
     expect(mockFeed).toHaveBeenLastCalledWith(

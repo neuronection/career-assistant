@@ -49,10 +49,18 @@ async def list_findings(
     sort: Literal["newest", "score"] = "newest",
     limit: int = Query(default=20, ge=1, le=50),
     cursor: str | None = None,
+    min_score: float | None = Query(default=None, ge=0, le=10),
+    coverage_min: int | None = Query(default=None, ge=0, le=20),
+    org: str | None = None,
+    source: str | None = None,
+    seniority: str | None = None,
+    remote: bool = False,
+    posted_within: str | None = None,
+    hide_applied: bool = False,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """The flat findings feed: filters, dedupe, keyset pagination."""
+    """The flat findings feed: filters, dedupe, facets, keyset pagination."""
     return await AutopilotService(db).findings_feed(
         user.id,
         goal_id=goal_id,
@@ -62,6 +70,14 @@ async def list_findings(
         sort=sort,
         limit=limit,
         cursor=cursor,
+        min_score=min_score,
+        coverage_min=coverage_min,
+        org=org,
+        source=source,
+        seniority=seniority,
+        remote=remote,
+        posted_within=posted_within,
+        hide_applied=hide_applied,
     )
 
 

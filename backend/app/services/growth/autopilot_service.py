@@ -12,14 +12,16 @@ import base64
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import func, literal, select, tuple_
+from sqlalchemy import Integer, func, literal, select, tuple_
+from sqlalchemy import cast as sa_cast
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
+from sqlalchemy.sql.elements import ColumnElement
 
-from app.core.errors import NotFoundError, PermissionDeniedError
+from app.core.errors import NotFoundError, PermissionDeniedError, ValidationError
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
 from app.models.enums import AutopilotFeedback, AutopilotRunStatus
 from app.schemas.autopilot import (
@@ -251,6 +253,14 @@ class AutopilotService:
         sort: str = "newest",
         limit: int = 20,
         cursor: str | None = None,
+        min_score: float | None = None,
+        coverage_min: int | None = None,
+        org: str | None = None,
+        source: str | None = None,
+        seniority: str | None = None,
+        remote: bool = False,
+        posted_within: str | None = None,
+        hide_applied: bool = False,
     ) -> dict:
         """The flat findings feed: one row per (latest) evaluation.
 
@@ -262,29 +272,35 @@ class AutopilotService:
         applies to the surviving row, so a dismissed newest evaluation
         hides the posting under the default `open`. Cursors are opaque
         `(sort_key, id)` keyset markers per sort — score ties are
-        guaranteed (Numeric(4,2)), so a single-key cursor would loop.
+        guaranteed (Numeric(4,2)), so a single-key cursor would loop;
+        the keyset runs over the deduped row's own ``(sort_key, id)``, so
+        a re-rank between pages (a newer evaluation displacing the
+        cursor row) is accepted drift, never a loop or a repeat. The
+        posting axes (org/source/seniority/remote/posted_within) filter
+        through the posting join; `posted_within` reuses the shared
+        effective-posted window clause.
         """
         from app.models.application_model import Application
         from app.models.posting_model import JobPosting, JobSource
 
         if sort not in ("newest", "score"):
-            from app.core.errors import ValidationError
-
             raise ValidationError("sort must be newest|score")
         if state not in ("open", "dismissed", "all"):
-            from app.core.errors import ValidationError
-
             raise ValidationError("state must be open|dismissed|all")
 
-        conditions = []
-        if goal_id is not None:
-            conditions.append(AutopilotRun.goal_id == goal_id)
-        if run_id is not None:
-            conditions.append(AutopilotFinding.run_id == run_id)
-        if state == "open":
-            conditions.append(AutopilotFinding.dismissed_at.is_(None))
-        elif state == "dismissed":
-            conditions.append(AutopilotFinding.dismissed_at.is_not(None))
+        conditions = _feed_conditions(
+            self.db,
+            goal_id=goal_id,
+            run_id=run_id,
+            state=state,
+            min_score=min_score,
+            coverage_min=coverage_min,
+            org=org,
+            source=source,
+            seniority=seniority,
+            remote=remote,
+            posted_within=posted_within,
+        )
         if latest_per_posting:
             sibling = aliased(AutopilotFinding)
             newer = (
@@ -299,8 +315,6 @@ class AutopilotService:
         if cursor:
             cursor_sort, key, after_id = _decode_feed_cursor(cursor)
             if cursor_sort != sort:
-                from app.core.errors import ValidationError
-
                 raise ValidationError("Cursor does not match the requested sort")
         else:
             key, after_id = None, None
@@ -326,6 +340,8 @@ class AutopilotService:
             )
             .where(AutopilotGoal.user_id == user_id, *conditions)
         )
+        if hide_applied:
+            query = query.where(Application.id.is_(None))
         if latest_per_posting:
             query = query.where(~newer)
         if key is not None:
@@ -386,7 +402,98 @@ class AutopilotService:
             last_finding = rows[-1][0]
             last_key = last_finding.created_at if sort == "newest" else float(last_finding.score)
             next_cursor = _encode_feed_cursor(sort, last_key, last_finding.id)
-        return {"items": items, "next_cursor": next_cursor}
+        return {
+            "items": items,
+            "next_cursor": next_cursor,
+            "facets": await self.feed_facets(
+                user_id,
+                goal_id=goal_id,
+                state=state,
+                min_score=min_score,
+                coverage_min=coverage_min,
+                org=org,
+                source=source,
+                seniority=seniority,
+                remote=remote,
+                posted_within=posted_within,
+                latest_per_posting=latest_per_posting,
+            ),
+        }
+
+    async def feed_facets(
+        self,
+        user_id: UUID,
+        *,
+        goal_id: UUID | None = None,
+        state: str = "open",
+        min_score: float | None = None,
+        coverage_min: int | None = None,
+        org: str | None = None,
+        source: str | None = None,
+        seniority: str | None = None,
+        remote: bool = False,
+        posted_within: str | None = None,
+        latest_per_posting: bool = True,
+    ) -> dict:
+        """Self-excluding facet counts over the active filter set (the
+        explore pattern): each dimension recounts without its own filter,
+        so a value's count never drops to zero because it is selected.
+        One grouped query per dimension; sized for a personal dataset."""
+        from app.models.posting_model import JobPosting, JobSource
+
+        async def grouped(skip: set[str], group: Any) -> dict[Any, int]:
+            conditions = _feed_conditions(
+                self.db,
+                goal_id=None if "goal" in skip else goal_id,
+                run_id=None,
+                state=None if "state" in skip else state,
+                min_score=min_score,
+                coverage_min=coverage_min,
+                org=org,
+                source=None if "source" in skip else source,
+                seniority=None if "seniority" in skip else seniority,
+                remote=remote,
+                posted_within=posted_within,
+            )
+            query = (
+                select(group, func.count(AutopilotFinding.id))
+                .select_from(AutopilotFinding)
+                .join(AutopilotRun, AutopilotRun.id == AutopilotFinding.run_id)
+                .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+                .join(JobPosting, JobPosting.id == AutopilotFinding.posting_id)
+                .join(JobSource, JobSource.id == JobPosting.source_id)
+                .where(AutopilotGoal.user_id == user_id, *conditions)
+            )
+            if latest_per_posting:
+                sibling = aliased(AutopilotFinding)
+                newer = (
+                    select(sibling.id)
+                    .where(
+                        sibling.posting_id == AutopilotFinding.posting_id,
+                        tuple_(sibling.created_at, sibling.id)
+                        > tuple_(AutopilotFinding.created_at, AutopilotFinding.id),
+                    )
+                    .exists()
+                )
+                query = query.where(~newer)
+            rows = (await self.db.execute(query.group_by(group))).all()
+            return {row[0]: int(row[1]) for row in rows}
+
+        open_counts = await grouped({"state"}, AutopilotFinding.dismissed_at.is_(None))
+        goal_counts = await grouped({"goal"}, AutopilotGoal.id)
+        source_counts = await grouped({"source"}, JobSource.key)
+        seniority_counts = await grouped({"seniority"}, JobPosting.seniority)
+        return {
+            "goal": {str(key): count for key, count in goal_counts.items()},
+            "source": dict(source_counts),
+            "seniority": {
+                str(key): count for key, count in seniority_counts.items() if key is not None
+            },
+            "state": {
+                "open": int(open_counts.get(True, 0)),
+                "dismissed": int(open_counts.get(False, 0)),
+            },
+        }
 
     async def runs_rail(self, user_id: UUID, limit: int = 20) -> list[dict]:
         """The runs rail, cross-goal, newest first.
@@ -959,6 +1066,65 @@ def _salary_out(posting) -> dict | None:
     }
 
 
+def _coverage_hits_clause(db: AsyncSession) -> ColumnElement:
+    """The finding's must-coverage hits as an integer, dialect-split
+    (``->``/``->>`` on Postgres, ``json_extract`` on SQLite). Findings
+    without a must_coverage block yield NULL — they never match a
+    ``coverage_min``."""
+    if db.get_bind().dialect.name == "sqlite":
+        return sa_cast(
+            func.json_extract(AutopilotFinding.evidence, "$.must_coverage.hits"), Integer
+        )
+    return sa_cast(AutopilotFinding.evidence.op("->")("must_coverage").op("->>")("hits"), Integer)
+
+
+def _feed_conditions(
+    db: AsyncSession,
+    *,
+    goal_id: UUID | None,
+    run_id: UUID | None,
+    state: str | None,
+    min_score: float | None,
+    coverage_min: int | None,
+    org: str | None,
+    source: str | None,
+    seniority: str | None,
+    remote: bool,
+    posted_within: str | None,
+) -> list[Any]:
+    """The feed's WHERE clauses; the facet pass re-invokes it with one
+    dimension nulled (self-excluding counts, the explore pattern)."""
+    from app.models.posting_model import JobPosting, JobSource
+    from app.services.analytics.time_buckets import POSTED_WINDOWS, window_clause
+
+    conditions: list[Any] = []
+    if goal_id is not None:
+        conditions.append(AutopilotRun.goal_id == goal_id)
+    if run_id is not None:
+        conditions.append(AutopilotFinding.run_id == run_id)
+    if state == "open":
+        conditions.append(AutopilotFinding.dismissed_at.is_(None))
+    elif state == "dismissed":
+        conditions.append(AutopilotFinding.dismissed_at.is_not(None))
+    if min_score is not None:
+        conditions.append(AutopilotFinding.score >= min_score)
+    if coverage_min is not None:
+        conditions.append(_coverage_hits_clause(db) >= coverage_min)
+    if org:
+        conditions.append(JobPosting.org.ilike(f"%{org}%"))
+    if source:
+        conditions.append(JobSource.key == source)
+    if seniority:
+        conditions.append(JobPosting.seniority == seniority)
+    if remote:
+        conditions.append(JobPosting.onsite_policy == "remote")
+    if posted_within:
+        if posted_within not in POSTED_WINDOWS:
+            raise ValidationError("posted_within must be one of: " + ", ".join(POSTED_WINDOWS))
+        conditions.append(window_clause(posted_within, _utcnow()))
+    return conditions
+
+
 def _encode_feed_cursor(sort: str, key: datetime | float, finding_id: UUID) -> str:
     payload = {
         "s": sort,
@@ -976,6 +1142,4 @@ def _decode_feed_cursor(cursor: str) -> tuple[str, datetime | float, UUID]:
             key = datetime.fromisoformat(key)
         return payload["s"], key, UUID(payload["id"])
     except Exception as exc:
-        from app.core.errors import ValidationError
-
         raise ValidationError("Invalid pagination cursor") from exc

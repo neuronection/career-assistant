@@ -5,7 +5,7 @@ guaranteed must-terms, semantic + graph recall, replan), isolation and the
 no-apply invariant."""
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
@@ -501,11 +501,17 @@ async def _feed_posting(db, external_id, **kw):
 
     source = kw.pop("source", None)
     if source is None:
-        source = JobSource(
-            key=f"feed-{external_id}", connector_key="synthetic", config={}, enabled=True
+        existing = (
+            (await db.execute(select(JobSource).where(JobSource.key == "feed-main")))
+            .scalars()
+            .first()
         )
-        db.add(source)
-        await db.flush()
+        if existing is not None:
+            source = existing
+        else:
+            source = JobSource(key="feed-main", connector_key="synthetic", config={}, enabled=True)
+            db.add(source)
+            await db.flush()
     posting = JobPosting(
         source_id=source.id,
         external_id=external_id,
@@ -513,6 +519,10 @@ async def _feed_posting(db, external_id, **kw):
         org=kw.pop("org", "FeedCo"),
         url=kw.pop("url", f"https://feed.example/{external_id}"),
         content_hash="0" * 64,
+        # Long past: the posted_within filter reads the EFFECTIVE posted
+        # date (coalesce(posted_at, created_at)) — unseeded rows would all
+        # be "fresh" by ingestion.
+        posted_at=kw.pop("posted_at", datetime(2026, 8, 1, tzinfo=UTC)),
         **kw,
     )
     db.add(posting)
@@ -627,7 +637,7 @@ async def test_findings_feed_default_dedupes_and_hides_dismissed(client, auth_he
     assert posting["org"] == "FeedCo"
     assert posting["url"].startswith("https://feed.example/")
     assert posting["status"] == "new"
-    assert posting["source"] == f"feed-{b.external_id}"
+    assert posting["source"] == "feed-main"
     assert posting["extracted"] is False
 
 
@@ -800,6 +810,311 @@ async def test_runs_rail_rows_carry_counts(client, auth_headers, db):
     await db.commit()
     rows = (await client.get("/api/v1/autopilot/runs", headers=auth_headers)).json()
     assert rows[0]["findings_count"] == 3, "applied findings stay on the rail"
+
+
+# ------------------------------------------------- S2 filters, facets, sort
+
+
+async def _seed_feed_extra(db, goal):
+    """A second source + a fresh remote mid posting with its own finding."""
+    from app.models.autopilot_model import AutopilotRun
+    from app.models.posting_model import JobPosting, JobSource
+    from app.services.growth.autopilot_service import _utcnow
+
+    other = JobSource(key="feed-other", connector_key="synthetic", config={}, enabled=True)
+    db.add(other)
+    await db.flush()
+    fresh = JobPosting(
+        source_id=other.id,
+        external_id="ex-fresh",
+        title="Fresh Remote",
+        org="FeedCo",
+        url="https://feed.example/fresh",
+        content_hash="1" * 64,
+        seniority="mid",
+        onsite_policy="remote",
+        posted_at=_utcnow() - timedelta(hours=2),
+    )
+    db.add(fresh)
+    run = AutopilotRun(
+        goal_id=goal.id,
+        status="completed",
+        searches_executed=[],
+        created_at=datetime(2026, 9, 7, tzinfo=UTC),
+    )
+    db.add(run)
+    await db.flush()
+    db.add(_feed_finding(run, fresh, 6.4, datetime(2026, 9, 7, second=1, tzinfo=UTC)))
+    await db.commit()
+    return fresh
+
+
+async def test_findings_feed_min_score_and_org_filters(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    _goal_row, _run1, _run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"min_score": 7},
+            headers=auth_headers,
+        )
+    ).json()
+    scores = [item["score"] for item in body["items"]]
+    assert scores and all(score >= 7 for score in scores)
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"org": "feedco"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert len(body["items"]) == 3, "org ilike is case-insensitive"
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"org": "nowhere"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert body["items"] == []
+
+
+async def test_findings_feed_posting_axes_filters(client, auth_headers, db):
+    user_id = _uid(auth_headers)
+    goal, _run1, _run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+    fresh = await _seed_feed_extra(db, goal)
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"source": "feed-other"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert [item["posting"]["ref"] for item in body["items"]] == [fresh.ref]
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"seniority": "mid"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert [item["posting"]["ref"] for item in body["items"]] == [fresh.ref]
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"remote": "true"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert {item["posting"]["ref"] for item in body["items"]} == {fresh.ref}
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"posted_within": "24h"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert [item["posting"]["ref"] for item in body["items"]] == [fresh.ref]
+
+    body = await client.get(
+        "/api/v1/autopilot/findings",
+        params={"posted_within": "bogus"},
+        headers=auth_headers,
+    )
+    assert body.status_code == 400
+
+
+async def test_findings_feed_coverage_min_and_hide_applied(client, auth_headers, db):
+    from app.models.application_model import Application
+
+    user_id = _uid(auth_headers)
+    _goal_row, _run1, _run2, (a, _b, _c) = await _seed_feed(db, user_id)
+    db.add(Application(user_id=user_id, posting_id=a.id))
+    await db.commit()
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"coverage_min": 1},
+            headers=auth_headers,
+        )
+    ).json()
+    assert body["items"], "every seeded finding carries must_coverage hits ≥ 1"
+    assert all((item["must_coverage"] or {}).get("hits", 0) >= 1 for item in body["items"])
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"coverage_min": 5},
+            headers=auth_headers,
+        )
+    ).json()
+    assert body["items"] == [], "coverage beyond the seeded hits filters everything out"
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"hide_applied": "true", "state": "all", "latest_per_posting": "false"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert not [item for item in body["items"] if item["applied"]], (
+        "hide_applied drops the applied row"
+    )
+
+
+async def test_findings_feed_facets_are_self_excluding(client, auth_headers, db):
+    from app.models.autopilot_model import AutopilotGoal, AutopilotRun
+
+    user_id = _uid(auth_headers)
+    goal, _run1, _run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+    fresh = await _seed_feed_extra(db, goal)
+    other_goal = AutopilotGoal(user_id=user_id, goal_text="second goal", constraints={}, budget={})
+    db.add(other_goal)
+    await db.flush()
+    other_run = AutopilotRun(goal_id=other_goal.id, status="completed", searches_executed=[])
+    db.add(other_run)
+    await db.flush()
+    another = await _feed_posting(db, "ex-second", title="Second Goal Role")
+    db.add(_feed_finding(other_run, another, 4.4, datetime(2026, 9, 9, tzinfo=UTC)))
+    await db.commit()
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"source": "feed-other"},
+            headers=auth_headers,
+        )
+    ).json()
+    facets = body["facets"]
+    assert facets["source"].get("feed-other") == 1
+    assert facets["source"].get("feed-main") == 4, "selected source stays counted"
+    assert facets["seniority"].get("mid") == 1, "seniority recounted without its filter"
+    assert facets["state"] == {"open": 1, "dismissed": 0}, (
+        "state facets count the other-filters' set (source stays applied)"
+    )
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"goal_id": str(goal.id)},
+            headers=auth_headers,
+        )
+    ).json()
+    facets = body["facets"]
+    assert facets["goal"].get(str(goal.id)) == 4, "selected goal stays counted"
+    assert facets["goal"].get(str(other_goal.id)) == 1, "other goals ignore the filter"
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"state": "dismissed", "latest_per_posting": "false"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert body["facets"]["state"]["dismissed"] == 1, (
+        "the dismissed old evaluation counts once the dedupe is off"
+    )
+    assert body["facets"]["state"]["open"] == 6, "state facet is self-excluding"
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"seniority": "mid"},
+            headers=auth_headers,
+        )
+    ).json()
+    assert [item["posting"]["ref"] for item in body["items"]] == [fresh.ref]
+    assert body["facets"]["source"] == {"feed-other": 1}, (
+        "source facet counts the seniority-filtered set (only its own dimension is skipped)"
+    )
+    assert body["facets"]["seniority"].get("mid") == 1, "selected seniority stays counted"
+
+
+async def test_findings_feed_cursor_stable_for_both_sorts(client, auth_headers, db):
+    """Keyset pages through the whole feed with no repeats for BOTH sorts,
+    including a score tie (the tie group is reached exactly once)."""
+    user_id = _uid(auth_headers)
+    goal, _run1, _run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+    from app.models.autopilot_model import AutopilotRun
+
+    tie_run = AutopilotRun(goal_id=goal.id, status="completed", searches_executed=[])
+    db.add(tie_run)
+    await db.flush()
+    tie = await _feed_posting(db, "ex-tie", title="Tie Role")
+    db.add(_feed_finding(tie_run, tie, 7.5, datetime(2026, 9, 6, tzinfo=UTC)))
+    await db.commit()
+
+    for sort in ("newest", "score"):
+        seen: list[str] = []
+        cursor: str | None = None
+        for _page in range(10):
+            params: dict = {"limit": 2, "sort": sort}
+            if cursor:
+                params["cursor"] = cursor
+            body = (
+                await client.get("/api/v1/autopilot/findings", params=params, headers=auth_headers)
+            ).json()
+            seen.extend(item["id"] for item in body["items"])
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+        assert len(seen) == 4, f"{sort}: paged through the whole feed"
+        assert len(seen) == len(set(seen)), f"{sort}: no repeats across pages"
+
+    body = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"sort": "score", "limit": 2},
+            headers=auth_headers,
+        )
+    ).json()
+    assert any(item["score"] == 7.5 for item in body["items"]), (
+        "the tie group starts a page cleanly"
+    )
+
+
+async def test_findings_feed_cursor_survives_re_rank_drift(client, auth_headers, db):
+    """Documented drift semantics: the keyset runs over the deduped row's
+    own (sort_key, id). A newer evaluation displacing the cursor row
+    between pages is accepted drift — page 2 still returns, never loops,
+    never repeats page 1's ids."""
+    user_id = _uid(auth_headers)
+    _goal_row, _run1, run2, (a, _b, _c) = await _seed_feed(db, user_id)
+
+    page1 = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"sort": "newest", "limit": 2},
+            headers=auth_headers,
+        )
+    ).json()
+    cursor = page1["next_cursor"]
+    assert cursor is not None
+
+    from app.models.autopilot_model import AutopilotRun
+
+    drift_run = AutopilotRun(goal_id=run2.goal_id, status="completed", searches_executed=[])
+    db.add(drift_run)
+    await db.flush()
+    db.add(_feed_finding(drift_run, a, 9.9, datetime(2026, 9, 8, tzinfo=UTC)))
+    await db.commit()
+
+    page2 = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"sort": "newest", "limit": 2, "cursor": cursor},
+            headers=auth_headers,
+        )
+    ).json()
+    page1_ids = {item["id"] for item in page1["items"]}
+    assert not page1_ids.intersection(item["id"] for item in page2["items"])
 
 
 # ------------------------------------------------------------ graph internals

@@ -26,9 +26,16 @@ it:
   were examined, and the tokens spent.
 - **The goal switcher** (top) filters the feed to one goal's findings;
   selecting a goal also shows its constraints and actions (run now,
-  pause, edit, delete). The left rail carries the feed's filters; on
-  small screens both rails collapse (the runs rail into a collapsible
-  section above the feed, the filters behind a toggle button).
+  pause, edit, delete).
+- **The filter rail** (left) narrows the feed: state (open / dismissed /
+  all), the latest-evaluation-per-posting dedupe, hide-applied, a fit
+  score floor, a must-haves floor, an employer-text match, the board,
+  seniority, remote-only and a posted-within window — each with live
+  facet counts that keep their own value counted. Every filter rides the
+  URL, so a filtered view reloads and shares exactly. A sort control
+  (newest / best fit) sits above the feed. On small screens both rails
+  collapse (the runs rail into a collapsible section above the feed, the
+  filters behind a toggle button).
 
 ## What a run does
 

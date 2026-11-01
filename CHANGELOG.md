@@ -6,15 +6,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ### Changed (autopilot findings workspace, 2026-11-01)
 - **`/autopilot` is now a findings workspace.** The shortlist is the
-  surface: a flat, filterable feed of the same job cards `/postings`
-  uses — each with its evidence row (why, verified quote, must-have
-  coverage, 👍/👎), a **Mark applied** button (an Applied badge appears
-  when the posting is already in your applications), and run/date
-  provenance. A **runs rail** on the right lists the latest runs across
-  all goals with status, live findings, examined counts and tokens; the
-  goal switcher filters the feed, and Flat/By-run toggles between the
-  latest evaluation per posting and the full history. Dismissed findings
-  are hidden by default; both rails collapse on small screens. The old
+  surface: a flat feed of the same job cards `/postings` uses — each with
+  its evidence row (why, verified quote, must-have coverage, 👍/👎), a
+  **Mark applied** button (an Applied badge appears when the posting is
+  already in your applications), and run/date provenance. A **runs rail**
+  on the right lists the latest runs across all goals with status, live
+  findings, examined counts and tokens; the goal switcher filters the
+  feed, and Flat/By-run toggles between the latest evaluation per posting
+  and the full history. **The filter rail** narrows the feed server-side
+  — state, dedupe, hide-applied, fit-score and must-haves floors,
+  employer text, board, seniority, remote-only and posted-within, with
+  self-excluding facet counts, a newest/best-fit sort and keyset
+  pagination; the whole filter set rides the URL. Dismissed findings are
+  hidden by default; both rails collapse on small screens. The old
   run-grouped listing with the inline timeline is replaced (the run
   detail keeps the searched-queries timeline; a dedicated run page
   follows).

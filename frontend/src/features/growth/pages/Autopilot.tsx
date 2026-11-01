@@ -65,6 +65,15 @@ import type {
   RunsRailRow,
 } from "@/api/autopilot";
 import { AutopilotFindingCard } from "@/features/growth/components/AutopilotFindingCard";
+import { FindingsRail } from "@/features/growth/components/FindingsRail";
+import {
+  DEFAULT_FINDINGS_FILTERS,
+  countActiveFindingsFilters,
+  parseFindingsFilters,
+  toFeedParams,
+  toFindingsSearchParams,
+  type FindingsFilters,
+} from "@/features/growth/findingsFilterState";
 import { useAuthStore } from "@/stores/authStore";
 
 const SENIORITY_OPTIONS = [
@@ -1173,28 +1182,22 @@ export function Autopilot() {
   const [runsOpen, setRunsOpen] = useState(true);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const runParam = searchParams.get("run");
-  const goalParam = searchParams.get("goal");
-  const viewParam = searchParams.get("view");
-  const view = viewParam === "byrun" ? "byrun" : "flat";
-  const latestOnly = view === "flat";
+  const filters = useMemo(() => parseFindingsFilters(searchParams), [searchParams]);
+  const goalParam = filters.goal;
+  const view = filters.view;
+
+  const writeFilters = useCallback(
+    (next: FindingsFilters) => {
+      setSearchParams(toFindingsSearchParams(next), { replace: true });
+    },
+    [setSearchParams],
+  );
 
   const closeRun = useCallback(() => {
     const next = new URLSearchParams(searchParams);
     next.delete("run");
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
-
-  const writeParams = useCallback(
-    (patch: Record<string, string | null>) => {
-      const next = new URLSearchParams(searchParams);
-      for (const [key, value] of Object.entries(patch)) {
-        if (value === null) next.delete(key);
-        else next.set(key, value);
-      }
-      setSearchParams(next, { replace: true });
-    },
-    [searchParams, setSearchParams],
-  );
 
   const loadGoalsAndRail = useCallback(() => {
     void fetchGoals().then(setGoals).catch(() => setGoals([]));
@@ -1203,24 +1206,23 @@ export function Autopilot() {
 
   const loadFeed = useCallback(
     (cursor?: string) => {
-      void fetchFindingsFeed({
-        goal_id: goalParam ?? undefined,
-        state: "open",
-        latest_per_posting: latestOnly,
-        sort: "newest",
-        limit: 20,
-        cursor,
-      })
+      void fetchFindingsFeed({ ...toFeedParams(filters), limit: 20, cursor })
         .then((page) =>
           setFeed((prev) =>
             cursor && prev
-              ? { items: [...prev.items, ...page.items], next_cursor: page.next_cursor }
+              ? { items: [...prev.items, ...page.items], next_cursor: page.next_cursor, facets: prev.facets }
               : page,
           ),
         )
-        .catch(() => setFeed({ items: [], next_cursor: null }));
+        .catch(() =>
+          setFeed({
+            items: [],
+            next_cursor: null,
+            facets: { goal: {}, source: {}, seniority: {}, state: { open: 0, dismissed: 0 } },
+          }),
+        );
     },
-    [goalParam, latestOnly],
+    [filters],
   );
 
   useEffect(loadGoalsAndRail, [loadGoalsAndRail]);
@@ -1346,7 +1348,7 @@ export function Autopilot() {
             <button
               type="button"
               aria-pressed={!goalParam}
-              onClick={() => writeParams({ goal: null })}
+              onClick={() => writeFilters({ ...filters, goal: null })}
               className={`rounded-full border px-3 py-1 text-xs transition-colors ${
                 !goalParam
                   ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
@@ -1361,7 +1363,12 @@ export function Autopilot() {
                 key={goal.id}
                 type="button"
                 aria-pressed={goalParam === goal.id}
-                onClick={() => writeParams({ goal: goalParam === goal.id ? null : goal.id })}
+                onClick={() =>
+                  writeFilters({
+                    ...filters,
+                    goal: goalParam === goal.id ? null : goal.id,
+                  })
+                }
                 className={`max-w-[280px] truncate rounded-full border px-3 py-1 text-xs transition-colors ${
                   goalParam === goal.id
                     ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
@@ -1484,11 +1491,22 @@ export function Autopilot() {
               data-open={filtersOpen ? "true" : "false"}
               data-testid="autopilot-filters"
             >
-              <div className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3">
-                <div className="text-sm font-semibold text-slate-700">
-                  {t("autopilot.workspace.filtersTitle")}
-                </div>
-              </div>
+              <FindingsRail
+                filters={filters}
+                facets={feed?.facets ?? null}
+                sources={Object.entries(feed?.facets.source ?? {}).map(([key, count]) => ({
+                  key,
+                  label: `${key} (${count})`,
+                }))}
+                onChange={writeFilters}
+                onClear={() =>
+                  writeFilters({
+                    ...DEFAULT_FINDINGS_FILTERS,
+                    goal: filters.goal,
+                    view: filters.view,
+                  })
+                }
+              />
             </aside>
 
             <section className="min-w-0 space-y-3" data-testid="findings-feed">
@@ -1509,6 +1527,23 @@ export function Autopilot() {
                     <SlidersHorizontal className="h-3 w-3" />
                     {t("autopilot.workspace.filtersTitle")}
                   </button>
+                  <label className="flex items-center gap-1 text-xs text-slate-500">
+                    {t("autopilot.workspace.sortLabel")}
+                    <select
+                      className="border border-slate-200 rounded px-1.5 py-1 text-xs"
+                      value={filters.sort}
+                      onChange={(e) =>
+                        writeFilters({
+                          ...filters,
+                          sort: e.target.value as FindingsFilters["sort"],
+                        })
+                      }
+                      data-testid="findings-sort"
+                    >
+                      <option value="newest">{t("autopilot.workspace.sortNewest")}</option>
+                      <option value="score">{t("autopilot.workspace.sortScore")}</option>
+                    </select>
+                  </label>
                   <SegmentedRow
                     label={t("autopilot.workspace.viewLabel")}
                     value={view}
@@ -1516,7 +1551,13 @@ export function Autopilot() {
                       { value: "flat", label: t("autopilot.workspace.viewFlat") },
                       { value: "byrun", label: t("autopilot.workspace.viewByRun") },
                     ]}
-                    onChange={(value) => writeParams({ view: value === "flat" ? null : value })}
+                    onChange={(value) =>
+                      writeFilters({
+                        ...filters,
+                        view: value as FindingsFilters["view"],
+                        latest: value !== "byrun",
+                      })
+                    }
                   />
                 </div>
               </div>
@@ -1526,10 +1567,33 @@ export function Autopilot() {
                   <Spinner />
                 </div>
               ) : feed.items.length === 0 ? (
-                <EmptyState
-                  title={t("autopilot.noRunsTitle")}
-                  description={t("autopilot.noRunsBody")}
-                />
+                countActiveFindingsFilters(filters) > 0 ? (
+                  <EmptyState
+                    title={t("autopilot.workspace.emptyFilteredTitle")}
+                    description={t("autopilot.workspace.emptyFilteredBody")}
+                    action={
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          writeFilters({
+                            ...DEFAULT_FINDINGS_FILTERS,
+                            goal: filters.goal,
+                            view: filters.view,
+                          })
+                        }
+                        data-testid="feed-clear-filters"
+                      >
+                        {t("filters.clearAll")}
+                      </Button>
+                    }
+                  />
+                ) : (
+                  <EmptyState
+                    title={t("autopilot.noRunsTitle")}
+                    description={t("autopilot.noRunsBody")}
+                  />
+                )
               ) : view === "byrun" ? (
                 groupedByRun.map(([runId, items]) => (
                   <div key={runId} className="space-y-2" data-testid={`feed-run-group-${runId}`}>
@@ -1600,7 +1664,9 @@ export function Autopilot() {
           onConfirm={() => {
             void deleteGoal(deleting.id).then(() => {
               setDeleting(null);
-              if (goalParam === deleting.id) writeParams({ goal: null });
+              if (goalParam === deleting.id) {
+                writeFilters({ ...filters, goal: null });
+              }
               reload();
             });
           }}

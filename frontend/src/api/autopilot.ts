@@ -137,6 +137,21 @@ export interface FindingFeedParams {
   sort?: FindingFeedSort;
   limit?: number;
   cursor?: string;
+  min_score?: number;
+  coverage_min?: number;
+  org?: string;
+  source?: string;
+  seniority?: string;
+  remote?: boolean;
+  posted_within?: string;
+  hide_applied?: boolean;
+}
+
+export interface FindingFeedFacets {
+  goal: Record<string, number>;
+  source: Record<string, number>;
+  seniority: Record<string, number>;
+  state: { open: number; dismissed: number };
 }
 
 export interface AutopilotFindingFeedItem {
@@ -160,6 +175,7 @@ export interface AutopilotFindingFeedItem {
 export interface FindingFeedResponse {
   items: AutopilotFindingFeedItem[];
   next_cursor: string | null;
+  facets: FindingFeedFacets;
 }
 
 export interface RunsRailRow {
