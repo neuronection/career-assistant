@@ -95,8 +95,12 @@ async def test_negative_cosine_clamps_to_zero_affinity(
     never gated out -- semantic is a ranking signal, never a filter
     (ADR-0012 par. 13)."""
     user_id = UUID(_uid(auth_headers))
-    neutral = await _make_posting(db, source, external_id="sm-neutral", title="Data Analyst", org="AlphaCo")
-    contra = await _make_posting(db, source, external_id="sm-contra", title="Data Analyst", org="BetaCo")
+    neutral = await _make_posting(
+        db, source, external_id="sm-neutral", title="Data Analyst", org="AlphaCo"
+    )
+    contra = await _make_posting(
+        db, source, external_id="sm-contra", title="Data Analyst", org="BetaCo"
+    )
     await _profile_vector_override(db, user_id, [1.0, 0.0, 0.0, 0.0])
     await _seed_posting_vector(db, contra, [-1.0, 0.0, 0.0, 0.0])
 
