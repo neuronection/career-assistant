@@ -31,6 +31,7 @@ export const PRESET_CONNECTOR_KEYS = [
   "teamtailor",
   "personio",
   "join_com",
+  "workable",
   "jobicy",
   "remotive",
   "arbeitnow",

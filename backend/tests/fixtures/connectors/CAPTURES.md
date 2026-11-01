@@ -27,3 +27,5 @@ Wire notes worth keeping:
 - Recruitee uses naive `"YYYY-MM-DD HH:MM:SS UTC"` timestamps.
 - Teamtailor is JSON Feed 1.1 with an embedded schema.org `_jobposting`.
 - RSS 2.0 `pubDate` is RFC 822, not ISO.
+
+- Workable (`apply.workable.com/api/v1/widget/accounts/<account>?details=false`), captured 2026-11-01 from the **skroutz** account (9 jobs): the careers-widget account payload — `jobs[]` carries `shortcode` (hex-ish uppercase id), `url`, `city/state/country`, `telecommuting` (bool), `employment_type`, date-only `published_on` plus full `created_at`; the account `name` is the posting org.

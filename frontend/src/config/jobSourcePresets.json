@@ -109,6 +109,51 @@
       "config": { "company": "opencosmos-1706113956" }
     },
     {
+      "slug": "skroutz",
+      "name": "Skroutz",
+      "connectorKey": "workable",
+      "provider": "Workable",
+      "category": "ats",
+      "country": "GR",
+      "config": { "account": "skroutz" }
+    },
+    {
+      "slug": "spotawheel",
+      "name": "Spotawheel",
+      "connectorKey": "workable",
+      "provider": "Workable",
+      "category": "ats",
+      "country": "GR",
+      "config": { "account": "spotawheel" }
+    },
+    {
+      "slug": "hack-the-box-ltd",
+      "name": "Hack The Box",
+      "connectorKey": "workable",
+      "provider": "Workable",
+      "category": "ats",
+      "country": "GR",
+      "config": { "account": "hack-the-box-ltd" }
+    },
+    {
+      "slug": "withplum",
+      "name": "Plum",
+      "connectorKey": "workable",
+      "provider": "Workable",
+      "category": "ats",
+      "country": "GR",
+      "config": { "account": "withplum" }
+    },
+    {
+      "slug": "epignosis",
+      "name": "Epignosis",
+      "connectorKey": "workable",
+      "provider": "Workable",
+      "category": "ats",
+      "country": "GR",
+      "config": { "account": "epignosis" }
+    },
+    {
       "slug": "jobicy",
       "name": "Jobicy",
       "connectorKey": "jobicy",

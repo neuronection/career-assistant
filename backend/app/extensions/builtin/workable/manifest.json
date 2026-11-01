@@ -1,0 +1,76 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/neuronection/career-assistant",
+  "categories": [
+    "search"
+  ],
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "docs": "docs/docs-tree.json",
+  "id": "career-workable",
+  "version": "1.0.0",
+  "description": "Workable per-account public widget API (free, no credentials \u2014 no secret slots by design).",
+  "capabilities": [
+    "net",
+    "sync"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "type": "string",
+        "title": "Workable account",
+        "description": "The path segment of the tenant's apply.workable.com URL (e.g. skroutz for apply.workable.com/skroutz)",
+        "minLength": 1,
+        "maxLength": 80,
+        "pattern": "^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$"
+      },
+      "max_items": {
+        "type": "number",
+        "title": "Max items per sync",
+        "default": 100,
+        "minimum": 1,
+        "maximum": 300
+      }
+    },
+    "required": [
+      "account"
+    ]
+  },
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "Workable careers feed",
+        "summary": "Open roles from a Workable career site's public widget API \u2014 free, no credentials, no secret slots."
+      }
+    }
+  },
+  "domains": [
+    "apply.workable.com"
+  ]
+}

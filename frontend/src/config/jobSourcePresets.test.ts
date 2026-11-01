@@ -45,6 +45,7 @@ describe("job-source preset catalog", () => {
     expect(groups.map((group) => group.provider)).toEqual([
       "Recruitee",
       "Teamtailor",
+      "Workable",
       "Remote boards",
     ]);
     const flat = groups.flatMap((group) => group.presets);
