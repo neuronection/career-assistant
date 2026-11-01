@@ -165,3 +165,35 @@ def test_user_page_diagram_stays_user_level():
         "REPLAN_LIMIT",
     ):
         assert constant not in text, f"{constant} is an internal bound, not user prose"
+
+
+def test_findings_feed_docs_match_the_endpoint():
+    """The findings-feed section documents the endpoint's real query
+    params and the runs-rail endpoint (plan 175 S5.2)."""
+    import inspect
+
+    from app.api.v1.autopilot import list_findings, list_runs
+
+    text = _ai_layer()
+    assert "GET /autopilot/findings" in text
+    assert "GET /autopilot/runs" in text
+    for name in inspect.signature(list_findings).parameters:
+        if name in ("user", "db"):
+            continue
+        assert f"`{name}`" in text, f"feed param `{name}` is documented"
+    assert inspect.signature(list_runs) is not None
+    assert "latest_per_posting" in text and "Numeric(4,2)" in text
+    assert "self-excluding" in text
+    assert "dismiss-findings" in text, "bulk dismiss is documented"
+
+
+def test_run_page_route_is_documented():
+    """The run page route exists in the router AND the user guide
+    documents it (plan 175 S5.2)."""
+    from app.main import app
+
+    schema = app.openapi()
+    assert "/api/v1/autopilot/runs/{run_id}" in schema["paths"]
+    assert "/api/v1/autopilot/runs/{run_id}/dismiss-findings" in schema["paths"]
+    text = USER_DOC.read_text(encoding="utf-8")
+    assert "/autopilot/runs/:id" in text

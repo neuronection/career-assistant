@@ -262,6 +262,58 @@ flowchart LR
     SCORE --> POOL["(must_hits, fit) ordering → pool → findings"]
 ```
 
+### Findings feed and runs rail (plan 175)
+
+The shortlist is the product surface. `GET /autopilot/findings` returns a
+flat, keyset-paginated feed of findings joined with their postings; the
+workspace (`/autopilot`) renders it with the same card primitives as
+`/postings`, a filter rail, a runs rail and the run page
+(`/autopilot/runs/:runId`).
+
+- Filters, all server-side over the run → goal / posting joins:
+  `goal_id`, `run_id`, `state` (`open|dismissed|all`, default open),
+  `latest_per_posting` (default true — the posting's newest evaluation
+  wins via a row-value `(created_at, id)` comparison, and the state
+  filter applies to the surviving row), `sort` (`newest|score`),
+  `limit`, `cursor`, `min_score`, `coverage_min` (must-coverage hits via
+  a dialect-split JSONB path), `org` (ilike), `source`, `seniority`,
+  `remote`, `posted_within` (the shared effective-posted `window_clause`)
+  and `hide_applied`. Ownership rides the goal join — another user's
+  rows are invisible. The applied badge derives from the caller's
+  `applications` join, never a stored flag;
+  `POST /autopilot/runs/{run_id}/dismiss-findings` bulk-dismisses one
+  run's open findings (no constraint learning).
+- Cursors are opaque `(sort_key, id)` keyset markers per sort — score
+  ties are guaranteed (`score` is `Numeric(4,2)`), so a single-key
+  cursor would loop. The keyset runs over the deduped row's own
+  `(sort_key, id)`: a re-rank between pages (a newer evaluation
+  displacing the cursor row) is accepted drift, never a loop or a
+  repeat.
+- Facets for `goal`, `source`, `seniority` and `state` ride the same
+  response, self-excluding (each dimension recounts without its own
+  filter, the explore pattern).
+- `GET /autopilot/runs` is the runs rail — status, tokens, live
+  findings and the Σ `examined` per run, cross-goal, newest first. The
+  timeline itself stays on `GET /autopilot/runs/{run_id}` (plan 168).
+
+```mermaid
+flowchart LR
+    subgraph Sources
+        R["autopilot_runs (+ run_steps trace)"]
+        F["autopilot_findings"]
+        P["job_postings (+ source/status)"]
+        A["applications"]
+    end
+    F --> FE["GET /autopilot/findings<br/>filters · dedupe · facets · cursor"]
+    P --> FE
+    A -- applied badge/join --> FE
+    R --> RR["GET /autopilot/runs<br/>rail rows: findings · examined · tokens"]
+    FE --> UI["/autopilot workspace<br/>rail · feed (PostingCard + evidence) · runs rail"]
+    RR --> UI
+    UI -- "?run / row click" --> RP["/autopilot/runs/:id<br/>inputs · trace · graph · AI calls · findings"]
+    RP -- "Mark applied" --> A
+```
+
 ### Run trace (plan 168)
 
 Every executed node lands one entry in the `trace_steps` state channel —
