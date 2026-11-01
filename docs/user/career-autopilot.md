@@ -126,7 +126,10 @@ each search, the filters, the ranking, the broaden pass, the budget check, the
 curation and the delivery actually did, with timing and each step's arguments
 and output summaries — plus the run's **AI calls** (which stage served which
 call, its model and spend; an admin also gets a "View call" link into the
-audit ledger), and the shortlist it produced. Runs from before this trace
+audit ledger), and the shortlist it produced — with a **Dismiss all from
+this run** action that clears the run's open findings from the feed in
+one step (it teaches the goal nothing; per-finding 👍/👎 is what learns).
+Runs from before this trace
 existed fall back to the search timeline — never an empty view. Everything is
 argument/output summaries: the full prompt text stays admin-only in the audit
 ledger.

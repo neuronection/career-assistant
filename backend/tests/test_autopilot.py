@@ -1120,6 +1120,84 @@ async def test_findings_feed_cursor_survives_re_rank_drift(client, auth_headers,
     assert not page1_ids.intersection(item["id"] for item in page2["items"])
 
 
+# ------------------------------------------------------ S4 applications + bulk
+
+
+async def test_bulk_dismiss_marks_only_that_run(client, auth_headers, db):
+    """Dismiss-all marks only that run's open findings; no constraint
+    learning, no feedback overwrite; the filters respect it."""
+    from app.models.autopilot_model import AutopilotGoal, AutopilotRun
+
+    user_id = _uid(auth_headers)
+    goal, run1, run2, (_a, _b, _c) = await _seed_feed(db, user_id)
+    other_goal = AutopilotGoal(
+        user_id=user_id, goal_text="untouched goal", constraints={}, budget={}
+    )
+    db.add(other_goal)
+    await db.flush()
+    other_run = AutopilotRun(goal_id=other_goal.id, status="completed", searches_executed=[])
+    db.add(other_run)
+    await db.flush()
+    another = await _feed_posting(db, "ex-other", title="Other Run Role")
+    db.add(_feed_finding(other_run, another, 5.5, datetime(2026, 9, 9, tzinfo=UTC)))
+    await db.commit()
+
+    response = await client.post(
+        f"/api/v1/autopilot/runs/{run2.id}/dismiss-findings", headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["dismissed"] == 3, "every open finding of the run"
+
+    feed = (
+        await client.get(
+            "/api/v1/autopilot/findings",
+            params={"state": "all", "latest_per_posting": "false"},
+            headers=auth_headers,
+        )
+    ).json()
+    run2_ids = {item["id"] for item in feed["items"] if item["run_id"] == str(run2.id)}
+    assert run2_ids and all(
+        item["dismissed_at"] is not None for item in feed["items"] if item["run_id"] == str(run2.id)
+    ), "that run's findings are dismissed"
+    untouched = [
+        item
+        for item in feed["items"]
+        if item["run_id"] in (str(run1.id), str(other_run.id)) and item["dismissed_at"] is None
+    ]
+    assert len(untouched) == 2, "other runs' open findings stay open"
+
+    await db.refresh(goal)
+    assert goal.constraints == {}, "bulk dismiss learns nothing"
+    body = (await client.get("/api/v1/autopilot/findings", headers=auth_headers)).json()
+    assert [item["run_id"] for item in body["items"]] == [str(other_run.id)], (
+        "the default open+latest feed keeps only the untouched run's rows"
+    )
+
+    foreign = await client.post(
+        f"/api/v1/autopilot/runs/{other_run.id}/dismiss-findings",
+        headers=auth_headers,
+    )
+    assert foreign.status_code == 200
+    other = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "bulk-other@example.com", "password": "supersecret1"},
+    )
+    assert other.status_code == 201
+    other_headers = session_headers(other)
+    missing = await client.post(
+        f"/api/v1/autopilot/runs/{run2.id}/dismiss-findings", headers=other_headers
+    )
+    assert missing.status_code == 404, "a foreign run answers the same 404"
+
+
+async def test_bulk_dismiss_unknown_run_404(client, auth_headers):
+    response = await client.post(
+        "/api/v1/autopilot/runs/00000000-0000-0000-0000-000000000001/dismiss-findings",
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+
+
 # ------------------------------------------------------------ graph internals
 
 

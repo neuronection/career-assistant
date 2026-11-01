@@ -33310,6 +33310,52 @@
         ]
       }
     },
+    "/api/v1/autopilot/runs/{run_id}/dismiss-findings": {
+      "post": {
+        "description": "Dismiss every open finding of one run \u2014 no constraint learning.",
+        "operationId": "dismiss_run_findings_api_v1_autopilot_runs__run_id__dismiss_findings_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dismiss Run Findings Api V1 Autopilot Runs  Run Id  Dismiss Findings Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Run Findings",
+        "tags": [
+          "autopilot"
+        ]
+      }
+    },
     "/api/v1/background-jobs": {
       "get": {
         "description": "The caller's background jobs, newest first.",

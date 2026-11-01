@@ -991,7 +991,10 @@
       "profileStage": "stage {{stage}}",
       "openFull": "Open full view",
       "backToFeed": "All findings",
-      "viewInFeed": "Show in the feed"
+      "viewInFeed": "Show in the feed",
+      "dismissAll": "Dismiss all from this run",
+      "dismissAllTitle": "Dismiss all findings from this run?",
+      "dismissAllBody": "Every open finding of this run moves out of the feed. This teaches the goal nothing — it is cleanup, not feedback."
     },
     "summary": {
       "skills": "Skills: {{items}}",

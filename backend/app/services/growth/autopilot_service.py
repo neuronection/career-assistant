@@ -495,6 +495,46 @@ class AutopilotService:
             },
         }
 
+    async def dismiss_run_findings(self, user_id: UUID, run_id: UUID) -> dict:
+        """Bulk-dismiss every OPEN finding of one run (plan 175 S4).
+
+        Ownership rides the run → goal join: a foreign and a missing run
+        answer the same 404 (the run_detail rule). One audit-visible
+        action — constraint learning is NOT triggered (feedback is an
+        intentional, per-finding signal; decision log), the `feedback`
+        column is untouched.
+        """
+        run = (
+            (
+                await self.db.execute(
+                    select(AutopilotRun)
+                    .join(AutopilotGoal, AutopilotGoal.id == AutopilotRun.goal_id)
+                    .where(AutopilotRun.id == run_id, AutopilotGoal.user_id == user_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if run is None:
+            raise NotFoundError("Autopilot run not found")
+        rows = (
+            (
+                await self.db.execute(
+                    select(AutopilotFinding).where(
+                        AutopilotFinding.run_id == run.id,
+                        AutopilotFinding.dismissed_at.is_(None),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+        dismissed_at = _utcnow()
+        for finding in rows:
+            finding.dismissed_at = dismissed_at
+        await self.db.commit()
+        return {"dismissed": len(rows)}
+
     async def runs_rail(self, user_id: UUID, limit: int = 20) -> list[dict]:
         """The runs rail, cross-goal, newest first.
 

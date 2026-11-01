@@ -5,6 +5,11 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Changed (autopilot findings workspace, 2026-11-01)
+- **"Dismiss all from this run"** on the run page clears that run's open
+  findings from the feed in one action — cleanup, not feedback: it
+  teaches the goal nothing. **Mark applied** on a finding card records a
+  real application through the same path as the posting page, and the
+  Applied badge appears.
 - **Each run gets a full page: `/autopilot/runs/:id`.** The runs rail
   links there, `?run=<id>` deep links land on the page, and the deliver
   notification points at it — old notifications keep working. The page

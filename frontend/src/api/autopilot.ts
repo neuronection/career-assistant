@@ -312,3 +312,8 @@ export async function sendFindingFeedback(
   });
   return data;
 }
+
+export async function dismissRunFindings(runId: string): Promise<{ dismissed: number }> {
+  const { data } = await api.post(`/autopilot/runs/${runId}/dismiss-findings`);
+  return data;
+}

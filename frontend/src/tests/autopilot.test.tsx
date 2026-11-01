@@ -25,7 +25,14 @@ import type {
   ProfileContextSnapshot,
   RunsRailRow,
 } from "@/api/autopilot";
+import { markApplied } from "@/api/postings";
+import { dismissRunFindings } from "@/api/autopilot";
 import { useAuthStore } from "@/stores/authStore";
+
+vi.mock("@/api/postings", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/postings")>();
+  return { ...mod, markApplied: vi.fn().mockResolvedValue(undefined) };
+});
 
 vi.mock("@/api/autopilot", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/autopilot")>();
@@ -41,6 +48,7 @@ vi.mock("@/api/autopilot", async (importOriginal) => {
     runGoal: vi.fn(),
     sendFindingFeedback: vi.fn(),
     fetchProfileContext: vi.fn(),
+    dismissRunFindings: vi.fn().mockResolvedValue({ dismissed: 3 }),
   };
 });
 
@@ -54,6 +62,8 @@ const mockPatch = vi.mocked(patchGoal);
 const mockDelete = vi.mocked(deleteGoal);
 const mockRunDetail = vi.mocked(fetchRunDetail);
 const mockProfileContext = vi.mocked(fetchProfileContext);
+const mockMarkApplied = vi.mocked(markApplied);
+const mockDismiss = vi.mocked(dismissRunFindings);
 
 function snapshot(overrides: Partial<ProfileContextSnapshot> = {}): ProfileContextSnapshot {
   return {
@@ -414,6 +424,18 @@ describe("Autopilot workspace feed", () => {
         expect.objectContaining({ remote: true })
       )
     );
+  });
+
+  it("marks a finding applied through the postings path and flips the badge", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const apply = await screen.findByTestId("finding-apply-f1");
+    await user.click(apply);
+    await waitFor(() =>
+      expect(mockMarkApplied).toHaveBeenCalledWith("p1", "https://syn.example/1")
+    );
+    expect(await screen.findByTestId("finding-applied-f1")).toBeInTheDocument();
+    expect(screen.getByTestId("finding-apply-f1")).toBeDisabled();
   });
 
   it("shows the filtered empty state with a clear action", async () => {
@@ -807,6 +829,63 @@ describe("Autopilot run page", () => {
       expect(screen.getByTestId("run-detail-call-gen-77")).toBeInTheDocument()
     );
     expect(screen.queryByTestId("run-detail-call-link-gen-77")).toBeNull();
+  });
+
+  it("dismisses all of the run's findings after confirmation", async () => {
+    const user = userEvent.setup();
+    mockRunDetail.mockResolvedValue(
+      runDetail({
+        findings: [
+          {
+            id: "fopen",
+            posting_id: "p1",
+            ref: "AB12CD34",
+            title: "Open finding",
+            org: "SynthCo",
+            url: "",
+            score: 7.0,
+            why: "why",
+            evidence: {},
+            feedback: null,
+            dismissed_at: null,
+            created_at: "2026-09-05T08:00:10Z",
+          },
+        ],
+      })
+    );
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
+    const callsBefore = mockRunDetail.mock.calls.length;
+    await user.click(screen.getByTestId("run-dismiss-all"));
+    await user.click(await screen.findByRole("button", { name: "Dismiss all from this run" }));
+    await waitFor(() => expect(mockDismiss).toHaveBeenCalledWith("r1"));
+    await waitFor(() => expect(mockRunDetail.mock.calls.length).toBeGreaterThan(callsBefore));
+  });
+
+  it("hides the dismiss-all action when no open findings remain", async () => {
+    mockRunDetail.mockResolvedValue(
+      runDetail({
+        findings: [
+          {
+            id: "fd1",
+            posting_id: "p1",
+            ref: "AB12CD34",
+            title: "Closed out",
+            org: "SynthCo",
+            url: "",
+            score: 7.0,
+            why: "why",
+            evidence: {},
+            feedback: null,
+            dismissed_at: "2026-09-06T08:00:00Z",
+            created_at: "2026-09-05T08:00:10Z",
+          },
+        ],
+      })
+    );
+    renderPage("/autopilot/runs/r1");
+    await screen.findByTestId("autopilot-run-page");
+    expect(screen.queryByTestId("run-dismiss-all")).toBeNull();
   });
 
   it("shows the missing-run note for a foreign or missing id", async () => {

@@ -167,6 +167,16 @@ async def run_detail(
     return await AutopilotService(db).run_detail(user.id, run_id)
 
 
+@router.post("/runs/{run_id}/dismiss-findings")
+async def dismiss_run_findings(
+    run_id: UUID,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Dismiss every open finding of one run — no constraint learning."""
+    return await AutopilotService(db).dismiss_run_findings(user.id, run_id)
+
+
 @router.post("/findings/{finding_id}/feedback")
 async def finding_feedback(
     finding_id: UUID,

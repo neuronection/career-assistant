@@ -991,7 +991,10 @@
       "profileStage": "Stufe {{stage}}",
       "openFull": "Vollansicht öffnen",
       "backToFeed": "Alle Treffer",
-      "viewInFeed": "Im Feed zeigen"
+      "viewInFeed": "Im Feed zeigen",
+      "dismissAll": "Alle dieses Laufs verwerfen",
+      "dismissAllTitle": "Alle Treffer dieses Laufs verwerfen?",
+      "dismissAllBody": "Jede offene Anzeige dieses Laufs verschwindet aus dem Feed. Das bringt das Ziel nichts bei — es ist Aufräumen, kein Feedback."
     },
     "summary": {
       "skills": "Skills: {{items}}",

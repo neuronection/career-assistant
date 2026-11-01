@@ -3393,6 +3393,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/autopilot/runs/{run_id}/dismiss-findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Run Findings
+         * @description Dismiss every open finding of one run — no constraint learning.
+         */
+        post: operations["dismiss_run_findings_api_v1_autopilot_runs__run_id__dismiss_findings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/background-jobs": {
         parameters: {
             query?: never;
@@ -24242,6 +24262,39 @@ export interface operations {
         };
     };
     run_detail_api_v1_autopilot_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_run_findings_api_v1_autopilot_runs__run_id__dismiss_findings_post: {
         parameters: {
             query?: never;
             header?: never;
