@@ -33,7 +33,7 @@ Error codes are the closed 15-code enum in the
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `net-denied` on Remotive syncs under the default posture | `remotive.com/robots.txt` carries `Disallow: /api/*`; robots law is fail-closed (the fixture wall pins exactly this) | an operator who judges the use consistent with Remotive's API terms lifts it per deployment: `CAREER_CONNECTOR_RESPECT_ROBOTS=false` — a deliberate admin decision, never a connector-side bypass |
+| `net-denied` on Remotive syncs under the default posture | Resolved (plan 182): the connector rides the robots-allowed `remotive.com/remote-jobs/feed`; the legacy `/api/*` target stays disallowed by `remotive.com/robots.txt` | nothing to do — a `net-denied` on the feed path itself would mean Remotive changed its robots file: pick a new polite endpoint, or (a deliberate admin decision, never a connector-side bypass) lift the check per deployment with `CAREER_CONNECTOR_RESPECT_ROBOTS=false` |
 | `net-denied` on a redirect chain that "should" pass | every hop is re-validated against the declared domains — an undeclared CDN host fails | declare every hop's host in `domains` |
 | `not-ready: no transport injected` | a connector was called without the runtime (direct call in code/tests) | treat transport as required — fail closed, never return empty success |
 | `rate-limited` with `retry_after_ms` | upstream 429; the runtime honored Retry-After | nothing to fix — the next sync backs off; lower the connector's `max_requests_per_minute` if it recurs |

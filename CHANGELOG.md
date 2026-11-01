@@ -4,6 +4,28 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (ATS integration honesty wave, 2026-11-01)
+- **Remotive sources can finally sync.** Remotive's robots.txt disallows
+  its JSON API (`Disallow: /api/*`), so every Remotive sync died with
+  `net-denied: robots.txt disallows /api/remote-jobs` and never ingested
+  anything. The connector now rides the feed robots allows
+  (`remotive.com/remote-jobs/feed`) — same listings, plus the full job
+  description per row (better than the old API, which truncated them).
+  The optional category filter is now applied client-side (robots
+  disallows `category=` URLs); existing sources keep working.
+- **Failed runs no longer show "Last run —"** on the source page: a
+  connector failure (robots denial, network error) now stamps the last
+  run time like any completed run.
+- **The "Follow my job radar" label no longer lies on feed connectors.**
+  Sources created before the mode picker knew about connector
+  capabilities could sit in radar mode over connectors that ingest whole
+  boards (no query rotation). Such a source now normalizes to static on
+  its next sync, so the label matches the behavior.
+- **AI connection tests are audited.** The Settings → AI connection
+  probe spends tokens like any other model call and now lands an
+  `ai_generations` audit row (task `connection_test`) for both the OK
+  and the failing probe, visible in `/settings/audit?tab=ai`.
+
 ### Fixed (JOIN.com connector, 2026-11-01)
 - **JOIN.com postings now carry full descriptions.** The board's public
   list feed has no description field, so JOIN postings previously never

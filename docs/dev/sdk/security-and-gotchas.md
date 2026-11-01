@@ -131,9 +131,10 @@ vendored `app/extensions/polite_http.py`):
   declared-domain-scoped.
 - **robots.txt** — fetched and cached per host through the same guarded
   transport; a robots 5xx or any failure to obtain a verdict **denies**
-  the fetch (fail-closed). This is the remotive story: `Disallow:
-  /api/*` ⇒ typed `net-denied` under the default posture; the
-  per-deployment escape hatch is an admin decision
+  the fetch (fail-closed). This was the remotive story: `Disallow:
+  /api/*` ⇒ typed `net-denied`, so the connector was repointed to the
+  robots-allowed `/remote-jobs/feed` (plan 182) — the law itself is
+  unchanged, and the per-deployment escape hatch is an admin decision
   (`CAREER_CONNECTOR_RESPECT_ROBOTS`), never a connector-side bypass.
 - **Rate caps** — per-host token buckets sized by each connector's
   declared `max_requests_per_minute` under the global

@@ -9,7 +9,7 @@ actually see. (Deep diagnostics for extension authors live in the
 
 | You see | Why | What to do |
 |---|---|---|
-| `net-denied` on a **Remotive** source | Remotive's `robots.txt` disallows its API path; the app respects robots by default (see [the caveat](add-a-job-source.md#the-remotive-robots-caveat-honestly)) | An admin who accepts Remotive's API terms can lift the check for the deployment (`CAREER_CONNECTOR_RESPECT_ROBOTS`) |
+| `net-denied` on a **Remotive** source | Resolved: the connector rides the robots-allowed `remotive.com/remote-jobs/feed` (see [the caveat](add-a-job-source.md#the-remotive-robots-caveat-resolved)); the old `/api/*` target is robots-disallowed and stays off-limits | If the feed itself ever gets denied, that means Remotive changed its robots file — and an admin who accepts that can still lift the check for the deployment (`CAREER_CONNECTOR_RESPECT_ROBOTS`) |
 | `net-denied` elsewhere | The address is blocked by the app's SSRF guard (private/internal ranges) or a redirect left the board's declared domains | Use the public API endpoint; report genuinely wrong verdicts — never widen scopes to work around it |
 | `rate-limited` | The board throttled the fetch (429); the app already honored the retry hint | Wait for the next sync; lower the source's item cap if it recurs |
 | `needs-secret` | The source needs a credential that isn't filled | Fill the credential slot in the source's config (Settings → Tools → Connectors) |

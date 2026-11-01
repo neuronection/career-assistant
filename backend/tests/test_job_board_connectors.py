@@ -1,13 +1,14 @@
 """The real-content job-board connector wall (Arbeitnow, Remotive,
-Jobicy — bundled T1, live public JSON APIs).
+Jobicy — bundled T1, live public feeds/APIs).
 
-Fixtures are CAPTURED REAL payloads (2026-10-17 probes, no invention):
-``fixtures/connectors/{arbeitnow_job_board,remotive_remote_jobs,
-jobicy_remote_jobs}.json`` carry verbatim rows + meta from the live
-endpoints (Arbeitnow's is ``/api/job-board-api`` — the documented
-``/api/job-board`` now 302s home, the captured drift), plus the REAL
-``robots_remotive_com.txt`` whose ``Disallow: /api/*`` pins the
-fail-closed robots law against reality.
+Fixtures are CAPTURED REAL payloads (no invention):
+``fixtures/connectors/{arbeitnow_job_board,jobicy_remote_jobs}.json``
+carry verbatim rows + meta from the live endpoints (Arbeitnow's is
+``/api/job-board-api`` — the documented ``/api/job-board`` now 302s home,
+the captured drift); Remotive rides the captured ``remotive_feed.xml``
+RSS feed — the JSON API is gone because the REAL ``robots_remotive_com.txt``
+disallows ``/api/*``, pinning both the fail-closed robots law (D23) and
+the polite repoint.
 
 Every wall rides the REAL runtime stack (``sync_source`` → polite
 transport over ``httpx.MockTransport`` + an injected fake resolver — no
@@ -43,9 +44,11 @@ from app.services.postings.postings_service import sync_source
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "connectors"
 ARBEITNOW_BODY = (FIXTURES / "arbeitnow_job_board.json").read_text(encoding="utf-8")
-REMOTIVE_BODY = (FIXTURES / "remotive_remote_jobs.json").read_text(encoding="utf-8")
+REMOTIVE_BODY = (FIXTURES / "remotive_feed.xml").read_text(encoding="utf-8")
 JOBICY_BODY = (FIXTURES / "jobicy_remote_jobs.json").read_text(encoding="utf-8")
 REMOTIVE_ROBOTS = (FIXTURES / "robots_remotive_com.txt").read_text(encoding="utf-8")
+
+BODIES = {"arbeitnow": ARBEITNOW_BODY, "remotive": REMOTIVE_BODY, "jobicy": JOBICY_BODY}
 
 ARBEITNOW_PATH = ARBEITNOW_URL.removeprefix("https://www.arbeitnow.com")
 REMOTIVE_PATH = REMOTIVE_URL.removeprefix("https://remotive.com")
@@ -264,50 +267,101 @@ async def test_arbeitnow_tag_filter_and_cap(db, seeded_catalog, runtime_factory)
     assert result["synced"] == 2, "newest-first cap honored"
 
 
-async def test_remotive_sync_maps_salary_and_remote(db, seeded_catalog, runtime_factory):
+async def test_remotive_sync_maps_feed_rows(db, seeded_catalog, runtime_factory):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/robots.txt":
             return httpx.Response(200, text="User-agent: *\nDisallow:")
-        return _json_response(REMOTIVE_BODY, etag='"rm-v1"')
+        return httpx.Response(
+            200,
+            text=REMOTIVE_BODY,
+            headers={"Content-Type": "application/rss+xml", "ETag": '"rm-v1"'},
+        )
 
     transport = _scoped_transport(runtime_factory, "remotive", handler)
     source = await _make_source(db, key="remotive", config={})
     first = await sync_source(db, source, transport=transport)
     assert first["errors"] == [], first
-    assert first["synced"] == 6
+    assert first["synced"] == 2
     rows = {row.external_id: row for row in (await db.execute(select(JobPosting))).scalars().all()}
-    lead = rows["2069746"]
-    assert lead.salary_currency == "USD"
-    assert float(lead.salary_min) == 170000.0
-    assert float(lead.salary_max) == 200000.0
-    assert lead.salary_period == "year"
-    writer = rows["1185979"]
-    assert writer.salary_period == "hour" and float(writer.salary_min) == 50.0
-    assert writer.employment_type == "contract", "freelance maps onto the contract class"
-    assert all(row.location["remote"] for row in rows.values()), "remote-jobs board"
-    assert all(row.raw["location_note"] for row in rows.values()), "geo restriction preserved"
+    assert set(rows) == {"2091165", "2091135"}, "jobId is the external id"
+    fluence = rows["2091165"]
+    assert fluence.org == "Fluence International, Inc."
+    assert fluence.employment_type == "contract"
+    assert fluence.location["remote"] is True
+    assert fluence.raw["location_note"] == "Worldwide"
+    assert fluence.raw["category"] == "Software Development"
+    assert len(fluence.raw["description"]) > 200, "the feed carries the full description"
+    lemon = rows["2091135"]
+    assert lemon.employment_type == "full_time"
+    assert lemon.url.startswith("https://remotive.com/remote-jobs/")
 
     second = await sync_source(db, source, transport=transport)
     assert second["synced"] == 0
+    _, seen = runtime_factory
+    conditional = [r for r in seen if r.url.path == REMOTIVE_PATH]
+    assert len(conditional) == 2
+    assert conditional[1].headers.get("If-None-Match") == '"rm-v1"'
 
 
-async def test_remotive_category_param_reaches_the_wire(db, seeded_catalog, runtime_factory):
-    asked: list[str] = []
+async def test_remotive_category_filters_client_side(db, seeded_catalog, runtime_factory):
+    asked: list[httpx.Request] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/robots.txt":
             return httpx.Response(200, text="User-agent: *\nDisallow:")
-        asked.append(str(request.url.params.get("category")))
-        return _json_response(REMOTIVE_BODY)
+        asked.append(request)
+        return httpx.Response(
+            200, text=REMOTIVE_BODY, headers={"Content-Type": "application/rss+xml"}
+        )
 
     source = await _make_source(
-        db, key="remotive-cat", config={"category": "software-dev"}, connector_key="remotive"
+        db,
+        key="remotive-cat",
+        config={"category": "software development"},
+        connector_key="remotive",
     )
     result = await sync_source(
         db, source, transport=_scoped_transport(runtime_factory, "remotive", handler)
     )
     assert result["errors"] == []
-    assert asked == ["software-dev"]
+    assert result["synced"] == 2, "both captured rows are Software Development"
+    assert all("category=" not in str(r.url) for r in asked), (
+        "robots disallows /*category= — filtering never rides the URL"
+    )
+
+    empty = await _make_source(
+        db, key="remotive-cat2", config={"category": "design"}, connector_key="remotive"
+    )
+    result = await sync_source(
+        db, empty, transport=_scoped_transport(runtime_factory, "remotive", handler)
+    )
+    assert result["synced"] == 0, "a category no captured row carries keeps nothing"
+
+
+async def test_radar_mode_normalizes_to_static_for_feed_connectors(
+    db, seeded_catalog, runtime_factory
+):
+    """query_mode defaulted to radar before plan 180 — a feed connector
+    (no dynamic_queries) can't rotate queries, so the stored mode
+    normalizes to static on the first sync instead of labeling an inert
+    setting as "Follow my job radar"."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(
+            200, text=REMOTIVE_BODY, headers={"Content-Type": "application/rss+xml"}
+        )
+
+    source = await _make_source(db, key="remotive-radar", config={}, connector_key="remotive")
+    source.query_mode = "radar"
+    await db.commit()
+    result = await sync_source(
+        db, source, transport=_scoped_transport(runtime_factory, "remotive", handler)
+    )
+    assert result["errors"] == []
+    await db.refresh(source)
+    assert source.query_mode == "static", "the label matches the behavior after one sync"
 
 
 async def test_jobicy_sync_maps_level_salary_and_cursor_pages(db, seeded_catalog, runtime_factory):
@@ -376,33 +430,60 @@ async def test_jobicy_tag_param_reaches_the_wire(db, seeded_catalog, runtime_fac
         ("jobicy", "jobs", lambda row: row.update({"jobTitle": ""})),
     ],
 )
-async def test_malformed_row_is_typed_invalid_and_never_persisted(
-    db, seeded_catalog, runtime_factory, key, rows_key, mutate
-):
-    bodies = {
-        "arbeitnow": ARBEITNOW_BODY,
-        "remotive": REMOTIVE_BODY,
-        "jobicy": JOBICY_BODY,
-    }
-    payload = json.loads(bodies[key])
-    mutate(payload[rows_key][0])
-    payload["hasMore"] = False
-    payload.pop("nextCursor", None)
+def _corrupt_remotive_title(body: str) -> str:
+    return body.replace("<title>Full-Stack Developer</title>", "<title></title>", 1)
 
+
+@pytest.mark.parametrize(
+    "key,corrupt,healthy_rows",
+    [
+        (
+            "arbeitnow",
+            lambda body: json.dumps(
+                {
+                    **json.loads(body),
+                    "data": [
+                        {**json.loads(body)["data"][0], "slug": "", "title": ""},
+                        *json.loads(body)["data"][1:],
+                    ],
+                }
+            ),
+            5,
+        ),
+        ("remotive", _corrupt_remotive_title, 1),
+        (
+            "jobicy",
+            lambda body: json.dumps(
+                {
+                    **json.loads(body),
+                    "hasMore": False,
+                    "jobs": [
+                        {**json.loads(body)["jobs"][0], "jobTitle": ""},
+                        *json.loads(body)["jobs"][1:],
+                    ],
+                }
+            ),
+            5,
+        ),
+    ],
+)
+async def test_malformed_row_is_typed_invalid_and_never_persisted(
+    db, seeded_catalog, runtime_factory, key, corrupt, healthy_rows
+):
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/robots.txt":
             return httpx.Response(404)
-        return _json_response(json.dumps(payload))
+        return _json_response(corrupt(BODIES[key]))
 
     source = await _make_source(db, key=key, config={})
     result = await sync_source(
         db, source, transport=_scoped_transport(runtime_factory, key, handler)
     )
-    assert result["synced"] == 5, "healthy rows still land"
+    assert result["synced"] == healthy_rows, "healthy rows still land"
     assert [error["code"] for error in result["errors"]] == ["invalid"]
     assert result["errors"][0]["retryable"] == "no"
     rows = (await db.execute(select(JobPosting))).scalars().all()
-    assert len(rows) == 5
+    assert len(rows) == healthy_rows
 
 
 # ----------------------------------------------------- politeness failures
@@ -429,17 +510,42 @@ async def test_429_surfaces_typed_rate_limited(db, seeded_catalog, runtime_facto
     assert source.error.startswith("rate-limited:")
 
 
-async def test_remotive_robots_disallow_is_net_denied_for_real(db, seeded_catalog, runtime_factory):
-    """The CAPTURED remotive robots.txt disallows /api/* — the runtime's
-    fail-closed robots law denies the fetch (typed net-denied, source
-    errors, nothing persisted). Reality pins the law."""
+async def test_remotive_feed_is_allowed_by_the_captured_robots(db, seeded_catalog, runtime_factory):
+    """The CAPTURED remotive robots.txt disallows ``/api/*`` — which is
+    exactly why the connector rides ``/remote-jobs/feed``. Serving the
+    REAL robots file, the feed sync must go through: a regression back to
+    the JSON API fails right here."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/robots.txt":
             return httpx.Response(200, text=REMOTIVE_ROBOTS)
-        raise AssertionError("the robots verdict must block before the API call")
+        assert request.url.path == REMOTIVE_PATH, "the connector must ride the feed, not the API"
+        return httpx.Response(
+            200, text=REMOTIVE_BODY, headers={"Content-Type": "application/rss+xml"}
+        )
 
     source = await _make_source(db, key="remotive", config={})
+    result = await sync_source(
+        db, source, transport=_scoped_transport(runtime_factory, "remotive", handler)
+    )
+    assert result["errors"] == [], result
+    assert result["synced"] == 2
+
+
+async def test_robots_denial_is_typed_net_denied_and_stamps_last_run(
+    db, seeded_catalog, runtime_factory
+):
+    """A robots-disallowed path dies typed (``net-denied``, nothing
+    persisted) — and the failure still stamps ``last_run_at``, so the
+    source page never claims "Last run —" over a run that happened."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(200, text="User-agent: *\nDisallow: /")
+        raise AssertionError("a blanket deny must block before any fetch")
+
+    source = await _make_source(db, key="remotive", config={})
+    assert source.last_run_at is None
     result = await sync_source(
         db, source, transport=_scoped_transport(runtime_factory, "remotive", handler)
     )
@@ -448,6 +554,8 @@ async def test_remotive_robots_disallow_is_net_denied_for_real(db, seeded_catalo
     assert "robots.txt disallows" in result["errors"][0]["detail"]
     rows = (await db.execute(select(JobPosting))).scalars().all()
     assert rows == []
+    await db.refresh(source)
+    assert source.last_run_at is not None, "a failed run is still a run"
 
 
 async def test_domain_drift_redirect_is_net_denied(db, seeded_catalog, runtime_factory):
@@ -481,19 +589,31 @@ def test_time_bomb_free_fixtures():
     window must never detonate on a boundary — assert the newest fixture
     row is inside the window relative to *now*, so a stale capture is
     caught at capture time, not mid-suite years later."""
-    for body, rows_key, date_get in (
-        (ARBEITNOW_BODY, "data", lambda row: datetime.fromtimestamp(row["created_at"], tz=UTC)),
-        (
-            REMOTIVE_BODY,
-            "jobs",
-            lambda row: datetime.fromisoformat(row["publication_date"]).replace(tzinfo=UTC),
+    import xml.etree.ElementTree as ET
+    from email.utils import parsedate_to_datetime
+
+    def _remotive_dates(body: str) -> list[datetime]:
+        root = ET.fromstring(body)
+        return [
+            parsedate_to_datetime(node.findtext("pubDate")).astimezone(UTC)
+            for node in root.find("channel").findall("item")
+        ]
+
+    newest = max(
+        max(
+            (
+                datetime.fromtimestamp(row["created_at"], tz=UTC)
+                for row in json.loads(ARBEITNOW_BODY)["data"]
+            ),
         ),
-        (JOBICY_BODY, "jobs", lambda row: datetime.fromisoformat(row["pubDate"])),
-    ):
-        newest = max(date_get(row) for row in json.loads(body)[rows_key])
-        assert datetime.now(UTC) - newest < timedelta(days=45), (
-            "fixture capture is older than the posting expiry window — re-capture"
-        )
+        max(_remotive_dates(REMOTIVE_BODY)),
+        max(
+            (datetime.fromisoformat(row["pubDate"]) for row in json.loads(JOBICY_BODY)["jobs"]),
+        ),
+    )
+    assert datetime.now(UTC) - newest < timedelta(days=45), (
+        "fixture capture is older than the posting expiry window — re-capture"
+    )
 
 
 @pytest.fixture(autouse=True)

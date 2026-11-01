@@ -22,7 +22,6 @@ import json
 import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
 from typing import cast
 from urllib.parse import quote
 
@@ -35,6 +34,7 @@ from app.extensions.builtin.job_boards import (
     _normalize_token,
     _not_ready,
     _parse_iso_utc,
+    _parse_rfc822_utc,
     _protocol_error,
     _provider_error,
     _rate_limited,
@@ -118,22 +118,6 @@ _JSONLD_UNIT = {
 JOIN_PAGE_SIZE_CAP = 5
 JOIN_MAX_PAGES = 3
 JOIN_MAX_DETAILS = 10
-
-
-def _parse_rfc822_utc(value) -> datetime | None:
-    """RSS 2.0 ``pubDate`` (RFC 822, e.g. ``Sun, 16 Jun 2024 17:30:51 +0000``)."""
-    if value in (None, ""):
-        return None
-    text = str(value).strip()
-    try:
-        parsed = parsedate_to_datetime(text)
-    except (TypeError, ValueError):
-        return _parse_iso_utc(text)
-    if parsed is None:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
 
 
 def _parse_space_utc(value) -> datetime | None:

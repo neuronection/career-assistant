@@ -410,7 +410,7 @@ config, `{}` validates — with optional filters and polite caps:
 | Connector | Endpoint | Declared domains | rpm | Config (all optional) |
 |---|---|---|---|---|
 | `arbeitnow` | `https://www.arbeitnow.com/api/job-board-api` | `www.arbeitnow.com` | 10 | `tags` (≤16), `max_items` 1–300 (default 100) |
-| `remotive` | `https://remotive.com/api/remote-jobs` | `remotive.com` | 10 | `category`, `max_items` 1–500 (default 100) |
+| `remotive` | `https://remotive.com/remote-jobs/feed` (robots-allowed RSS; the JSON API is `Disallow: /api/*`) | `remotive.com` | 10 | `category` (client-side, case-insensitive), `max_items` 1–500 (default 100) |
 | `jobicy` | `https://jobicy.com/api/v2/remote-jobs` | `jobicy.com` | 12 | `tag`, `max_items` 1–200 (default 50; ≤3 pages walked, ≤100/page) |
 
 The Arbeitnow connector is the ~90-line shape worth copying — config

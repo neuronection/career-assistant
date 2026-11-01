@@ -8,7 +8,7 @@ keep the captured item shape verbatim; no field was invented.
 | Fixture | Captured | Source |
 |---|---|---|
 | `arbeitnow_job_board.json` | 2026-10-17 | `https://www.arbeitnow.com/api/job-board-api` |
-| `remotive_remote_jobs.json` | 2026-10-17 | `https://remotive.com/api/remote-jobs` |
+| `remotive_feed.xml` | 2026-11-01 | `https://remotive.com/remote-jobs/feed` (first 2 items verbatim; channel chrome trimmed). Replaced the captured `remotive_remote_jobs.json`: the JSON API is robots-disallowed (`Disallow: /api/*` — see `robots_remotive_com.txt`, captured 2026-10-17 and re-probed identical 2026-11-01), the feed is not |
 | `jobicy_remote_jobs.json` | 2026-10-17 | `https://jobicy.com/api/v2/remote-jobs` |
 | `robots_remotive_com.txt` | 2026-10-17 | `https://remotive.com/robots.txt` |
 | `personio_jobs.xml` | 2026-10-22 | `https://personio-gmbh.jobs.personio.de/xml` (3 real positions; description bodies trimmed) |
