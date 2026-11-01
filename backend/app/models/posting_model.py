@@ -74,6 +74,10 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Display name (plan 173): the extension manifest's `title` — what
+    # surfaces show ("LinkedIn"), never a lookup key. NULL = the connector's
+    # own title is shown.
+    title: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # What this source feeds: postings today, wider data families later.
     kind: Mapped[str] = mapped_column(
         String(20),

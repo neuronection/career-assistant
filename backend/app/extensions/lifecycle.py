@@ -885,6 +885,13 @@ def _secret_destinations(manifest: dict) -> list[dict]:
     return rows
 
 
+def _display_title(manifest: dict, extension_id: str) -> str:
+    """The manifest's human display name (plan 173) with the id as fallback
+    — what surfaces show; never a lookup key (the row key stays the id)."""
+    title = str(manifest.get("title") or "").strip()
+    return (title or extension_id)[:80]
+
+
 def consent_payload(
     manifest: dict, digest: str, *, subpath: str = "", tier: str | None = None
 ) -> dict:
@@ -1009,6 +1016,7 @@ def _install_view(install: ExtensionInstall) -> dict:
     return {
         "id": str(install.id),
         "extensionId": install.extension_id,
+        "title": _display_title(manifest, install.extension_id),
         "version": install.version,
         "digest": install.digest,
         "pinRef": install.pin_ref,
@@ -1601,6 +1609,7 @@ async def _land_install(
     kind = manifest.get("kind")
     if tier is None:
         tier = "T0" if kind == "mini-app" else "T3"
+    display_title = _display_title(manifest, extension_id)
     if kind == "connector" and tier == "T3":
         # T3 connector imports: the instance is a managed-spawn job
         # source (external MCP process, Phase 2/3 shape).
@@ -1613,6 +1622,7 @@ async def _land_install(
             job_source = JobSource(
                 key=source_key,
                 connector_key="mcp",
+                title=display_title,
                 config={
                     "transport": "stdio",
                     "command": command,
@@ -1632,6 +1642,7 @@ async def _land_install(
                     "invalid", f"a non-imported job source already owns the key {source_key!r}"
                 )
             existing_row.config = {**existing_row.config, "command": command}
+            existing_row.title = display_title
             existing_row.enabled = False
     elif kind == "connector" and tier == "T2":
         # T2 connector imports (plan 32 Phase 5): the instance is a job
@@ -1643,6 +1654,7 @@ async def _land_install(
         job_source = JobSource(
             key=source_key,
             connector_key=source_key,
+            title=display_title,
             config=config,
             enabled=False,
         )
@@ -1656,6 +1668,7 @@ async def _land_install(
                     "invalid", f"a non-imported job source already owns the key {source_key!r}"
                 )
             existing_row.config = config
+            existing_row.title = display_title
             existing_row.enabled = False
     payload = consent_payload(manifest, digest, subpath=subpath, tier=tier)
     record = {
@@ -1861,23 +1874,23 @@ async def apply_update(
             install.content_path = str(content_dir)
             install.tier = candidate.tier or install.tier
             install.update = {}
-            if (
-                candidate.manifest.get("kind") == "connector"
-                and (candidate.tier or install.tier) == "T3"
-            ):
+            if candidate.manifest.get("kind") == "connector":
                 from app.models.posting_model import JobSource
 
                 row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
                 job_source = row.scalars().first()
                 if job_source is not None:
-                    entry_path = content_dir / str(candidate.manifest.get("entry"))
-                    interpreter = _bundle_interpreter(source, candidate.subpath)
-                    job_source.config = {
-                        **job_source.config,
-                        "command": f'"{interpreter}" "{entry_path}"',
-                    }
-            # T2 updates need no instance mutation: the sandbox runner
-            # reads the install row's content_path + manifest at spawn.
+                    if (candidate.tier or install.tier) == "T3":
+                        entry_path = content_dir / str(candidate.manifest.get("entry"))
+                        interpreter = _bundle_interpreter(source, candidate.subpath)
+                        job_source.config = {
+                            **job_source.config,
+                            "command": f'"{interpreter}" "{entry_path}"',
+                        }
+                    job_source.title = _display_title(candidate.manifest, install.extension_id)
+            # Beyond the title, T2 updates need no instance mutation: the
+            # sandbox runner reads the install row's content_path + manifest
+            # at spawn.
         await db.commit()
     return _install_view(install)
 

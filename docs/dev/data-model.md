@@ -92,7 +92,7 @@ provenance.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
+| `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `title` (optional display name from the extension manifest), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
 | `job_postings` | `posting_model.py` | Live postings + extraction payload |
 | `posting_skills` | `posting_model.py` | Extracted skills with level/priority/evidence |
 | `posting_interactions` | `posting_model.py` | Engagement state only: seen / saved / hidden |
@@ -154,6 +154,12 @@ deletion).
 
 ### Migration notes
 
+- **0080** — plan 173: `job_sources.title`, the display name for imported
+  sources (the extension manifest's root `title` — "LinkedIn", not the
+  generic connector label). Nullable: builtin sources keep NULL and fall
+  back to the connector title at read time; managed imports seed the
+  title and refresh it on every consented re-apply. The downgrade drops
+  the column.
 - **0079** — plan 168: `autopilot_runs.run_steps`, the durable per-node
   step trace (one append-return entry per executed node: step, kind,
   iteration, timing, whitelisted args/output summaries, abort marker). A

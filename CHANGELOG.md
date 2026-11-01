@@ -15,6 +15,15 @@ All notable changes to **Career Assistant** are documented here.
   and the source page now blocks the static-mode switch with the same
   message while the fields are still empty.
 
+### Fixed (source display names, 2026-11-01)
+- Imported job sources show their board's name: the extension manifest
+  grows an optional root `title` ("LinkedIn", "Kariera.gr", "Indeed"),
+  the managed import seeds it as the source's display name and keeps it
+  fresh on every consented re-apply, and the posting page's
+  **Open on …** button + source attribution show it instead of the
+  generic connector label ("MCP script (external process)"). Admins can
+  also name manual sources; untitled bundles keep the old fallback.
+
 ### Fixed (list return state, 2026-10-31)
 - Opening a posting no longer costs you the list: coming back to
   `/postings` — via the browser's back button or the **All postings**

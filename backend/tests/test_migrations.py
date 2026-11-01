@@ -128,7 +128,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0079"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0080"], (
         "revision chain stays linear on one head"
     )
 
@@ -168,6 +168,20 @@ def test_0079_autopilot_run_steps_roundtrip():
 
     command.upgrade(config, "head")
     assert _column_present("autopilot_runs", "run_steps"), "re-upgrade restores the column"
+
+
+def test_0080_source_display_title_roundtrip():
+    """Plan 173: job_sources carry the manifest display name; the column is
+    nullable so builtin sources (no manifest) keep NULL through the upgrade."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("job_sources", "title"), "display titles exist at head"
+
+    command.downgrade(config, "0079")
+    assert not _column_present("job_sources", "title"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("job_sources", "title"), "re-upgrade restores the column"
 
 
 def test_0033_profile_proposals_roundtrip():
@@ -2290,33 +2304,54 @@ def _fold_seed() -> None:
                 from sqlalchemy import delete
 
                 await session.execute(delete(JobSource).where(JobSource.key.like("fold-%")))
-                session.add_all(
-                    [
-                        JobSource(
-                            key="fold-sample",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x", "fetch_details": True},
-                        ),
-                        JobSource(
-                            key="fold-off",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x", "fetch_details": False},
-                        ),
-                        JobSource(
-                            key="fold-plain",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x"},
-                        ),
-                    ]
+                await _seed_legacy_source(
+                    session, engine, "fold-sample", {"keywords": "x", "fetch_details": True}
                 )
+                await _seed_legacy_source(
+                    session, engine, "fold-off", {"keywords": "x", "fetch_details": False}
+                )
+                await _seed_legacy_source(session, engine, "fold-plain", {"keywords": "x"})
                 await session.commit()
         finally:
             await engine.dispose()
 
     asyncio.run(_run())
+
+
+async def _seed_legacy_source(
+    session, engine, key: str, config: dict, connector_key: str = "synthetic"
+) -> str:
+    """One job_sources row at its pre-0080 shape — raw SQL with an explicit
+    legacy column list: the ORM flush renders the model's full column set
+    (plan 173's `title` included) and the downgraded table predates it.
+    Returns the seeded row's id."""
+    import json
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    is_postgres = engine.dialect.name == "postgresql"
+    cast = (
+        (lambda param: f"CAST(:{param} AS jsonb)") if is_postgres else (lambda param: f":{param}")
+    )
+    row_id = str(_uuid.uuid4())
+    await session.execute(
+        text(
+            "INSERT INTO job_sources "
+            "(id, key, connector_key, kind, config, secrets, sync_state, error, enabled) "
+            "VALUES (:id, :key, :connector_key, 'posting', "
+            f"{cast('config')}, {cast('secrets')}, {cast('sync_state')}, '', true)"
+        ),
+        {
+            "id": row_id,
+            "key": key,
+            "connector_key": connector_key,
+            "config": json.dumps(config),
+            "secrets": "{}",
+            "sync_state": "{}",
+        },
+    )
+    return row_id
 
 
 def _fold_read() -> dict[str, dict]:
@@ -2384,27 +2419,25 @@ def _timeout_seed() -> None:
             session = async_sessionmaker(engine, expire_on_commit=False)()
             async with session:
                 await session.execute(delete(JobSource).where(JobSource.key.like("timeout-%")))
-                session.add_all(
-                    [
-                        JobSource(
-                            key="timeout-mint",
-                            connector_key="mcp",
-                            kind="posting",
-                            config={"tool": "fetch_postings", "timeout_seconds": 30},
-                        ),
-                        JobSource(
-                            key="timeout-kept",
-                            connector_key="mcp",
-                            kind="posting",
-                            config={"timeout_seconds": 60},
-                        ),
-                        JobSource(
-                            key="timeout-other",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"timeout_seconds": 30},
-                        ),
-                    ]
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-mint",
+                    {"tool": "fetch_postings", "timeout_seconds": 30},
+                    connector_key="mcp",
+                )
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-kept",
+                    {"timeout_seconds": 60},
+                    connector_key="mcp",
+                )
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-other",
+                    {"timeout_seconds": 30},
                 )
                 await session.commit()
         finally:
@@ -2736,7 +2769,6 @@ def _om_state_seed() -> None:
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
         from app.core.config import settings
-        from app.models.posting_model import JobSource
 
         engine = create_async_engine(settings.database_url)
         try:
@@ -2745,14 +2777,8 @@ def _om_state_seed() -> None:
                 await session.execute(
                     text("DELETE FROM job_postings WHERE external_id LIKE 'omstate-%'")
                 )
-                source = JobSource(
-                    key="omstate-source",
-                    connector_key="synthetic",
-                    kind="posting",
-                    config={},
-                )
-                session.add(source)
-                await session.flush()
+                await session.execute(text("DELETE FROM job_sources WHERE key = 'omstate-source'"))
+                sid = await _seed_legacy_source(session, engine, "omstate-source", {})
                 # SQLite has no jsonb: CAST(x AS jsonb) numeric-casts the JSON
                 # text to 0 there, so the dialect picks its own binding.
                 if engine.dialect.name == "postgresql":
@@ -2773,7 +2799,7 @@ def _om_state_seed() -> None:
                     {
                         "id": str(_uuid.uuid4()),
                         "ref": _uuid.uuid4().hex[:8].upper(),
-                        "sid": str(source.id),
+                        "sid": sid,
                         "ch": _uuid.uuid4().hex,
                         "loc": "{}",
                         "raw": "{}",

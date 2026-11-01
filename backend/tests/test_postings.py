@@ -690,6 +690,44 @@ async def test_source_secrets_seal_at_write_and_never_return(
     assert "api_token" not in (row.secrets or {})
 
 
+async def test_source_display_name_round_trips_the_admin_api(
+    client, auth_headers, seeded_catalog, db, profile_ready
+):
+    """Plan 173: the optional display name is stored, echoed on create and
+    listed on the secret-safe source view; omitting it keeps NULL."""
+    from sqlalchemy import select
+
+    from app.models.posting_model import JobSource
+
+    await _admin(client, auth_headers, db)
+    created = await client.post(
+        "/api/v1/admin/postings/sources",
+        json={
+            "key": "named-board",
+            "connector_key": "ats_api",
+            "title": "Partner Board",
+            "config": {"provider": "greenhouse", "org": "acme"},
+        },
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["title"] == "Partner Board"
+
+    listed = await client.get("/api/v1/admin/postings/sources", headers=auth_headers)
+    assert listed.status_code == 200, listed.text
+    view = next(s for s in listed.json() if s["key"] == "named-board")
+    assert view["title"] == "Partner Board"
+
+    row = (
+        (await db.execute(select(JobSource).where(JobSource.key == "named-board"))).scalars().one()
+    )
+    row.title = None
+    await db.commit()
+    listed = await client.get("/api/v1/admin/postings/sources", headers=auth_headers)
+    view = next(s for s in listed.json() if s["key"] == "named-board")
+    assert view["title"] is None
+
+
 async def test_needs_secret_typed_error_end_to_end(
     client, auth_headers, profile_ready, seeded_catalog, db, monkeypatch
 ):

@@ -717,6 +717,7 @@ async def _source_view(db: AsyncSession, source) -> dict:
     return {
         "id": str(source.id),
         "key": source.key,
+        "title": source.title,
         "connector_key": source.connector_key,
         "kind": source.kind,
         "schedule_kind": source.schedule_kind,
@@ -778,6 +779,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
 
     key = str(payload.get("key") or "").strip()
     connector_key = str(payload.get("connector_key") or "").strip()
+    title = str(payload.get("title") or "").strip()[:80] or None
     kind = str(payload.get("kind") or "posting").strip()
     query_mode = str(payload.get("query_mode") or "static").strip()
     if query_mode not in {"static", "radar"}:
@@ -803,6 +805,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     source = JobSource(
         key=key,
         connector_key=connector_key,
+        title=title,
         kind=kind,
         config=validated,
         query_mode=query_mode,
@@ -826,6 +829,7 @@ async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db
     return {
         "id": str(source.id),
         "key": source.key,
+        "title": source.title,
         "connector_key": source.connector_key,
     }
 

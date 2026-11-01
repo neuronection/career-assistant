@@ -444,7 +444,7 @@ async def get_posting_tool(db: AsyncSession, ref: str) -> dict:
             else "raw"
         ),
         "source": {
-            "title": connector_title,
+            "title": (source.title if source and source.title else "") or connector_title,
             "connector": source.key if source else "",
             "synced_at": source.last_run_at.isoformat() if source and source.last_run_at else None,
         },

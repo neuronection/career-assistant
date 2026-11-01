@@ -79,6 +79,7 @@ the charter's `limits`; hosts may tighten, never loosen.
 | `kind` | ✔ | `"connector"` (imports of kind `mini-app` follow the ADR-0029 shape; `bridge` is server-class, not hosted) |
 | `packKind` | mini-app | `assessment \| surface` |
 | `id` | ✔ | pattern `^[a-z][a-z0-9-]{2,39}$`; stable id — the install's instance key and content dir name. Reserved prefixes `host-`/`neuro-` are rejected |
+| `title` | – | ≤ 80 chars — the human display name surfaces show ("LinkedIn"); optional, hosts fall back to the id. Imported connector sources carry it as the source's display name. Presentational only: not part of the consent-triggering diff (capabilities/configSchema), though a title edit still changes the bundle digest — tier re-consent law applies as for any content change |
 | `version` | ✔ | your semver, `^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$` |
 | `description` | – | ≤ 400 chars, rendered on the consent surface |
 | `entry` | ✔ (imported connector) | the code declaration: ≤ 255, relative to the bundle root, no `..`, a regular non-symlink file inside the bundle, extension `.py` on this host (`entryExtensions` is charter data). **Tier is provenance here**: `entry` alone ⇒ T2, `entry` + `mcp` ⇒ T3, no `entry` ⇒ T0. The `extension.py`/`server.py` filenames are the template repo's convention, not a rule |

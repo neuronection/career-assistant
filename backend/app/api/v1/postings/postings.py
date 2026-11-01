@@ -442,7 +442,7 @@ async def posting_detail(
         **out.model_dump(),
         description=plain_text(raw_description if isinstance(raw_description, str) else ""),
         extract=PostingExtractOut.model_validate(posting.extract) if posting.extract else None,
-        source_title=connector_title,
+        source_title=(source.title if source else "") or connector_title,
         source_connector=source.key if source else "",
         source_synced_at=source.last_run_at if source else None,
         match=PostingMatchOut.model_validate(match) if match else None,
