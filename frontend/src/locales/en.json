@@ -1928,6 +1928,20 @@
         "statusDegraded": "Degraded",
         "statusFailing": "Failing"
       },
+      "presets": {
+        "browse": "Browse presets",
+        "title": "Add a job source",
+        "subtitle": "Verified presets — one click, no configuration needed.",
+        "searchPlaceholder": "Search companies, providers, countries…",
+        "filterAria": "Preset filter",
+        "filterAll": "All",
+        "filterAts": "Company ATS",
+        "filterRemote": "Remote",
+        "worldwide": "Worldwide",
+        "noMatches": "No presets match this search.",
+        "footerHint": "Presets fill in the connector for you — everything stays adjustable before saving.",
+        "custom": "Custom source"
+      },
       "extSources": {
         "title": "Extension sources (git import)",
         "hint": "Import connectors from git sources — every install is digest-pinned and consent-gated; updates never auto-apply. Local file-path sources are dev/test only (allowlisted roots).",

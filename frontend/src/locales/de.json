@@ -1928,6 +1928,20 @@
         "statusDegraded": "Beeinträchtigt",
         "statusFailing": "Fehlerhaft"
       },
+      "presets": {
+        "browse": "Vorlagen durchsuchen",
+        "title": "Job-Quelle hinzufügen",
+        "subtitle": "Verifizierte Vorlagen — ein Klick, keine Konfiguration nötig.",
+        "searchPlaceholder": "Unternehmen, Anbieter, Länder suchen…",
+        "filterAria": "Vorlagenfilter",
+        "filterAll": "Alle",
+        "filterAts": "Unternehmens-ATS",
+        "filterRemote": "Remote",
+        "worldwide": "Weltweit",
+        "noMatches": "Keine Vorlagen passen zu dieser Suche.",
+        "footerHint": "Vorlagen füllen den Connector für dich aus — alles bleibt vor dem Speichern anpassbar.",
+        "custom": "Eigene Quelle"
+      },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
         "hint": "Verbindungen aus git-Quellen importieren — jede Installation ist digest-pinned und zustimmungsbasiert; Updates werden nie automatisch angewendet. Lokale Dateipfad-Quellen sind nur für Dev/Test (genehmigte Root-Verzeichnisse).",

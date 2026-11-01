@@ -1,0 +1,136 @@
+{
+  "presets": [
+    {
+      "slug": "ballysintralotsa",
+      "name": "Bally's Intralot",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "ballysintralotsa" }
+    },
+    {
+      "slug": "affideagreece",
+      "name": "Affidea Greece",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "affideagreece" }
+    },
+    {
+      "slug": "tbibankgr",
+      "name": "tbi bank",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "tbibankgr" }
+    },
+    {
+      "slug": "petcitygroup",
+      "name": "Pet City",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "petcitygroup" }
+    },
+    {
+      "slug": "angelicoussisgroup",
+      "name": "Angelicoussis Group",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "angelicoussisgroup" }
+    },
+    {
+      "slug": "keyes",
+      "name": "KEYES",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "keyes" }
+    },
+    {
+      "slug": "bettercollective",
+      "name": "Better Collective",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "bettercollective" }
+    },
+    {
+      "slug": "technomar",
+      "name": "Technomar Shipping",
+      "connectorKey": "recruitee",
+      "provider": "Recruitee",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "technomar" }
+    },
+    {
+      "slug": "teamblue",
+      "name": "team.blue",
+      "connectorKey": "teamtailor",
+      "provider": "Teamtailor",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "teamblue" }
+    },
+    {
+      "slug": "huaweidusseldorf-1719303222",
+      "name": "Huawei Europe",
+      "connectorKey": "teamtailor",
+      "provider": "Teamtailor",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "huaweidusseldorf-1719303222" }
+    },
+    {
+      "slug": "orbia-orbia-connectivity-solutions-dura-line",
+      "name": "Orbia",
+      "connectorKey": "teamtailor",
+      "provider": "Teamtailor",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "orbia-orbia-connectivity-solutions-dura-line" }
+    },
+    {
+      "slug": "opencosmos-1706113956",
+      "name": "Open Cosmos",
+      "connectorKey": "teamtailor",
+      "provider": "Teamtailor",
+      "category": "ats",
+      "country": "GR",
+      "config": { "company": "opencosmos-1706113956" }
+    },
+    {
+      "slug": "jobicy",
+      "name": "Jobicy",
+      "connectorKey": "jobicy",
+      "provider": "Remote boards",
+      "category": "remote",
+      "config": {}
+    },
+    {
+      "slug": "remotive",
+      "name": "Remotive",
+      "connectorKey": "remotive",
+      "provider": "Remote boards",
+      "category": "remote",
+      "config": {}
+    },
+    {
+      "slug": "arbeitnow",
+      "name": "Arbeitnow",
+      "connectorKey": "arbeitnow",
+      "provider": "Remote boards",
+      "category": "remote",
+      "config": {}
+    }
+  ]
+}

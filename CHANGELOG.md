@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Browse presets*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters; picking one opens the source wizard
+  with the connector, company slug and display title already filled.
+  Ships 12 Greek-employer tenants (Recruitee, Teamtailor) and the three
+  remote boards; the catalog is a JSON file with a contract test, and
+  missing artwork degrades to a deterministic monogram until the logo is
+  dropped into `public/presets/<slug>.svg`.
+
 ### Fixed (blocked sources pause themselves, 2026-11-01)
 - A job source that hits a **non-retryable operator-action error** — a
   provider block, a sign-in wall, missing credentials, or an unsupported

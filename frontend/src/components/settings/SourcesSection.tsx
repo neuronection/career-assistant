@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw } from "lucide-react";
+import { BookOpen, Globe, Loader2, MoreHorizontal, Plus, Radar, RefreshCw, Sparkles } from "lucide-react";
 import { SwitchRow } from "@/components/ui/switch-row";
 import { useTranslation } from "react-i18next";
 import {
@@ -17,6 +17,7 @@ import { ConnectorDocsDialog } from "@/components/settings/ConnectorDocsDialog";
 import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
+import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
@@ -274,6 +275,7 @@ function JobSourceConnectors() {
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
   const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
+  const [presetOpen, setPresetOpen] = useState(false);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [probingId, setProbingId] = useState<string | null>(null);
@@ -350,6 +352,7 @@ function JobSourceConnectors() {
           query_mode: form.query_mode,
           query_batch_size: form.query_batch_size,
           secrets,
+          ...(form.title ? { title: form.title } : {}),
         });
       }
       setDraft(null);
@@ -503,6 +506,14 @@ function JobSourceConnectors() {
             </span>
             <Button
               size="sm"
+              variant="outline"
+              onClick={() => setPresetOpen(true)}
+              data-testid="browse-source-presets"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.presets.browse")}
+            </Button>
+            <Button
+              size="sm"
               onClick={() =>
                 setDraft({
                   id: null,
@@ -637,6 +648,33 @@ function JobSourceConnectors() {
           </div>
         ) : null}
       </section>
+      <JobSourcePresetDialog
+        open={presetOpen}
+        onOpenChange={setPresetOpen}
+        onPick={(preset) => {
+          setPresetOpen(false);
+          setDraft({
+            id: null,
+            key: preset.slug,
+            connector_key: preset.connectorKey,
+            config: { ...preset.config },
+            query_mode: "radar",
+            query_batch_size: 2,
+            title: preset.name,
+          });
+        }}
+        onCustom={() => {
+          setPresetOpen(false);
+          setDraft({
+            id: null,
+            key: "",
+            connector_key: "",
+            config: {},
+            query_mode: "radar",
+            query_batch_size: 2,
+          });
+        }}
+      />
     </div>
   );
 }

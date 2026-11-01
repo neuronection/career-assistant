@@ -49,6 +49,7 @@ vi.mock("@/api/sources", () => ({
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
+    i18n: { language: "en" },
     t: (key: string, params?: Record<string, string | number>) => {
       const templates: Record<string, string> = {
         "toolsSettings.connectors.sources.secretSet": "{{slot}}: {{hint}}",
@@ -241,6 +242,49 @@ describe("SourcesSection job sources", () => {
     const payload = vi.mocked(sourcesApi.createSource).mock.calls[0]![0];
     expect(payload.secrets).toEqual({ api_token: "tok" });
     expect(JSON.stringify(payload.config)).not.toContain("tok");
+  });
+
+  it("adds a source from a preset with the connector, config and title prefilled", async () => {
+    const withRecruitee = [
+      ...catalog,
+      {
+        key: "recruitee",
+        title: "Recruitee",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        config_schema: {
+          type: "object" as const,
+          properties: { company: { type: "string" as const, title: "Recruitee company" } },
+          required: ["company"],
+        },
+        manifest: { id: "recruitee", capabilities: ["net", "sync"], supportsIncremental: true },
+      },
+    ];
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(withRecruitee as never);
+    vi.mocked(sourcesApi.createSource).mockResolvedValue({
+      id: "src-9",
+      key: "ballysintralotsa",
+      connector_key: "recruitee",
+    } as never);
+    vi.mocked(aiApi.fetchWebSettings).mockResolvedValue({ github_token_set: false });
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await userEvent.click(await screen.findByTestId("browse-source-presets"));
+    await userEvent.click(await screen.findByTestId("preset-ballysintralotsa"));
+    const form = await screen.findByTestId("integration-config-form");
+    const company = form.querySelector("input") as HTMLInputElement;
+    expect(company.value).toBe("ballysintralotsa");
+    await userEvent.click(screen.getByRole("button", { name: "Save source" }));
+    await waitFor(() => expect(sourcesApi.createSource).toHaveBeenCalled());
+    const calls = vi.mocked(sourcesApi.createSource).mock.calls;
+    const payload = calls[calls.length - 1]![0];
+    expect(payload.connector_key).toBe("recruitee");
+    expect(payload.key).toBe("ballysintralotsa");
+    expect(payload.title).toBe("Bally's Intralot");
+    expect(payload.config).toMatchObject({ company: "ballysintralotsa" });
   });
 
   it("shows a health strip (active count + failing badge) over the rows", async () => {
