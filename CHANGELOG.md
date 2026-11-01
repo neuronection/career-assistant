@@ -4,6 +4,57 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (ATS integration honesty wave, 2026-11-01)
+- **Remotive sources can finally sync.** Remotive's robots.txt disallows
+  its JSON API (`Disallow: /api/*`), so every Remotive sync died with
+  `net-denied: robots.txt disallows /api/remote-jobs` and never ingested
+  anything. The connector now rides the feed robots allows
+  (`remotive.com/remote-jobs/feed`) — same listings, plus the full job
+  description per row (better than the old API, which truncated them).
+  The optional category filter is now applied client-side (robots
+  disallows `category=` URLs); existing sources keep working.
+- **Failed runs no longer show "Last run —"** on the source page: a
+  connector failure (robots denial, network error) now stamps the last
+  run time like any completed run.
+- **The "Follow my job radar" label no longer lies on feed connectors.**
+  Sources created before the mode picker knew about connector
+  capabilities could sit in radar mode over connectors that ingest whole
+  boards (no query rotation). Such a source now normalizes to static on
+  its next sync, so the label matches the behavior.
+- **AI connection tests are audited.** The Settings → AI connection
+  probe spends tokens like any other model call and now lands an
+  `ai_generations` audit row (task `connection_test`) for both the OK
+  and the failing probe, visible in `/settings/audit?tab=ai`.
+
+### Fixed (JOIN.com connector, 2026-11-01)
+- **JOIN.com postings now carry full descriptions.** The board's public
+  list feed has no description field, so JOIN postings previously never
+  got one — and because detail enrichment drives extraction, they never
+  gained skills either. The connector now honors the same `detail_ids`
+  targeted-fetch knob the enrichment funnel already sends: it fetches
+  each job's own page (addressable by the list id) and reads its embedded
+  schema.org JobPosting JSON-LD, so descriptions, employment type,
+  salary and skills extraction land like on every other connector.
+  Existing description-less JOIN postings backfill on the next
+  enrichment run.
+
+### Fixed (integrations UI audit, 2026-11-01)
+- **Job-source configs are editable again.** The source page's
+  Configuration tab now renders the connector's own settings form for
+  every builtin source (Recruitee, Workable, RSS, CSV…) — previously only
+  managed bundles had a form, so a wrong company slug or a size cap could
+  not be fixed after adding the source. The list page's ⋯ menu also gained
+  **Edit**, opening the source wizard in update mode.
+- **The mode picker no longer promises what a connector can't do**:
+  sources whose connector ingests a whole board (no search rotation) show
+  the radar option disabled with an explanation, and preset-added tenants
+  now start in **static** mode instead of an inert radar.
+- **The "needs secret" badge only fires for required credentials** —
+  optional slots (e.g. an unused bearer token) no longer paint a working
+  source as incomplete.
+- **Run history shows ingestion runs**: detail-enrichment ticks (the 3 ms
+  "Completed · 0 items" rows) are no longer mixed into the sync history,
+  where they could mask a fully-failed source.
 ### Added (smart discovery, 2026-11-01)
 - **Daily smart digest (opt-in).** Enable **Daily smart matches** in
   Settings → Notifications and the daily job ranks fresh, unseen,

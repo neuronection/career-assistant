@@ -96,11 +96,18 @@ def _record_health(source: JobSource, errors: list[dict]) -> None:
 async def _query_overlay(db: AsyncSession, source: JobSource, connector) -> tuple[dict | None, str]:
     """Plan 130 radar mode: the next rotated role group arrives as a
     call-time ``config["query"]`` overlay — never stored, never fanned
-    out (one focused query per sync). ``None`` config = polite skip."""
+    out (one focused query per sync). ``None`` config = polite skip.
+
+    A source left in radar mode over a connector that cannot rotate
+    queries (no ``dynamic_queries``) normalizes to ``static`` — the label
+    then matches the behavior instead of silently doing nothing."""
     call_config = dict(source.config or {})
-    if source.query_mode != SourceQueryMode.RADAR.value or not getattr(
-        connector.capabilities, "dynamic_queries", False
-    ):
+    if not getattr(connector.capabilities, "dynamic_queries", False):
+        if source.query_mode == SourceQueryMode.RADAR.value:
+            source.query_mode = SourceQueryMode.STATIC.value
+            await db.commit()
+        return call_config, ""
+    if source.query_mode != SourceQueryMode.RADAR.value:
         return call_config, ""
     from sqlalchemy.orm.attributes import flag_modified
 
@@ -405,6 +412,7 @@ async def _sync_source_inner(
         error = ConnectorError.from_polite(exc)
         source.error = f"{error.code}: {error.detail}"
         source.last_status = "failed"
+        source.last_run_at = _utcnow()
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
     except Exception:
@@ -424,6 +432,7 @@ async def _sync_source_inner(
         )
         source.error = f"{error.code}: {error.detail}"[:2000]
         source.last_status = "failed"
+        source.last_run_at = _utcnow()
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
 

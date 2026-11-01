@@ -746,6 +746,61 @@ async def test_run_test_success_has_no_error_code(db):
     assert result.get("code") is None
 
 
+async def test_run_test_writes_the_ai_audit_row_both_ways(db):
+    """The connection ping spends tokens like any other LLM call — the
+    ok and the failing probe each land one ``ai_generations`` row
+    (task_type ``connection_test``), so the audit tab shows every spend."""
+    import httpx
+    from sqlalchemy import select
+
+    from app.models.ai_model import AIGeneration
+
+    user = await _mk_user(db, "testconn-audit@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "OK"}}]})
+
+    await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(ok),
+    )
+
+    def unauthorized(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"message": "bad key"}})
+
+    await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(unauthorized),
+    )
+
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration)
+                .where(AIGeneration.task_type == "connection_test")
+                .order_by(AIGeneration.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [row.status for row in rows] == ["ok", "error"]
+    assert rows[0].user_id == user.id
+    assert rows[0].provider == "openai_compatible"
+    assert rows[0].model == "gpt-test"
+    assert rows[0].output == {"reply": "OK"}
+    assert rows[0].latency_ms is not None
+    assert "bad key" in rows[1].error
+    assert rows[1].output is None
+
+
 async def test_run_test_routes_decision_models_to_the_decision_probe(db, monkeypatch):
     """A decision-capable model on a MIXED provider (openai_compatible,
     e.g. OpenRouter) must never hit chat/completions — the vendor 400s

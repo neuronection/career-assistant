@@ -758,18 +758,24 @@ function transparentBackground(opts) {
 }
 
 /** Install the session store + capture flag (context- or page-level init script). */
-async function installCaptureInitScript(target, windowFlag, store) {
+async function installCaptureInitScript(target, windowFlag, store, zoom) {
   // Runs before any page script on every navigation: the SPA finds its
   // session in localStorage and skips any auth redirect; the window flag
   // lets the app suppress dev-only UI (toasts, update banners) during capture.
+  // `zoom` (capture.zoom in the config) is true browser zoom: the app
+  // reflows to the smaller effective viewport and renders bigger UI, so the
+  // stills contain magnified interface instead of a scaled-up image.
   await target.addInitScript(
-    ([flag, entries]) => {
+    ([flag, entries, zoomFactor]) => {
       try {
         window[flag] = true;
+        if (zoomFactor && zoomFactor !== 1) {
+          document.documentElement.style.zoom = String(zoomFactor);
+        }
         for (const [k, v] of Object.entries(entries)) localStorage.setItem(k, v);
       } catch {}
     },
-    [windowFlag, store],
+    [windowFlag, store, zoom],
   );
 }
 
@@ -810,7 +816,7 @@ async function captureScene(browser, scene, opts, tokens, issues) {
     // cookie-session apps: carry the login jar into the fresh context.
     if (tokens?.__cookies) await context.addCookies(tokens.__cookies);
 
-    await installCaptureInitScript(context, windowFlag, store);
+    await installCaptureInitScript(context, windowFlag, store, opts.cfg.capture?.zoom);
 
     const page = await context.newPage();
     await installFixedClock(page, opts);
@@ -854,7 +860,7 @@ async function captureSceneCdp(browser, scene, opts, tokens, issues) {
 
   // cookie-session apps: push the login jar into the app's own context.
   if (tokens?.__cookies) await context.addCookies(tokens.__cookies);
-  await installCaptureInitScript(page, windowFlag, store);
+  await installCaptureInitScript(page, windowFlag, store, opts.cfg.capture?.zoom);
   await installFixedClock(page, opts);
 
   // Drop any device-metrics override left behind by an older capture run

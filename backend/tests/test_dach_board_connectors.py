@@ -20,8 +20,11 @@ import pytest
 
 from app.core.encryption import decrypt_secret, encrypt_secret
 from app.extensions.builtin.dach_boards import (
+    JoinComConnector,
     PersonioConnector,
     StepstoneXingConnector,
+    join_detail_url,
+    parse_join_detail_payload,
     parse_join_payload,
     parse_personio_payload,
     parse_recruitee_payload,
@@ -38,6 +41,7 @@ from app.services.postings.postings_service import sync_source
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "connectors"
 PERSONIO_BODY = (FIXTURES / "personio_jobs.xml").read_text(encoding="utf-8")
 JOIN_BODY = (FIXTURES / "join_com_jobs.json").read_text(encoding="utf-8")
+JOIN_DETAIL_BODY = (FIXTURES / "join_job_detail.html").read_text(encoding="utf-8")
 RECRUITEE_BODY = (FIXTURES / "recruitee_offers.json").read_text(encoding="utf-8")
 TEAMTAILOR_BODY = (FIXTURES / "teamtailor_jobs.json").read_text(encoding="utf-8")
 RSS_BODY = (FIXTURES / "stepstone_xing_jobs.xml").read_text(encoding="utf-8")
@@ -369,6 +373,111 @@ async def test_stepstone_xing_without_slot_reports_needs_secret(db):
     result = await sync_source(db, source)
     assert result["synced"] == 0
     assert "needs-secret" in result["error"]
+
+
+# -------------------------------------------------------- join detail fetch
+
+
+def _join_detail_handler(body: str, statuses: dict[str, int] | None = None):
+    statuses = statuses or {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        if not request.url.path.startswith("/companies/join/"):
+            raise AssertionError(f"unexpected path {request.url.path}")
+        external_id = request.url.path.rsplit("/", 1)[-1]
+        status = statuses.get(external_id, 200)
+        if status != 200:
+            return httpx.Response(status)
+        return httpx.Response(200, text=body, headers={"Content-Type": "text/html; charset=utf-8"})
+
+    return handler
+
+
+def test_join_detail_page_parses_jsonld():
+    source_url = join_detail_url("join", "14771122")
+    row = parse_join_detail_payload(JOIN_DETAIL_BODY, external_id="14771122", source_url=source_url)
+    assert row is not None
+    assert row.external_id == "14771122"
+    assert row.title == "Engineering Manager"
+    assert row.org == "JOIN"
+    assert row.employment_type == "full_time"
+    assert row.location.city == "Barcelona"
+    assert row.location.country == "es"
+    assert row.salary is not None
+    assert (row.salary.currency, row.salary.min, row.salary.max, row.salary.period) == (
+        "EUR",
+        90000.0,
+        105000.0,
+        "year",
+    )
+    assert row.posted_at == datetime(2025, 8, 29, 16, 34, 57, 775000, tzinfo=UTC)
+    assert len(row.raw["description"]) > 200
+    assert row.raw["detail_extractor"] == "jsonld"
+    assert row.raw["source_page"] == source_url
+    assert row.url == "https://join.com/companies/join/16890791-engineering-manager"
+
+
+def test_join_detail_page_without_jsonld_is_none():
+    assert (
+        parse_join_detail_payload("<html><body>edge-blocked</body></html>", external_id="14771122")
+        is None
+    )
+
+
+async def test_join_fetch_detail_ids_targets_pages_only(runtime_factory):
+    make_transport, seen = runtime_factory
+    connector = JoinComConnector()
+    transport = make_transport(
+        _join_detail_handler(JOIN_DETAIL_BODY),
+        domains=frozenset(connector.capabilities.network_scopes),
+    )
+    result = await connector.fetch(
+        {"company_id": 54, "company_slug": "join", "detail_ids": "14771122,16108098"},
+        {},
+        transport=transport,
+    )
+    assert result.partial_errors == []
+    assert [item.external_id for item in result.items] == ["14771122", "16108098"]
+    assert len(result.items[0].raw["description"]) > 200
+    assert not any("/api/" in str(request.url) for request in seen), (
+        "detail runs never touch the list API"
+    )
+    asked = [r.url.path for r in seen if r.url.path.startswith("/companies/")]
+    assert asked == ["/companies/join/14771122", "/companies/join/16108098"]
+
+
+async def test_join_detail_fetch_isolates_per_id_failures(runtime_factory):
+    make_transport, _ = runtime_factory
+    connector = JoinComConnector()
+    transport = make_transport(
+        _join_detail_handler(JOIN_DETAIL_BODY, statuses={"16108098": 404}),
+        domains=frozenset(connector.capabilities.network_scopes),
+    )
+    result = await connector.fetch(
+        {"company_id": 54, "company_slug": "join", "detail_ids": "14771122,16108098"},
+        {},
+        transport=transport,
+    )
+    assert [item.external_id for item in result.items] == ["14771122"]
+    assert len(result.partial_errors) == 1
+    assert result.partial_errors[0].code == "provider"
+    assert result.partial_errors[0].retryable == "yes"
+    assert "16108098" in result.partial_errors[0].detail
+
+
+def test_join_detail_ids_cap_rejected():
+    from app.core.errors import ValidationError
+
+    with pytest.raises(ValidationError, match="at most 10"):
+        JoinComConnector().validate_config(
+            {
+                "company_id": 54,
+                "company_slug": "join",
+                "detail_ids": ",".join(str(number) for number in range(11)),
+            }
+        )
 
 
 @pytest.fixture(autouse=True)

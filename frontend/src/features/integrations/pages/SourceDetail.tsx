@@ -16,10 +16,12 @@ import type {
 import {
   deleteSource,
   fetchAdminSources,
+  fetchConnectorCatalog,
   fetchSourceRuns,
   probeSource,
   syncSource,
   updateSource,
+  type ConnectorCatalogEntry,
   type PostingSource,
   type SourceRun,
 } from "@/api/sources";
@@ -141,6 +143,7 @@ export function SourceDetailPage() {
   const [cadenceEvery, setCadenceEvery] = useState<number | null>(null);
   const [detailsRun, setDetailsRun] = useState<SourceRun | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
+  const [catalogEntry, setCatalogEntry] = useState<ConnectorCatalogEntry | null>(null);
 
   const dirtyRef = useRef(false);
   const updateValues = (next: IntegrationConfigValues) => {
@@ -164,6 +167,15 @@ export function SourceDetailPage() {
 
   useEffect(() => {
     if (!source || dirtyRef.current) return;
+    if (!source.tool_config_schema) {
+      // T1 builtin source: the stored config IS the settings payload.
+      setConfigValues(
+        Object.fromEntries(
+          Object.entries(source.config).map(([key, value]) => [key, String(value)]),
+        ) as IntegrationConfigValues,
+      );
+      return;
+    }
     try {
       const parsed = JSON.parse(String(source.config.options ?? "{}")) as Record<string, unknown>;
       setConfigValues(
@@ -177,6 +189,36 @@ export function SourceDetailPage() {
       setConfigValues({});
     }
   }, [source]);
+
+  useEffect(() => {
+    if (!source?.connector_key) return;
+    let cancelled = false;
+    fetchConnectorCatalog()
+      .then((rows) => {
+        if (!cancelled) {
+          setCatalogEntry(rows.find((row) => row.key === source.connector_key) ?? null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [source?.connector_key]);
+
+  // The connector's own settings form for T1 sources (plan 180): their
+  // config is flat (company/account/url), not the managed options bag.
+  const t1Fields = useMemo(() => {
+    if (!source || source.tool_config_schema) return [];
+    const schema = catalogEntry?.config_schema;
+    return schema ? parseIntegrationConfigSchema(schema as IntegrationConfigSchema) : [];
+  }, [source?.tool_config_schema, catalogEntry]);
+
+  const packFlatConfig = (values: IntegrationConfigValues) =>
+    Object.fromEntries(
+      Object.entries(values)
+        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+        .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+    ) as Record<string, string | number | boolean>;
 
   const configFields = useMemo(() => {
     if (!source?.tool_config_schema) return [];
@@ -202,6 +244,12 @@ export function SourceDetailPage() {
       return value === undefined || value === null || String(value).trim() === "";
     });
   }, [source?.tool_config_schema, configValues]);
+
+  // Radar rotation needs the connector's opt-in (plan 180): board feeds
+  // (Recruitee/Workable/…) ingest the provider's whole board, so the
+  // rotation is inert for them and the picker says so.
+  const radarCapable =
+    catalogEntry?.capabilities?.dynamic_queries === true || Boolean(source?.tool_config_schema);
 
   const reload = useCallback(async () => {
     const [rows, runRows] = await Promise.all([
@@ -255,6 +303,14 @@ export function SourceDetailPage() {
     if (!cadenceEvery || !source?.last_run_at) return null;
     return new Date(new Date(source.last_run_at).getTime() + cadenceEvery * 60_000);
   }, [cadenceEvery, source?.last_run_at]);
+
+  // Detail-enrichment ticks write ledger rows without a `synced` key —
+  // they are not ingestion attempts and never belonged in this history
+  // (plan 180; they once masked a fully-failed sync).
+  const syncRuns = useMemo(
+    () => runs.filter((run) => !run.report || run.report.synced !== undefined),
+    [runs],
+  );
 
   const act = async (action: () => Promise<unknown>, done?: string) => {
     setBusy(true);
@@ -526,6 +582,7 @@ export function SourceDetailPage() {
                     type="button"
                     role="radio"
                     aria-checked={selected}
+                    disabled={!radarCapable && option.value === "radar" && !selected}
                     onClick={() => {
                       if (option.value === source.query_mode) return;
                       if (
@@ -556,7 +613,7 @@ export function SourceDetailPage() {
                       selected
                         ? "border-[var(--as-accent)] bg-[var(--as-surface)] font-medium"
                         : "border-[var(--as-border)] bg-[var(--as-surface)]/60 text-[var(--as-muted-fg)] hover:bg-[var(--as-surface)]"
-                    }`}
+                    } ${!radarCapable && option.value === "radar" && !selected ? "cursor-not-allowed opacity-50" : ""}`}
                   >
                     <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span>{option.label}</span>
@@ -564,6 +621,11 @@ export function SourceDetailPage() {
                 );
               })}
             </div>
+            {!radarCapable ? (
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("sourceDetail.radarNotCapable")}
+              </p>
+            ) : null}
           </div>
           {source.tool_config_schema ? (
             <div
@@ -714,6 +776,49 @@ export function SourceDetailPage() {
                 void reload();
               }}
             />
+          ) : t1Fields.length ? (
+            <div
+              className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="connector-settings-card"
+            >
+              <div className="text-sm font-medium">{t("sourceDetail.connectorSettings")}</div>
+              <IntegrationConfigForm
+                fields={t1Fields}
+                values={configValues}
+                onValuesChange={updateValues}
+                onSave={({ secrets }) =>
+                  void (async () => {
+                    await act(
+                      () =>
+                        updateSource(sourceId, {
+                          config: packFlatConfig(configValues),
+                          query_mode: source.query_mode,
+                          query_batch_size: localBatch,
+                        }),
+                      t("sourceDetail.configSaved"),
+                    );
+                    dirtyRef.current = false;
+                    void secrets;
+                  })()
+                }
+                busy={busy}
+                error={notice || null}
+                secretSlots={{}}
+                labels={{
+                  presetLabel: t("sourceDetail.presetLabel"),
+                  advancedLabel: t("sourceDetail.advancedLabel"),
+                  submitLabel: t("sourceDetail.saveConfig"),
+                  cancelLabel: t("toolsSettings.connectors.sources.cancel"),
+                  secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),
+                  secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
+                  enumPlaceholder: t("toolsSettings.connectors.sources.select"),
+                }}
+                onCancel={() => {
+                  dirtyRef.current = false;
+                  void reload();
+                }}
+              />
+            </div>
           ) : (
             <p className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.configHint")}</p>
           )}
@@ -722,7 +827,7 @@ export function SourceDetailPage() {
 
       {tab === "runs" ? (
         <div className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
-          {runs.length === 0 ? (
+          {syncRuns.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]" data-testid="runs-empty">
               {t("sourceDetail.runsEmpty")}
             </p>
@@ -741,7 +846,7 @@ export function SourceDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {runs.map((run) => (
+                  {syncRuns.map((run) => (
                     <tr
                       key={run.id}
                       className="border-t border-[var(--as-border)]"

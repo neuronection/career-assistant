@@ -194,6 +194,7 @@ def test_builtin_connectors_are_listed():
         "arbeitnow",
         "remotive",
         "jobicy",
+        "workable",
         "personio",
         "join_com",
         "stepstone_xing",

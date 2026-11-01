@@ -39,6 +39,17 @@ const SOURCE: PostingSource = {
 
 const RUNS: SourceRun[] = [
   {
+    id: "run-detail-tick",
+    trigger: "scheduled",
+    status: "ok",
+    started_at: "2026-10-27T09:05:00+00:00",
+    finished_at: "2026-10-27T09:05:00+00:00",
+    duration_ms: 3,
+    items_synced: 0,
+    error: "",
+    report: { enriched: 2, detail_rows: 0, errors: [] },
+  },
+  {
     id: "run-1",
     trigger: "manual",
     status: "failed",
@@ -62,6 +73,7 @@ const RUNS: SourceRun[] = [
 
 const mocks = vi.hoisted(() => ({
   fetchAdminSources: vi.fn(),
+  fetchConnectorCatalog: vi.fn(),
   fetchSourceRuns: vi.fn(),
   syncSource: vi.fn(),
   probeSource: vi.fn(),
@@ -85,6 +97,7 @@ function renderPage() {
 
 beforeEach(() => {
   mocks.fetchAdminSources.mockResolvedValue([SOURCE]);
+  mocks.fetchConnectorCatalog.mockResolvedValue([]);
   mocks.fetchSourceRuns.mockResolvedValue(RUNS);
   mocks.syncSource.mockResolvedValue({ job_id: "j1", status: "queued" });
   mocks.fetchSystemSchedules.mockResolvedValue([
@@ -143,6 +156,86 @@ describe("SourceDetailPage", () => {
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
   });
 
+  it("hides detail-enrichment ticks from the run history", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Run history" }));
+    expect(screen.queryByTestId("run-run-detail-tick")).toBeNull();
+    expect(screen.getByTestId("run-run-1")).toBeTruthy();
+  });
+
+  it("edits a T1 source's connector settings from the catalog schema", async () => {
+    const user = userEvent.setup();
+    mocks.fetchConnectorCatalog.mockResolvedValue([
+      {
+        key: "recruitee",
+        title: "Recruitee",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        capabilities: {},
+        config_schema: {
+          type: "object",
+          properties: { company: { type: "string", title: "Recruitee company" } },
+          required: ["company"],
+        },
+        manifest: { id: "recruitee", capabilities: ["net", "sync"], supportsIncremental: true },
+      },
+    ]);
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        connector_key: "recruitee",
+        query_mode: "static",
+        config: { company: "ballysintralotsa", max_items: "50" },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const card = await screen.findByTestId("connector-settings-card");
+    const input = card.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("ballysintralotsa");
+    await user.clear(input);
+    await user.type(input, "keyes");
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.config).toMatchObject({ company: "keyes", max_items: "50" });
+  });
+
+  it("disables the radar option for connectors without dynamic queries", async () => {
+    const user = userEvent.setup();
+    mocks.fetchConnectorCatalog.mockResolvedValue([
+      {
+        key: "recruitee",
+        title: "Recruitee",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        capabilities: {},
+        config_schema: {
+          type: "object",
+          properties: { company: { type: "string", title: "Recruitee company" } },
+          required: ["company"],
+        },
+      },
+    ]);
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        connector_key: "recruitee",
+        query_mode: "static",
+        config: { company: "keyes" },
+      },
+    ]);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const radar = screen.getByRole("radio", { name: "Follow my job radar" });
+    expect(radar.getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByText(/job-radar rotation does not apply/)).toBeTruthy();
+  });
+
   it("blocks the radar → static switch while required fields are missing", async () => {
     const user = userEvent.setup();
     mocks.fetchAdminSources.mockResolvedValue([
@@ -162,10 +255,11 @@ describe("SourceDetailPage", () => {
     ]);
     renderPage();
     await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const before = mocks.updateSource.mock.calls.length;
     await user.click(screen.getByRole("radio", { name: "Static config" }));
     const notes = await screen.findAllByText(/switching to static mode/);
     expect(notes[0].textContent).toContain("keywords");
-    expect(mocks.updateSource).not.toHaveBeenCalled();
+    expect(mocks.updateSource.mock.calls.length).toBe(before);
   });
 
   it("switches to static when the required fields are present", async () => {
