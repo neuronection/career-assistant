@@ -47,7 +47,7 @@ const row: JobProposalRow = {
     proposed_at: "2026-11-02T10:00:00Z",
   },
   proposed_at: "2026-11-02T10:00:00Z",
-  suggested_family_key: "tech",
+  suggested_family_key: "tech-ops",
   mapping_signals: {
     overlap: { score: 0.05, runner_up: null },
     semantic: { top: null, threshold: 0.6, candidates: [] },
@@ -55,7 +55,10 @@ const row: JobProposalRow = {
   extract_version: 4,
 };
 
-const families = [{ key: "tech", label: "Technology" }];
+const families = [
+  { key: "tech", label: "Technology & IT", depth: 0 },
+  { key: "tech-ops", label: "Technology & IT › IT Operations & Security", depth: 1 },
+];
 
 afterEach(() => {
   applyMock.mockReset();
@@ -84,8 +87,8 @@ describe("TaxonomyJobProposalCards", () => {
     await user.click(screen.getByTestId("proposal-apply-p-1"));
     const picker = screen.getByTestId("proposal-family-picker") as HTMLSelectElement;
     expect(picker).toBeTruthy();
-    // the skill-affinity suggestion preselects the family
-    expect(picker.value).toBe("tech");
+    // the skill-affinity suggestion preselects the exact (child) family
+    expect(picker.value).toBe("tech-ops");
     const titleInput = screen.getByTestId("proposal-title-input") as HTMLInputElement;
     expect(titleInput.value).toBe("Observability Engineer");
     // jsdom keeps the library dialog's overlay inert; drive the confirm
@@ -94,7 +97,7 @@ describe("TaxonomyJobProposalCards", () => {
     await waitFor(() => expect(applyMock).toHaveBeenCalledTimes(1));
     expect(applyMock.mock.calls[0]).toEqual([
       "p-1",
-      { family_key: "tech", title: "Observability Engineer", code: undefined },
+      { family_key: "tech-ops", title: "Observability Engineer", code: undefined },
     ]);
     await waitFor(() => expect(onDone).toHaveBeenCalled());
   });

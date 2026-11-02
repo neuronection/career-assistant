@@ -17,6 +17,7 @@ import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 interface FamilyOption {
   key: string;
   label: string;
+  depth: number;
 }
 
 /** One signal candidate from the join trace (plan 185 S6.2): the admin's
@@ -243,7 +244,7 @@ export function TaxonomyJobProposalCards({
               )}
               {families.map((family) => (
                 <option key={family.key} value={family.key}>
-                  {family.label}
+                  {`${"\u00a0".repeat(family.depth * 3)}${family.label}`}
                 </option>
               ))}
             </select>
