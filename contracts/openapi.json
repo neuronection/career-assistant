@@ -2566,6 +2566,160 @@
         "title": "CareerStage",
         "type": "string"
       },
+      "CatalogPresetIn": {
+        "additionalProperties": false,
+        "description": "One tenant preset \u2014 the existing JobSourcePreset shape (no logo).",
+        "properties": {
+          "category": {
+            "enum": [
+              "ats",
+              "remote"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Config",
+            "type": "object"
+          },
+          "connectorKey": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Connectorkey",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openings": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openings"
+          },
+          "provider": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Slug",
+            "type": "string"
+          },
+          "verifiedAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifiedat"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "connectorKey",
+          "provider",
+          "category"
+        ],
+        "title": "CatalogPresetIn",
+        "type": "object"
+      },
+      "CatalogProviderIn": {
+        "additionalProperties": false,
+        "description": "One provider connection hint (connector + URL template + countries).",
+        "properties": {
+          "connectorKey": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Connectorkey",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Countries",
+            "type": "array"
+          },
+          "docsUrl": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docsurl"
+          },
+          "id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "urlTemplate": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urltemplate"
+          }
+        },
+        "required": [
+          "id",
+          "connectorKey",
+          "label"
+        ],
+        "title": "CatalogProviderIn",
+        "type": "object"
+      },
       "CatalogTravel": {
         "properties": {
           "days_per_month": {
@@ -2595,6 +2749,139 @@
           "level"
         ],
         "title": "CatalogTravel",
+        "type": "object"
+      },
+      "CatalogUpsertIn": {
+        "additionalProperties": false,
+        "description": "PUT body: the catalog envelope + the import metadata.",
+        "properties": {
+          "contentHash": {
+            "maxLength": 80,
+            "minLength": 8,
+            "title": "Contenthash",
+            "type": "string"
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "fetchedAt": {
+            "format": "date-time",
+            "title": "Fetchedat",
+            "type": "string"
+          },
+          "kind": {
+            "const": "career-ats-catalog",
+            "title": "Kind",
+            "type": "string"
+          },
+          "lastModified": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastmodified"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPresetIn"
+            },
+            "maxItems": 300,
+            "title": "Presets",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogProviderIn"
+            },
+            "maxItems": 50,
+            "title": "Providers",
+            "type": "array"
+          },
+          "revision": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "null"
+          },
+          "tier": {
+            "enum": [
+              "operator",
+              "community",
+              "user"
+            ],
+            "title": "Tier",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "tier",
+          "fetchedAt",
+          "schemaVersion",
+          "kind",
+          "name",
+          "updatedAt",
+          "revision",
+          "contentHash"
+        ],
+        "title": "CatalogUpsertIn",
         "type": "object"
       },
       "CatalogWorkHours": {
@@ -28449,6 +28736,131 @@
           }
         },
         "summary": "Create Posting Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/sources/catalogs": {
+      "get": {
+        "description": "The stored ATS catalogs (instance-wide, admin-managed).",
+        "operationId": "list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Sources Catalogs Api V1 Admin Postings Sources Catalogs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sources Catalogs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/sources/catalogs/{catalog_id}": {
+      "delete": {
+        "description": "Remove a stored catalog (imported presets leave the gallery;\nsources already added are kept).",
+        "operationId": "delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Sources Catalog",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Upsert one validated catalog document (envelope + import metadata).\n\nA known id replaces in place (any tier); a new id counts against the\nmax-catalogs cap. Documents over the byte cap are rejected before\nparsing (413).",
+        "operationId": "upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpsertIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upsert Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Sources Catalog",
         "tags": [
           "admin"
         ]

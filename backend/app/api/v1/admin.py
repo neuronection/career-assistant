@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,6 +35,7 @@ from app.schemas.scheduler import (
     ScheduleRunNowOut,
     ScheduleToggleOut,
 )
+from app.schemas.sources_catalog import MAX_CATALOG_BYTES, CatalogUpsertIn
 from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut, TaxonomyStatsOut
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
@@ -946,6 +947,55 @@ async def sync_posting_source(
         user_id=user.id,
     )
     return {"job_id": str(job.id), "status": job.status}
+
+
+# ------------------------------------------------------- ATS catalogs
+# Plan 187: the preset gallery's data becomes layered — bundled presets +
+# imported catalogs (operator/community URLs, user files). The backend
+# validates + stores; it NEVER fetches (the browser fetches — no SSRF).
+
+
+@router.get("/postings/sources/catalogs", response_model=list[dict])
+async def list_sources_catalogs(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """The stored ATS catalogs (instance-wide, admin-managed)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).list_catalogs()
+
+
+@router.put("/postings/sources/catalogs/{catalog_id}")
+async def upsert_sources_catalog(
+    catalog_id: str,
+    payload: CatalogUpsertIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upsert one validated catalog document (envelope + import metadata).
+
+    A known id replaces in place (any tier); a new id counts against the
+    max-catalogs cap. Documents over the byte cap are rejected before
+    parsing (413)."""
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_CATALOG_BYTES:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            f"catalog document exceeds the {MAX_CATALOG_BYTES}-byte cap",
+        )
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).upsert(catalog_id, payload)
+
+
+@router.delete("/postings/sources/catalogs/{catalog_id}")
+async def delete_sources_catalog(catalog_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a stored catalog (imported presets leave the gallery;
+    sources already added are kept)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    deleted = await SourcesCatalogService(db).delete(catalog_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "catalog not found")
+    return {"id": catalog_id, "deleted": True}
 
 
 @router.get("/postings/sources/{source_id}/runs", response_model=list[dict])
