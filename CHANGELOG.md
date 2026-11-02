@@ -4,6 +4,20 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (ATS catalog import, 2026-11-02)
+- **Layer curated ATS catalogs over the bundled presets.** Admins can
+  import preset catalogs from an operator/community **URL** or a local
+  **JSON file** (schema-validated, size-capped, connector-key
+  allowlisted) — imported entries merge into the preset gallery by slug
+  (imported wins) and every card shows its **provenance tier**
+  (bundled · operator · community · user) with a tier filter.
+  Provider connection hints open the custom-source wizard prefilled.
+  Fetching happens in your browser (no server-side URL fetches); the
+  per-catalog **Refresh** uses conditional requests (304 = already
+  latest) and reports `revision`/content changes precisely. Refresh
+  never creates sources — it updates the gallery only. Stored
+  instance-wide (`app_settings`), admin-scoped API.
+
 ### Added (sources list country lens, 2026-11-02)
 - **Your integrations, organized by country.** The job-sources list
   gained the same country lens as the preset gallery: multi-select chips

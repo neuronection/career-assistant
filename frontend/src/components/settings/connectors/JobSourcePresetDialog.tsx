@@ -24,17 +24,31 @@ import {
   type JobSourcePreset,
   type JobSourcePresetCategory,
 } from "@/config/jobSourcePresets";
+import type { CatalogProvenance, CatalogProvider, ProvenanceTier } from "@/config/sourcesCatalogs";
 
 /**
  * Preset gallery for adding job sources (plan 176/178): curated connector
  * instances as selectable cards (logo, company, provider, country) — the
  * LLM-provider tile pattern. Selection is multi (aria-pressed toggles);
  * the footer bulk-adds everything selected; "Custom source" falls back to
- * the generic connector wizard. Presets whose source key already exists
- * render added and inert.
+ * the generic connector wizard (provider cards open it prefilled — plan
+ * 187). Presets whose source key already exists render added and inert.
+ * The gallery data is layered (plan 187): bundled presets plus imported
+ * catalogs ride in through the `presets`/`provenance` props; every card
+ * shows its provenance tier and the lens row filters by tier.
  */
 
 type Filter = "all" | JobSourcePresetCategory;
+type TierFilter = "all" | ProvenanceTier;
+
+const TIER_LABEL_KEY: Record<ProvenanceTier, string> = {
+  bundled: "toolsSettings.connectors.presets.tierBundled",
+  operator: "toolsSettings.connectors.presets.tierOperator",
+  community: "toolsSettings.connectors.presets.tierCommunity",
+  user: "toolsSettings.connectors.presets.tierUser",
+};
+
+const TIER_FILTERS: TierFilter[] = ["all", "bundled", "operator", "community", "user"];
 
 export interface PresetAddOutcome {
   preset: JobSourcePreset;
@@ -49,29 +63,41 @@ export function JobSourcePresetDialog({
   onCustom,
   existingKeys = [],
   busy = false,
+  presets,
+  provenance,
+  providers = [],
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddPresets: (
     presets: JobSourcePreset[],
   ) => Promise<PresetAddOutcome[]> | Promise<never[]>;
-  onCustom: () => void;
+  onCustom: (prefill?: { connectorKey?: string; config?: Record<string, string> }) => void;
   existingKeys?: string[];
   busy?: boolean;
+  presets?: JobSourcePreset[];
+  provenance?: Map<string, CatalogProvenance>;
+  providers?: CatalogProvider[];
 }) {
   const { t, i18n } = useTranslation();
   const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [tier, setTier] = useState<TierFilter>("all");
   const [countries, setCountries] = useState<Set<string> | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [report, setReport] = useState<PresetAddOutcome[] | null>(null);
 
+  const gallery = presets ?? JOB_SOURCE_PRESETS;
+  const provenanceFor = (slug: string): CatalogProvenance =>
+    provenance?.get(slug) ?? { tier: "bundled", catalogId: "bundled", catalogName: "bundled" };
+
   useEffect(() => {
     if (open) {
       setSelected(new Set());
       setReport(null);
+      setTier("all");
       const preselect = preselectCountries(language);
       setCountries(preselect.length > 0 ? new Set(preselect) : null);
     }
@@ -81,15 +107,16 @@ export function JobSourcePresetDialog({
     code ? countryDisplayName(code, language) : t("toolsSettings.connectors.presets.worldwide");
 
   const lenses = useMemo(
-    () => presetCountryLenses(JOB_SOURCE_PRESETS, (key) => countryName(key === WORLDWIDE_KEY ? undefined : key)),
+    () => presetCountryLenses(gallery, (key) => countryName(key === WORLDWIDE_KEY ? undefined : key)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [language, t],
+    [gallery, language, t],
   );
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return JOB_SOURCE_PRESETS.filter((preset) => {
+    return gallery.filter((preset) => {
       if (filter !== "all" && preset.category !== filter) return false;
+      if (tier !== "all" && provenanceFor(preset.slug).tier !== tier) return false;
       if (countries && countries.size > 0 && !countries.has(preset.country ?? WORLDWIDE_KEY)) {
         return false;
       }
@@ -100,7 +127,7 @@ export function JobSourcePresetDialog({
       return haystack.includes(needle);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filter, countries, language, t]);
+  }, [gallery, query, filter, tier, countries, language, t]);
 
   const toggleCountry = (key: string) => {
     setCountries((current) => {
@@ -116,7 +143,7 @@ export function JobSourcePresetDialog({
   };
 
   const groups = useMemo(() => presetGroups(visible), [visible]);
-  const selectedPresets = JOB_SOURCE_PRESETS.filter((preset) => selected.has(preset.slug));
+  const selectedPresets = gallery.filter((preset) => selected.has(preset.slug));
 
   const toggle = (slug: string) => {
     setSelected((current) => {
@@ -218,6 +245,35 @@ export function JobSourcePresetDialog({
           })}
         </div>
 
+        <div
+          className="mt-1.5 flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label={t("toolsSettings.connectors.presets.tierFilterAria")}
+          data-testid="preset-tier-filter"
+        >
+          {TIER_FILTERS.map((option) => {
+            const active = tier === option;
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setTier(option)}
+                data-testid={`preset-tier-${option}`}
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                  active
+                    ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))] font-medium text-[var(--as-accent)]"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)]"
+                }`}
+              >
+                {option === "all"
+                  ? t("toolsSettings.connectors.presets.tierAll")
+                  : t(TIER_LABEL_KEY[option])}
+              </button>
+            );
+          })}
+        </div>
+
         <div className="mt-4 max-h-[60vh] space-y-5 overflow-y-auto pr-1">
           {report ? (
             <div
@@ -287,7 +343,13 @@ export function JobSourcePresetDialog({
                             {preset.name}
                           </span>
                           <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
-                            {preset.provider} · {country ? `${country.flag} ${countryName(preset.country)}` : countryName()}
+                            {preset.provider} · {country ? `${country.flag} ${countryName(preset.country)}` : countryName()} ·{" "}
+                            <span
+                              className="rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium"
+                              data-testid={`preset-tier-${preset.slug}`}
+                            >
+                              {t(TIER_LABEL_KEY[provenanceFor(preset.slug).tier])}
+                            </span>
                           </span>
                           <span className="mt-0.5 block truncate text-[11px] text-[var(--as-muted-fg)]">
                             {typeof preset.openings === "number"
@@ -329,6 +391,49 @@ export function JobSourcePresetDialog({
               </section>
             ))
           )}
+          {providers.length > 0 ? (
+            <section
+              aria-label={t("toolsSettings.connectors.presets.providersTitle")}
+              data-testid="catalog-providers"
+              className="space-y-2"
+            >
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.presets.providersTitle")}
+              </p>
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("toolsSettings.connectors.presets.providersHint")}
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {providers.map((provider) => (
+                  <button
+                    key={provider.id}
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      onCustom({ connectorKey: provider.connectorKey, config: {} })
+                    }
+                    data-testid={`catalog-provider-${provider.id}`}
+                    className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3 text-left transition-colors hover:border-[var(--as-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
+                  >
+                    <span className="block truncate text-sm font-medium text-[var(--as-fg)]">
+                      {provider.label}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
+                      {provider.connectorKey}
+                      {provider.urlTemplate ? ` · ${provider.urlTemplate}` : ""}
+                    </span>
+                    {provider.countries.length > 0 ? (
+                      <span className="mt-0.5 block truncate text-[11px] text-[var(--as-muted-fg)]">
+                        {provider.countries
+                          .map((code) => findCountry(code)?.flag ?? code)
+                          .join(" ")}
+                      </span>
+                    ) : null}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
         <ModalFooter className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--as-border)] pt-3">
@@ -336,7 +441,12 @@ export function JobSourcePresetDialog({
             {t("toolsSettings.connectors.presets.footerHint")}
           </p>
           <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onCustom} data-testid="preset-custom">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => onCustom()}
+              data-testid="preset-custom"
+            >
               <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.presets.custom")}
             </Button>
             <Button
