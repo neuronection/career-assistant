@@ -74,6 +74,7 @@ export function JobsTab() {
   const [failingSchedules, setFailingSchedules] = useState<
     { id: string; kind: string; consecutive_failures: number; error?: string | null }[]
   >([]);
+  const [failedCount, setFailedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
@@ -112,6 +113,26 @@ export function JobsTab() {
   useEffect(() => {
     void load(status, jobType, range, jobPage);
   }, [load, status, jobType, range, jobPage]);
+
+  useEffect(() => {
+    let live = true;
+    const loadFailed = async () => {
+      try {
+        const result = await fetchAuditJobs({
+          ...rangeParams(range),
+          status: "failed",
+          limit: 1,
+        });
+        if (live) setFailedCount(result.total);
+      } catch {
+        if (live) setFailedCount(0);
+      }
+    };
+    void loadFailed();
+    return () => {
+      live = false;
+    };
+  }, [range]);
 
   useEffect(() => {
     let live = true;
@@ -216,6 +237,19 @@ export function JobsTab() {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
+        {failedCount > 0 && (
+          <Link
+            to={`/settings/audit?${new URLSearchParams({
+              tab: "failures",
+              ...(range.window !== "custom" && range.window ? { window: range.window } : {}),
+              ...(jobType ? { job_type: jobType } : {}),
+            }).toString()}`}
+            className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+            data-testid="audit-jobs-failed-link"
+          >
+            {t("audit.failures.badge", { count: failedCount })} →
+          </Link>
+        )}
         <select
           aria-label={t("audit.jobs.statusFilter")}
           className={selectClass}

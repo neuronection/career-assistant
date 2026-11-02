@@ -9,10 +9,18 @@ import { OverviewTab } from "@/components/audit/OverviewTab";
 import { AiActivityTab } from "@/components/audit/AiActivityTab";
 import { SecurityTab } from "@/components/audit/SecurityTab";
 import { JobsTab } from "@/components/audit/JobsTab";
+import { FailuresTab } from "@/components/audit/FailuresTab";
 import { ChangesTab } from "@/components/audit/ChangesTab";
 import { UsageTab } from "@/components/audit/UsageTab";
 
-export type AuditTab = "overview" | "ai" | "usage" | "security" | "jobs" | "changes";
+export type AuditTab =
+  | "overview"
+  | "ai"
+  | "usage"
+  | "security"
+  | "jobs"
+  | "failures"
+  | "changes";
 
 // Exported for the tab-param tests (the repo-wide ?tab= pattern).
 export const AUDIT_TABS: readonly AuditTab[] = [
@@ -21,6 +29,7 @@ export const AUDIT_TABS: readonly AuditTab[] = [
   "usage",
   "security",
   "jobs",
+  "failures",
   "changes",
 ];
 
@@ -88,7 +97,9 @@ export function Audit() {
             value={activeTab}
             onValueChange={(next) => setActive(next as AuditTab)}
           />
-          {(activeTab === "overview" || activeTab === "security") && (
+          {(activeTab === "overview" ||
+            activeTab === "security" ||
+            activeTab === "failures") && (
             <RangeFilter
               value={range}
               onChange={setRange}
@@ -104,6 +115,7 @@ export function Audit() {
           <SecurityTab range={rangeParams(range)} />
         )}
         {activeTab === "jobs" && <JobsTab />}
+        {activeTab === "failures" && <FailuresTab range={range} />}
         {activeTab === "changes" && <ChangesTab />}
       </section>
     </SettingsPage>

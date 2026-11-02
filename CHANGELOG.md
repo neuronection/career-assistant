@@ -11,7 +11,13 @@ All notable changes to **Career Assistant** are documented here.
   and a confirmed action (`POST /admin/audit/jobs/requeue`) requeues them
   as fresh queue rows (`requeue_of` markers in both directions) — dedupe
   against queued/running twins, 200-job cap per action, one bulk action at
-  a time. The UI lands in the next change.
+  a time.
+- The audit console gains the **Failures tab** (`?tab=failures`): grouped
+  failure cards with the top error, window selector, an explicit confirm
+  step showing counts/cap/dedupe before requeueing, an outcome summary
+  (`requeued / skipped_dup / skipped_cap`), per-row requeue with a detail
+  drawer, and failure badges on the AI activity + Jobs tabs linking into
+  Failures pre-filtered.
 
 ### Added (preset freshness + tile parity, 2026-11-02)
 - Preset cards now carry **freshness signals**: a live-verified openings

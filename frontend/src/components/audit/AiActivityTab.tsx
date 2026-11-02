@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   exportAuditCsv,
   fetchAuditBreakdown,
@@ -134,7 +134,28 @@ export function AiActivityTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const [failedCalls, setFailedCalls] = useState(0);
   const detailId = searchParams.get("detail");
+
+  useEffect(() => {
+    let live = true;
+    const loadFailed = async () => {
+      try {
+        const result = await fetchAuditGenerations({
+          status: "error",
+          window: "24h",
+          limit: 1,
+        });
+        if (live) setFailedCalls(result.total);
+      } catch {
+        if (live) setFailedCalls(0);
+      }
+    };
+    void loadFailed();
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadFacets = async () => {
@@ -279,6 +300,15 @@ export function AiActivityTab() {
   return (
     <div className="space-y-3" data-testid="audit-ai-tab">
       <div className="flex flex-wrap items-center gap-2">
+        {failedCalls > 0 && (
+          <Link
+            to={`/settings/audit?tab=failures`}
+            className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+            data-testid="audit-ai-failed-link"
+          >
+            {t("audit.failures.aiBadge", { count: failedCalls })} →
+          </Link>
+        )}
         <select
           aria-label={t("audit.ai.taskFilter")}
           className={selectClass}

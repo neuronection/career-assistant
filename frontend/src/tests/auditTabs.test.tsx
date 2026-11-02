@@ -19,6 +19,7 @@ import {
 import type {
   AuditChangeRow,
   AuditEventRow,
+  AuditFailuresPreview,
   AuditJobRow,
   AIGenerationRow,
   AuditOverview,
@@ -38,6 +39,8 @@ vi.mock("@/api/audit", () => ({
   fetchAuditChanges: vi.fn(),
   exportAuditCsv: vi.fn(),
   fetchAuditProduction: vi.fn(),
+  fetchAuditFailures: vi.fn(),
+  requeueAuditJobs: vi.fn(),
 }));
 
 import {
@@ -45,6 +48,7 @@ import {
   fetchAuditBreakdown,
   fetchAuditChanges,
   fetchAuditEvents,
+  fetchAuditFailures,
   fetchAuditGenerations,
   fetchAuditJobFacets,
   fetchAuditJobs,
@@ -52,6 +56,7 @@ import {
   fetchAuditProduction,
   fetchAuditSourceRuns,
   fetchAuditTimeseries,
+  requeueAuditJobs,
 } from "@/api/audit";
 
 const OVERVIEW: AuditOverview = {
@@ -188,6 +193,58 @@ const JOBS: AuditJobRow[] = [
   },
 ];
 
+const FAILED_GROUP_JOBS: AuditJobRow[] = [
+  {
+    id: "fail-1",
+    job_type: "posting_extract",
+    status: "failed",
+    stage: null,
+    progress: 0,
+    attempts: 2,
+    max_attempts: 2,
+    error: "Connection reset by peer",
+    created_at: "2026-10-30T09:10:00Z",
+    finished_at: "2026-10-30T09:12:00Z",
+    user_id: null,
+    user_email: null,
+    payload: { posting_id: "p-9" },
+    result: null,
+  },
+];
+
+const FAILURES_PREVIEW: AuditFailuresPreview = {
+  groups: [
+    {
+      job_type: "posting_extract",
+      window_count: 3,
+      top_error: "Connection reset by peer",
+      est_jobs: 3,
+      full_rerun: false,
+      sweep: false,
+    },
+    {
+      job_type: "autopilot_run",
+      window_count: 1,
+      top_error: "provider quota exhausted",
+      est_jobs: 1,
+      full_rerun: true,
+      sweep: false,
+    },
+    {
+      job_type: "query_curator",
+      window_count: 5,
+      top_error: "provider down",
+      est_jobs: 1,
+      full_rerun: false,
+      sweep: true,
+    },
+  ],
+  cap: 200,
+  total_failed: 9,
+  truncated: 0,
+  skipped_dup_preview: 1,
+};
+
 const RUNS: AuditSourceRunRow[] = [
   {
     id: "run-1",
@@ -235,13 +292,14 @@ function renderPage(initialEntry: string) {
 const probe = () => screen.getByTestId("location-probe").textContent;
 
 describe("audit tab helpers", () => {
-  it("AUDIT_TABS is overview-first", () => {
+  it("AUDIT_TABS is overview-first with the failures tab", () => {
     expect([...AUDIT_TABS]).toEqual([
       "overview",
       "ai",
       "usage",
       "security",
       "jobs",
+      "failures",
       "changes",
     ]);
   });
@@ -249,6 +307,7 @@ describe("audit tab helpers", () => {
   it("parseAuditTab falls back to overview on unknown values", () => {
     expect(parseAuditTab(null)).toBe("overview");
     expect(parseAuditTab("security")).toBe("security");
+    expect(parseAuditTab("failures")).toBe("failures");
     expect(parseAuditTab("bogus")).toBe("overview");
   });
 
@@ -321,6 +380,15 @@ describe("audit page tabs", () => {
       items: CHANGES,
     });
     vi.mocked(exportAuditCsv).mockResolvedValue(new Blob(["csv"]));
+    vi.mocked(fetchAuditFailures).mockResolvedValue(FAILURES_PREVIEW);
+    vi.mocked(requeueAuditJobs).mockResolvedValue({
+      requeued: 8,
+      skipped_dup: 1,
+      skipped_cap: 0,
+      collapsed: 4,
+      cap: 200,
+      items: [],
+    });
     vi.mocked(fetchAuditProduction).mockResolvedValue({
       postings: {
         ingested: 5,
@@ -586,5 +654,172 @@ describe("audit page tabs", () => {
         }),
       ),
     );
+  });
+
+  it("renders the failures tab with grouped cards, badges and counts", async () => {
+    renderPage("/settings/audit?tab=failures");
+    expect(await screen.findByTestId("audit-failures-tab")).toBeTruthy();
+    expect(fetchAuditFailures).toHaveBeenCalledWith(
+      expect.objectContaining({ window: "24h" }),
+    );
+    expect(screen.getByTestId("audit-failure-group-posting_extract")).toBeTruthy();
+    expect(screen.getByText("Connection reset by peer")).toBeTruthy();
+    expect(screen.getAllByTestId("audit-failure-count").length).toBe(3);
+    expect(screen.getByTestId("audit-failure-full-rerun")).toBeTruthy();
+    expect(screen.getByTestId("audit-failure-sweep")).toBeTruthy();
+  });
+
+  it("lands the ?job_type= pre-filter with a live group and keeps it", async () => {
+    renderPage("/settings/audit?tab=failures&job_type=posting_extract");
+    await screen.findByTestId("audit-failures-tab");
+    await waitFor(() => expect(probe()).toBe("/settings/audit?tab=failures&job_type=posting_extract"));
+    expect(fetchAuditFailures).toHaveBeenCalledWith(
+      expect.objectContaining({ window: "24h", job_type: "posting_extract" }),
+    );
+  });
+
+  it("keeps the window param on the failures tab and fetches the chosen window", async () => {
+    renderPage("/settings/audit?tab=failures&window=7d");
+    await screen.findByTestId("audit-failures-tab");
+    await waitFor(() =>
+      expect(fetchAuditFailures).toHaveBeenLastCalledWith(
+        expect.objectContaining({ window: "7d" }),
+      ),
+    );
+    await waitFor(() => expect(probe()).toBe("/settings/audit?tab=failures&window=7d"));
+  });
+
+  it("clears a stale job_type filter once the preview has no such group", async () => {
+    renderPage("/settings/audit?tab=failures&job_type=gone_type");
+    await screen.findByTestId("audit-failures-tab");
+    expect(fetchAuditFailures).toHaveBeenCalledWith(
+      expect.objectContaining({ window: "24h", job_type: "gone_type" }),
+    );
+    await waitFor(() => expect(probe()).toBe("/settings/audit?tab=failures"));
+    await waitFor(() =>
+      expect(fetchAuditFailures).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ job_type: expect.anything() }),
+      ),
+    );
+  });
+
+  it("expands a group into failed job rows and opens the detail drawer", async () => {
+    vi.mocked(fetchAuditJobs).mockResolvedValue({
+      total: 1,
+      items: FAILED_GROUP_JOBS,
+    });
+    renderPage("/settings/audit?tab=failures");
+    await screen.findByTestId("audit-failures-tab");
+    await userEvent.click(screen.getByTestId("audit-failure-group-toggle-posting_extract"));
+    await waitFor(() =>
+      expect(fetchAuditJobs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "failed",
+          job_type: "posting_extract",
+          limit: 20,
+        }),
+      ),
+    );
+    await userEvent.click(screen.getByTestId("audit-failure-row-link-fail-1"));
+    const drawer = await screen.findByTestId("audit-failure-drawer");
+    expect(drawer.textContent).toContain("Connection reset by peer");
+    expect(drawer.textContent).toContain("posting_id");
+  });
+
+  it("runs the confirmed requeue-all flow once with the previewed filters and shows the outcome", async () => {
+    renderPage("/settings/audit?tab=failures");
+    await screen.findByTestId("audit-failures-tab");
+    await userEvent.click(screen.getByTestId("audit-failures-requeue-all"));
+    const confirm = screen.getByTestId("audit-failures-confirm");
+    expect(confirm.textContent).toContain("Requeues 5 jobs across all types");
+    expect(confirm.textContent).toContain("cap 200 per action");
+    expect(confirm.textContent).toContain("1 duplicate skipped");
+
+    await userEvent.click(screen.getByTestId("audit-failures-confirm-go"));
+    await waitFor(() =>
+      expect(requeueAuditJobs).toHaveBeenCalledTimes(1),
+    );
+    expect(requeueAuditJobs).toHaveBeenCalledWith(
+      expect.objectContaining({ window: "24h", confirm: true }),
+    );
+    const outcome = await screen.findByTestId("audit-failures-outcome");
+    expect(outcome.textContent).toContain("8 requeued");
+    expect(outcome.textContent).toContain("1 skipped (duplicate queued)");
+    expect(outcome.textContent).toContain("0 skipped (cap)");
+    expect(outcome.textContent).toContain("4 collapsed into one sweep requeue");
+    await waitFor(() => expect(fetchAuditFailures).toHaveBeenCalledTimes(2));
+  });
+
+  it("requeues one job from the group flow and one from the drawer", async () => {
+    vi.mocked(fetchAuditJobs).mockResolvedValue({
+      total: 1,
+      items: FAILED_GROUP_JOBS,
+    });
+    renderPage("/settings/audit?tab=failures");
+    await screen.findByTestId("audit-failures-tab");
+    await userEvent.click(screen.getByTestId("audit-failure-group-toggle-posting_extract"));
+    await userEvent.click(screen.getByTestId("audit-failure-requeue-posting_extract"));
+    const confirm = await screen.findByTestId("audit-failures-confirm");
+    expect(confirm.textContent).toContain("of this type");
+    await userEvent.click(screen.getByTestId("audit-failures-confirm-go"));
+    await waitFor(() =>
+      expect(requeueAuditJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ job_type: "posting_extract", confirm: true }),
+      ),
+    );
+
+    vi.mocked(requeueAuditJobs).mockClear();
+    await waitFor(() =>
+      expect(screen.queryByTestId("audit-failures-confirm")).toBeNull(),
+    );
+    await userEvent.click(screen.getByTestId("audit-failure-group-toggle-posting_extract"));
+    await userEvent.click(screen.getByTestId("audit-failure-row-link-fail-1"));
+    await screen.findByTestId("audit-failure-drawer");
+    await userEvent.click(screen.getByTestId("audit-failure-drawer-requeue"));
+    await waitFor(() =>
+      expect(requeueAuditJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ job_ids: ["fail-1"], confirm: true }),
+      ),
+    );
+    expect(await screen.findByTestId("audit-failures-row-outcome")).toBeTruthy();
+  });
+
+  it("shows the requeue action on the jobs tab linked into failures pre-filtered", async () => {
+    renderPage("/settings/audit?tab=jobs");
+    expect(await screen.findByTestId("audit-jobs-tab")).toBeTruthy();
+    const link = await screen.findByTestId("audit-jobs-failed-link");
+    expect(link.getAttribute("href")).toBe("/settings/audit?tab=failures&window=7d");
+    await userEvent.selectOptions(screen.getByTestId("audit-jobs-type"), "posting_sync");
+    await waitFor(() =>
+      expect(link.getAttribute("href")).toBe(
+        "/settings/audit?tab=failures&window=7d&job_type=posting_sync",
+      ),
+    );
+  });
+
+  it("links the AI activity tab into the failures view", async () => {
+    renderPage("/settings/audit?tab=ai");
+    const link = await screen.findByTestId("audit-ai-failed-link");
+    expect(link.getAttribute("href")).toBe("/settings/audit?tab=failures");
+    expect(link.textContent).toContain("failed AI call");
+  });
+
+  it("renders the failure drawer full-screen below sm per the library contract", async () => {
+    vi.mocked(fetchAuditJobs).mockResolvedValue({
+      total: 1,
+      items: FAILED_GROUP_JOBS,
+    });
+    renderPage("/settings/audit?tab=failures");
+    await screen.findByTestId("audit-failures-tab");
+    await userEvent.click(screen.getByTestId("audit-failure-group-toggle-posting_extract"));
+    await userEvent.click(screen.getByTestId("audit-failure-row-link-fail-1"));
+    await screen.findByTestId("audit-failure-drawer");
+    const overlay = screen
+      .getByTestId("audit-failure-drawer")
+      .closest('div[class*="inset-0"]');
+    expect(overlay).not.toBeNull();
+    expect(overlay?.className).toContain("fixed inset-0");
+    expect(overlay?.className).toContain("sm:inset-0");
+    expect(overlay?.className).toContain("sm:max-h-[90vh]");
   });
 });

@@ -222,6 +222,65 @@ export async function fetchAuditJobFacets(
   return data;
 }
 
+export interface AuditFailureGroup {
+  job_type: string;
+  window_count: number;
+  top_error: string;
+  est_jobs: number;
+  full_rerun: boolean;
+  sweep: boolean;
+}
+
+export interface AuditFailuresPreview {
+  groups: AuditFailureGroup[];
+  cap: number;
+  total_failed: number;
+  truncated: number;
+  skipped_dup_preview: number;
+}
+
+export interface AuditRequeueItem {
+  job_id: string;
+  outcome: string;
+  new_job_id: string | null;
+}
+
+export interface AuditRequeueOutcome {
+  requeued: number;
+  skipped_dup: number;
+  skipped_cap: number;
+  collapsed: number;
+  cap: number;
+  items: AuditRequeueItem[];
+}
+
+export interface FailureParams {
+  job_type?: string;
+  user_id?: string;
+  window?: AuditWindow;
+  from?: string;
+  to?: string;
+}
+
+export async function fetchAuditFailures(
+  params: FailureParams = {},
+): Promise<AuditFailuresPreview> {
+  const { data } = await api.get<AuditFailuresPreview>(
+    "/admin/audit/jobs/failures",
+    { params },
+  );
+  return data;
+}
+
+export async function requeueAuditJobs(
+  body: FailureParams & { job_ids?: string[]; confirm: boolean },
+): Promise<AuditFailuresPreview | AuditRequeueOutcome> {
+  const { data } = await api.post<
+    AuditFailuresPreview | AuditRequeueOutcome
+  >("/admin/audit/jobs/requeue", body);
+  return data;
+}
+
 export interface AuditSourceRunRow {
   id: string;
   source_id: string;
