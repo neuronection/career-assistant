@@ -171,8 +171,10 @@ async def test_requeue_fresh_row_and_both_markers(db, client, _admin_and_user):
     assert fresh.status == "queued"
 
     linked = (
-        await db.execute(select(BackgroundJob).where(BackgroundJob.requeue_of == original.id))
-    ).scalars().all()
+        (await db.execute(select(BackgroundJob).where(BackgroundJob.requeue_of == original.id)))
+        .scalars()
+        .all()
+    )
     assert [str(job.id) for job in linked] == [new_id]
 
 
@@ -231,9 +233,7 @@ async def test_dedupe_skips_structural_twin_regardless_of_key_order(db, client, 
 
 async def test_cap_overflow_reported(db, client, _admin_and_user):
     admin, _ = _admin_and_user
-    db.add_all(
-        _failed(payload={"n": index}, error="quota exhausted") for index in range(205)
-    )
+    db.add_all(_failed(payload={"n": index}, error="quota exhausted") for index in range(205))
     await db.flush()
 
     response = await client.post(
@@ -258,9 +258,7 @@ async def test_singleton_guard_rejects_a_second_action(db, client, _admin_and_us
     )
     assert first.status_code == 200
 
-    guard = (
-        await db.execute(select(AppSetting).where(AppSetting.key == LOCK_KEY))
-    ).scalar_one()
+    guard = (await db.execute(select(AppSetting).where(AppSetting.key == LOCK_KEY))).scalar_one()
     guard.value = {"locked": True, "action": "held"}
     await db.flush()
 
@@ -285,8 +283,7 @@ async def test_singleton_guard_rejects_a_second_action(db, client, _admin_and_us
 async def test_truncation_signal_at_the_scan_bound(db, client, _admin_and_user):
     admin, _ = _admin_and_user
     db.add_all(
-        _failed(payload={"n": index}, error="quota exhausted")
-        for index in range(SCAN_LIMIT + 2)
+        _failed(payload={"n": index}, error="quota exhausted") for index in range(SCAN_LIMIT + 2)
     )
     await db.flush()
 
