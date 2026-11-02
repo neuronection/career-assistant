@@ -284,6 +284,13 @@ def test_rawposting_cap_facts_agree_across_repos() -> None:
     template = REPO_ROOT.parent / "career-connector-template" / "docs" / "authoring.md"
     sdk_text = (SDK_DIR / "authoring-and-configuration.md").read_text(encoding="utf-8")
     template_text = template.read_text(encoding="utf-8")
+    # The cap rows live in the RawPosting sections — scanning the whole
+    # chapters would trip over unrelated field tables (the manifest root's
+    # own `title` row, plan 173).
+    sdk_rows = sdk_text.split("## `RawPosting` — the only output type", 1)[1].split("\n## ", 1)[0]
+    template_rows = template_text.split("## The row contract (RawPosting) and its caps", 1)[
+        1
+    ].split("\n## ", 1)[0]
     caps = {
         "external_id": ("1", "300"),
         "title": ("1", "300"),
@@ -293,11 +300,11 @@ def test_rawposting_cap_facts_agree_across_repos() -> None:
         "employment_type": ("full_time", "internship"),
         "onsite_policy": ("onsite", "remote"),
         "skills_raw": ("60",),
-        "raw": ("8 KB",),
+        "raw": ("64 KB",),
     }
     failures: list[str] = []
     for field, tokens in caps.items():
-        for label, text in (("sdk", sdk_text), ("template", template_text)):
+        for label, text in (("sdk", sdk_rows), ("template", template_rows)):
             rows = [line for line in text.splitlines() if line.startswith(f"| `{field}`")]
             if not rows:
                 failures.append(f"{label}: no `{field}` row in the row-contract table")

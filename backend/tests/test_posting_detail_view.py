@@ -184,6 +184,26 @@ async def test_detail_returns_description_facts_and_timestamps(
     assert body["updated_at"] is not None
 
 
+async def test_detail_source_title_prefers_the_source_display_name(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """Plan 173: an imported source's manifest display name wins over the
+    connector class title; a NULL title keeps the connector title."""
+    posting = await _make_posting(db, source)
+    source.title = "LinkedIn"
+    await db.commit()
+
+    response = await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["source_title"] == "LinkedIn"
+
+    source.title = None
+    await db.commit()
+    response = await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["source_title"] == "Synthetic test connector"
+
+
 async def test_detail_typed_benefits_survive_the_wire(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):

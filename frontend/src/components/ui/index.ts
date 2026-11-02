@@ -114,6 +114,8 @@ export {
   MenuTrigger,
   MenuContent,
   MenuItem,
+  MenuLabel,
+  MenuSeparator,
   type MenuItemProps,
 } from "@/components/ui/menu";
 export { SwitchRow, type SwitchRowProps } from "@/components/ui/switch-row";
@@ -214,3 +216,17 @@ export {
   type RenderContextMenu,
   type RenderNodeDetail,
 } from "@/components/ui/conceptGraph";
+export { CopyButton, type CopyButtonProps } from "@/components/ui/copy-button";
+export {
+  useChatStream,
+  liveTurnReducer,
+  initialLiveTurnState,
+  buildBranchTree,
+  linearTree,
+  walkActivePath,
+  activePathSet,
+  variantInfo,
+  ChatReasoning,
+  type ChatReasoningProps,
+  type ChatReasoningLabels,
+} from "@/components/ui/chat";

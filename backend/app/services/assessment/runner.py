@@ -2,6 +2,7 @@
 
 import uuid
 from datetime import UTC
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import delete, select
@@ -159,7 +160,10 @@ class AssessmentService:
         saved = 0
         for item in answers or []:
             question_id = item.get("question_id")
-            question = question_map.get(_as_uuid(question_id))
+            question_uuid = _as_uuid(question_id)
+            if question_uuid is None:
+                raise ValidationError(f"Unknown question: {question_id}")
+            question = question_map.get(question_uuid)
             if question is None:
                 raise ValidationError(f"Unknown question: {question_id}")
             if question.phase != run.current_phase:
@@ -473,7 +477,8 @@ class AssessmentService:
                 .limit(10)
             )
             shortlist = [
-                {"job_id": str(job_id), "fit_score": float(score)} for job_id, score in rows.all()
+                {"job_id": str(job_id), "fit_score": float(cast(float, score))}
+                for job_id, score in rows.all()
             ]
         return {
             "run_id": str(run.id),

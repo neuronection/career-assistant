@@ -23,6 +23,7 @@ export type SourceQueryInfo = {
 export type PostingSource = {
   id: string;
   key: string;
+  title?: string;
   connector_key: string;
   kind: string;
   schedule_kind: string | null;
@@ -60,6 +61,7 @@ export type ConnectorCatalogEntry = {
   };
   manifest: {
     id: string;
+    description?: string;
     capabilities: string[];
     domains?: string[];
     supportsIncremental: boolean;
@@ -190,6 +192,7 @@ export async function createSource(payload: {
   query_mode?: string;
   query_batch_size?: number;
   secrets?: Record<string, string>;
+  title?: string;
 }): Promise<{ id: string; key: string; connector_key: string }> {
   const response = await api.post("/admin/postings/sources", payload);
   return response.data;

@@ -1,8 +1,32 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-30",
+  "updated": "2026-10-31",
   "capabilities": [
+    {
+      "id": "update-checks",
+      "verb": "See when a new version ships, right where you work",
+      "summary": "A quiet banner in the app shell announces new releases, checked against the family version API — no identifiers leave the instance, and updates still install the usual way.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Public /api/v1/instance/update-check endpoint, 6 h server-side cache",
+        "Real semver ordering with the stable-channel law (prereleases never offered to stable clients)",
+        "The check is a plain anonymous GET — no telemetry, failures read as 'no update'"
+      ],
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "website",
+          "href": "https://neuronection.com/en/career/",
+          "label": "Career Assistant"
+        }
+      ],
+      "order": 5
+    },
     {
       "id": "job-catalog",
       "verb": "Discover careers you didn't know exist",
@@ -25,7 +49,8 @@
         "web",
         "desktop"
       ],
-      "order": 10
+      "order": 10,
+      "visual": "images/components/job-catalog-desktop.png"
     },
     {
       "id": "profile-matching",
@@ -86,7 +111,8 @@
         "web",
         "desktop"
       ],
-      "order": 30
+      "order": 30,
+      "visual": "images/components/cv-studio-panel-desktop.png"
     },
     {
       "id": "assistant-chat",
@@ -116,7 +142,8 @@
         "web",
         "desktop"
       ],
-      "order": 33
+      "order": 33,
+      "visual": "images/components/proposal-card-desktop.png"
     },
     {
       "id": "application-tracker",
@@ -271,6 +298,30 @@
       "order": 57
     },
     {
+      "id": "taxonomy-backlog",
+      "verb": "See the whole taxonomy backlog at a glance",
+      "summary": "The Taxonomy page opens with one bar over the work you own: skill lifecycle counts and every review queue's live total, plus the seven-day promotion delta that reveals a stalled auto-promoter.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Proposed, active and deprecated skills sit beside the promoter's all-time and 7-day counts — a shrinking delta is the stall signal",
+        "Every review queue shows its live count in the bar and on its tab: relations, enrichment, draft paths, translations",
+        "Counts are computed server-side in one aggregation, so the tile and the tab never disagree — on the SQLite desktop profile too"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 58
+    },
+    {
       "id": "taxonomy-translations",
       "verb": "Review every catalog translation before it renders",
       "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",
@@ -353,11 +404,11 @@
       "category": "privacy",
       "status": "shipped",
       "proofs": [
-        "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
-        "The identity audit trail (logins, denials, admin acts) has a first-class read surface",
-        "Overview KPIs, volume/error trends and category splits aggregate server-side",
-        "Facet-driven ledger filters, pagination and row detail with prompt, output and pack governance",
-        "Identical surface on PostgreSQL web/self-host and the SQLite desktop profile"
+        "Every AI call is gateway-audited (task, model, tokens, latency, status, run lineage); per-model usage and token trends",
+        "Production throughput: postings ingested, skill lifecycle events, companies, catalog jobs by origin",
+        "Identity audit trail read surface; custom date ranges and CSV export on every view",
+        "Failed AI jobs group by type and error family; one confirmed action bulk-requeues them as fresh rows (requeue_of markers)",
+        "Open any autopilot run and see each step's arguments and outputs, its AI calls and its findings"
       ],
       "links": [
         {
@@ -371,6 +422,24 @@
         "desktop"
       ],
       "order": 70
+    },
+    {
+      "id": "market-stats",
+      "verb": "See how the job market is moving, not just one opening",
+      "summary": "Statistics page and pulse rails over the live postings corpus: volume with previous-period comparison, rising skills with shares, career-family demand, per-currency salary bands, source freshness.",
+      "category": "discover",
+      "status": "beta",
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-stats"
+        }
+      ],
+      "order": 41
     }
   ],
   "useCases": [

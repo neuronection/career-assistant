@@ -41,6 +41,19 @@ boot-provisioned like every system kind (no seeded migration row).
 Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
 compose file for a later worker split — there is no Celery in v1.
 
+### The failed-jobs lifecycle (plan 184)
+
+A job retries within its `max_attempts` budget (backoff between attempts);
+once the budget is exhausted it lands `failed` **terminally** — the row is
+audit history and its status is never mutated back into the queue. Recovery
+is the admin audit console's **Failures tab** (`?tab=failures` on
+`/settings/audit`): `JobReprocessService` previews the failed jobs grouped
+by type × error family, then requeues them as FRESH `background_jobs` rows
+(`requeue_of` marker back to the failed row, `result.requeued_as` on it)
+through the same `HANDLERS` path with a fresh attempts budget. Guards and
+the per-type policy (payload-driven per-job vs collapsing global sweeps)
+are documented in [ai-layer.md](ai-layer.md#bulk-reprocessing-of-failed-jobs-plan-184).
+
 ## The scheduler
 
 `app/services/scheduler/` — the runner (`runner.py`) and the trigger registry

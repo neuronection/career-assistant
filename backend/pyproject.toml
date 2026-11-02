@@ -55,6 +55,14 @@ desktop = [
     "pystray>=0.19",
     "pygobject>=3.50,<3.51 ; sys_platform == 'linux'",
 ]
+# Optional OTel span export (plan 168, ADR-0044 addendum): opt-in via
+# CAREER_OTEL_EXPORT; without the extra every span is a no-op, so the
+# desktop bundle never needs it and the PyInstaller spec includes nothing.
+otel = [
+    "opentelemetry-api>=1.45.1",
+    "opentelemetry-sdk>=1.45.1",
+    "opentelemetry-exporter-otlp-proto-http>=1.45.1",
+]
 
 [project.scripts]
 careerassistant = "app.shell:run"
@@ -165,6 +173,7 @@ files = [
     "app/models",
     "app/schemas",
     "app/seeds",
+    "app/services",
     "app/shell.py",
 ]
 exclude = ["app/extensions/contract.py"]
@@ -177,7 +186,8 @@ follow_imports = "silent"
 # errors requires lowering the peg in the same commit
 # (`uv run python ../scripts/check-mypy-ratchet.py --update`); adding any
 # error fails CI. Clean packages move to `[tool.mypy] files` instead.
-packages = { "app/services" = 157 }
+# The wall is empty: app/services joined `files` clean (209 -> 0).
+packages = {}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

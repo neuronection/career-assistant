@@ -45,7 +45,7 @@ The postings whose deep extraction found this skill, newest first — the
 same cards as the postings feed, including the closed-state chip for
 expired postings (hidden postings never list). Use **Load more** to page
 and **Open in Explore** to carry the skill filter into the full search
-(`/postings/search?skills=key`, where `key:level` can also ask for a
+(`/postings?skills=key`, where `key:level` can also ask for a
 minimum required level).
 
 ## Graph

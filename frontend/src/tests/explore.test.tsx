@@ -1,12 +1,13 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
-import { explorePostings } from "@/api/postings";
+import { resetExploreListCache } from "@/features/catalog/exploreListCache";
+import { explorePostings, smartSearch } from "@/api/postings";
+import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
-import { recordSearch, saveSearch } from "@/api/engagement";
 import type { ExploreResponse } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 
@@ -15,6 +16,7 @@ vi.mock("@/api/postings", async (importOriginal) => {
   return {
     ...mod,
     explorePostings: vi.fn(),
+    smartSearch: vi.fn(),
     fetchPostingSources: vi.fn().mockResolvedValue([
       { key: "synth", connector_key: "synthetic", open_postings: 3 },
     ]),
@@ -41,12 +43,56 @@ vi.mock("@/api/skills", () => ({
   ]),
 }));
 
+vi.mock("@/api/stats", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/stats")>();
+  const pulse = {
+    as_of: "2026-10-31T12:00:00Z",
+    status_basis: "open" as const,
+    new_24h: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    new_7d: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    new_30d: { count: 0, prev: 0, delta_pct: null, trend: "flat" as const },
+    open_total: 0,
+    sparkline: [],
+    freshness: { as_of: "2026-10-31T12:00:00Z", stale_sources: [] },
+  };
+  return {
+    ...actual,
+    fetchPostingStatsSummary: vi.fn().mockResolvedValue(pulse),
+    fetchPostingStatsSkills: vi.fn().mockResolvedValue({
+      ...pulse,
+      window: "30d",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      top: [],
+      rising: [],
+      falling: [],
+      categories: [],
+      levels: [],
+      avg_level: null,
+      priority: {},
+      avg_skills_per_posting: 0,
+    }),
+    fetchPostingStatsBreakdown: vi.fn().mockResolvedValue({
+      as_of: "2026-10-31T12:00:00Z",
+      window: "30d",
+      status_basis: "open",
+      start: null,
+      end: "2026-10-31T12:00:00Z",
+      dimension: "source",
+      total: 0,
+      rows: [],
+    }),
+  };
+});
+
 vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();
   return {
     ...mod,
-    recordSearch: vi.fn().mockResolvedValue({ id: "s9" }),
-    saveSearch: vi.fn().mockResolvedValue({ id: "s9", saved: true }),
+    fetchSearches: vi.fn().mockResolvedValue([]),
+    recordSearch: vi.fn().mockResolvedValue({ id: "s9", saved: true }),
+    updateSearch: vi.fn().mockResolvedValue({ id: "s9" }),
+    deleteSearch: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -70,9 +116,9 @@ class MockIntersectionObserver {
 vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
 
 const mockExplore = vi.mocked(explorePostings);
-const mockCompanies = vi.mocked(fetchCompanies);
+const mockSmartSearch = vi.mocked(smartSearch);
 const mockRecord = vi.mocked(recordSearch);
-const mockSave = vi.mocked(saveSearch);
+const mockCompanies = vi.mocked(fetchCompanies);
 
 async function pickFromPlaceholder(placeholder: string, query: string, optionName: RegExp | string) {
   const input = screen.getByPlaceholderText(placeholder);
@@ -124,8 +170,16 @@ function exploreResponse(overrides: Partial<ExploreResponse> = {}): ExploreRespo
 }
 
 beforeEach(() => {
+  resetExploreListCache();
   mockExplore.mockResolvedValue(exploreResponse());
-  mockCompanies.mockResolvedValue([
+  mockSmartSearch.mockResolvedValue({
+    spec: { seniority: ["junior"], remote_policy: ["remote"], skill_labels: ["programming"], interpreted: "Filtered on remote; junior" },
+    interpreted: "Filtered on remote; junior",
+    cached: false,
+    filters: { seniority: ["junior"], remote_policy: ["remote"], skills: "programming" },
+  });
+  mockCompanies.mockResolvedValue({
+    items: [
     {
       key: "acme",
       name: "Acme Corp",
@@ -134,7 +188,9 @@ beforeEach(() => {
       open_postings: 4,
       has_profile: false,
     },
-  ]);
+    ],
+    facets: null,
+  });
 });
 
 function openSection(title: string) {
@@ -266,6 +322,36 @@ describe("Explore page", () => {
     );
     const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
     expect(call.seniority).toBeUndefined();
+
+    // third click clears the value entirely (off → include → exclude → off)
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() => {
+      const cleared = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(cleared.seniority).toBeUndefined();
+      expect(cleared.seniority_exclude).toBeUndefined();
+    });
+  });
+
+  it("clears a selected chip from its remove button", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    openSection("Seniority");
+    await user.click(screen.getByTestId("seniority-mid"));
+    await waitFor(() =>
+      expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "true")
+    );
+    await user.click(screen.getByTestId("seniority-mid-clear"));
+    await waitFor(() => {
+      const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(call.seniority).toBeUndefined();
+      expect(call.seniority_exclude).toBeUndefined();
+    });
+    expect(screen.getByTestId("seniority-mid")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("excludes skills, sources and organizations", async () => {
@@ -301,28 +387,55 @@ describe("Explore page", () => {
     );
   });
 
-  it("saves the current filter set as a saved search", async () => {
+  it("renders excluded skills and organizations as excluded chips", async () => {
     render(
-      <MemoryRouter>
+      <MemoryRouter
+        initialEntries={["/postings?skill_exclude=java&org_exclude=Acme%2C+Inc."]}
+      >
         <Explore />
       </MemoryRouter>
     );
+    await screen.findByTestId("explore");
+    const excludedPickers = document.querySelectorAll(".ca-picker-exclude");
+    expect(excludedPickers).toHaveLength(2);
+    const skillChip = screen.getByText("java").closest("li");
+    expect(skillChip).toHaveTextContent("−java");
+    expect(excludedPickers[0]).toContainElement(skillChip as HTMLElement);
+    const orgChip = screen.getByText("Acme, Inc.").closest("li");
+    expect(orgChip).toHaveTextContent("−Acme, Inc.");
+    expect(excludedPickers[1]).toContainElement(orgChip as HTMLElement);
+  });
+
+  it("shows the preset bar and saves the current view", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("preset-bar");
     fireEvent.change(await screen.findByTestId("explore-q"), {
       target: { value: "engineer" },
     });
-    const button = await screen.findByTestId("save-search");
-    await waitFor(() => expect(button).not.toBeDisabled());
-    fireEvent.click(button);
+    const save = screen.getByTestId("preset-save");
+    await waitFor(() => expect(save).not.toBeDisabled());
+    fireEvent.click(save);
+    fireEvent.change(await screen.findByTestId("preset-name-input"), {
+      target: { value: "Engineer" },
+    });
+    fireEvent.click(screen.getByTestId("preset-save-confirm"));
     await waitFor(() =>
       expect(mockRecord).toHaveBeenCalledWith(
         expect.objectContaining({
           scope: "postings",
           query: "engineer",
+          saved: true,
+          name: "Engineer",
+          filters: expect.objectContaining({ q: "engineer" }),
         })
       )
     );
-    expect(mockSave).toHaveBeenCalledWith("s9");
-    expect(await screen.findByTestId("saved-note")).toBeInTheDocument();
+    expect(await screen.findByTestId("preset-note")).toHaveTextContent("Preset saved");
   });
 
   it("clears all filters", async () => {
@@ -337,4 +450,174 @@ describe("Explore page", () => {
     fireEvent.click(await screen.findByTestId("clear-filters"));
     expect(screen.getByTestId("explore-q")).toHaveValue("");
   });
+
+  it("excludes seen postings from the filter rail", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    expect(mockExplore).toHaveBeenLastCalledWith(
+      expect.not.objectContaining({ seen_exclude: expect.anything() })
+    );
+    fireEvent.click(screen.getByTestId("seen-exclude"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ seen_exclude: true })
+      )
+    );
+    expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+  });
+
+  it("maps a natural-language query into the URL filters and echoes the interpretation", async () => {
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    fireEvent.change(screen.getByTestId("smart-search-input"), {
+      target: { value: "remote junior programming roles" },
+    });
+    fireEvent.click(screen.getByTestId("smart-search-submit"));
+    await waitFor(() =>
+      expect(mockSmartSearch).toHaveBeenCalledWith("remote junior programming roles")
+    );
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          seniority: "junior",
+          remote_policy: "remote",
+          skills: "programming",
+        })
+      )
+    );
+    expect(screen.getByTestId("smart-interpreted")).toHaveTextContent("Filtered on remote");
+    expect(screen.getByTestId("smart-chip-seniority")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("smart-chip-remove-seniority"));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ seniority: "junior" })
+      )
+    );
+    expect(screen.queryByTestId("smart-chip-seniority")).not.toBeInTheDocument();
+  });
+
+  it("offers the smart sort and marks the cards while it is active", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    expect(screen.queryByTestId("posting-smart-chip")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Smart" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "smart" })
+      )
+    );
+    expect(await screen.findByTestId("posting-smart-chip")).toBeInTheDocument();
+    expect(screen.getByTestId("explore-sort-wrap")).toHaveAttribute(
+      "title",
+      expect.stringContaining("interest affinity")
+    );
+  });
+
+  it("sorts from the results toolbar and offers relevance only with a query", async () => {    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    expect(screen.queryByRole("option", { name: "Relevance" })).not.toBeInTheDocument();
+    await user.click(await screen.findByRole("option", { name: "Highest salary" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "salary" })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("explore-q"), { target: { value: "engineer" } });
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Relevance" }));
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: "engineer", sort: "relevance" })
+      )
+    );
+
+    fireEvent.change(screen.getByTestId("explore-q"), { target: { value: "" } });
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({ sort: "fit" })
+      )
+    );
+  });
+
+  it("restores sort and filters from the URL on load", async () => {
+    render(
+      <MemoryRouter
+        initialEntries={["/postings?sort=salary&q=engineer&seniority=mid&seen_exclude=true"]}
+      >
+        <Explore />
+      </MemoryRouter>
+    );
+    await waitFor(() =>
+      expect(mockExplore).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          sort: "salary",
+          q: "engineer",
+          seniority: "mid",
+          seen_exclude: true,
+        })
+      )
+    );
+    expect(screen.getByTestId("explore-q")).toHaveValue("engineer");
+    expect(screen.getByTestId("seen-exclude")).toBeChecked();
+  });
+
+  it("writes sort and filter changes back to the URL", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/postings"]}>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+
+    fireEvent.click(screen.getByTestId("seen-exclude"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toContain("seen_exclude=true")
+    );
+
+    await user.click(screen.getByRole("combobox", { name: "Sort" }));
+    await user.click(await screen.findByRole("option", { name: "Newest" }));
+    await waitFor(() => {
+      const search = screen.getByTestId("location-search").textContent ?? "";
+      expect(search).toContain("sort=fresh");
+      expect(search).toContain("seen_exclude=true");
+    });
+
+    fireEvent.click(screen.getByTestId("clear-filters"));
+    await waitFor(() =>
+      expect(screen.getByTestId("location-search").textContent).toBe("")
+    );
+    expect(screen.getByTestId("seen-exclude")).not.toBeChecked();
+  });
 });
+
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location-search">{location.search}</span>;
+}

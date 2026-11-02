@@ -208,7 +208,7 @@ class ExperienceService:
         await self.db.flush()
         if not skills:
             return
-        keys = [s.get("skill_key") for s in skills if s.get("skill_key")]
+        keys = [key for s in skills if (key := s.get("skill_key"))]
         rows = {
             s.key: s
             for s in (await self.db.execute(select(Skill).where(Skill.key.in_(keys))))

@@ -186,7 +186,7 @@ async def test_malformed_rows_become_typed_errors_and_never_persist(
                 {
                     "external_id": "fat-raw",
                     "title": "Oversized raw bag",
-                    "raw": {"blob": "x" * 9_000},
+                    "raw": {"blob": "x" * 70_000},
                 },
             ],
             "next_state": {},

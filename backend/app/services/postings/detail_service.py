@@ -63,8 +63,8 @@ def detail_mode(source: JobSource) -> str:
             options = json.loads(options)
         except ValueError:
             options = {}
-    mode = str(config.get("detail_mode") or (options or {}).get("detail_mode") or "off")
-    return mode if mode in ("off", "sample", "smart", "all") else "off"
+    mode = str(config.get("detail_mode") or (options or {}).get("detail_mode") or "all")
+    return mode if mode in ("off", "sample", "smart", "all") else "all"
 
 
 async def _radar_terms(db: AsyncSession) -> tuple[set[str], object | None]:
@@ -201,6 +201,19 @@ def merge_detail(
         posting.raw = merged
         flag_modified(posting, "raw")
         changed = True
+    # The detail rung's provenance rides along (which extractor produced the
+    # description: jsonld / dom_fallback / two_pane …) — observability, never
+    # a data field.
+    provenance = {
+        key: detail[key] for key in ("detail_extractor", "source_page") if detail.get(key)
+    }
+    if provenance:
+        merged = dict(posting.raw or {})
+        if any(merged.get(k) != v for k, v in provenance.items()):
+            merged.update(provenance)
+            posting.raw = merged
+            flag_modified(posting, "raw")
+            changed = True
     for attr in _DETAIL_FIELDS:
         value = getattr(row, attr, None)
         if value is not None and getattr(posting, attr) is None:
@@ -231,14 +244,14 @@ def merge_detail(
 
 
 async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
-    """One targeted connector call: (rows, partial errors, error)."""
+    """One targeted connector call: (rows, partial errors, error, run_summary)."""
     from app.extensions import registry
     from app.extensions.runtime.http import build_transport
 
     try:
         connector = await registry.resolve_connector(db, source.connector_key)
     except Exception as exc:
-        return [], [], str(exc)
+        return [], [], str(exc), None
     from app.extensions.runtime.sandbox.connector import SandboxConnector
     from app.services.postings.postings_service import resolve_source_secrets
 
@@ -267,11 +280,12 @@ async def _fetch_details(db: AsyncSession, source: JobSource, ids: list[str]):
             call_config, {}, transport=transport, secrets=secrets, audit=audit
         )
     except Exception as exc:
-        return [], [], str(exc)
+        return [], [], str(exc), None
     return (
         list(result.items),
         [entry.model_dump(mode="json") for entry in result.partial_errors],
         None,
+        result.run_summary,
     )
 
 
@@ -307,16 +321,20 @@ async def run_detail_enrichment(
     fetched = 0
     re_extract: list[JobPosting] = []
     errors: list[dict] = []
-    # One knob-sized batch per enrichment run — the queue drains across
-    # syncs (each sync enqueues the next run), paced and budgeted.
-    for batch_no in range(1, 2):
+    summaries: list[dict] = []
+    # Drain the backlog: up to MAX_BATCHES_PER_RUN knob-sized batches per
+    # enrichment run (the queue also drains across syncs — each sync
+    # enqueues the next run).
+    for batch_no in range(1, MAX_BATCHES_PER_RUN + 1):
         batch = await plan_details(db, source, limit=detail_limit(source))
         if not batch:
             break
         ids = [posting.external_id for posting in batch]
-        rows, partials, error = await _fetch_details(db, source, ids)
+        rows, partials, error, run_summary = await _fetch_details(db, source, ids)
         fetched += len(rows)
         errors.extend(partials)
+        if run_summary is not None:
+            summaries.append(run_summary)
         if error:
             errors.append({"code": "io", "detail": error[:500], "retryable": "yes"})
         by_id = {row.external_id: row for row in rows}
@@ -365,7 +383,10 @@ async def run_detail_enrichment(
         "detail_rows": fetched,
         "extract_requeued": len(re_extract),
         "errors": errors[:20],
+        "batches": len(summaries),
     }
+    if summaries:
+        report["run_summary"] = summaries[-1]
     if run_row is not None:
         await _finish_run(db, run_row.id, started=started, report=report)
     return report

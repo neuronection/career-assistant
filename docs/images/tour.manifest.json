@@ -156,8 +156,8 @@
     {
       "name": "postings",
       "group": "Career exploration",
-      "caption": "Live postings feed from connected sources.",
-      "narration": "Live postings arrive from connected boards, deduplicated and linked to catalog roles.",
+      "caption": "Search live postings from connected sources — filters over the hiring those companies prove.",
+      "narration": "Live postings arrive from connected boards, deduplicated and linked to catalog roles — searchable and filterable.",
       "viewports": [
         "desktop"
       ],
@@ -175,6 +175,30 @@
       ],
       "files": {
         "desktop": "posting-detail-desktop.png"
+      }
+    },
+    {
+      "name": "companies",
+      "group": "Career exploration",
+      "caption": "Companies hiring now — reviewed facts, sourced financials, every open posting.",
+      "narration": "Research the employer before the application: facts, money with sources, and everything they are hiring for.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "companies-desktop.png"
+      }
+    },
+    {
+      "name": "market-stats",
+      "group": "Career exploration",
+      "caption": "Market statistics — postings volume, top skills with trends and salary bands over a chosen window.",
+      "narration": "See where the market is moving: postings volume, the skills employers ask for and the pay bands, over the last day or the last quarter.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "market-stats-desktop.png"
       }
     },
     {
@@ -235,6 +259,18 @@
       ],
       "files": {
         "desktop": "settings-account-desktop.png"
+      }
+    },
+    {
+      "name": "settings-job-radar",
+      "group": "Settings",
+      "caption": "Settings — the job radar: configure your search once, preview matches.",
+      "narration": "Tell it once what you are looking for — locations, work mode, salary floor — and search it everywhere.",
+      "viewports": [
+        "desktop"
+      ],
+      "files": {
+        "desktop": "settings-job-radar-desktop.png"
       }
     }
   ]

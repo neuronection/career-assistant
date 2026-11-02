@@ -291,7 +291,13 @@ async def test_failure_alerts_admin_after_threshold(
 
     assert await NotificationService(db).unread_count(user.id) >= 1
     notifications = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
-    assert any(n["kind"] == "background_failed" for n in notifications["items"])
+    failed = any(n["kind"] == "background_failed" for n in notifications["items"])
+    assert failed
+    assert any(
+        n["payload"].get("link") == "/settings/automations"
+        for n in notifications["items"]
+        if n["kind"] == "background_failed"
+    )
 
 
 # ------------------------------------------------- digests + saved search

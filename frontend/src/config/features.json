@@ -8,8 +8,8 @@
     },
     {
       "key": "/postings",
-      "state": "beta",
-      "since": "2026-10-21",
+      "state": "on",
+      "since": "2026-10-30",
       "docs": "docs/user/postings-and-search.md"
     },
     {
@@ -44,9 +44,15 @@
     },
     {
       "key": "/companies",
-      "state": "beta",
-      "since": "2026-10-25",
+      "state": "on",
+      "since": "2026-10-30",
       "docs": "docs/user/companies.md"
+    },
+    {
+      "key": "/postings/stats",
+      "state": "beta",
+      "since": "2026-10-31",
+      "docs": "docs/user/market-stats.md"
     },
     {
       "key": "/settings/taxonomy",

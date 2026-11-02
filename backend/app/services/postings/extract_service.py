@@ -280,7 +280,7 @@ async def _apply_extract_skills(
 
     before = await skills_state(db, posting.id)
     unresolved_labels: list[dict] = []
-    key_map: dict[str, UUID] = {}
+    key_map: dict[str, dict] = {}
     for entry in skills:
         if entry.get("unresolved") or not entry.get("skill_key"):
             unresolved_labels.append(entry)
@@ -296,25 +296,25 @@ async def _apply_extract_skills(
         )
         deprecated: dict[UUID, dict] = {}
         for skill in rows.scalars().all():
-            entry = key_map.get(_norm(skill.key))
-            if entry is None:
+            matched_entry = key_map.get(_norm(skill.key))
+            if matched_entry is None:
                 continue
             if skill.status == "active":
-                resolved_ids[skill.id] = entry
+                resolved_ids[skill.id] = matched_entry
             elif skill.status == "deprecated":
-                deprecated[skill.id] = entry
+                deprecated[skill.id] = matched_entry
         for skill_id, entry in deprecated.items():
             resolved_ids.setdefault(skill_id, entry)
 
     existing: dict[UUID, PostingSkill] = {}
     if resolved_ids:
-        rows = await db.execute(
+        existing_rows = await db.execute(
             select(PostingSkill).where(
                 PostingSkill.posting_id == posting.id,
                 PostingSkill.skill_id.in_(resolved_ids.keys()),
             )
         )
-        existing = {row.skill_id: row for row in rows.scalars().all()}
+        existing = {row.skill_id: row for row in existing_rows.scalars().all()}
 
     for skill_id, entry in resolved_ids.items():
         row = existing.get(skill_id)

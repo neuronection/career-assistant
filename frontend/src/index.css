@@ -109,10 +109,40 @@ body {
   }
 }
 
+/* Excluded pickers (plan 166): the skills/organizations exclude lists keep
+   the library picker, but their selected chips must read as excluded
+   values — the same rose as the tri-state exclude chips — not as the
+   picker's default accent selection. Scoped to the wrapper the exclude
+   pickers carry (`ca-picker-exclude`) so include pickers are untouched. */
+.ca-picker-exclude [data-as="picker-chips"] > li {
+  @apply bg-rose-50 text-rose-700;
+}
+.ca-picker-exclude [data-as="picker-chips"] > li > button {
+  color: inherit;
+}
+
 /* Item cards (plan 140): width-aware by the card's own container — the
    chat dock narrows the column, not the viewport, so no lg: here. */
 .ca-item-card {
   container-type: inline-size;
+  position: relative;
+}
+
+/* Seen rail (plan 159): a reviewed posting carries a 3px neutral bar on its
+   leading edge — the at-a-glance read cue in a long list. It is a marker,
+   not a state hue (accent stays hover/interactive, fit bands stay the only
+   colour language) and the card keeps full contrast: cards are never
+   dimmed. Drawn as a pseudo-element, never a box-shadow, so the shell's
+   focus-within ring is untouched. */
+.ca-item-card[data-seen="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--as-muted-fg) 55%, transparent);
+  pointer-events: none;
 }
 
 @container (max-width: 30rem) {
@@ -289,5 +319,74 @@ body {
   .ca-tax-key,
   .ca-tax-hint {
     display: none;
+  }
+}
+
+/* Market stats rail (plan 170 slice 3): the stats rail is a THIRD column
+   on /postings and /companies, gated by the page column's own width
+   (container query, plan-95 rule — the chat dock narrows the column
+   without moving the viewport; never a `lg:` switch). Below 64rem of
+   page width the rail renders as one compact "Market pulse" collapsible
+   card above the results (same content, stacked; single grid column).
+   Must stay AFTER @tailwind utilities so the container rules win the
+   cascade. */
+.ca-stats-page {
+  container-type: inline-size;
+}
+
+.ca-stats-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.ca-stats-rail {
+  align-self: start;
+  min-width: 0;
+}
+
+@container (min-width: 64rem) {
+  .ca-stats-cols {
+    grid-template-columns:
+      minmax(215px, 255px)
+      minmax(0, 1fr)
+      minmax(230px, 280px);
+  }
+
+  .ca-stats-rail {
+    position: sticky;
+    top: 4rem;
+    max-height: calc(100vh - 6rem);
+    overflow-y: auto;
+  }
+}
+
+/* Autopilot findings workspace (plan 175): left filter rail · feed ·
+   right runs rail over the shared ca-stats grid (container query,
+   plan-95 rule — the chat dock narrows the column, not the viewport).
+   Below the page-width breakpoint the runs rail stacks ABOVE the feed
+   and the filter rail collapses into a toggled section; the toggle
+   button itself only exists below the breakpoint. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-ap-filters-toggle {
+  display: none;
+}
+
+@container (max-width: 63.99rem) {
+  .ca-ap-filter-rail {
+    display: none;
+  }
+
+  .ca-ap-filter-rail[data-open="true"] {
+    display: block;
+    order: -2;
+  }
+
+  .ca-ap-runs-rail {
+    order: -3;
+  }
+
+  .ca-ap-filters-toggle {
+    display: inline-flex;
   }
 }

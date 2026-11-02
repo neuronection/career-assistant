@@ -41,6 +41,7 @@ from app.extensions.builtin.job_boards import (
     ArbeitnowConnector,
     JobicyConnector,
     RemotiveConnector,
+    WorkableConnector,
 )
 from app.extensions.builtin.mcp import McpConnector
 from app.extensions.registry import _BUILTINS, validate_manifest
@@ -57,6 +58,7 @@ BUILTINS = [
     ArbeitnowConnector(),
     RemotiveConnector(),
     JobicyConnector(),
+    WorkableConnector(),
     PersonioConnector(),
     JoinComConnector(),
     StepstoneXingConnector(),
@@ -81,11 +83,13 @@ DOCUMENTED = {
     "stepstone_xing",
     "recruitee",
     "teamtailor",
+    # plan 177: the Workable careers feed ships its per-bundle docs tree.
+    "workable",
 }
 
 
 def test_every_builtin_manifest_is_a_file_that_validates():
-    assert len(BUILTINS) == 14
+    assert len(BUILTINS) == 15
     for connector in BUILTINS:
         path = manifest_path(connector)
         assert path.is_file(), f"{connector.key}: manifest.json missing at {path}"

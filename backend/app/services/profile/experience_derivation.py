@@ -146,19 +146,18 @@ def years_of_experience(items, today: date | None = None) -> float:
     today = today or date.today()
     spans = sorted(span for span in (item_span(item, today) for item in items or []) if span)
     total = 0
-    current_start: int | None = None
-    current_end: int | None = None
+    current: tuple[int, int] | None = None
     for start, end in spans:
         s, e = _month_index(start), _month_index(end)
-        if current_start is None:
-            current_start, current_end = s, e
-        elif s <= current_end + 1:
-            current_end = max(current_end, e)
+        if current is None:
+            current = (s, e)
+        elif s <= current[1] + 1:
+            current = (current[0], max(current[1], e))
         else:
-            total += current_end - current_start + 1
-            current_start, current_end = s, e
-    if current_start is not None:
-        total += current_end - current_start + 1
+            total += current[1] - current[0] + 1
+            current = (s, e)
+    if current is not None:
+        total += current[1] - current[0] + 1
     return round(total / 12.0, 2)
 
 

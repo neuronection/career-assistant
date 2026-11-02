@@ -45,6 +45,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Changes
+         * @description The cross-entity data-change journal (plan 152).
+         */
+        get: operations["audit_changes_api_v1_admin_audit_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit/events": {
         parameters: {
             query?: never;
@@ -65,6 +85,110 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Export
+         * @description The filtered ledger as CSV (plans 152/157), capped at 10 000 rows —
+         *     carries the same filters as the stream's list endpoint.
+         */
+        get: operations["audit_export_api_v1_admin_audit_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Jobs
+         * @description The admin-wide background-jobs view (plan 152).
+         */
+        get: operations["audit_jobs_api_v1_admin_audit_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs/facets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Job Facets
+         * @description job_type counts for the jobs filter dropdown (plan 152).
+         */
+        get: operations["audit_job_facets_api_v1_admin_audit_jobs_facets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Job Failures
+         * @description Failed-job groups for the Failures tab (plan 184): type by error
+         *     family with the dedupe/cap estimates a requeue would apply.
+         */
+        get: operations["audit_job_failures_api_v1_admin_audit_jobs_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs/requeue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Audit Job Requeue
+         * @description Bulk-requeue terminally failed background jobs as fresh rows
+         *     (plan 184). Without ``confirm`` this returns the preview only and
+         *     mutates nothing.
+         */
+        post: operations["audit_job_requeue_api_v1_admin_audit_jobs_requeue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit/overview": {
         parameters: {
             query?: never;
@@ -74,9 +198,51 @@ export interface paths {
         };
         /**
          * Audit Overview
-         * @description Dashboard KPIs + recent failures, aggregated server-side.
+         * @description Dashboard KPIs + recent failures, aggregated server-side. An
+         *     explicit ``from``/``to`` range overrides the preset window.
          */
         get: operations["audit_overview_api_v1_admin_audit_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/production": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Production
+         * @description Content-production throughput (plan 153): postings, skills,
+         *     companies and catalog jobs created/processed in the range.
+         */
+        get: operations["audit_production_api_v1_admin_audit_production_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/source-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Source Runs
+         * @description The cross-source ingestion run ledger (plan 152).
+         */
+        get: operations["audit_source_runs_api_v1_admin_audit_source_runs_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -94,7 +260,8 @@ export interface paths {
         };
         /**
          * Audit Timeseries
-         * @description Time-bucketed call/error/token series (dialect-aware bucketing).
+         * @description Time-bucketed call/error/token series (dialect-aware bucketing;
+         *     custom ranges bucket hourly up to 48h, then daily).
          */
         get: operations["audit_timeseries_api_v1_admin_audit_timeseries_get"];
         put?: never;
@@ -1282,6 +1449,11 @@ export interface paths {
          * List Source Runs
          * @description The run ledger (plan 134): newest first — when it ran, trigger,
          *     duration, status, items synced and the bounded error.
+         *
+         *     Ghost healing on read: a crash can leave a ``running`` row behind and
+         *     the page would claim "Running now" for hours (the next sync only
+         *     closes it later). Rows past the same staleness cutoff the next run
+         *     uses close as interrupted here, so the banner tells the truth.
          */
         get: operations["list_source_runs_api_v1_admin_postings_sources__source_id__runs_get"];
         put?: never;
@@ -1676,6 +1848,26 @@ export interface paths {
          * @description proposed → active; the vocabulary stays clean via admin review.
          */
         post: operations["promote_skill_api_v1_admin_skills__skill_id__promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/taxonomy/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Taxonomy Queue Stats
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        get: operations["taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3061,7 +3253,7 @@ export interface paths {
         };
         /**
          * List Findings
-         * @description Recent runs across goals with their findings (grouped by run).
+         * @description The flat findings feed: filters, dedupe, facets, keyset pagination.
          */
         get: operations["list_findings_api_v1_autopilot_findings_get"];
         put?: never;
@@ -3176,6 +3368,88 @@ export interface paths {
         get: operations["goal_runs_api_v1_autopilot_goals__goal_id__runs_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/profile-context": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Profile Context
+         * @description The caller's effective profile snapshot for a draft usage block +
+         *     seniority — the goal form's live summary; never touches a goal row.
+         */
+        post: operations["profile_context_api_v1_autopilot_profile_context_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Runs
+         * @description The runs rail, cross-goal: status, tokens, live findings, examined.
+         */
+        get: operations["list_runs_api_v1_autopilot_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Run Detail
+         * @description One run's inspectable detail: node trace, AI calls and findings —
+         *     a foreign and a missing run answer the same 404.
+         */
+        get: operations["run_detail_api_v1_autopilot_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/autopilot/runs/{run_id}/dismiss-findings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Run Findings
+         * @description Dismiss every open finding of one run — no constraint learning.
+         */
+        post: operations["dismiss_run_findings_api_v1_autopilot_runs__run_id__dismiss_findings_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3426,9 +3700,51 @@ export interface paths {
         };
         /**
          * List Companies
-         * @description Companies with open postings, busiest first.
+         * @description Companies with open postings, busiest first — filterable by the
+         *     hiring those postings prove (plan 154).
          */
         get: operations["list_companies_api_v1_companies_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies/stats/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Companies Stats Overview
+         * @description Top hiring companies, the industry mix and the openings-per-company
+         *     histogram.
+         */
+        get: operations["companies_stats_overview_api_v1_companies_stats_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/companies/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Companies Stats Summary
+         * @description Companies hiring and companies new in the window.
+         */
+        get: operations["companies_stats_summary_api_v1_companies_stats_summary_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5046,6 +5362,23 @@ export interface paths {
         };
         /** Get Instance Config */
         get: operations["get_instance_config_api_v1_instance_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/instance/update-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Update Check */
+        get: operations["get_update_check_api_v1_instance_update_check_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6749,7 +7082,8 @@ export interface paths {
         put?: never;
         /**
          * Record Search
-         * @description Remember a search (debounced: same query+filters inside 30 min updates).
+         * @description Remember a search (debounced: same query+filters inside 30 min
+         *     updates). `saved` + `name` create a preset in one call.
          */
         post: operations["record_search_api_v1_me_searches_post"];
         delete?: never;
@@ -6775,7 +7109,12 @@ export interface paths {
         delete: operations["delete_search_api_v1_me_searches__search_id__delete"];
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Update Search
+         * @description Edit a preset: rename it, re-point its filters at the current view or
+         *     refresh its result count (renaming or re-pointing saves the row).
+         */
+        patch: operations["update_search_api_v1_me_searches__search_id__patch"];
         trace?: never;
     };
     "/api/v1/me/searches/{search_id}/save": {
@@ -7967,6 +8306,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/postings/smart-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Postings Smart Search
+         * @description Natural-language search (plan 179): the sentence maps onto the
+         *     explore filter vocabulary through one small cached AI call (per-user
+         *     limiter and budget apply on misses; cache hits cost zero). The
+         *     client then runs the normal explore query with the returned
+         *     filters — facets stay live.
+         */
+        post: operations["postings_smart_search_api_v1_postings_smart_search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/postings/sources": {
         parameters: {
             query?: never;
@@ -7979,6 +8342,153 @@ export interface paths {
          * @description Enabled sources with open-posting counts (the filter dropdown).
          */
         get: operations["postings_sources_api_v1_postings_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/breakdown": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Breakdown
+         * @description One dimension of market structure — grouped counts with share and
+         *     delta.
+         */
+        get: operations["postings_stats_breakdown_api_v1_postings_stats_breakdown_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/clockwork": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Clockwork
+         * @description The weekday x hour posting clock over the window population —
+         *     always UTC.
+         */
+        get: operations["postings_stats_clockwork_api_v1_postings_stats_clockwork_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Overview
+         * @description In-range KPIs, the status mix, coverage chips and the
+         *     deterministic insights strip.
+         */
+        get: operations["postings_stats_overview_api_v1_postings_stats_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/salary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Salary
+         * @description Per-currency salary bands, histograms and per-seniority medians on
+         *     the annualized normalized basis.
+         */
+        get: operations["postings_stats_salary_api_v1_postings_stats_salary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Skills
+         * @description Top asked skills with trends, category mix, level histogram and
+         *     priority mix.
+         */
+        get: operations["postings_stats_skills_api_v1_postings_stats_skills_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Summary
+         * @description The pulse: fixed-window counts with deltas, sparkline and source
+         *     freshness. Defaults to the open basis — the explore totals' basis.
+         */
+        get: operations["postings_stats_summary_api_v1_postings_stats_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/postings/stats/timeseries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Postings Stats Timeseries
+         * @description Volume over time with the previous-period ghost, ingestion counts
+         *     and an optional split series.
+         */
+        get: operations["postings_stats_timeseries_api_v1_postings_stats_timeseries_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9144,6 +9654,7 @@ export interface components {
             must_terms?: string[];
             /** Never Terms */
             never_terms?: string[];
+            profile?: components["schemas"]["ProfileUsage"];
             /** Remote */
             remote?: boolean | null;
             /** Salary Min */
@@ -9177,7 +9688,12 @@ export interface components {
             /** Goal Text */
             goal_text: string;
         };
-        /** AutopilotGoalUpdate */
+        /**
+         * AutopilotGoalUpdate
+         * @description Goal patch — ``constraints`` (the whole JSONB, ``profile`` block
+         *     included) replaces what is stored; an update without ``profile``
+         *     resets that block to defaults.
+         */
         AutopilotGoalUpdate: {
             budget?: components["schemas"]["AutopilotBudget"] | null;
             /** Cadence */
@@ -9385,6 +9901,24 @@ export interface components {
             target_mode: boolean;
             /** Weights Overridden */
             weights_overridden: boolean;
+        };
+        /** BreakdownRowOut */
+        BreakdownRowOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Key */
+            key: string;
+            /** Prev */
+            prev: number;
+            /** Share */
+            share: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
         };
         /** BriefFit */
         BriefFit: {
@@ -9723,6 +10257,76 @@ export interface components {
             /** Next At */
             next_at?: string | null;
         };
+        /**
+         * ClockCellOut
+         * @description One weekday x hour cell of the posting clock — a complete,
+         *     zero-filled matrix; ``delta_pct`` is null when the previous window
+         *     counted zero for the same cell.
+         */
+        ClockCellOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Hour */
+            hour: number;
+            /** Prev */
+            prev: number;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * ClockPeakOut
+         * @description The single busiest cell — deterministic tie-break (weekday, hour
+         *     ascending); null when the window population is empty.
+         */
+        ClockPeakOut: {
+            /** Count */
+            count: number;
+            /** Hour */
+            hour: number;
+            /** Weekday */
+            weekday: number;
+        };
+        /**
+         * ClockworkOut
+         * @description The weekday x hour posting clock (plan 171 H7) — always UTC, the
+         *     wire says so.
+         */
+        ClockworkOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Hour */
+            by_hour?: number[];
+            /** By Weekday */
+            by_weekday?: number[];
+            /** Cells */
+            cells?: components["schemas"]["ClockCellOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            peak?: components["schemas"]["ClockPeakOut"] | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /**
+             * Time Zone
+             * @default UTC
+             * @constant
+             */
+            time_zone: "UTC";
+            /** Window */
+            window: string;
+        };
         /** CompactionItem */
         CompactionItem: {
             /** Item Id */
@@ -9731,6 +10335,16 @@ export interface components {
             source_key: string;
             /** Text */
             text: string;
+        };
+        /**
+         * CompaniesOut
+         * @description The companies list envelope: rows plus the optional facet
+         *     distribution computed from the active postings behind them.
+         */
+        CompaniesOut: {
+            facets?: components["schemas"]["CompanyFacets"] | null;
+            /** Items */
+            items?: components["schemas"]["CompanyOut"][];
         };
         /**
          * CompanyDerivedStats
@@ -9808,6 +10422,44 @@ export interface components {
              * @default active
              */
             status: string;
+        };
+        /**
+         * CompanyFacets
+         * @description Per-value COMPANY counts over the filtered set's active postings —
+         *     the filter options literally describe the hiring those companies are
+         *     doing right now (plan 154).
+         */
+        CompanyFacets: {
+            /** Employment */
+            employment?: {
+                [key: string]: number;
+            };
+            /** Industries */
+            industries?: {
+                [key: string]: number;
+            };
+            /** Locations */
+            locations?: {
+                [key: string]: number;
+            };
+            /** Seniority */
+            seniority?: {
+                [key: string]: number;
+            };
+            /** Work Mode */
+            work_mode?: {
+                [key: string]: number;
+            };
+        };
+        /** CompanyHiringOut */
+        CompanyHiringOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+            new_in_range: components["schemas"]["DeltaOut"];
+            /** Open Postings */
+            open_postings: number;
         };
         /** CompanyLink */
         CompanyLink: {
@@ -9901,6 +10553,59 @@ export interface components {
              * @default false
              */
             needs_review: boolean;
+        };
+        /** CompanyStatsOverview */
+        CompanyStatsOverview: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Industry Mix */
+            industry_mix?: components["schemas"]["IndustryMixOut"][];
+            /** Openings Histogram */
+            openings_histogram?: components["schemas"]["OpeningsBucketOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Top Hiring */
+            top_hiring?: components["schemas"]["CompanyHiringOut"][];
+            /** Window */
+            window: string;
+        };
+        /** CompanyStatsSummary */
+        CompanyStatsSummary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Companies Hiring */
+            companies_hiring: number;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            new_companies: components["schemas"]["DeltaOut"];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
         };
         /**
          * CompanyType
@@ -10089,6 +10794,20 @@ export interface components {
             skill_key: string;
             /** User Level */
             user_level?: number | null;
+        };
+        /**
+         * CoverageOut
+         * @description Data-coverage honesty chips over the window population (shares).
+         */
+        CoverageOut: {
+            /** Location */
+            location: number;
+            /** Org Linked */
+            org_linked: number;
+            /** Salary */
+            salary: number;
+            /** Skill Tagged */
+            skill_tagged: number;
         };
         /** CreateRunIn */
         CreateRunIn: {
@@ -11214,6 +11933,26 @@ export interface components {
             /** Status */
             status: string;
         };
+        /**
+         * DeltaOut
+         * @description One count with its equal-length predecessor for delta math.
+         *
+         *     ``delta_pct`` is null when the previous window counted zero — the UI
+         *     renders "new", never a divide-by-zero.
+         */
+        DeltaOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Prev */
+            prev: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
+        };
         /** DemandInfo */
         DemandInfo: {
             /**
@@ -12200,6 +12939,31 @@ export interface components {
             items?: components["schemas"]["FollowupItemOut"][];
             rules: components["schemas"]["FollowupRuleOut"];
         };
+        /** FreshnessOut */
+        FreshnessOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Stale Sources */
+            stale_sources?: components["schemas"]["FreshnessSourceOut"][];
+        };
+        /**
+         * FreshnessSourceOut
+         * @description One source's ingestion freshness — named when not ``ok``.
+         */
+        FreshnessSourceOut: {
+            /** Last Success */
+            last_success?: string | null;
+            /** Source Key */
+            source_key: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "stale" | "paused" | "never";
+        };
         /**
          * FunnelOut
          * @description Dashboard funnel: saved → applied → interviewing → offers.
@@ -12409,6 +13173,37 @@ export interface components {
             label: string;
             /** Weight */
             weight: number;
+        };
+        /** IndustryMixOut */
+        IndustryMixOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Share */
+            share: number;
+        };
+        /**
+         * InsightOut
+         * @description One deterministic anomaly card (trailing-baseline rule, H2).
+         *
+         *     ``text_key`` is rendered client-side; the server never writes free
+         *     text here.
+         */
+        InsightOut: {
+            /** Baseline */
+            baseline?: number | null;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "volume" | "share" | "skill_lead";
+            /** Subject */
+            subject: string;
+            /** Text Key */
+            text_key: string;
         };
         /** InstanceConfigOut */
         InstanceConfigOut: {
@@ -12745,6 +13540,32 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** Title */
             title: string;
+        };
+        /**
+         * JobRequeueRequest
+         * @description Body of the bulk-requeue action: filters or explicit ids + confirm.
+         */
+        JobRequeueRequest: {
+            /**
+             * Confirm
+             * @default false
+             */
+            confirm: boolean;
+            /** From */
+            from?: string | null;
+            /** Job Ids */
+            job_ids?: string[] | null;
+            /** Job Type */
+            job_type?: string | null;
+            /** To */
+            to?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /**
+             * Window
+             * @default 24h
+             */
+            window: string | null;
         };
         /**
          * JobSkillImportance
@@ -13443,6 +14264,13 @@ export interface components {
             max?: number | null;
             /** Min */
             min?: number | null;
+        };
+        /** OpeningsBucketOut */
+        OpeningsBucketOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
         };
         /**
          * OverlayDraftIn
@@ -14419,6 +15247,209 @@ export interface components {
             required_level?: number | null;
         };
         /**
+         * PostingStatsBreakdown
+         * @description One dimension of market structure — grouped counts with share and
+         *     delta, top-N with an ``other`` rollup where the vocabulary is open.
+         */
+        PostingStatsBreakdown: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Dimension */
+            dimension: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Rows */
+            rows?: components["schemas"]["BreakdownRowOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Total */
+            total: number;
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsOverview
+         * @description Page narrative payload: in-range KPIs, the status mix, coverage
+         *     chips and the deterministic insights strip.
+         */
+        PostingStatsOverview: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            coverage: components["schemas"]["CoverageOut"];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Insights */
+            insights?: components["schemas"]["InsightOut"][];
+            new_in_range: components["schemas"]["DeltaOut"];
+            /** Open Total */
+            open_total: number;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Status Mix */
+            status_mix?: {
+                [key: string]: number;
+            };
+            /** Window */
+            window: string;
+        };
+        /** PostingStatsSalary */
+        PostingStatsSalary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Currencies */
+            currencies?: components["schemas"]["SalaryCurrencyOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Primary Currency */
+            primary_currency?: string | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsSkills
+         * @description Skills demand: top asked, rising/cooling trends, category mix,
+         *     level histogram and priority mix over the window.
+         */
+        PostingStatsSkills: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Avg Level */
+            avg_level?: number | null;
+            /**
+             * Avg Skills Per Posting
+             * @default 0
+             */
+            avg_skills_per_posting: number;
+            /** Categories */
+            categories?: components["schemas"]["SkillCategoryOut"][];
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Falling */
+            falling?: components["schemas"]["SkillStatOut"][];
+            /** Levels */
+            levels?: components["schemas"]["SkillLevelOut"][];
+            /** Priority */
+            priority?: {
+                [key: string]: number;
+            };
+            /** Rising */
+            rising?: components["schemas"]["SkillStatOut"][];
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Top */
+            top?: components["schemas"]["SkillStatOut"][];
+            /** Window */
+            window: string;
+        };
+        /**
+         * PostingStatsSummary
+         * @description The pulse (stats rail + page hero): fixed-window counts on one
+         *     basis, each with its delta, plus the 14-day sparkline and source
+         *     freshness. ``open_total`` is the open set by definition (§A).
+         */
+        PostingStatsSummary: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            freshness: components["schemas"]["FreshnessOut"];
+            new_24h: components["schemas"]["DeltaOut"];
+            new_30d: components["schemas"]["DeltaOut"];
+            new_7d: components["schemas"]["DeltaOut"];
+            /** Open Total */
+            open_total: number;
+            /** Sparkline */
+            sparkline?: components["schemas"]["SparkPointOut"][];
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+        };
+        /**
+         * PostingStatsTimeseries
+         * @description Volume-over-time buckets (zero-filled), the equal-length previous
+         *     period ghost, ingestion-vs-market counts and the optional split
+         *     series.
+         */
+        PostingStatsTimeseries: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Bucket
+             * @enum {string}
+             */
+            bucket: "hour" | "day" | "week" | "month";
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Points */
+            points?: components["schemas"]["TimeseriesPointOut"][];
+            /** Split */
+            split?: string | null;
+            /** Start */
+            start?: string | null;
+            /**
+             * Status Basis
+             * @enum {string}
+             */
+            status_basis: "open" | "all";
+            /** Window */
+            window: string;
+        };
+        /**
          * PostingsHistoryOut
          * @description The posting history read: newest-first journal page.
          */
@@ -14579,6 +15610,15 @@ export interface components {
             status?: ("draft" | "active") | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * ProfileContextPreviewIn
+         * @description A DRAFT profile-usage block + the goal's seniority selection.
+         */
+        ProfileContextPreviewIn: {
+            profile?: components["schemas"]["ProfileUsage"];
+            /** Seniority */
+            seniority?: string[];
         };
         /** ProfileIn */
         ProfileIn: {
@@ -14758,6 +15798,54 @@ export interface components {
             likes?: components["schemas"]["LikeDislikeItem"][] | null;
             preferences?: components["schemas"]["PreferencesSection"] | null;
             work_preferences?: components["schemas"]["WorkPreferencesSection"] | null;
+        };
+        /**
+         * ProfileUsage
+         * @description Per-goal profile-usage controls (goal constraints JSONB).
+         *
+         *     Which profile inputs the planner and the fit engine may use for this
+         *     goal, and where the career stage comes from. Defaults reproduce the
+         *     pre-plan behavior exactly (everything on, stage from the profile).
+         *     Updates replace the whole constraints payload — a PATCH without
+         *     ``profile`` resets the block to these defaults.
+         */
+        ProfileUsage: {
+            /**
+             * Stage Source
+             * @default profile
+             * @enum {string}
+             */
+            stage_source: "profile" | "goal";
+            /**
+             * Use Education
+             * @default true
+             */
+            use_education: boolean;
+            /**
+             * Use Experience
+             * @default true
+             */
+            use_experience: boolean;
+            /**
+             * Use Languages
+             * @default true
+             */
+            use_languages: boolean;
+            /**
+             * Use Lifestyle
+             * @default true
+             */
+            use_lifestyle: boolean;
+            /**
+             * Use Location
+             * @default true
+             */
+            use_location: boolean;
+            /**
+             * Use Skills
+             * @default true
+             */
+            use_skills: boolean;
         };
         /**
          * ProposalDiffRow
@@ -15173,6 +16261,45 @@ export interface components {
             /** Items */
             items: components["schemas"]["RuleOut"][];
         };
+        /** SalaryBucketOut */
+        SalaryBucketOut: {
+            /** Ceiling */
+            ceiling: number;
+            /** Count */
+            count: number;
+            /** Floor */
+            floor: number;
+        };
+        /**
+         * SalaryCurrencyOut
+         * @description Per-currency salary statistics on the annualized normalized basis
+         *     (no FX conversion). Bands are suppressed below the disclosure
+         *     floor.
+         */
+        SalaryCurrencyOut: {
+            /** By Seniority */
+            by_seniority?: components["schemas"]["SalarySeniorityOut"][];
+            /** Coverage */
+            coverage: number;
+            /** Currency */
+            currency: string;
+            /** Disclosed */
+            disclosed: number;
+            /** Histogram */
+            histogram?: components["schemas"]["SalaryBucketOut"][];
+            /** P25 */
+            p25?: number | null;
+            /** P50 */
+            p50?: number | null;
+            /** P75 */
+            p75?: number | null;
+            /** Period Basis */
+            period_basis?: {
+                [key: string]: number;
+            };
+            /** Thin Sample */
+            thin_sample: boolean;
+        };
         /** SalaryInfo */
         SalaryInfo: {
             /**
@@ -15195,6 +16322,15 @@ export interface components {
                 number,
                 number
             ] | null;
+        };
+        /** SalarySeniorityOut */
+        SalarySeniorityOut: {
+            /** Count */
+            count: number;
+            /** Median */
+            median?: number | null;
+            /** Seniority */
+            seniority: string;
         };
         /** SavedSearchScheduleIn */
         SavedSearchScheduleIn: {
@@ -15366,6 +16502,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Name */
+            name?: string | null;
             /** Query */
             query: string;
             /** Result Count */
@@ -15452,6 +16590,8 @@ export interface components {
             filters?: {
                 [key: string]: unknown;
             };
+            /** Name */
+            name?: string | null;
             /**
              * Query
              * @default
@@ -15462,6 +16602,11 @@ export interface components {
              * @default 0
              */
             result_count: number;
+            /**
+             * Saved
+             * @default false
+             */
+            saved: boolean;
             scope: components["schemas"]["SearchScope"];
         };
         /**
@@ -15469,6 +16614,19 @@ export interface components {
          * @enum {string}
          */
         SearchScope: "catalog" | "rankings" | "universities" | "postings";
+        /** SearchUpdateIn */
+        SearchUpdateIn: {
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Name */
+            name?: string | null;
+            /** Query */
+            query?: string | null;
+            /** Result Count */
+            result_count?: number | null;
+        };
         /** SectionGap */
         SectionGap: {
             /** Candidate Count */
@@ -15740,6 +16898,15 @@ export interface components {
             /** Failed */
             failed?: components["schemas"]["SkillBulkFailure"][];
         };
+        /** SkillCategoryOut */
+        SkillCategoryOut: {
+            /** Count */
+            count: number;
+            /** Key */
+            key: string;
+            /** Share */
+            share: number;
+        };
         /**
          * SkillChangeOut
          * @description One skill journal row (plan 148): event kind, actor role and the
@@ -15886,6 +17053,13 @@ export interface components {
             stats?: components["schemas"]["SkillStatsOut"] | null;
             /** Status */
             status: string;
+        };
+        /** SkillLevelOut */
+        SkillLevelOut: {
+            /** Count */
+            count: number;
+            /** Level */
+            level: number;
         };
         /** SkillOut */
         SkillOut: {
@@ -16191,6 +17365,24 @@ export interface components {
             /** Nodes */
             nodes?: components["schemas"]["SkillGraphNodeOut"][];
         };
+        /** SkillStatOut */
+        SkillStatOut: {
+            /** Count */
+            count: number;
+            /** Delta Pct */
+            delta_pct?: number | null;
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Share */
+            share: number;
+            /**
+             * Trend
+             * @enum {string}
+             */
+            trend: "up" | "down" | "flat";
+        };
         /**
          * SkillStatsOut
          * @description The skill page's aggregate block (plan 148) — one server-side
@@ -16243,6 +17435,40 @@ export interface components {
             parent_id?: string | null;
             /** Status */
             status?: string | null;
+        };
+        /**
+         * SmartSearchIn
+         * @description One free-text search sentence (plan 179).
+         */
+        SmartSearchIn: {
+            /** Query */
+            query: string;
+        };
+        /**
+         * SmartSearchOut
+         * @description The mapped spec, its honest echo, cache state and the resolved
+         *     explore-filter params the client applies into the URL state.
+         */
+        SmartSearchOut: {
+            /** Cached */
+            cached: boolean;
+            /** Filters */
+            filters: {
+                [key: string]: unknown;
+            };
+            /** Interpreted */
+            interpreted: string;
+            /** Spec */
+            spec: {
+                [key: string]: unknown;
+            };
+        };
+        /** SparkPointOut */
+        SparkPointOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
         };
         /**
          * StageIn
@@ -16381,6 +17607,42 @@ export interface components {
             id: string;
             /** Title */
             title: string;
+        };
+        /** TaxonomyQueueStats */
+        TaxonomyQueueStats: {
+            /** Enrichment */
+            enrichment: number;
+            /** Paths */
+            paths: number;
+            /** Relations */
+            relations: number;
+            /** Total */
+            total: number;
+            /** Translations */
+            translations: number;
+        };
+        /** TaxonomySkillStats */
+        TaxonomySkillStats: {
+            /** Active */
+            active: number;
+            /** Auto Promoted */
+            auto_promoted: number;
+            /** Deprecated */
+            deprecated: number;
+            /** Promoted 7D */
+            promoted_7d: number;
+            /** Proposed */
+            proposed: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * TaxonomyStatsOut
+         * @description Backlog counts behind the taxonomy work-queue bar (plan 161).
+         */
+        TaxonomyStatsOut: {
+            queue: components["schemas"]["TaxonomyQueueStats"];
+            skills: components["schemas"]["TaxonomySkillStats"];
         };
         /** TemplateDraftAiIn */
         TemplateDraftAiIn: {
@@ -16553,6 +17815,21 @@ export interface components {
             /** Unread Count */
             unread_count: number;
         };
+        /** TimeseriesPointOut */
+        TimeseriesPointOut: {
+            /** Bucket */
+            bucket: string;
+            /** Count */
+            count: number;
+            /** Ingestion */
+            ingestion: number;
+            /** Prev */
+            prev: number;
+            /** Series */
+            series?: {
+                [key: string]: number;
+            };
+        };
         /** TranscribeOut */
         TranscribeOut: {
             /** Model */
@@ -16715,6 +17992,27 @@ export interface components {
                     [key: string]: unknown;
                 } | null;
             };
+        };
+        /** UpdateCheckOut */
+        UpdateCheckOut: {
+            /** Checked At */
+            checked_at?: string | null;
+            /** Current Version */
+            current_version: string;
+            /** Error */
+            error?: string | null;
+            /** Latest Version */
+            latest_version?: string | null;
+            /**
+             * Release Url
+             * @default https://github.com/neuronection/career-assistant/releases/latest
+             */
+            release_url: string;
+            /**
+             * Update Available
+             * @default false
+             */
+            update_available: boolean;
         };
         /**
          * UpdateDesignOp
@@ -17118,8 +18416,11 @@ export interface operations {
                 tier?: string | null;
                 window?: string | null;
                 q?: string | null;
+                id?: string | null;
                 limit?: number;
                 offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17154,6 +18455,50 @@ export interface operations {
             query?: {
                 dimension?: string;
                 window?: string;
+                limit?: number;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_changes_api_v1_admin_audit_changes_get: {
+        parameters: {
+            query?: {
+                entity?: string;
+                actor_kind?: string | null;
+                outcome?: string | null;
+                event?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17192,6 +18537,8 @@ export interface operations {
                 window?: string;
                 limit?: number;
                 offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17221,10 +18568,278 @@ export interface operations {
             };
         };
     };
+    audit_export_api_v1_admin_audit_export_get: {
+        parameters: {
+            query?: {
+                stream?: string;
+                entity?: string;
+                window?: string | null;
+                from?: string | null;
+                to?: string | null;
+                task?: string | null;
+                provider?: string | null;
+                status?: string | null;
+                q?: string | null;
+                group?: string;
+                outcome?: string | null;
+                actor?: string | null;
+                job_type?: string | null;
+                trigger?: string | null;
+                event?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_jobs_api_v1_admin_audit_jobs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                job_type?: string | null;
+                user_id?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_facets_api_v1_admin_audit_jobs_facets_get: {
+        parameters: {
+            query?: {
+                window?: string | null;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_failures_api_v1_admin_audit_jobs_failures_get: {
+        parameters: {
+            query?: {
+                job_type?: string | null;
+                user_id?: string | null;
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_requeue_api_v1_admin_audit_jobs_requeue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobRequeueRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     audit_overview_api_v1_admin_audit_overview_get: {
         parameters: {
             query?: {
                 window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_production_api_v1_admin_audit_production_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_source_runs_api_v1_admin_audit_source_runs_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+                trigger?: string | null;
+                window?: string | null;
+                limit?: number;
+                offset?: number;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -17258,6 +18873,8 @@ export interface operations {
         parameters: {
             query?: {
                 window?: string;
+                from?: string | null;
+                to?: string | null;
             };
             header?: never;
             path?: never;
@@ -20035,6 +21652,26 @@ export interface operations {
             };
         };
     };
+    taxonomy_queue_stats_api_v1_admin_taxonomy_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonomyStatsOut"];
+                };
+            };
+        };
+    };
     list_users_api_v1_admin_users_get: {
         parameters: {
             query?: never;
@@ -22455,7 +24092,23 @@ export interface operations {
     };
     list_findings_api_v1_autopilot_findings_get: {
         parameters: {
-            query?: never;
+            query?: {
+                goal_id?: string | null;
+                run_id?: string | null;
+                state?: "open" | "dismissed" | "all";
+                latest_per_posting?: boolean;
+                sort?: "newest" | "score";
+                limit?: number;
+                cursor?: string | null;
+                min_score?: number | null;
+                coverage_min?: number | null;
+                org?: string | null;
+                source?: string | null;
+                seniority?: string | null;
+                remote?: boolean;
+                posted_within?: string | null;
+                hide_applied?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -22470,7 +24123,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         [key: string]: unknown;
-                    }[];
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -22721,6 +24383,129 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    profile_context_api_v1_autopilot_profile_context_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProfileContextPreviewIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_runs_api_v1_autopilot_runs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    run_detail_api_v1_autopilot_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_run_findings_api_v1_autopilot_runs__run_id__dismiss_findings_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */
@@ -23175,6 +24960,30 @@ export interface operations {
             query?: {
                 q?: string | null;
                 limit?: number;
+                /** @description CSV match-any over open postings' work mode */
+                work_mode?: string | null;
+                /** @description CSV match-any over open postings' seniority */
+                seniority?: string | null;
+                /** @description CSV match-any over open postings' employment type */
+                employment?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                work_mode_exclude?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                seniority_exclude?: string | null;
+                /** @description CSV exclude companies whose open postings carry any */
+                employment_exclude?: string | null;
+                /** @description At least N open postings */
+                min_open?: number | null;
+                /** @description CSV match-any over profile industry tags */
+                industry?: string | null;
+                /** @description CSV exclude companies carrying any of these industry tags */
+                industry_exclude?: string | null;
+                /** @description Matches open-posting city or country */
+                location?: string | null;
+                /** @description open_postings (busiest first) | name (A-Z) | recent (latest open posting) */
+                sort?: string;
+                /** @description Include the per-axis company-count facets */
+                facets?: boolean;
             };
             header?: never;
             path?: never;
@@ -23188,7 +24997,76 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CompanyOut"][];
+                    "application/json": components["schemas"]["CompaniesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    companies_stats_overview_api_v1_companies_stats_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyStatsOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    companies_stats_summary_api_v1_companies_stats_summary_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompanyStatsSummary"];
                 };
             };
             /** @description Validation Error */
@@ -25909,6 +27787,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstanceConfigOut"];
+                };
+            };
+        };
+    };
+    get_update_check_api_v1_instance_update_check_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdateCheckOut"];
                 };
             };
         };
@@ -29109,6 +31007,41 @@ export interface operations {
             };
         };
     };
+    update_search_api_v1_me_searches__search_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                search_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     save_search_api_v1_me_searches__search_id__save_post: {
         parameters: {
             query?: never;
@@ -31125,6 +33058,39 @@ export interface operations {
             };
         };
     };
+    postings_smart_search_api_v1_postings_smart_search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SmartSearchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SmartSearchOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     postings_sources_api_v1_postings_sources_get: {
         parameters: {
             query?: never;
@@ -31143,6 +33109,246 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    postings_stats_breakdown_api_v1_postings_stats_breakdown_get: {
+        parameters: {
+            query: {
+                dimension: string;
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsBreakdown"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_clockwork_api_v1_postings_stats_clockwork_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClockworkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_overview_api_v1_postings_stats_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsOverview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_salary_api_v1_postings_stats_salary_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSalary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_skills_api_v1_postings_stats_skills_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                status_basis?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSkills"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_summary_api_v1_postings_stats_summary_get: {
+        parameters: {
+            query?: {
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    postings_stats_timeseries_api_v1_postings_stats_timeseries_get: {
+        parameters: {
+            query?: {
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+                bucket?: string | null;
+                split?: string | null;
+                status_basis?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostingStatsTimeseries"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

@@ -67,13 +67,17 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             name="query_mode_allowed",
         ),
         CheckConstraint(
-            "query_batch_size BETWEEN 1 AND 3",
+            "query_batch_size BETWEEN 1 AND 6",
             name="query_batch_size_allowed",
         ),
     )
 
     key: Mapped[str] = mapped_column(String(80), unique=True, index=True, nullable=False)
     connector_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    # Display name (plan 173): the extension manifest's `title` — what
+    # surfaces show ("LinkedIn"), never a lookup key. NULL = the connector's
+    # own title is shown.
+    title: Mapped[str | None] = mapped_column(String(80), nullable=True)
     # What this source feeds: postings today, wider data families later.
     kind: Mapped[str] = mapped_column(
         String(20),
@@ -103,8 +107,8 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query_mode: Mapped[str] = mapped_column(
         String(12),
         nullable=False,
-        default=SourceQueryMode.STATIC.value,
-        server_default=SourceQueryMode.STATIC.value,
+        default=SourceQueryMode.RADAR.value,
+        server_default=SourceQueryMode.RADAR.value,
     )
     # The merged-query artifact (plan 130): {query, provenance, radar_ids,
     # curated, computed_at, radar_fp} — rebuilt on radar change, read by
@@ -116,8 +120,8 @@ class JobSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query_batch_size: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
-        default=1,
-        server_default="1",
+        default=2,
+        server_default="2",
     )
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")
 

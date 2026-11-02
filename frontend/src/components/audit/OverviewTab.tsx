@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { RefreshCw } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -15,8 +16,8 @@ import {
   fetchAuditTimeseries,
   type AuditBreakdownRow,
   type AuditOverview,
+  type AuditRangeQuery,
   type AuditSeries,
-  type AuditWindow,
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
@@ -27,11 +28,14 @@ import {
   formatDelta,
   formatLatency,
   formatTokens,
+  formatTokensExact,
 } from "@/config/auditVocab";
+
+const AUTO_REFRESH_MS = 30_000;
 
 const CHART_COLORS = {
   calls: "var(--as-accent, #6172f3)",
-  errors: "#e11d48",
+  errors: "var(--as-danger, #e11d48)",
 } as const;
 
 function KpiTiles({ overview }: { overview: AuditOverview }) {
@@ -53,6 +57,7 @@ function KpiTiles({ overview }: { overview: AuditOverview }) {
       label: t("audit.kpi.tokens"),
       value: `${formatTokens(overview.ai.tokens_in)} → ${formatTokens(overview.ai.tokens_out)}`,
       hint: t("audit.kpi.tokensHint"),
+      title: `${formatTokensExact(overview.ai.tokens_in)} → ${formatTokensExact(overview.ai.tokens_out)}`,
     },
     {
       label: t("audit.kpi.latency"),
@@ -238,39 +243,59 @@ function RecentFailures({ overview }: { overview: AuditOverview }) {
 }
 
 /** The audit Overview tab: KPI tiles, volume/errors chart, category
- * breakdown and the recent-failure feed — all server-aggregated. */
-export function OverviewTab({ window }: { window: AuditWindow }) {
+ * breakdown and the recent-failure feed — all server-aggregated. The
+ * time range is the page-level control (preset or custom). */
+export function OverviewTab({
+  range,
+  refreshMs = AUTO_REFRESH_MS,
+}: {
+  range: AuditRangeQuery;
+  /** Injectable for tests (repo poll-injection pattern). */
+  refreshMs?: number;
+}) {
   const { t } = useTranslation();
   const [overview, setOverview] = useState<AuditOverview | null>(null);
   const [series, setSeries] = useState<AuditSeries | null>(null);
   const [taskRows, setTaskRows] = useState<AuditBreakdownRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const requestId = useRef(0);
 
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     setLoading(true);
     setError("");
     try {
       const [overviewData, seriesData, taskBreakdown] = await Promise.all([
-        fetchAuditOverview(window),
-        fetchAuditTimeseries(window),
-        fetchAuditBreakdown("task", window),
+        fetchAuditOverview(range),
+        fetchAuditTimeseries(range),
+        fetchAuditBreakdown("task", range),
       ]);
+      if (id !== requestId.current) return;
       setOverview(overviewData);
       setSeries(seriesData);
       setTaskRows(taskBreakdown.rows);
     } catch (err) {
-      setError(apiDetail(err));
+      if (id === requestId.current) setError(apiDetail(err));
     } finally {
-      setLoading(false);
+      if (id === requestId.current) setLoading(false);
     }
-  }, [window]);
+  }, [range]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  if (loading) {
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const timer = setInterval(() => {
+      void load();
+    }, refreshMs);
+    return () => clearInterval(timer);
+  }, [autoRefresh, load, refreshMs]);
+
+  if (loading && !overview) {
     return (
       <div className="flex w-full flex-col items-center justify-center py-24">
         <Spinner size="lg" />
@@ -278,11 +303,29 @@ export function OverviewTab({ window }: { window: AuditWindow }) {
       </div>
     );
   }
-  if (error) return <p className="text-sm text-rose-600">{error}</p>;
+  if (error && !overview) {
+    return <p className="text-sm text-rose-600">{error}</p>;
+  }
   if (!overview || !series) return <EmptyState title={t("audit.empty")} />;
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-end">
+        <button
+          type="button"
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+            autoRefresh
+              ? "border-[var(--as-accent,var(--chart-1,#6172f3))] text-[var(--as-accent,var(--chart-1,#6172f3))]"
+              : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)]"
+          }`}
+          aria-pressed={autoRefresh}
+          onClick={() => setAutoRefresh((value) => !value)}
+          data-testid="audit-auto-refresh"
+        >
+          <RefreshCw className="size-3" aria-hidden />
+          {t("audit.autoRefresh")}
+        </button>
+      </div>
       <KpiTiles overview={overview} />
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <VolumeChart series={series} />

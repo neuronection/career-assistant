@@ -4,10 +4,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models.application_model import Application
+from app.models.job_model import Job, JobSkill, JobTag
 from app.models.posting_model import JobPosting, JobSource, PostingInteraction
 from app.schemas.posting import (
     AppliedIn,
@@ -22,6 +24,8 @@ from app.schemas.posting import (
     PostingsOut,
     SaveIn,
     SeenIn,
+    SmartSearchIn,
+    SmartSearchOut,
 )
 from app.schemas.radar import RadarIn
 from app.services.deps import get_current_user
@@ -342,6 +346,24 @@ async def preview_job_radar(
     )
 
 
+@router.post("/postings/smart-search", response_model=SmartSearchOut)
+async def postings_smart_search(
+    data: SmartSearchIn,
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SmartSearchOut:
+    """Natural-language search (plan 179): the sentence maps onto the
+    explore filter vocabulary through one small cached AI call (per-user
+    limiter and budget apply on misses; cache hits cost zero). The
+    client then runs the normal explore query with the returned
+    filters — facets stay live."""
+    from app.services.postings.smart_search_service import run_smart_search
+
+    result = await run_smart_search(db, user.id, data.query)
+    await db.commit()
+    return SmartSearchOut.model_validate(result)
+
+
 @router.get("/postings/sources", response_model=list[dict])
 async def postings_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Enabled sources with open-posting counts (the filter dropdown)."""
@@ -440,7 +462,7 @@ async def posting_detail(
         **out.model_dump(),
         description=plain_text(raw_description if isinstance(raw_description, str) else ""),
         extract=PostingExtractOut.model_validate(posting.extract) if posting.extract else None,
-        source_title=connector_title,
+        source_title=(source.title if source else "") or connector_title,
         source_connector=source.key if source else "",
         source_synced_at=source.last_run_at if source else None,
         match=PostingMatchOut.model_validate(match) if match else None,
@@ -545,6 +567,15 @@ async def postings_filter(
     where = build_where(spec)
     query = (
         select(JobPosting, PostingInteraction, Application)
+        .options(
+            selectinload(JobPosting.catalog_job).selectinload(Job.family),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.tag_links)
+            .selectinload(JobTag.tag),
+            selectinload(JobPosting.catalog_job)
+            .selectinload(Job.skill_links)
+            .selectinload(JobSkill.skill),
+        )
         .outerjoin(
             PostingInteraction,
             and_(

@@ -10,14 +10,18 @@ provider synthesizes deterministic vectors for tests/dev).
 import hashlib
 import logging
 import uuid
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AINotConfiguredError
 from app.models.embedding_model import AIEmbedding
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from app.ai.gateway import RunRef
 
 # Which entity kinds embed; the store is open but the seed/recompute
 # surfaces only serve these.
@@ -26,6 +30,7 @@ KIND_FAMILY = "family"
 KIND_TEMPLATE = "template"
 KIND_CHAT_SUMMARY = "chat_summary"
 KIND_SKILL = "skill"
+KIND_PROFILE = "profile"
 
 SERVED_KINDS = (
     KIND_POSTING,
@@ -33,6 +38,7 @@ SERVED_KINDS = (
     KIND_TEMPLATE,
     KIND_CHAT_SUMMARY,
     KIND_SKILL,
+    KIND_PROFILE,
 )
 
 
@@ -89,6 +95,40 @@ def compose_skill_text(skill) -> str:
     return "\n".join(part for part in parts if part)
 
 
+def compose_profile_text(
+    profiles: list[dict],
+    interests: list[str],
+    skills: list[dict],
+    experience_titles: list[str],
+) -> str:
+    """The embedded surface of a user (plan 179): interests, skills with
+    levels, experience titles and education. ``profiles`` carries one
+    row per profile (``education``/``city``/``country`` from basics) —
+    a user may hold several; the caller passes them in a deterministic
+    order so the composition is stable. ``skills`` rows are
+    ``{"label", "level"}``."""
+
+    def _basics(profile: dict) -> str:
+        location = " ".join(str(profile[key]) for key in ("city", "country") if profile.get(key))
+        return location
+
+    parts: list[str] = []
+    for label in interests:
+        parts.append(f"interest: {label}")
+    for profile in profiles:
+        education = profile.get("education")
+        if education:
+            parts.append(f"education: {education}")
+        location = _basics(profile)
+        if location:
+            parts.append(f"location: {location}")
+    for skill in skills:
+        parts.append(f"skill: {skill['label']} level {skill['level']}")
+    for title in experience_titles:
+        parts.append(f"experience: {title}")
+    return "\n".join(parts)
+
+
 class EmbeddingService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -100,11 +140,18 @@ class EmbeddingService:
         text: str,
         *,
         vector: list[float] | None = None,
+        commit: bool = True,
+        user_id: uuid.UUID | None = None,
     ) -> tuple[AIEmbedding, bool]:
         """Store (or refresh) one embedding; returns (row, embedded?).
 
         ``embedded`` is False when the stored row was already current
         (content-hash dedupe — no gateway spend for unchanged text).
+        ``commit=False`` flushes and leaves the transaction to the
+        caller — the smart sort runs inside the explore request
+        transaction, whose commit belongs to the caller. ``user_id``
+        attributes the gateway embed (per-user limiter + budget); system
+        embeds omit it.
         """
         from app.ai.gateway import embed_texts
 
@@ -124,15 +171,117 @@ class EmbeddingService:
         if row is not None and row.content_hash == text_hash:
             return row, False
         if vector is None:
-            vector = (await embed_texts(self.db, [text]))[0]
+            vector = (await embed_texts(self.db, [text], user_id=user_id))[0]
         if row is None:
             row = AIEmbedding(entity_kind=entity_kind, entity_id=entity_id)
             self.db.add(row)
         row.content_hash = text_hash
         row.dim = len(vector)
         row.vector = vector
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
+        else:
+            await self.db.flush()
         return row, True
+
+    async def upsert_profile_embedding(
+        self,
+        user_id: uuid.UUID,
+        *,
+        commit: bool = True,
+    ) -> AIEmbedding | None:
+        """Compose + embed the user's profile surface (``KIND_PROFILE``).
+
+        User-scoped: ALL the user's profiles merge deterministically
+        (consistent with the user-scoped fit cache; the radar is
+        profile-scoped). Content-hash deduped — an unchanged profile
+        costs zero gateway spend. Empty profile (nothing to compose)
+        returns ``None``.
+        """
+        from app.models.experience_model import ExperienceItem
+        from app.models.taxonomy_model import InterestTag, Skill
+        from app.models.user_model import Profile, UserInterest, UserSkill
+
+        profiles = (
+            (
+                await self.db.execute(
+                    select(Profile)
+                    .where(Profile.user_id == user_id)
+                    .order_by(Profile.created_at, Profile.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        interests = (
+            (
+                await self.db.execute(
+                    select(InterestTag.label)
+                    .join(UserInterest, UserInterest.interest_tag_id == InterestTag.id)
+                    .where(UserInterest.user_id == user_id)
+                    .order_by(InterestTag.key)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        skills = (
+            await self.db.execute(
+                select(Skill.label, UserSkill.level)
+                .join(UserSkill, UserSkill.skill_id == Skill.id)
+                .where(UserSkill.user_id == user_id, UserSkill.hidden.is_(False))
+                .order_by(Skill.key)
+            )
+        ).all()
+        titles = (
+            (
+                await self.db.execute(
+                    select(ExperienceItem.title)
+                    .where(
+                        ExperienceItem.user_id == user_id,
+                        ExperienceItem.status == "active",
+                    )
+                    .order_by(ExperienceItem.title, ExperienceItem.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        text = compose_profile_text(
+            [
+                {
+                    "education": (profile.basics or {}).get("education_level"),
+                    "city": (profile.basics or {}).get("city"),
+                    "country": (profile.basics or {}).get("country"),
+                }
+                for profile in profiles
+            ],
+            list(interests),
+            [{"label": label, "level": int(level)} for label, level in skills],
+            list(titles),
+        )
+        if not text.strip():
+            return None
+        row, _embedded = await self.upsert_embedding(
+            KIND_PROFILE, user_id, text, commit=commit, user_id=user_id
+        )
+        return row
+
+    async def embeddings_by_ids(
+        self,
+        entity_kind: str,
+        entity_ids: list[uuid.UUID],
+    ) -> dict[uuid.UUID, AIEmbedding]:
+        """Batch read for a ranking window: one select, missing ids absent."""
+        if not entity_ids:
+            return {}
+        rows = await self.db.execute(
+            select(AIEmbedding).where(
+                AIEmbedding.entity_kind == entity_kind,
+                AIEmbedding.entity_id.in_(entity_ids),
+            )
+        )
+        return {row.entity_id: row for row in rows.scalars().all()}
 
     async def recompute_postings(self, limit: int = 50) -> dict:
         """Embed stale/un-embedded postings (title + raw + extract)."""
@@ -219,20 +368,35 @@ class EmbeddingService:
         *,
         kind: str | None = KIND_POSTING,
         limit: int = 20,
+        stats: dict | None = None,
+        run: "RunRef | None" = None,
     ) -> list[dict]:
         """Cosine ranking over the stored vectors (semantic SIGNAL only —
-        callers must keep SQL hard filters upstream)."""
+        callers must keep SQL hard filters upstream).
+
+        ``stats``, when supplied, receives ``skipped_dim_rows``: the number
+        of stored rows of a different dimension than the query vector,
+        which the dimension filter excludes without raising. ``run``
+        opt-in links the query-embedding gateway call to a flow run.
+        """
         from app.ai.gateway import embed_texts
 
         if not query.strip():
             return []
-        query_vector = (await embed_texts(self.db, [query]))[0]
+        query_vector = (await embed_texts(self.db, [query], run=run))[0]
         query_dim = len(query_vector)
         stmt = select(AIEmbedding).where(AIEmbedding.dim == query_dim)
         if kind is not None:
             stmt = stmt.where(AIEmbedding.entity_kind == kind)
         rows = (await self.db.execute(stmt)).scalars().all()
-        scored = [
+        if stats is not None:
+            skipped = (
+                select(func.count()).select_from(AIEmbedding).where(AIEmbedding.dim != query_dim)
+            )
+            if kind is not None:
+                skipped = skipped.where(AIEmbedding.entity_kind == kind)
+            stats["skipped_dim_rows"] = int((await self.db.execute(skipped)).scalar() or 0)
+        scored: list[dict[str, Any]] = [
             {
                 "entity_kind": row.entity_kind,
                 "entity_id": str(row.entity_id),

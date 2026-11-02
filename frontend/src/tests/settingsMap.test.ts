@@ -20,6 +20,7 @@ const map = JSON.parse(
   domains?: {
     id: string;
     definition: string;
+    home?: { tab: string; section: string | null };
     adopters?: Record<string, string>;
   }[];
   products: Record<
@@ -111,11 +112,29 @@ describe("settings-map contract", () => {
   // plan 32 Phase 1 (D17): the tools.connectors row broadened to job-source
   // connectors — the nav conformance pins the broadening so the row can
   // never silently shrink back to MCP-only.
-  it("tools.connectors is defined as covering job-source connectors", () => {
-    const domain = (map.domains ?? []).find((entry) => entry.id === "tools.connectors");
-    expect(domain).toBeDefined();
-    expect(domain!.definition).toMatch(/job-source connector/i);
-    expect(domain!.adopters?.["career-assistant"]).toMatch(/job-source/);
+  // plan 154: the connectors domain narrowed to the MCP server surface
+  // and job-source ingestion split into its own tools.sources domain —
+  // both pinned so neither silently merges back or disappears.
+  it("tools.connectors is the MCP server surface; tools.sources covers job-source ingestion", () => {
+    const domains = map.domains ?? [];
+    const connectors = domains.find((entry) => entry.id === "tools.connectors");
+    expect(connectors).toBeDefined();
+    expect(connectors!.definition).toMatch(/MCP server/i);
+    expect(connectors!.home?.tab).toBe("tools");
+    expect(connectors!.home?.section).toBe("mcp");
+
+    const sources = domains.find((entry) => entry.id === "tools.sources");
+    expect(sources).toBeDefined();
+    expect(sources!.definition).toMatch(/job-source connector/i);
+    expect(sources!.home?.section).toBe("sources");
+    expect(sources!.adopters?.["career-assistant"]).toMatch(/plan 154/);
+
+    const declaredTools = declared.find((tab) => tab.id === "tools");
+    expect(declaredTools!.sections!.map((section) => section.id)).toEqual([
+      "web-search",
+      "mcp",
+      "sources",
+    ]);
   });
 
   it("automations is declared in the automations group", () => {

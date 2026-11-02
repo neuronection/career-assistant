@@ -1,15 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link, useSearchParams } from "react-router-dom";
 import {
+  exportAuditCsv,
   fetchAuditBreakdown,
   fetchAuditGenerations,
   type AIGenerationRow,
   type AuditBreakdownRow,
-  type AuditWindow,
 } from "@/api/audit";
 import { apiDetail } from "@/api/client";
 import { EmptyState, Spinner } from "@/components/ui";
-import { formatLatency } from "@/config/auditVocab";
+import { GenerationDetailDrawer } from "@/components/audit/GenerationDetailDrawer";
+import {
+  EMPTY_RANGE,
+  RangeFilter,
+  rangeParams,
+  type RangeValue,
+} from "@/components/audit/RangeFilter";
+import { downloadCsv } from "@/components/audit/download";
+import {
+  formatLatency,
+  formatTokens,
+  formatTokensExact,
+} from "@/config/auditVocab";
 
 const PAGE_SIZE = 50;
 
@@ -21,7 +34,7 @@ interface Filters {
   provider: string;
   status: string;
   tier: string;
-  window: "" | AuditWindow;
+  range: RangeValue;
   q: string;
 }
 
@@ -30,71 +43,29 @@ const EMPTY_FILTERS: Filters = {
   provider: "",
   status: "",
   tier: "",
-  window: "",
+  range: EMPTY_RANGE,
   q: "",
 };
 
-function GenerationDetail({ row }: { row: AIGenerationRow }) {
-  const { t } = useTranslation();
-  return (
-    <div
-      className="mx-2 mb-2 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3 text-xs"
-      data-testid={`audit-gen-detail-${row.id}`}
-    >
-      {row.error && <p className="mb-2 font-medium text-rose-600">{row.error}</p>}
-      <p className="mb-2 whitespace-pre-wrap break-words text-[var(--as-muted-fg)]">
-        {t("audit.ai.promptLabel")}
-        {row.prompt ? row.prompt.slice(0, 600) : "—"}
-      </p>
-      <div className="mb-2 flex flex-wrap gap-1.5">
-        {row.run_id && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.runChip", { id: row.run_id.slice(0, 8) })}
-          </span>
-        )}
-        {row.run_stage && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.stageChip", { stage: row.run_stage })}
-          </span>
-        )}
-        {row.prompt_version && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.promptChip", { version: row.prompt_version })}
-          </span>
-        )}
-        {row.pack_key && (
-          <span className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5">
-            {t("audit.ai.packChip", {
-              key: row.pack_key,
-              version: row.pack_version ?? "?",
-            })}
-          </span>
-        )}
-      </div>
-      {row.output && (
-        <pre className="max-h-60 overflow-auto rounded-[var(--as-radius)] bg-[var(--as-surface)] p-2 text-[11px] leading-relaxed text-[var(--as-fg)]">
-          {JSON.stringify(row.output, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 function GenerationRow({
   row,
-  expanded,
-  onToggle,
+  onOpen,
 }: {
   row: AIGenerationRow;
-  expanded: boolean;
-  onToggle: () => void;
+  onOpen: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <>
-      <tr
-        className="cursor-pointer border-b border-[var(--as-border)] hover:bg-[var(--as-muted)]"
-        onClick={onToggle}
+    <tr
+        className="cursor-pointer border-b border-[var(--as-border)] hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
+        onClick={onOpen}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onOpen();
+          }
+        }}
+        tabIndex={0}
         data-testid={`audit-gen-row-${row.id}`}
       >
         <td className="px-3 py-2">
@@ -104,7 +75,6 @@ function GenerationRow({
             }`}
           >
             {t(`aiSettings.status.${row.status}`, { defaultValue: row.status })}
-            {expanded ? " ▾" : " ▸"}
           </span>
         </td>
         <td className="px-3 py-2 font-medium text-[var(--as-fg)]">
@@ -124,7 +94,16 @@ function GenerationRow({
           {row.provider}/{row.model}
         </td>
         <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
-          {row.tokens_in ?? "?"} → {row.tokens_out ?? "?"}
+          {row.tokens_in == null && row.tokens_out == null ? (
+            <span>—</span>
+          ) : (
+            <span
+              title={`${formatTokensExact(row.tokens_in ?? 0)} → ${formatTokensExact(row.tokens_out ?? 0)}`}
+            >
+              {row.tokens_in == null ? "—" : formatTokens(row.tokens_in)} →{" "}
+              {row.tokens_out == null ? "—" : formatTokens(row.tokens_out)}
+            </span>
+          )}
         </td>
         <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
           {formatLatency(row.latency_ms)}
@@ -136,21 +115,14 @@ function GenerationRow({
           {new Date(row.created_at).toLocaleString()}
         </td>
       </tr>
-      {expanded && (
-        <tr>
-          <td colSpan={7} className="p-0">
-            <GenerationDetail row={row} />
-          </td>
-        </tr>
-      )}
-    </>
   );
 }
 
-/** The AI ledger tab: facet-driven filters over every AI call, with
- * expandable row detail and lineage chips (run/stage/prompt/pack). */
+/** The AI ledger tab: facet-driven filters over every AI call; a row
+ * opens the detail drawer (?detail=<id> deep link, plan 154). */
 export function AiActivityTab() {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
   const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
   const [rows, setRows] = useState<AIGenerationRow[]>([]);
@@ -158,16 +130,39 @@ export function AiActivityTab() {
   const [page, setPage] = useState(0);
   const [taskFacets, setTaskFacets] = useState<AuditBreakdownRow[]>([]);
   const [providerFacets, setProviderFacets] = useState<AuditBreakdownRow[]>([]);
-  const [expanded, setExpanded] = useState<string | null>(null);
+  const [deepLinkRow, setDeepLinkRow] = useState<AIGenerationRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [failedCalls, setFailedCalls] = useState(0);
+  const detailId = searchParams.get("detail");
+
+  useEffect(() => {
+    let live = true;
+    const loadFailed = async () => {
+      try {
+        const result = await fetchAuditGenerations({
+          status: "error",
+          window: "24h",
+          limit: 1,
+        });
+        if (live) setFailedCalls(result.total);
+      } catch {
+        if (live) setFailedCalls(0);
+      }
+    };
+    void loadFailed();
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     const loadFacets = async () => {
       try {
         const [tasks, providers] = await Promise.all([
-          fetchAuditBreakdown("task", "30d"),
-          fetchAuditBreakdown("provider", "30d"),
+          fetchAuditBreakdown("task", { window: "30d", limit: 60 }),
+          fetchAuditBreakdown("provider", { window: "30d", limit: 60 }),
         ]);
         setTaskFacets(tasks.rows);
         setProviderFacets(providers.rows);
@@ -179,8 +174,11 @@ export function AiActivityTab() {
     void loadFacets();
   }, []);
 
+  const requestId = useRef(0);
+
   const load = useCallback(
     async (current: Filters, currentPage: number) => {
+      const id = ++requestId.current;
       setLoading(true);
       setError("");
       try {
@@ -192,15 +190,16 @@ export function AiActivityTab() {
         if (current.provider) params.provider = current.provider;
         if (current.status) params.status = current.status;
         if (current.tier) params.tier = current.tier;
-        if (current.window) params.window = current.window;
+        Object.assign(params, rangeParams(current.range));
         if (current.q) params.q = current.q;
         const result = await fetchAuditGenerations(params);
+        if (id !== requestId.current) return;
         setRows(result.items);
         setTotal(result.total);
       } catch (err) {
-        setError(apiDetail(err));
+        if (id === requestId.current) setError(apiDetail(err));
       } finally {
-        setLoading(false);
+        if (id === requestId.current) setLoading(false);
       }
     },
     [],
@@ -210,14 +209,89 @@ export function AiActivityTab() {
     void load(applied, page);
   }, [load, applied, page]);
 
+  useEffect(() => {
+    if (!detailId || rows.some((row) => row.id === detailId)) return;
+    if (deepLinkRow?.id === detailId) return;
+    let live = true;
+    const fetchRow = async () => {
+      try {
+        const result = await fetchAuditGenerations({ id: detailId, limit: 1 });
+        if (!live) return;
+        setDeepLinkRow(result.items[0] ?? null);
+        if (!result.items[0]) {
+          const next = new URLSearchParams(searchParams);
+          next.delete("detail");
+          setSearchParams(next, { replace: true });
+        }
+      } catch {
+        if (live) {
+          setDeepLinkRow(null);
+          const next = new URLSearchParams(searchParams);
+          next.delete("detail");
+          setSearchParams(next, { replace: true });
+        }
+      }
+    };
+    void fetchRow();
+    return () => {
+      live = false;
+    };
+  }, [detailId, rows, deepLinkRow, searchParams, setSearchParams]);
+
+  const detailRow =
+    rows.find((row) => row.id === detailId) ??
+    (deepLinkRow?.id === detailId ? deepLinkRow : null);
+  const detailIndex = detailRow ? rows.findIndex((row) => row.id === detailRow.id) : -1;
+
+  const openDetail = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", id);
+    setSearchParams(next);
+  };
+
+  const closeDetail = () => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("detail");
+    setSearchParams(next, { replace: true });
+  };
+
+  const navigateDetail = (delta: -1 | 1) => {
+    if (detailIndex < 0) return;
+    const nextIndex = detailIndex + delta;
+    const target = rows[nextIndex];
+    if (!target) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("detail", target.id);
+    setSearchParams(next);
+  };
+
   const applyFilters = (next: Filters) => {
     setFilters(next);
     setApplied(next);
     setPage(0);
-    setExpanded(null);
   };
 
   const patch = (part: Partial<Filters>) => applyFilters({ ...filters, ...part });
+
+  const exportCsv = async () => {
+    setExporting(true);
+    try {
+      downloadCsv(
+        await exportAuditCsv("ai", {
+          ...rangeParams(applied.range),
+          task: applied.task || undefined,
+          provider: applied.provider || undefined,
+          status: applied.status || undefined,
+          q: applied.q || undefined,
+        }),
+        "ai",
+      );
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
@@ -226,6 +300,15 @@ export function AiActivityTab() {
   return (
     <div className="space-y-3" data-testid="audit-ai-tab">
       <div className="flex flex-wrap items-center gap-2">
+        {failedCalls > 0 && (
+          <Link
+            to={`/settings/audit?${new URLSearchParams({ tab: "failures", window: "24h" }).toString()}`}
+            className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+            data-testid="audit-ai-failed-link"
+          >
+            {t("audit.failures.aiBadge", { count: failedCalls })} →
+          </Link>
+        )}
         <select
           aria-label={t("audit.ai.taskFilter")}
           className={selectClass}
@@ -277,17 +360,21 @@ export function AiActivityTab() {
           <option value="fast">{t("audit.ai.tier.fast")}</option>
           <option value="strong">{t("audit.ai.tier.strong")}</option>
         </select>
-        <select
-          aria-label={t("audit.ai.windowFilter")}
-          className={selectClass}
-          value={filters.window}
-          onChange={(e) => patch({ window: e.target.value as Filters["window"] })}
+        <RangeFilter
+          value={filters.range}
+          onChange={(next) => patch({ range: next })}
+          allowAllTime
+          testId="audit-gen-range-filter"
+        />
+        <button
+          type="button"
+          className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm disabled:opacity-40"
+          disabled={exporting}
+          onClick={() => void exportCsv()}
+          data-testid="audit-gen-export"
         >
-          <option value="">{t("audit.ai.allTime")}</option>
-          <option value="24h">{t("audit.window.24h")}</option>
-          <option value="7d">{t("audit.window.7d")}</option>
-          <option value="30d">{t("audit.window.30d")}</option>
-        </select>
+          {exporting ? t("audit.export.exporting") : t("audit.export.csv")}
+        </button>
         <form
           className="min-w-[12rem] flex-1"
           onSubmit={(e) => {
@@ -334,8 +421,7 @@ export function AiActivityTab() {
                 <GenerationRow
                   key={row.id}
                   row={row}
-                  expanded={expanded === row.id}
-                  onToggle={() => setExpanded(expanded === row.id ? null : row.id)}
+                  onOpen={() => openDetail(row.id)}
                 />
               ))}
             </tbody>
@@ -371,6 +457,22 @@ export function AiActivityTab() {
           </button>
         </span>
       </div>
+
+      <GenerationDetailDrawer
+        row={detailRow}
+        onClose={closeDetail}
+        onNavigate={detailIndex >= 0 ? navigateDetail : undefined}
+        hasPrev={detailIndex > 0}
+        hasNext={detailIndex >= 0 && detailIndex < rows.length - 1}
+        position={
+          detailIndex >= 0
+            ? t("audit.ai.drawer.position", {
+                index: detailIndex + 1 + page * PAGE_SIZE,
+                total: total.toLocaleString(),
+              })
+            : undefined
+        }
+      />
     </div>
   );
 }

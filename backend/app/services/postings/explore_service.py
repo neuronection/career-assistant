@@ -12,9 +12,9 @@ sidebar badges stay live when a facet is active.
 
 import base64
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import Text, and_, case, func, not_, or_, select
@@ -33,21 +33,79 @@ from app.models.posting_model import (
     PostingSkill,
 )
 from app.models.taxonomy_model import Skill
+from app.services.analytics.time_buckets import POSTED_WINDOWS, window_clause
 
-POSTED_WINDOWS: dict[str, timedelta] = {
-    "24h": timedelta(hours=24),
-    "7d": timedelta(days=7),
-    "30d": timedelta(days=30),
-    "90d": timedelta(days=90),
-}
+if TYPE_CHECKING:
+    from app.services.postings.posting_fit_service import FitOverrides
 
 SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 REMOTE_VALUES = ("onsite", "hybrid", "remote")
+SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
+BENEFIT_KIND_VALUES = (
+    "healthcare",
+    "pension",
+    "leave",
+    "remote_budget",
+    "learning",
+    "equity",
+    "meals",
+    "transport",
+    "other",
+)
 SKILL_FACET_SIZE = 15
+SKILL_EXPAND_MODES = ("off", "down", "related")
+SKILL_MODE_VALUES = ("all", "any")
+SKILL_EXPAND_HOPS = 1
 OPEN_STATUSES = ("mapped", "new")
+
+ALLOWED_FILTER_KEYS = frozenset(
+    {
+        "q",
+        "skills",
+        "skill_exclude",
+        "skill_mode",
+        "skill_priority",
+        "skill_expand",
+        "education_min",
+        "languages",
+        "posted_within",
+        "posted_after",
+        "fresh_only",
+        "salary_min",
+        "salary_currency",
+        "keywords",
+        "seniority",
+        "seniority_exclude",
+        "employment_type",
+        "remote_policy",
+        "remote_policy_exclude",
+        "city",
+        "country",
+        "source",
+        "source_exclude",
+        "mapped_family",
+        "saved",
+        "seen",
+        "seen_exclude",
+        "applied",
+        "applied_exclude",
+        "hidden_exclude",
+        "extracted_only",
+        "contract",
+        "contract_exclude",
+        "travel",
+        "travel_exclude",
+        "schedule",
+        "schedule_exclude",
+        "benefits",
+        "org",
+        "org_exclude",
+    }
+)
 
 DIMENSIONS = (
     "q",
+    "keywords",
     "skills",
     "salary",
     "education_min",
@@ -71,11 +129,33 @@ RANKED_WINDOW_MULTIPLIER = 5
 RANKED_WINDOW_MIN = 100
 RANKED_WINDOW_MAX = 500
 
+# Smart sort (plan 179): the pinned deterministic blend. Affinity is the
+# 0-10 interest term (cosine clamped [0,1] then scaled); degrades --
+# missing profile embedding, dim mismatch, gateway embed failure -- all
+# land on the neutral term, never a failed request.
+SMART_FIT_WEIGHT = 0.65
+SMART_AFFINITY_WEIGHT = 0.35
+SMART_AFFINITY_NEUTRAL = 7.0
+SMART_SEEN_DEMOTION = 1.5
+SMART_ORG_CAP = 2
+SMART_KEY_DECIMALS = 4
+
 _EPOCH = datetime.fromtimestamp(0, tz=UTC)
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _as_bool(value: Any) -> bool:
+    """Parse a filter flag from JSON/LLM input and query-string text.
+
+    Explore's flags are three-valued at the axis level (absent = don't
+    care); a present flag must not read ``"false"`` as truthy.
+    """
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "0", "false", "no", "off")
+    return bool(value)
 
 
 # ------------------------------------------------------------ filter parser
@@ -88,44 +168,7 @@ def parse_explore_filters(params: dict) -> dict:
     chatbot tools (LLM-provided dict) and saved searches (stored JSONB).
     Unknown keys are rejected — the filter set is data, never free text.
     """
-    allowed = {
-        "q",
-        "skills",
-        "skill_exclude",
-        "skill_mode",
-        "skill_priority",
-        "education_min",
-        "languages",
-        "posted_within",
-        "posted_after",
-        "fresh_only",
-        "salary_min",
-        "salary_currency",
-        "keywords",
-        "seniority",
-        "seniority_exclude",
-        "employment_type",
-        "remote_policy",
-        "remote_policy_exclude",
-        "city",
-        "country",
-        "source",
-        "source_exclude",
-        "mapped_family",
-        "saved",
-        "seen",
-        "applied",
-        "extracted_only",
-        "contract",
-        "contract_exclude",
-        "travel",
-        "travel_exclude",
-        "schedule",
-        "schedule_exclude",
-        "benefits",
-        "org",
-        "org_exclude",
-    }
+    allowed = ALLOWED_FILTER_KEYS
     unknown = set(params or {}) - allowed
     if unknown:
         raise ValidationError(f"Unknown explore filters: {', '.join(sorted(unknown))}")
@@ -167,9 +210,14 @@ def parse_explore_filters(params: dict) -> dict:
     if exclude_entries:
         filters["skill_exclude"] = exclude_entries[:12]
     if params.get("skill_mode"):
-        if params["skill_mode"] not in ("all", "any"):
-            raise ValidationError("skill_mode must be all|any")
+        if params["skill_mode"] not in SKILL_MODE_VALUES:
+            raise ValidationError("skill_mode must be " + "|".join(SKILL_MODE_VALUES))
         filters["skill_mode"] = params["skill_mode"]
+    if params.get("skill_expand") not in (None, ""):
+        if params["skill_expand"] not in SKILL_EXPAND_MODES:
+            raise ValidationError("skill_expand must be one of: " + ", ".join(SKILL_EXPAND_MODES))
+        filters["skill_expand"] = params["skill_expand"]
+
     if params.get("skill_priority"):
         try:
             filters["skill_priority"] = PostingSkillPriority(params["skill_priority"]).value
@@ -198,7 +246,7 @@ def parse_explore_filters(params: dict) -> dict:
         except ValueError as exc:
             raise ValidationError("posted_after must be an ISO date") from exc
     if params.get("fresh_only") not in (None, ""):
-        filters["fresh_only"] = bool(params.get("fresh_only"))
+        filters["fresh_only"] = _as_bool(params.get("fresh_only"))
 
     if params.get("salary_min") not in (None, ""):
         try:
@@ -221,7 +269,6 @@ def parse_explore_filters(params: dict) -> dict:
         if excluded:
             filters[f"{key}_exclude"] = excluded[:12]
 
-    SCHEDULE_CUE_VALUES = ("shift_work", "on_call", "nights", "weekends", "flexible")
     schedule = [cue for cue in _as_list(params.get("schedule")) if cue in SCHEDULE_CUE_VALUES]
     if schedule:
         filters["schedule"] = schedule[:5]
@@ -231,17 +278,6 @@ def parse_explore_filters(params: dict) -> dict:
     if schedule_excluded:
         filters["schedule_exclude"] = schedule_excluded[:5]
 
-    BENEFIT_KIND_VALUES = (
-        "healthcare",
-        "pension",
-        "leave",
-        "remote_budget",
-        "learning",
-        "equity",
-        "meals",
-        "transport",
-        "other",
-    )
     benefits = [kind for kind in _as_list(params.get("benefits")) if kind in BENEFIT_KIND_VALUES]
     if benefits:
         filters["benefits"] = benefits[:9]
@@ -265,16 +301,31 @@ def parse_explore_filters(params: dict) -> dict:
         filters["source_exclude"] = sources_excluded[:10]
 
     for key in ("saved", "seen", "applied", "extracted_only"):
-        if params.get(key) not in (None, ""):
-            filters[key] = bool(params.get(key))
+        if params.get(key) not in (None, "") and _as_bool(params.get(key)):
+            filters[key] = True
+    for key in ("seen_exclude", "applied_exclude", "hidden_exclude"):
+        if params.get(key) not in (None, "") and _as_bool(params[key]):
+            filters[key] = True
     return filters
 
 
 # ---------------------------------------------------------- SQL conditions
 
 
+def _skill_keys(filters: dict) -> list[str]:
+    keys: list[str] = []
+    for key, _level in (filters.get("skills") or []) + (filters.get("skill_exclude") or []):
+        if key not in keys:
+            keys.append(key)
+    for group in filters.get("skill_groups") or []:
+        for key, _level in group:
+            if key not in keys:
+                keys.append(key)
+    return keys
+
+
 async def _resolve_skill_ids(db: AsyncSession, filters: dict) -> dict[str, UUID]:
-    keys = [key for key, _ in (filters.get("skills") or []) + (filters.get("skill_exclude") or [])]
+    keys = _skill_keys(filters)
     if not keys:
         return {}
     rows = await db.execute(select(Skill).where(Skill.key.in_(keys)))
@@ -297,6 +348,54 @@ async def _resolve_source_ids(db: AsyncSession, filters: dict) -> dict[str, UUID
     return found
 
 
+async def _expand_skill_filters(db: AsyncSession, filters: dict) -> dict:
+    """Expand the skill axes over the curated graph (plan 158 S6).
+
+    Include seeds become OR-groups (seed + its neighbourhood at the seed's
+    level), so expansion widens instead of demanding every discovered key;
+    excludes always walk ``down`` (excluding a parent excludes its family)
+    and never the precision-losing ``related`` mode — one cross-surface
+    behavior with the feed engine.
+    """
+    mode = filters.get("skill_expand") or "off"
+    if mode == "off" or not (filters.get("skills") or filters.get("skill_exclude")):
+        return filters
+    from app.models.enums import SkillExpandMode
+    from app.services.catalog.skill_relations import SkillRelationService
+    from app.services.postings.filter_expand import expand_keys
+
+    graph = await SkillRelationService(db).load_graph()
+    if not graph.nodes:
+        return filters
+    expanded = dict(filters)
+    include = filters.get("skills") or []
+    if include:
+        groups: list[list[tuple[str, int | None]]] = []
+        claimed: set[str] = set()
+        for key, level in include:
+            group = [(key, level)]
+            claimed.add(key)
+            for other in expand_keys(
+                [key], graph, mode=SkillExpandMode(mode), hops=SKILL_EXPAND_HOPS
+            ):
+                if other not in claimed:
+                    group.append((other, level))
+                    claimed.add(other)
+            groups.append(group)
+        expanded["skill_groups"] = groups
+    exclude = filters.get("skill_exclude") or []
+    if exclude:
+        widened: list[tuple[str, int | None]] = []
+        for key, level in exclude:
+            for other in expand_keys(
+                [key], graph, mode=SkillExpandMode.DOWN, hops=SKILL_EXPAND_HOPS
+            ):
+                if all(other != seen for seen, _level in widened):
+                    widened.append((other, level))
+        expanded["skill_exclude"] = widened[:12]
+    return expanded
+
+
 def _conditions_for(
     dimension: str,
     filters: dict,
@@ -308,8 +407,13 @@ def _conditions_for(
     conditions: list = []
 
     if dimension == "q" and filters.get("q"):
-        pattern = f"%{filters['q']}%"
-        conditions.append(or_(JobPosting.title.ilike(pattern), JobPosting.org.ilike(pattern)))
+        pattern = f"%{_like_literal(filters['q'])}%"
+        conditions.append(
+            or_(
+                JobPosting.title.ilike(pattern, escape="\\"),
+                JobPosting.org.ilike(pattern, escape="\\"),
+            )
+        )
 
     elif dimension == "keywords" and filters.get("keywords"):
         # ANY keyword hitting title or employer, each escaped — the job
@@ -350,7 +454,15 @@ def _conditions_for(
                 per_skill.append(cond.exists())
             return per_skill
 
-        include_conds = _skill_exists(filters.get("skills") or [])
+        groups = filters.get("skill_groups")
+        if groups:
+            include_conds = []
+            for group in groups:
+                group_conds = _skill_exists(group)
+                if group_conds:
+                    include_conds.append(or_(*group_conds))
+        else:
+            include_conds = _skill_exists(filters.get("skills") or [])
         if include_conds:
             conditions.append(
                 and_(*include_conds)
@@ -467,9 +579,7 @@ def _conditions_for(
     elif dimension == "released":
         now = _utcnow()
         if filters.get("posted_within"):
-            conditions.append(
-                JobPosting.posted_at >= now - POSTED_WINDOWS[filters["posted_within"]]
-            )
+            conditions.append(window_clause(filters["posted_within"], now))
         if filters.get("posted_after"):
             conditions.append(JobPosting.posted_at >= filters["posted_after"])
         if filters.get("fresh_only"):
@@ -506,10 +616,34 @@ def _conditions_for(
             conditions.append(PostingInteraction.saved_at.is_not(None))
         if filters.get("seen"):
             conditions.append(PostingInteraction.seen_at.is_not(None))
+        if filters.get("seen_exclude"):
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(PostingInteraction.posting_id).where(
+                        PostingInteraction.user_id == user_id,
+                        PostingInteraction.seen_at.is_not(None),
+                    )
+                )
+            )
         if filters.get("applied"):
             conditions.append(
                 JobPosting.id.in_(
                     select(Application.posting_id).where(Application.user_id == user_id)
+                )
+            )
+        if filters.get("applied_exclude"):
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(Application.posting_id).where(Application.user_id == user_id)
+                )
+            )
+        if filters.get("hidden_exclude"):
+            conditions.append(
+                JobPosting.id.not_in(
+                    select(PostingInteraction.posting_id).where(
+                        PostingInteraction.user_id == user_id,
+                        PostingInteraction.hidden_at.is_not(None),
+                    )
                 )
             )
         if filters.get("extracted_only"):
@@ -770,6 +904,84 @@ def _ranked_window(limit: int) -> int:
     return min(max(limit * RANKED_WINDOW_MULTIPLIER, RANKED_WINDOW_MIN), RANKED_WINDOW_MAX)
 
 
+def smart_score(fit: float, affinity: float, *, seen: bool) -> float:
+    """The pinned smart blend: ``0.65*fit + 0.35*affinity`` (affinity is
+    the 0-10 term, neutral 7.0), then the seen demotion (-1.5 -- seen
+    postings sink, they never disappear)."""
+    value = SMART_FIT_WEIGHT * float(fit or 0.0) + SMART_AFFINITY_WEIGHT * float(affinity)
+    if seen:
+        value -= SMART_SEEN_DEMOTION
+    return round(value, SMART_KEY_DECIMALS)
+
+
+async def _apply_smart_affinity(db: AsyncSession, user_id: UUID, entries: list[dict]) -> None:
+    """Interest affinity per window entry: cosine(profile, posting) —
+    semantic as a RANKING signal only (ADR-0012 §13): it reorders the
+    hard-filtered window, never gates it.
+
+    All degrade lands on the neutral term without failing the request:
+    missing profile/posting embedding, dim mismatch, and gateway embed
+    failures (unconfigured AI — the production default — limiter
+    exhaustion, provider timeout). The unconfigured case is pre-flighted
+    through the resolver so it never reaches the gateway; a limiter
+    rejection happens before the gateway's audit write; a provider
+    failure leaves the gateway's own audit row to the caller's commit
+    (the explore read path never commits, so nothing persists there).
+    """
+    for entry in entries:
+        entry["affinity"] = SMART_AFFINITY_NEUTRAL
+    if not entries:
+        return
+    try:
+        from app.ai.providers.resolution import resolve_task_model
+        from app.models.enums import AITaskType
+
+        if await resolve_task_model(db, AITaskType.EMBED.value, user_id) is None:
+            return
+        from app.services.embedding_service import KIND_POSTING, EmbeddingService, cosine
+
+        service = EmbeddingService(db)
+        profile_row = await service.upsert_profile_embedding(user_id, commit=False)
+        if profile_row is None:
+            return
+        await db.commit()
+        profile_vector = profile_row.vector or []
+        profile_dim = len(profile_vector)
+        if not profile_dim:
+            return
+        stored = await service.embeddings_by_ids(
+            KIND_POSTING, [entry["posting"].id for entry in entries]
+        )
+        for entry in entries:
+            row = stored.get(entry["posting"].id)
+            if row is None or not row.vector or len(row.vector) != profile_dim:
+                continue
+            affinity = max(0.0, min(1.0, cosine(profile_vector, row.vector)))
+            entry["affinity"] = round(affinity * 10.0, SMART_KEY_DECIMALS)
+    except Exception:
+        return
+
+
+def _cap_org_diversity(entries: list[dict], limit: int) -> list[dict]:
+    """Display-level org diversity: max ``SMART_ORG_CAP`` per organization
+    inside the FIRST page composition. The ranking is never mutated —
+    displaced entries skip the page and, ranking above the page-1
+    cursor, later pages too (documented session drift, plan 179)."""
+    kept: list[dict] = []
+    per_org: dict = {}
+    for entry in entries:
+        org_id = entry["posting"].org_id
+        if org_id is not None:
+            count = per_org.get(org_id, 0)
+            if count >= SMART_ORG_CAP:
+                continue
+            per_org[org_id] = count + 1
+        kept.append(entry)
+        if len(kept) >= limit:
+            break
+    return kept
+
+
 async def _keyset_page(
     db: AsyncSession,
     user_id: UUID,
@@ -806,6 +1018,8 @@ async def _ranked_page(
     after_id: UUID | None,
     frontier: dict | None,
     limit: int,
+    *,
+    fit_overrides: "FitOverrides | None" = None,
 ) -> tuple[list[dict], str | None]:
     query = _base_select(user_id, saved=bool(filters.get("saved")))
     if conditions:
@@ -820,6 +1034,7 @@ async def _ranked_page(
         )
     ).all()
     entries = _row_entries(rows)
+    window_size = len(entries)
     if not entries:
         return [], None
     window_frontier = _frontier_payload(entries[0]["posting"])
@@ -827,9 +1042,22 @@ async def _ranked_page(
     if sort == "fit":
         from app.services.postings.posting_fit_service import get_posting_fits_batch
 
+        fits = await get_posting_fits_batch(
+            db,
+            user_id,
+            [entry["posting"] for entry in entries],
+            fit_overrides=fit_overrides,
+        )
+        for entry in entries:
+            entry["fit"] = fits[entry["posting"].id]["score"]
+
+    if sort == "smart":
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
+
         fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in entries])
         for entry in entries:
             entry["fit"] = fits[entry["posting"].id]["score"]
+        await _apply_smart_affinity(db, user_id, entries)
 
     entries = _sort_entries(entries, filters, sort)
     if sort == "relevance":
@@ -837,9 +1065,12 @@ async def _ranked_page(
         entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
     if after_key is not None and after_id is not None:
         entries = [entry for entry in entries if _after_cursor(entry, sort, after_key, after_id)]
+    elif sort == "smart":
+        entries = _cap_org_diversity(entries, limit)
     page = entries[:limit]
+    remaining = window_size if sort == "smart" and after_key is None else len(entries)
     next_cursor = None
-    if len(entries) > limit and page:
+    if remaining > limit and page:
         last_key, last_id = _sort_key(page[-1], sort)
         next_cursor = encode_cursor(sort, last_key, last_id, frontier=window_frontier)
     return page, next_cursor
@@ -851,6 +1082,7 @@ async def _ranked_page(
 def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     """Total order per sort: (key, id) with the id as stable tiebreak."""
     posting = entry["posting"]
+    key: Any
     if sort == "salary":
         normalized = (
             posting.salary_normalized_max
@@ -860,6 +1092,8 @@ def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
         key = float(normalized) if normalized is not None else float("-inf")
     elif sort == "fit":
         key = float(entry.get("fit") or 0.0)
+    elif sort == "smart":
+        key = float(entry.get("smart") or 0.0)
     elif sort == "relevance":
         key = float(entry.get("relevance") or 0.0)
     else:
@@ -926,6 +1160,17 @@ def _sort_entries(entries: list[dict], filters: dict, sort: str) -> list[dict]:
 
         for entry in entries:
             entry["relevance"] = relevance(entry)
+    elif sort == "smart":
+        for entry in entries:
+            entry["smart"] = smart_score(
+                entry.get("fit") or 0.0,
+                (
+                    entry["affinity"]
+                    if entry.get("affinity") is not None
+                    else SMART_AFFINITY_NEUTRAL
+                ),
+                seen=entry["interaction"] is not None and entry["interaction"].seen_at is not None,
+            )
     entries.sort(key=lambda e: _sort_key(e, sort), reverse=True)
     return entries
 
@@ -938,19 +1183,29 @@ async def explore(
     sort: str = "fit",
     cursor: str | None = None,
     limit: int = 20,
+    with_facets: bool = True,
+    fit_overrides: "FitOverrides | None" = None,
 ) -> dict:
     """The explore query: SQL filters → count → keyset page → facets.
 
-    `fresh`/`salary` page entirely in SQL. `fit`/`relevance` rank a
+    `fresh`/`salary` page entirely in SQL. `fit`/`relevance`/`smart` rank a
     bounded recency window (page size times a small multiplier) because a global fit
     order would require scoring every posting; `total` stays the exact
-    filtered count.
+    filtered count. ``with_facets=False`` skips the (grouped, self-excluding)
+    facet queries and omits the key — agent callers never render them.
+    ``fit_overrides`` (plan 169) scores the fit sort's ranking window with
+    the goal's disabled profile inputs so window selection honors them;
+    endpoint/chat/radar callers omit it and stay canonical, and the
+    non-fit-sort enrichment below stays canonical regardless — the smart
+    sort included: it always ranks canonical fits (plan-169 goal
+    overrides intentionally don't apply outside a goal).
     """
-    if sort not in ("fit", "fresh", "salary", "relevance"):
-        raise ValidationError("sort must be fit|fresh|salary|relevance")
+    if sort not in ("fit", "fresh", "salary", "relevance", "smart"):
+        raise ValidationError("sort must be fit|fresh|salary|relevance|smart")
     if sort == "relevance" and not filters.get("q"):
         raise ValidationError("sort=relevance requires the q filter")
 
+    filters = await _expand_skill_filters(db, filters)
     skill_ids = await _resolve_skill_ids(db, filters)
     source_ids = await _resolve_source_ids(db, filters)
     conditions = _collect_conditions(filters, skill_ids, source_ids, user_id)
@@ -980,9 +1235,17 @@ async def explore(
             after_id,
             frontier,
             limit,
+            fit_overrides=fit_overrides,
         )
 
-    return {
+    if sort not in ("fit", "smart") and page:
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+        fits = await get_posting_fits_batch(db, user_id, [entry["posting"] for entry in page])
+        for entry in page:
+            entry["fit"] = fits[entry["posting"].id]["score"]
+
+    result: dict = {
         "items": [
             {
                 "posting": entry["posting"],
@@ -996,8 +1259,10 @@ async def explore(
         ],
         "total": total,
         "next_cursor": next_cursor,
-        "facets": await facets(db, user_id, filters),
     }
+    if with_facets:
+        result["facets"] = await facets(db, user_id, filters)
+    return result
 
 
 # ------------------------------------------------------------------- facets
@@ -1092,11 +1357,10 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
 
     now = _utcnow()
     bucket = case(
-        (JobPosting.posted_at.is_(None), "older"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["24h"], "24h"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["7d"], "7d"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["30d"], "30d"),
-        (JobPosting.posted_at >= now - POSTED_WINDOWS["90d"], "90d"),
+        (window_clause("24h", now), "24h"),
+        (window_clause("7d", now), "7d"),
+        (window_clause("30d", now), "30d"),
+        (window_clause("90d", now), "90d"),
         else_="older",
     )
     buckets = {"24h": 0, "7d": 0, "30d": 0, "90d": 0, "older": 0}
@@ -1198,9 +1462,9 @@ async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5
         )
     )
     shared: dict[UUID, set] = {}
-    for other, skill_id in rows.all():
+    for other_posting, skill_id in rows.all():
         if skill_id is not None:
-            shared.setdefault(other.id, set()).add(skill_id)
+            shared.setdefault(other_posting.id, set()).add(skill_id)
     jaccard: dict[UUID, float] = {}
     for other_id, skills in shared.items():
         union = mine | skills
@@ -1211,8 +1475,8 @@ async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5
 
     ordered = sorted(jaccard.items(), key=lambda kv: -kv[1])[: limit * 2]
     ids = [posting_id for posting_id, _ in ordered]
-    rows = await db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
-    by_id = {p.id: p for p in rows.scalars().all()}
+    posting_rows = await db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
+    by_id = {p.id: p for p in posting_rows.scalars().all()}
     results = []
     for posting_id, score in ordered:
         other = by_id.get(posting_id)

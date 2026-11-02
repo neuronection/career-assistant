@@ -4,6 +4,731 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (sources list country lens, 2026-11-02)
+- **Your integrations, organized by country.** The job-sources list
+  gained the same country lens as the preset gallery: multi-select chips
+  derived from where each source came from (preset-added sources carry
+  their preset's country; everything else groups under ⚙️ Custom), with
+  counts and a flag badge on every preset row. A **Problems only**
+  toggle isolates failing, paused and needs-secret sources in one click
+  — the fastest path from "something's wrong" to the exact source.
+  No schema change: countries derive from the preset catalog.
+
+### Fixed (hide now curates /postings, 2026-11-02)
+- **Hiding a posting finally removes it from the list.** The card's
+  **hide** action wrote the curation marker correctly, but the explore
+  query only excluded hidden postings behind an opt-in filter nothing
+  sent — so the card silently stayed in place (reported on the hide
+  button). Explore now excludes hidden postings **by default** — the same
+  rule every other posting list already had — with `hidden_include=true`
+  as the explicit opt-back-in. Autopilot drops its now-redundant
+  `hidden_exclude` default.
+
+### Added (job-source presets, 2026-11-02)
+- **Find your country's sources at a glance.** The preset gallery gained
+  a country lens: multi-select chips (🇬🇷 Greece · 🌍 Worldwide — counts
+  per chip) derived from the preset catalog, so new countries appear
+  automatically as presets land. The app language preselects the chip
+  when that country has presets (Greek opens on Greece); "All sources"
+  clears the lens. Chips only filter the curated presets — the global
+  bring-your-own-tenant connectors stay one click away under Custom
+  source, and the chip row combines with search and the ATS/Remote tabs.
+
+### Added (bulk AI-job reprocessing, 2026-11-02)
+- The admin audit console can now **reprocess failed AI jobs in bulk**: a
+  new Failures preview (`GET /admin/audit/jobs/failures`) groups terminally
+  failed background jobs by type × error family with dedupe/cap estimates,
+  and a confirmed action (`POST /admin/audit/jobs/requeue`) requeues them
+  as fresh queue rows (`requeue_of` markers in both directions) — dedupe
+  against queued/running twins, 200-job cap per action, one bulk action at
+  a time.
+- The audit console gains the **Failures tab** (`?tab=failures`): grouped
+  failure cards with the top error, window selector, an explicit confirm
+  step showing counts/cap/dedupe before requeueing, an outcome summary
+  (`requeued / skipped_dup / skipped_cap`), per-row requeue with a detail
+  drawer, related-maintenance links (embeddings recompute, scheduled
+  sweeps), and failure badges on the AI activity + Jobs tabs linking into
+  Failures pre-filtered.
+
+### Added (preset freshness + tile parity, 2026-11-02)
+- Preset cards now carry **freshness signals**: a live-verified openings
+  count and the verification date per tenant (all 17 ATS tenants
+  re-probed on 2026-11-02 — ~530 open roles across the catalog), rendered
+  as muted meta on every card; remote boards show Worldwide + verified.
+- The wizard's connector tiles match the preset-card grammar and show the
+  connector's own description.
+- Sources created from presets keep their identity: the list card and the
+  source page header show the preset logo (monogram until artwork is
+  dropped into `public/presets/<slug>.svg`), and the source page header
+  prefers the display title.
+
+### Fixed (ATS integration honesty wave, 2026-11-01)
+- **Remotive sources can finally sync.** Remotive's robots.txt disallows
+  its JSON API (`Disallow: /api/*`), so every Remotive sync died with
+  `net-denied: robots.txt disallows /api/remote-jobs` and never ingested
+  anything. The connector now rides the feed robots allows
+  (`remotive.com/remote-jobs/feed`) — same listings, plus the full job
+  description per row (better than the old API, which truncated them).
+  The optional category filter is now applied client-side (robots
+  disallows `category=` URLs); existing sources keep working.
+- **Failed runs no longer show "Last run —"** on the source page: a
+  connector failure (robots denial, network error) now stamps the last
+  run time like any completed run.
+- **The "Follow my job radar" label no longer lies on feed connectors.**
+  Sources created before the mode picker knew about connector
+  capabilities could sit in radar mode over connectors that ingest whole
+  boards (no query rotation). Such a source now normalizes to static on
+  its next sync, so the label matches the behavior.
+- **AI connection tests are audited.** The Settings → AI connection
+  probe spends tokens like any other model call and now lands an
+  `ai_generations` audit row (task `connection_test`) for both the OK
+  and the failing probe, visible in `/settings/audit?tab=ai`.
+
+### Fixed (JOIN.com connector, 2026-11-01)
+- **JOIN.com postings now carry full descriptions.** The board's public
+  list feed has no description field, so JOIN postings previously never
+  got one — and because detail enrichment drives extraction, they never
+  gained skills either. The connector now honors the same `detail_ids`
+  targeted-fetch knob the enrichment funnel already sends: it fetches
+  each job's own page (addressable by the list id) and reads its embedded
+  schema.org JobPosting JSON-LD, so descriptions, employment type,
+  salary and skills extraction land like on every other connector.
+  Existing description-less JOIN postings backfill on the next
+  enrichment run.
+
+### Fixed (integrations UI audit, 2026-11-01)
+- **Job-source configs are editable again.** The source page's
+  Configuration tab now renders the connector's own settings form for
+  every builtin source (Recruitee, Workable, RSS, CSV…) — previously only
+  managed bundles had a form, so a wrong company slug or a size cap could
+  not be fixed after adding the source. The list page's ⋯ menu also gained
+  **Edit**, opening the source wizard in update mode.
+- **The mode picker no longer promises what a connector can't do**:
+  sources whose connector ingests a whole board (no search rotation) show
+  the radar option disabled with an explanation, and preset-added tenants
+  now start in **static** mode instead of an inert radar.
+- **The "needs secret" badge only fires for required credentials** —
+  optional slots (e.g. an unused bearer token) no longer paint a working
+  source as incomplete.
+- **Run history shows ingestion runs**: detail-enrichment ticks (the 3 ms
+  "Completed · 0 items" rows) are no longer mixed into the sync history,
+  where they could mask a fully-failed source.
+### Added (smart discovery, 2026-11-01)
+- **Daily smart digest (opt-in).** Enable **Daily smart matches** in
+  Settings → Notifications and the daily job ranks fresh, unseen,
+  unapplied postings with the smart recipe and notifies you — only on
+  days when at least one new match exists, once per day (payload carries
+  the count and date; the notification deep-links into the living smart
+  view `/postings?sort=smart`). The same job prunes the smart-search
+  cache (7-day TTL). Zero AI in the daily path.
+- **Smart search on `/postings`.** Describe what you are looking for in
+  plain language ("remote junior python roles") and the smart search box
+  maps the sentence onto the real explore filters through one small
+  cached AI call — the feed reruns with live facets, and an
+  "Interpreted as …" chip row shows (and lets you remove) every applied
+  filter. Repeat phrasings cost nothing: the mapping is cached
+  cross-user, resolved against the skill taxonomy (exact names and
+  aliases), and never personalized.
+- **Smart sort on `/postings`.** The new **Smart** option ranks the feed
+  by your fit score blended with a semantic interest-affinity signal
+  (`0.65·fit + 0.35·affinity`), demotes already-seen postings (they stay
+  visible, just lower) and caps the first page at two postings per
+  employer. Zero AI per request: the interest signal reads stored
+  embeddings, refreshed lazily only when your profile changes
+  (content-hash deduped). Missing interest data, a dimension mismatch or
+  an unconfigured AI provider all degrade to the neutral fit ranking —
+  the request never fails. Cards show a small **Smart** chip while the
+  sort is active.
+
+### Changed (autopilot findings workspace, 2026-11-01)
+- **"Dismiss all from this run"** on the run page clears that run's open
+  findings from the feed in one action — cleanup, not feedback: it
+  teaches the goal nothing. **Mark applied** on a finding card records a
+  real application through the same path as the posting page, and the
+  Applied badge appears.
+- **Each run gets a full page: `/autopilot/runs/:id`.** The runs rail
+  links there, `?run=<id>` deep links land on the page, and the deliver
+  notification points at it — old notifications keep working. The page
+  shows the step trace, the graph, the run's AI calls (admin-gated
+  audit links), the "what I searched & why" timeline and the run's
+  findings with a one-click "show in the feed" filter; the feed's
+  finding cards open the quick-peek modal from their run/date line, now
+  with an "Open full view" shortcut.
+- **`/autopilot` is now a findings workspace.** The shortlist is the
+  surface: a flat feed of the same job cards `/postings` uses — each with
+  its evidence row (why, verified quote, must-have coverage, 👍/👎), a
+  **Mark applied** button (an Applied badge appears when the posting is
+  already in your applications), and run/date provenance. A **runs rail**
+  on the right lists the latest runs across all goals with status, live
+  findings, examined counts and tokens; the goal switcher filters the
+  feed, and Flat/By-run toggles between the latest evaluation per posting
+  and the full history. **The filter rail** narrows the feed server-side
+  — state, dedupe, hide-applied, fit-score and must-haves floors,
+  employer text, board, seniority, remote-only and posted-within, with
+  self-excluding facet counts, a newest/best-fit sort and keyset
+  pagination; the whole filter set rides the URL. Dismissed findings are
+  hidden by default; both rails collapse on small screens. The old
+  run-grouped listing with the inline timeline is replaced (the run
+  detail keeps the searched-queries timeline; a dedicated run page
+  follows).
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Add source*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters. Cards **multi-select**: tick as many
+  as you like (already-added presets show an *Added* badge and stay
+  inert) and the footer adds them all in one action, reporting per-item
+  failures. Ships 12 Greek-employer tenants (Recruitee, Teamtailor,
+  Workable), the three remote boards; the catalog is a JSON file with a
+  contract test, and missing artwork degrades to a deterministic monogram
+  until the logo is dropped into `public/presets/<slug>.svg`.
+
+### Added (Workable connector, 2026-11-01)
+- **New bundled connector: Workable careers feed** — Workable is the ATS
+  behind much of the Greek product scene (Skroutz, Hack The Box, Plum,
+  Epignosis, Spotawheel…), and its public careers-widget API needs no
+  credentials. One source per account (the slug of the tenant's
+  `apply.workable.com/<account>` URL), free like the Recruitee/Teamtailor
+  feeds, with title, department, city/country, remote flag and publish
+  date per posting — fetched with `details=true` so every posting carries
+  its full description for skills extraction. Ships with 5 Greek tenants
+  as presets (Skroutz, Spotawheel, Hack The Box, Plum, Epignosis — 130+
+  open roles combined) and a captured-payload connector wall.
+
+### Fixed (first ingest of a known employer crashed, 2026-11-01)
+- A **new posting whose organization resolved to an existing org** (exact
+  name match) crashed the whole sync with `ValueError: badly formed
+  hexadecimal UUID string` — the change journal received the posting's id
+  before the row's first flush. The preset gallery's ATS tenants exposed
+  it (their employers already existed in the org catalog from other
+  sources); it also affected every connector ingesting a known employer.
+  New postings now get their id assigned before any journal record.
+
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Browse presets*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters; picking one opens the source wizard
+  with the connector, company slug and display title already filled.
+  Ships 12 Greek-employer tenants (Recruitee, Teamtailor) and the three
+  remote boards; the catalog is a JSON file with a contract test, and
+  missing artwork degrades to a deterministic monogram until the logo is
+  dropped into `public/presets/<slug>.svg`.
+
+### Fixed (blocked sources pause themselves, 2026-11-01)
+- A job source that hits a **non-retryable operator-action error** — a
+  provider block, a sign-in wall, missing credentials, or an unsupported
+  host — now **pauses itself** with the reason on the source row and
+  alerts admins once (the existing background-failure notification
+  funnel). Previously the hourly schedule kept retrying an external block,
+  refreshing the provider's bot score and extending it, while the ledger
+  filled with identical failures. Retryable errors (empty result pages,
+  rate limits) keep scheduling as before; resuming a paused source stays
+  an explicit user act.
+
+### Fixed (run status honesty, 2026-11-01)
+- A radar-mode sync whose searches fail (e.g. Indeed served pages with no
+  readable job cards) is now recorded as **degraded**, not **skipped** —
+  every radar run carries a rotation note, and the old precedence let that
+  note mask real provider errors at zero items, hiding failed runs in the
+  ledger. Genuine polite skips ("radar has no keywords yet") are still
+  skipped.
+
+### Changed (sources — radar by default, card picker, 2026-10-30)
+- **New job sources follow your job radar by default.** `query_mode`
+  now ships a `radar` default (migration 0081, model + create/update
+  fallbacks + the add-source wizard) — a fresh source rotates your
+  radar's role groups instead of asking for manual keywords; existing
+  sources keep their mode until you switch. The Configuration tab's
+  "Search source" control is now a two-card picker (radar / static, with
+  icons and accessible radio semantics) instead of a native dropdown.
+
+### Fixed (source config guard, 2026-11-01)
+- A managed bundle source can no longer be saved into a state that only
+  fails at sync: the `options` passthrough is now validated against the
+  bundle's own config schema when the source is created, edited, switched
+  between static and radar mode, or enabled — a missing required field
+  (e.g. search keywords) is a clear 400 naming the field instead of every
+  run dying with `config rejected: keywords Field required`. Radar mode
+  stays exempt for keywords/location (the radar supplies them per sync),
+  and the source page now blocks the static-mode switch with the same
+  message while the fields are still empty.
+
+### Fixed (source display names, 2026-11-01)
+- Imported job sources show their board's name: the extension manifest
+  grows an optional root `title` ("LinkedIn", "Kariera.gr", "Indeed"),
+  the managed import seeds it as the source's display name and keeps it
+  fresh on every consented re-apply, and the posting page's
+  **Open on …** button + source attribution show it instead of the
+  generic connector label ("MCP script (external process)"). Admins can
+  also name manual sources; untitled bundles keep the old fallback.
+
+### Fixed (list return state, 2026-10-31)
+- Opening a posting no longer costs you the list: coming back to
+  `/postings` — via the browser's back button or the **All postings**
+  link (and after hiding from the posting page) — keeps the filters, the
+  sort, every already-loaded infinite-scroll page and the scroll height.
+  The same contract now covers `/companies` and its **All companies**
+  link. Actions taken on the posting keep the restored list honest
+  (hidden postings drop out; read/saved state updates in place), while a
+  fresh visit from the navigation still starts at the top.
+
+### Added (market statistics stretch, 2026-10-31)
+- **The posting clock** (plan 171 slice 1): `GET /postings/stats/clockwork`
+  joins the market stats API — a complete 7x24 weekday-by-hour matrix over
+  the shared effective-posted predicate (always UTC, stated on the wire),
+  with per-cell previous-window deltas and a deterministic peak
+  (ties break weekday-then-hour). Two stats tightenings ride the same
+  slice: the rail sparkline is clipped to today (future-dated rows still
+  count in every KPI) and the "skill lead changed" insight card now
+  requires the new leader's rise to clear the trailing-baseline gate.
+- **"When the market posts"** (plan 171 slice 2): the stats page renders
+  the clock — a weekday × hour heat grid over the `--ca-heat-hot` token
+  ramp in its own row after the volume card, zero cells muted, the
+  deterministic peak ringed and named ("Busiest: Wed 09:00 UTC"), the
+  weekday axis localized and hour ticks at 0/6/12/18/23, plus a
+  screen-reader summary of the condensed totals. UTC is stated in the
+  docs (`docs/user/market-stats.md`).
+- **Chart⇄Data table views** (plan 171 slice 3): every data card on the
+  stats page (volume, dimensions, salary, top hiring, the posting clock)
+  grows a segmented Chart⇄Data toggle — default Chart, local state — and
+  the Data view renders the same rows the card's CSV export downloads
+  (the shared per-card builders), so the table is the chart's textual
+  twin by construction. Backed by the assistant-ui `Table` module; the
+  skills lists and the demand quadrant carry `sr-only` captions instead.
+- **Custom comparison + copy link** (plan 171 slice 4): the market-stats
+  comparison becomes URL state (`compare=off|previous|custom`, default
+  `previous` — the old local ghost toggle dies same-commit). `custom`
+  overlays an arbitrary B window beside the selected one — seeded to the
+  equally-long span before A, with an inline date pair (its end
+  auto-mirrors A's span; in `window=all` nothing pre-fills and a hint
+  asks for both dates). The B fetch reuses A's resolved bucket and the
+  overlay aligns by bucket offset — longer grids crop, shorter ones
+  zero-pad, and a `compare-hint` chip names the shift; while a split is
+  on, the overlay pauses with a hint instead. A too-long B window degrades
+  on the API's real HTTP 400 into the same localized hint, page intact.
+  The volume chart renders the B series as a dashed token line over the
+  bars with a localized legend. Header gains a `Copy link` action
+  (family clipboard with the execCommand fallback) with a transient
+  "Link copied ✓" state announced politely.
+
+### Added (market statistics rails, 2026-10-31)
+- **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now
+  sits on the right edge of `/postings` and `/companies` — pulse tiles
+  (new in 24h/7d/30d with deltas), the 14-day volume sparkline, rising
+  skills and top sources on the postings feed; companies hiring, the
+  new-companies chip, top hiring companies and the industry mix on the
+  directory. Every chip that has an honest filter mapping applies it to
+  the host page's URL state (posted-within, skill include, source
+  include, new-companies status, industry facet), the rest render plain,
+  and both rails link into the full `/postings/stats` analysis. The rail
+  keys off the page column's own width (container query — chat-dock
+  safe) and collapses to a "Market pulse" card above the results when
+  the page is narrow.
+
+### Added (market statistics page, 2026-10-31)
+- **Market statistics page** (plan 170 slice 2): `/postings/stats`, reached
+  from the sidebar (after Companies), turns the market statistics API into
+  a first-class analysis page — window presets (24h/7d/30d/90d/all plus a
+  custom date range), an open/all status-basis toggle, a previous-period
+  comparison, the deterministic "what changed" insight cards, pulse tiles
+  with deltas and a sparkline, volume-over-time charts with split
+  selectors, the skills suite (top list, rising/cooling, volume ×
+  momentum quadrant, category donut, level histogram, priority mix), a
+  nine-dimension market-structure explorer including demand by career
+  family, per-currency salary bands and histograms, the companies card,
+  and the coverage + source-freshness footer. Chart marks that have a
+  filter vocabulary link straight into `/postings` and `/companies` with
+  the matching filters; the URL carries the whole view so analysis
+  windows are shareable. Documented in `docs/user/market-stats.md`;
+  registered in the feature registry (beta, with a demo-tour scene).
+- **Market stats CSV export** (plan 170 slice 4): the header button downloads the
+  whole loaded dashboard and every data card its own payload; cells beginning
+  with `=`, `+`, `-` or `@` are quote-guarded against spreadsheet formula
+  execution.
+
+### Added (market statistics API, 2026-10-31)
+- **Market statistics, computed live** (plan 170): new read-only
+  endpoints under `/postings/stats/*` — pulse summary (fixed-window
+  counts with deltas and a 14-day sparkline), overview with deterministic
+  "what changed" insight cards and data-coverage chips, volume over time
+  with the previous-period comparison, skills demand with rising/cooling
+  trends, market-structure breakdowns (including demand by career
+  family) and per-currency salary bands — plus `/companies/stats/*`
+  (companies hiring, new companies, top hiring, industry mix). Every
+  count carries an explicit status basis (open vs all) and its delta
+  against the previous window of equal length, and a freshness footer
+  names stale or paused ingestion sources. The pages and rails that
+  surface these numbers land with the frontend slices.
+
+### Changed (market statistics groundwork, 2026-10-31)
+- **One posted-date truth across the postings surfaces** (plan 170): the
+  "posted within" windows of the explore feed, the filter-spec search
+  (`POST /postings/filter`), the RSS saved-search feeds and the explore
+  date facets now read the effective posted date — the market date, or
+  the ingestion date when the source never supplied one — instead of the
+  market date alone. Postings without a market date no longer fall in no
+  window; they surface by the date they were ingested, so "new in the
+  last 7 days" finally matches what the feed shows. The RSS wire
+  vocabulary keeps its `1d` key (translated to the shared `24h` window).
+
+### Added (autopilot profile usage, 2026-10-31)
+- **Per-goal profile controls** (plan 169): every autopilot goal gains a
+  "What the autopilot uses from your profile" section — six toggles
+  (skills, education & certificates, languages, location, experience,
+  lifestyle constraints) plus a stage source (your profile or the goal's
+  seniority). Defaults reproduce today's behavior; a live preview shows
+  the effective snapshot ("Skills: react, python · Stage: student …")
+  while you edit, each goal card carries chips for the inputs you
+  switched off, and the run detail's Inputs panel shows exactly which
+  profile inputs a run used. Disabled inputs score neutral instead of
+  penalizing, and the search itself honors them.
+
+### Changed (autopilot profile usage, 2026-10-31)
+- **Disabled profile inputs stop dragging scores down** (plan 169): a
+  goal-run's fit scoring neutralizes exactly the toggles you switched
+  off — a disabled dimension or prerequisite reads a neutral 7/10 with a
+  visible "disabled for this goal" note, prerequisite sub-scores merge
+  over the inputs still in play (switching one off can only raise or
+  keep the merged score), and the goal's seniority selection can drive
+  the career stage (`stage_source=goal`: intern→student,
+  junior/mid→early career, senior+→experienced). The search windows,
+  the ranking, the sweep recall and the findings all rank on the
+  goal-adjusted score; the posting-detail card and chat "my fit" keep
+  showing the canonical score, and match estimates ignore the toggles.
+- **The planner honors the same toggles** (plan 169): disabled profile
+  inputs are dropped from the planner's context (with everything off it
+  plans from your goal text and the job-market vocabulary alone), your
+  languages join the context when enabled, and the run trace's Inputs
+  panel shows exactly which profile inputs a run used. Autopilot
+  explanations never cite a dimension you switched off as a strength or
+  a weakness.
+
+### Added (autopilot run trace, 2026-10-31)
+- **Every autopilot call is now linked to its run in the AI audit ledger**
+  (plan 168): plan, replan, curation and the semantic-sweep embedding call
+  record which run and stage they served, so the `/settings/audit` run-id
+  filter works for autopilot like it already did for CV runs.
+- **Each run now persists a durable step trace** (plan 168): plan → search
+  → filter → replan → evaluate → graph sweep → budget guard → curate →
+  deliver record timing and argument/output summaries on the run row —
+  surviving restarts and checkpoint pruning — including failed and
+  cancelled runs, which used to lose everything.
+- **`GET /autopilot/runs/{run_id}` opens one run's detail** (plan 168):
+  the step trace, the graph's node list, the run's AI calls (metadata
+  only — no prompt text), its findings and its timeline, addressed by id
+  so runs beyond the 30-row history resolve. A foreign and a missing run
+  answer the same 404.
+- **The Autopilot page opens any run in a detail modal** (plan 168): a
+  "Details" action (or `?run=<id>` deep link) shows the step-by-step trace
+  with each step's arguments and outputs, the replan branch, the graph
+  strip, the run's AI calls — with a "View call" link into the audit
+  ledger for admins — and its findings. Pre-trace runs fall back to the
+  search timeline.
+- **Optional OpenTelemetry span export** (plan 168): opt in per
+  environment with `CAREER_OTEL_EXPORT=console|otlp` (plus
+  `CAREER_OTEL_ENDPOINT` and `CAREER_OTEL_SERVICE_NAME`, an infra knob
+  like `CAREER_MOCK_AI` — install the new `otel` extra). Off by default;
+  without the extra every span is a no-op, so desktop stays zero-setup.
+  Spans (`autopilot.run`, `autopilot.node` on every graph node including
+  `deliver`, `llm.call`) carry run/node
+  metadata only — never prompt or output text — and a misconfiguration
+  degrades to disabled with one warning, never a crash.
+
+
+### Changed (autopilot retrieval quality, 2026-10-30)
+- **Autopilot plans from your profile and searches by keyword** (plan 158):
+  the planner now sees your skills (plus the taxonomy skills around them),
+  education level, location and target seniority, and it writes keyword
+  variants that match titles and employers — instead of one
+  natural-language phrase that matched almost nothing. The plan prompt also
+  lists the real explore vocabulary, so variants stop inventing filter keys
+  and being dropped. A literal `%` or `_` in a search phrase is matched
+  literally instead of acting as a wildcard, and the keyword axis (a list of
+  terms, any of which may match a title or employer) now applies to every
+  search that uses it — it was parsed but never applied, so keyword variants
+  silently matched everything.
+- **Your must-terms are a guarantee, not a hint** (plan 158): a shortlist
+  is ordered by must-term coverage first and fit second, so a posting that
+  matches what you said you must have always outranks a higher-scoring one
+  that matches none. Each finding's card shows its coverage (for example
+  "Must-haves 2/3"), its evidence records it, and the curator weighs it when
+  writing the explanation.
+- **Autopilot looks deeper and wastes less work** (plan 158): each search
+  variant now ranks a 200-posting window (40 examined per variant) instead
+  of 125, the curated pool widens with the goal's shortlist size, and the
+  windows hold fresh postings only — seen, applied and hidden vacancies no
+  longer consume slots before the filters drop them. Runs also stop
+  computing the explore sidebar facets they never render, and the timeline
+  shows how many postings each search examined next to its total.
+- **Autopilot broadens once instead of coming back empty** (plan 158): when
+  a run's filtered pool is thinner than the shortlist size, one bounded
+  replan relaxes the wording and widens the scope (never-terms stay
+  respected) and searches again; the timeline shows the broaden step with
+  the queries it chose. A run whose budget is already spent skips the extra
+  call, so a capped goal still ships its deterministic findings.
+- **Skill filters can widen over the curated skill graph** (plan 158):
+  explore, the chat's `search_postings` tool and saved searches accept
+  `skill_expand=off|down|related` (default `off`, so nothing changes unless
+  asked). `down` also matches sub-skills and synonyms of a listed skill;
+  `related` additionally walks related concepts. Exclusions only ever widen
+  the precision-losing mode never widens what you banned.
+- **Autopilot also searches related roles** (plan 158): the strongest mapped
+  matches seed a one-hop walk over the catalog's curated
+  `similar_to`/`alternative_to` edges, and open postings for those neighbour
+  roles join the pool — deterministic, no embeddings and no AI, so it works
+  on the desktop profile too. The same gates (open, unseen, never-terms,
+  cooldown) apply, and a catalog without relations simply adds a no-op
+  timeline entry.
+- **The Autopilot graph is documented as a reference flow** (plan 158): the
+  developer docs now carry its topology, the candidate funnel with the real
+  bounds, the checkpointed state channels, the three recall signals (keyword,
+  semantic, curated job relations) and the budget/abort routing table, plus a
+  plain-language diagram on the user page. A docs-truth test pins every
+  number and node name to the code, so a stale diagram fails CI.
+- **Autopilot also searches by meaning** (plan 158): one semantic pass over
+  the posting embeddings already stored adds vacancies whose wording never
+  matches a keyword variant. It is a recall source, never a bypass — every
+  semantic candidate passes the same open/seen/never-term/cooldown gates, and
+  a missing or failing embedding simply leaves the keyword results intact.
+  Coverage grows as postings get embedded (admin recompute today).
+### Changed (filters — excluded picker chips, 2026-10-30)
+- **Excluded skills and organizations now look excluded**: the chips of
+  the "Excluded skills" and "Exclude organization" pickers render in the
+  same rose as the tri-state exclude chips (with the `−` marker) instead
+  of the picker's default accent, so one value reads the same however it
+  was excluded.
+
+### Added (postings — presets, 2026-10-30)
+- **Saved views are one click away**: a preset bar above `/postings`
+  results saves the whole search (text, facets, state toggles, sort) as a
+  named chip. Chips re-apply on click and highlight when active; the `⋯`
+  menu shows what the preset holds and offers **Update with current
+  filters**, **Rename** and **Delete** (confirmed). Saving a view that
+  already exists updates it instead of duplicating; names are unique per
+  user.
+- Presets are **saved searches** (`search_history.name`, new
+  `PATCH /me/searches/{id}`), so the existing scheduler, digest and RSS
+  surfaces can run them; the old "Save this search" button is replaced
+  by the bar.
+
+### Changed (filter chips — one cycle, one clear, 2026-10-30)
+- **Every filter chip now cycles off → include → exclude → off.** The
+  rails on `/postings` and `/companies` previously bounced between
+  include and exclude forever on click (clearing needed a right-click);
+  a third click now clears, and right-click still jumps straight to
+  exclude.
+- **Selected chips carry their own ×**: one click clears the value
+  without cycling through the other state. The remove control is a
+  sibling button (a nested button would be invalid markup), with a
+  "Remove …" accessible name.
+- **Companies industries can now be excluded** too (`industry_exclude`
+  on `GET /companies`), so the last include-only facet axis follows the
+  same tri-state rule as work mode, seniority and employment.
+
+### Added (taxonomy backlog bar, 2026-10-30)
+- **`/settings/taxonomy` shows the backlog**: a work-queue bar over the
+  skill ontology (active, proposed, deprecated, auto-promoted all-time and
+  the last seven days) plus every review queue's live count — relations,
+  enrichment, draft paths, translations. Queue tabs carry their counts, so
+  pending work is visible without opening each section. Counts come from
+  one server-side aggregation (`GET /admin/taxonomy/stats`), so the bar and
+  the tabs can never disagree, and the enrichment moderation queue now
+  filters its proposals in SQL instead of loading every published job.
+
+### Changed (URL state + company sorting, 2026-10-30)
+- **A `/postings` search now lives in the URL**: the search text, every
+  facet (includes, excludes, skills with their levels, organizations,
+  sources, the state toggles) and the sort ride the address bar, so a
+  reload, the back button, a bookmark or a shared link all reopen the
+  same view. Malformed or unknown values are dropped and the page falls
+  back to its defaults.
+- **`/companies` sorts the directory**: Most open roles (default), Name
+  A–Z and Recently hiring (latest open posting first). **Its whole filter
+  rail is URL state too** — name search, status chips, every tri-state
+  facet, location, the open-roles floor and the sort
+  (`/companies?status=new&work_mode=remote&min_open=5&sort=recent`); the
+  open-roles select gains an "Any number of roles" entry for no floor.
+
+### Changed (postings — hide seen + sorting, 2026-10-30)
+- **Hide seen** joins the `/postings` filter rail: one toggle drops the
+  postings you already opened (and still counts as an active filter), so
+  a long list can be reduced to what is actually new.
+- **Results sort from the header**: Best fit (default), Newest, Highest
+  salary (annualized, unknown last) and Relevance once a query is typed —
+  all four orders the explore engine already implemented, now reachable.
+  Every sort still carries the deterministic fit score on the returned
+  page, so score rings never go blank when you change the order.
+
+### Changed (posting cards — one-click seen + a seen rail, 2026-10-30)
+- **Unseen postings on `/postings` carry a one-click seen action** — a
+  quiet "Mark as seen" action in the card's status line (no menu, no trip
+  to the detail page); clicking it turns that same slot into the seen
+  mark in place. Apply and opening the detail still mark seen as before.
+- **Seen postings are visible at a glance**: the card's leading edge
+  gains a 3 px neutral bar next to the existing quiet double-check — a
+  read marker, not a warning colour, and the card keeps full contrast
+  (nothing is dimmed). The same rail marks seen cards on `/catalog` and
+  the dashboard feed.
+
+### Fixed (postings — live-instance findings from the kariera review, 2026-10-30)
+- **Salary annualization no longer crashes on database numerics.** The
+  extraction path multiplied the `Numeric` column value (a `Decimal` on
+  both dialects) by a float factor — "unsupported operand type(s) for *:
+  'decimal.Decimal' and 'float'" failed one posting's deep extraction
+  live on the desktop profile. `annualized()` now normalizes to floats;
+  a regression test pins the Decimal inputs.
+- **Detail enrichment drains the backlog in one run.** It processed a
+  single knob-sized batch per run (the 5-batch cap existed but the loop
+  ignored it); it now drains up to `MAX_BATCHES_PER_RUN` batches, reports
+  the batch count and the bundle's `run_summary` (previously discarded),
+  and carries the detail rung's provenance (`detail_extractor` /
+  `source_page`) into the posting's raw bag — the data now shows whether
+  a description came from JSON-LD or the DOM fallback.
+
+### Changed (sources — clickable cards + custom pacing values, 2026-10-30)
+- **Job-source cards open their manage page on click** — the whole row is
+  the target (title is the keyboard-reachable affordance); the enable
+  toggle, Test and the ⋯ overflow keep working on their own. Cards follow
+  the app-wide item-card grammar (hover accent, focus ring), so the
+  sources list reads like every other card grid.
+- **Pacing knobs take custom values, not only presets**: role groups per
+  sync (1–6), time budget (20–90 s) and any bundle numeric field with
+  choices (pages per sync, …) gain a trailing **Custom…** entry that
+  swaps the chips for a bounded number input — a stored value outside the
+  presets opens the input prefilled. New defaults: every integration
+  fetches all detail pages, role groups 2, budget 90 s, detail fetch
+  session Guest.
+- Status chips render their labels instead of raw i18n keys.
+
+### Changed (audit auto-refresh + export coverage, 2026-10-30)
+- **Overview gains an auto-refresh toggle** (plan 157): a 30-second
+  cadence refetches the KPIs, charts and failure feed in place — the
+  monitoring console no longer needs manual reloads. **CSV export covers
+  every stream**: source runs and the data-change journals
+  (`stream=changes&entity=postings|skills`) join the existing AI,
+  security and jobs exports, with export buttons on the Jobs tab's
+  source-runs card and the Changes tab.
+
+### Fixed (failure-alert deep links, 2026-10-30)
+- **Scheduler failure notifications and the seeded notification kinds
+  follow the Automations move** (plan 156): the failure-alert payload and
+  the `manage_url` of `digest_ready`, `background_failed` and
+  `checkin_due` now point at `/settings/automations` instead of the
+  legacy `/settings/scheduler` redirect; existing databases heal via
+  migration `0076`. The scheduler's failure alerting itself (threshold 3,
+  deduped re-alerts, admin/owner routing, recovery reset) was already in
+  place and is now link-pinned by a test.
+
+### Changed (connectors — full-length job descriptions, 2026-10-30)
+- **The 8 KB raw-bag cap for MCP-script sources is now 64 KB** — job
+  descriptions arrive complete instead of trimmed around ~6,000
+  characters (the envelope's progressive shrink remains the last-resort
+  guard; `next_state` stays at 8 KB — cursors don't need more). The AI
+  deep-extraction prompt slice rises with it (6,000 → 24,000 chars), so
+  skills/seniority/salary extraction sees the full text. The connector
+  template's authoring guide and the SDK caps table document the new
+  bound.
+
+### Fixed (extensions — one source per origin+subpath, 2026-10-30)
+- **Multi-bundle repositories can register one source per bundle.** The
+  "source already exists" rule now keys on origin **+ subpath**: the
+  same repo at different subpaths (the integrations shape — several
+  `*/src/` bundles side by side) registers cleanly, each source
+  discovering and offering only its own subpath's manifests. A new
+  `extension_sources.subpath` column backs the rule (migration 0075,
+  backfilled from the descriptors); GitOps reconcile disambiguates
+  same-origin sources by the install they host (an uninstalled
+  extension drifts typed instead of guessing); and the sources list
+  shows each row's subpath. Discovery hardening included: a declared
+  subpath that is missing from the fetched ref is a typed `not-found`
+  instead of a raw crash.
+
+### Added (update checks — family version API, plan 48 W6)
+- **A discreet update badge in the sidebar footer**, backed by
+  `GET /api/v1/instance/update-check`: a public, 6 h-cached endpoint over
+  the synced family version-check contract
+  (`backend/app/core/version_check.py`, canonical in `dev/contracts/` —
+  ADR-0048) that checks the neuronection.com version API with real semver
+  ordering and the stable-channel law (prereleases are never offered to
+  stable clients; validation before use; failures read as "no update",
+  never a blocker; no telemetry). Clicking the badge opens the release
+  links; dismissing isn't needed — the dot is a status, not an
+  interruption. Updates still install through the package manager or
+  installer — check-only by family law. Accepted by the shared
+  cross-language fixture wall
+  (`backend/tests/fixtures/version_check.fixtures.json`).
+- **The badge anchors the sidebar footer's version text** (compact and
+  full layouts), and the About page names the installed version with
+  direct links to the new release and its notes whenever an update is
+  out.
+
+### Changed (AI-call detail drawer, 2026-10-30)
+- **AI activity rows open a detail drawer instead of inline expansion**
+  (plan 154): parsed and raw views over one call — parsed renders the
+  output as labelled pairs/chips (never raw JSON strings) with a
+  copyable prompt block; raw shows the full prompt + pretty JSON with
+  copy buttons; a meta grid carries exact tokens, latency, tier, skill
+  pack, prompt version and run/stage; prev/next steps through the loaded
+  page without closing. Deep-linkable via `?detail=<id>` — the
+  generations endpoint gains an `id` filter so reloads resolve rows that
+  are not on the loaded page.
+
+### Changed (postings + companies graduate from beta, 2026-10-30)
+- **Live postings (`/postings`) and Companies (`/companies`) are
+  shipped** — the beta chips leave the navigation; the feature
+  registry, README status table and banner tests reflect the
+  graduation.
+
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
+- **The Tools tab grows a third section: Web search | MCP | Sources.**
+  The old connectors view stacked six differently-scoped surfaces in
+  one scroll; the MCP server subsystem (endpoint, tokens, live tools,
+  call audit, GitHub credential) now has its own URL
+  (`?section=mcp`), and data ingestion — job-source connectors plus
+  extension sources — has another (`?section=sources`). Legacy
+  `?section=connectors` deep links land on MCP. The settings-map
+  contract narrows `tools.connectors` to the MCP surface and adds
+  `tools.sources` for ingestion (canonical + re-vendored).
+
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+- **The audit surface gains a Usage & throughput tab** (plan 153): a
+  per-model usage view (calls, tokens in/out, average latency and errors
+  grouped by provider/model), a token-usage trend chart, and production
+  throughput metrics — postings ingested (with processing activity by
+  actor: sync runs, extractions, detail fetches, re-tags), skill
+  lifecycle events (created/promoted/merged/deprecated), company
+  profiles created and catalog jobs created split by status and origin
+  (seed/AI/user), tying content production back to the AI ledger. New
+  `GET /admin/audit/production` endpoint; `/admin/audit/breakdown` gains
+  `dimension=model`. No schema change — aggregation over existing tables
+  and journals.
+
+### Changed (companies — postings-derived filters, 2026-10-30)
+- **The companies directory filters by the hiring those companies are
+  doing right now**: work mode, seniority, employment type and
+  industries as tri-state chips with live facet counts (company counts
+  computed over their active postings), plus a location box and a
+  minimum open-roles floor — `GET /api/v1/companies` grows the filter
+  params and an optional facet envelope (plan 154). The chips reuse
+  the Explore filter language (the filter bits moved to
+  `components/filters/`, app-level shared).
+
+### Changed (audit & monitoring slice 2, 2026-10-30)
+- **Two new audit tabs + drill-down affordances** (plan 152).
+  **Jobs & runs** shows every user's background jobs (status, owner,
+  attempts, expandable payload/result, job-type facets) and the
+  cross-source ingestion ledger with deep links into each source, plus a
+  failing-schedules strip that links to Automations for management.
+  **Data changes** unifies the append-only `posting_changes` and
+  `skill_changes` journals into one cross-entity "who changed what" view
+  with actor/outcome filters. Every read endpoint accepts a custom
+  `from`/`to` range alongside the presets, and the AI ledger, security
+  trail and jobs views export the filtered rows as CSV
+  (`GET /admin/audit/export`, capped at 10k rows).
+
 ### Changed (audit & monitoring surface, 2026-10-30)
 - **`/settings/audit` is now "Audit & monitoring"** — the page grows
   from an AI-ledger viewer into the cross-stream observability surface

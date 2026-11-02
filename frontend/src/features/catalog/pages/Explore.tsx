@@ -1,185 +1,119 @@
 import { useTranslation } from "react-i18next";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Bookmark, Radar, Search, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useNavigationType, useSearchParams, useLocation } from "react-router-dom";
+import { ArrowUpDown, Radar, Search, Sparkles, X } from "lucide-react";
 
-import { explorePostings, fetchPostingSources } from "@/api/postings";
-import { recordSearch, saveSearch } from "@/api/engagement";
+import { explorePostings, fetchPostingSources, smartSearch } from "@/api/postings";
 import { fetchRadar, previewRadar } from "@/api/radar";
 import { apiDetail } from "@/api/client";
 import type { ExploreParams } from "@/types";
 import { fetchSkillOntology } from "@/api/skills";
 import { PostingCard } from "@/features/postings/components/PostingCard";
-import { EmptyState, Spinner } from "@/components/ui";
+import { PostingsStatsRail } from "@/components/stats/StatsRail";
+import { PresetBar } from "@/features/postings/components/postings/PresetBar";
+import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
+import { isListReturn, rememberListSearch } from "@/lib/listReturn";
+import {
+  peekExploreList,
+  rememberExploreList,
+  type ExploreListSnapshot,
+} from "@/features/catalog/exploreListCache";
 import type { ExploreFacets, PostingSourceInfo } from "@/types/wire";
 import type { PostingOut } from "@/types/wire";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
+import { useProfilesStore } from "@/stores/profilesStore";
+import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
 import {
-  Section,
-  TriStateChips,
-  triStateToggle,
-} from "@/features/postings/components/postings/filterBits";
-
-const POSTED_WINDOWS = [
-  { value: "24h", labelKey: "explore.posted.h24" },
-  { value: "7d", labelKey: "explore.posted.d7" },
-  { value: "30d", labelKey: "explore.posted.d30" },
-  { value: "90d", labelKey: "explore.posted.d90" },
-];
-
-const CONTRACT_VALUES = [
-  "permanent",
-  "temporary",
-  "contract",
-  "freelance",
-  "b2b",
-  "internship",
-  "apprenticeship",
-];
-
-const TRAVEL_VALUES = ["none", "occasional", "frequent"];
-const SCHEDULE_VALUES = ["shift_work", "on_call", "nights", "weekends", "flexible"];
+  CONTRACT_VALUES,
+  POSTED_WINDOWS,
+  SCHEDULE_VALUES,
+  SORT_OPTIONS,
+  TRAVEL_VALUES,
+  countActive,
+  parseFilters,
+  toParams,
+  toSearchParams,
+  type Filters,
+} from "@/features/catalog/exploreParams";
 
 const EMPTY_FACETS: ExploreFacets = {};
 
-interface Filters {
-  q: string;
-  skills: { key: string; level: number | null }[];
-  skillsExclude: string[];
-  skillMode: "all" | "any";
-  postedWithin: string;
-  salaryMin: string;
-  seniority: string[];
-  seniorityExclude: string[];
-  remotePolicy: string[];
-  remotePolicyExclude: string[];
-  source: string[];
-  sourceExclude: string[];
-  extractedOnly: boolean;
-  saved: boolean;
-  sort: string;
-  contract: string[];
-  contractExclude: string[];
-  travel: string[];
-  travelExclude: string[];
-  schedule: string[];
-  scheduleExclude: string[];
-  orgs: string[];
-  orgsExclude: string[];
-}
-
-const INITIAL: Filters = {
-  q: "",
-  skills: [],
-  skillsExclude: [],
-  skillMode: "all",
-  postedWithin: "",
-  salaryMin: "",
-  seniority: [],
-  seniorityExclude: [],
-  remotePolicy: [],
-  remotePolicyExclude: [],
-  source: [],
-  sourceExclude: [],
-  extractedOnly: false,
-  saved: false,
-  sort: "fit",
-  contract: [],
-  contractExclude: [],
-  travel: [],
-  travelExclude: [],
-  schedule: [],
-  scheduleExclude: [],
-  orgs: [],
-  orgsExclude: [],
-};
-
-function countActive(f: Filters): number {
-  let n = 0;
-  if (f.q) n++;
-  n += f.skills.length + f.skillsExclude.length;
-  if (f.skillMode !== "all" && f.skills.length) n++;
-  if (f.postedWithin) n++;
-  if (f.salaryMin) n++;
-  n += f.seniority.length + f.seniorityExclude.length;
-  n += f.remotePolicy.length + f.remotePolicyExclude.length;
-  n += f.source.length + f.sourceExclude.length;
-  n += f.contract.length + f.contractExclude.length;
-  n += f.travel.length + f.travelExclude.length;
-  n += f.schedule.length + f.scheduleExclude.length;
-  n += f.orgs.length + f.orgsExclude.length;
-  if (f.extractedOnly) n++;
-  if (f.saved) n++;
-  return n;
-}
-
 export function Explore() {
   const { t } = useTranslation();
-  const [filters, setFilters] = useState<Filters>(INITIAL);
-  const [items, setItems] = useState<PostingOut[]>([]);
-  const [total, setTotal] = useState(0);
-  const [facets, setFacets] = useState<ExploreFacets>(EMPTY_FACETS);
-  const [cursor, setCursor] = useState<string | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const profileEpoch = useProfilesStore((state) => state.epoch);
+  const plainKey = useMemo(() => toSearchParams(filters).toString(), [filters]);
+  const searchKey = `${profileEpoch}|${plainKey}`;
+  const navigationType = useNavigationType();
+  const location = useLocation();
+  const restorable = navigationType === "POP" || isListReturn(location.state);
+  const restoredRef = useRef<ExploreListSnapshot | null | undefined>(undefined);
+  if (restoredRef.current === undefined) {
+    restoredRef.current = restorable ? peekExploreList(searchKey) : null;
+  }
+  const restored = restoredRef.current;
+  const [items, setItems] = useState<PostingOut[]>(() => restored?.items ?? []);
+  const [total, setTotal] = useState(() => restored?.total ?? 0);
+  const [facets, setFacets] = useState<ExploreFacets>(
+    () => restored?.facets ?? EMPTY_FACETS
+  );
+  const [cursor, setCursor] = useState<string | null>(
+    () => restored?.nextCursor ?? null
+  );
   const [sources, setSources] = useState<PostingSourceInfo[]>([]);
   const [skillOptions, setSkillOptions] = useState<{ value: string; label: string }[]>([]);
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const [savedNote, setSavedNote] = useState("");
   const [radarActive, setRadarActive] = useState(false);
+  const [smartQuery, setSmartQuery] = useState("");
+  const [smartBusy, setSmartBusy] = useState(false);
+  const [smartApplied, setSmartApplied] = useState<{
+    interpreted: string;
+    keys: string[];
+  } | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const filtersRef = useRef(filters);
+  const itemsRef = useRef<PostingOut[]>(items);
 
-  const paramsFrom = useCallback((current: Filters, nextCursor?: string | null): ExploreParams => {
-    const params: ExploreParams = { sort: current.sort, limit: 20 };
-    if (current.q) params.q = current.q;
-    if (current.skills.length) {
-      params.skills = current.skills
-        .map((s) => (s.level ? `${s.key}:${s.level}` : s.key))
-        .join(",");
-      params.skill_mode = current.skillMode;
-    }
-    if (current.skillsExclude.length) params.skill_exclude = current.skillsExclude.join(",");
-    if (current.postedWithin) params.posted_within = current.postedWithin;
-    if (current.salaryMin) params.salary_min = Number(current.salaryMin);
-    if (current.seniority.length) params.seniority = current.seniority.join(",");
-    if (current.seniorityExclude.length)
-      params.seniority_exclude = current.seniorityExclude.join(",");
-    if (current.remotePolicy.length) params.remote_policy = current.remotePolicy.join(",");
-    if (current.remotePolicyExclude.length)
-      params.remote_policy_exclude = current.remotePolicyExclude.join(",");
-    if (current.source.length) params.source = current.source.join(",");
-    if (current.sourceExclude.length) params.source_exclude = current.sourceExclude.join(",");
-    if (current.contract.length) params.contract = current.contract.join(",");
-    if (current.contractExclude.length)
-      params.contract_exclude = current.contractExclude.join(",");
-    if (current.travel.length) params.travel = current.travel.join(",");
-    if (current.travelExclude.length) params.travel_exclude = current.travelExclude.join(",");
-    if (current.schedule.length) params.schedule = current.schedule.join(",");
-    if (current.scheduleExclude.length)
-      params.schedule_exclude = current.scheduleExclude.join(",");
-    if (current.orgs.length) params.org = current.orgs;
-    if (current.orgsExclude.length) params.org_exclude = current.orgsExclude;
-    if (current.extractedOnly) params.extracted_only = true;
-    if (current.saved) params.saved = true;
-    if (nextCursor) params.cursor = nextCursor;
-    return params;
-  }, []);
+  const paramsFrom = useCallback(
+    (current: Filters, nextCursor?: string | null): ExploreParams => {
+      const params: ExploreParams = { ...toParams(current), sort: current.sort, limit: 20 };
+      if (nextCursor) params.cursor = nextCursor;
+      return params;
+    },
+    []
+  );
 
   const load = useCallback(
     (current: Filters, append: boolean) => {
       setError("");
       void explorePostings(paramsFrom(current, append ? cursor : null))
         .then((response) => {
-          setItems((prev) => (append ? [...prev, ...response.items] : response.items));
+          const merged = append
+            ? [...itemsRef.current, ...response.items]
+            : response.items;
+          setItems(merged);
+          itemsRef.current = merged;
           setTotal(response.total);
           setFacets(response.facets ?? {});
           setCursor(response.next_cursor ?? null);
+          rememberExploreList(
+            `${profileEpoch}|${toSearchParams(current).toString()}`,
+            {
+              items: merged,
+              total: response.total,
+              facets: response.facets ?? {},
+              nextCursor: response.next_cursor ?? null,
+            }
+          );
         })
         .catch((err) => setError(String(err)));
     },
-    [cursor, paramsFrom]
+    [cursor, paramsFrom, profileEpoch]
   );
 
   useEffect(() => {
@@ -195,18 +129,45 @@ export function Explore() {
     void fetchPostingSources().then(setSources).catch(() => setSources([]));
   }, []);
 
+  const restoredForRef = useRef<Filters | null>(null);
   useEffect(() => {
+    if (restoredRef.current && restoredForRef.current === null) {
+      restoredForRef.current = filters;
+      return;
+    }
+    if (restoredForRef.current === filters) return;
     setRadarActive(false);
     setCursor(null);
     load(filters, false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const patch = (update: Partial<Filters>) => setFilters((prev) => ({ ...prev, ...update }));
+  useEffect(() => {
+    rememberListSearch("/postings", plainKey);
+  }, [plainKey]);
+
+  const patch = useCallback(
+    (update: Partial<Filters>) => {
+      setSearchParams(toSearchParams({ ...filters, ...update }), { replace: true });
+    },
+    [filters, setSearchParams]
+  );
+
+  const resetFilters = useCallback(() => {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }, [setSearchParams]);
 
   useEffect(() => {
     filtersRef.current = filters;
   }, [filters]);
+
+  useEffect(() => {
+    const canonical = toSearchParams(parseFilters(searchParams)).toString();
+    if (canonical !== searchParams.toString()) {
+      setSearchParams(new URLSearchParams(canonical), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const loadMore = useCallback(() => {
     if (!cursor || radarActive) return undefined;
@@ -218,35 +179,31 @@ export function Explore() {
         // a filter change that landed mid-flight re-owns the list —
         // the stale page is dropped, never appended to it
         if (requestFilters !== filtersRef.current) return;
-        setItems((prev) => [...prev, ...response.items]);
+        const merged = [...itemsRef.current, ...response.items];
+        setItems(merged);
+        itemsRef.current = merged;
         setTotal(response.total);
         setFacets(response.facets ?? {});
         setCursor(response.next_cursor ?? null);
+        rememberExploreList(
+          `${profileEpoch}|${toSearchParams(requestFilters).toString()}`,
+          {
+            items: merged,
+            total: response.total,
+            facets: response.facets ?? {},
+            nextCursor: response.next_cursor ?? null,
+          }
+        );
       })
       .catch((err) => setError(String(err)))
       .finally(() => setLoadingMore(false));
-  }, [cursor, filters, paramsFrom, radarActive]);
+  }, [cursor, filters, paramsFrom, radarActive, profileEpoch]);
 
   const sentinelRef = useInfiniteScroll(loadMore, !!cursor && !radarActive);
 
   const addSkillFilter = (key: string) => {
     if (!key || filters.skills.some((s) => s.key === key)) return;
     patch({ skills: [...filters.skills, { key, level: null }] });
-  };
-
-  const saveThisSearch = () => {
-    void recordSearch({
-      scope: "postings",
-      query: filters.q,
-      filters: paramsFrom(filters) as unknown as Record<string, unknown>,
-      result_count: total,
-    })
-      .then((record) => saveSearch(record.id))
-      .then(() => {
-        setSavedNote(t("explore.searchSaved"));
-        setTimeout(() => setSavedNote(""), 4000);
-      })
-      .catch(() => setError(t("explore.saveFailed")));
   };
 
   const applyRadar = async () => {
@@ -275,6 +232,7 @@ export function Explore() {
         enabled: true,
       });
       setItems(response.items);
+      itemsRef.current = response.items;
       setTotal(response.total);
       setFacets(response.facets ?? {});
       setCursor(null);
@@ -286,8 +244,88 @@ export function Explore() {
 
   const clearRadar = () => {
     setRadarActive(false);
-    setFilters(INITIAL);
+    resetFilters();
     setCursor(null);
+  };
+
+  const runSmartSearch = async () => {
+    const query = smartQuery.trim();
+    if (!query || smartBusy) return;
+    setSmartBusy(true);
+    setError("");
+    try {
+      const response = await smartSearch(query);
+      const next: Filters = { ...filters };
+      const raw = response.filters as Record<string, unknown>;
+      const keys: string[] = [];
+      const list = (value: unknown) =>
+        Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+      if ("seniority" in raw) {
+        next.seniority = list(raw.seniority);
+        keys.push("seniority");
+      }
+      if ("remote_policy" in raw) {
+        next.remotePolicy = list(raw.remote_policy);
+        keys.push("remote_policy");
+      }
+      if ("posted_within" in raw) {
+        next.postedWithin = String(raw.posted_within ?? "");
+        keys.push("posted_within");
+      }
+      if ("salary_min" in raw) {
+        next.salaryMin = raw.salary_min != null ? String(raw.salary_min) : "";
+        keys.push("salary_min");
+      }
+      if ("city" in raw) {
+        next.city = String(raw.city ?? "");
+        keys.push("city");
+      }
+      if ("country" in raw) {
+        next.country = String(raw.country ?? "");
+        keys.push("country");
+      }
+      if ("employment_type" in raw) {
+        next.employmentType = list(raw.employment_type);
+        keys.push("employment_type");
+      }
+      if ("mapped_family" in raw) {
+        next.mappedFamily = list(raw.mapped_family);
+        keys.push("mapped_family");
+      }
+      if ("skills" in raw) {
+        const value = String(raw.skills ?? "");
+        next.skills = value
+          .split(",")
+          .filter(Boolean)
+          .map((key) => ({ key, level: null }));
+        keys.push("skills");
+      }
+      setSearchParams(toSearchParams(next), { replace: true });
+      setSmartApplied({ interpreted: response.interpreted, keys });
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setSmartBusy(false);
+    }
+  };
+
+  const removeSmartKey = (key: string) => {
+    const next: Filters = { ...filters };
+    if (key === "seniority") next.seniority = [];
+    else if (key === "remote_policy") next.remotePolicy = [];
+    else if (key === "posted_within") next.postedWithin = "";
+    else if (key === "salary_min") next.salaryMin = "";
+    else if (key === "city") next.city = "";
+    else if (key === "country") next.country = "";
+    else if (key === "employment_type") next.employmentType = [];
+    else if (key === "mapped_family") next.mappedFamily = [];
+    else if (key === "skills") next.skills = [];
+    setSmartApplied((current) =>
+      current
+        ? { interpreted: current.interpreted, keys: current.keys.filter((k) => k !== key) }
+        : current
+    );
+    setSearchParams(toSearchParams(next), { replace: true });
   };
 
   const activeCount = countActive(filters);
@@ -296,12 +334,15 @@ export function Explore() {
   const facetCount = (group: string, key: string): number | undefined =>
     (facets ?? {})[group]?.[key];
 
+  const sortOptions = SORT_OPTIONS.filter(
+    (option) => option.value !== "relevance" || filters.q.trim().length > 0
+  ).map((option) => ({ value: option.value, label: t(option.labelKey) }));
+
   return (
-    <div className="space-y-6" data-testid="explore">
+    <div className="ca-stats-page space-y-6" data-testid="explore">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="min-w-0 flex-1 text-sm text-slate-500">
           {radarActive ? t("explore.radarActive") : t("explore.intro")}
-          {total ? ` ${total} matching.` : ""}
         </p>
         <div className="flex items-center gap-2">
           {radarActive ? (
@@ -321,21 +362,19 @@ export function Explore() {
               <Radar className="w-3.5 h-3.5" /> {t("explore.radarApply")}
             </button>
           )}
-          <button
-            onClick={saveThisSearch}
-            disabled={!active}
-            className="text-sm flex items-center gap-1 px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-40"
-            data-testid="save-search"
-          >
-            <Bookmark className="w-3.5 h-3.5" /> {t("explore.saveSearch")}
-          </button>
         </div>
       </div>
       {savedNote && <p className="text-sm text-emerald-600" data-testid="saved-note">{savedNote}</p>}
 
-      <div className="flex gap-6">
+      <PresetBar
+        filters={filters}
+        total={total}
+        onApply={(next) => setSearchParams(toSearchParams(next), { replace: true })}
+      />
+
+      <div className="ca-stats-cols">
         <aside
-          className="w-64 shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
           data-testid="explore-filters"
         >
           <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
@@ -350,7 +389,7 @@ export function Explore() {
               </div>
               {active ? (
                 <button
-                  onClick={() => setFilters(INITIAL)}
+                  onClick={resetFilters}
                   className="text-xs text-slate-400 hover:text-slate-600"
                   data-testid="clear-filters"
                 >
@@ -363,7 +402,13 @@ export function Explore() {
               <Search className="w-4 h-4 text-slate-400 shrink-0" />
               <input
                 value={filters.q}
-                onChange={(e) => patch({ q: e.target.value })}
+                onChange={(e) => {
+                  const q = e.target.value;
+                  patch({
+                    q,
+                    ...(filters.sort === "relevance" && !q.trim() ? { sort: "fit" } : {}),
+                  });
+                }}
                 placeholder={t("explore.searchPlaceholder")}
                 className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
                 data-testid="explore-q"
@@ -443,6 +488,7 @@ export function Explore() {
                 {t("explore.excludeSkills")}
               </p>
               <SkillPicker
+                exclude
                 value={filters.skillsExclude}
                 onChange={(keys) => patch({ skillsExclude: keys })}
                 placeholder={t("explore.excludeSkillPlaceholder")}
@@ -476,8 +522,8 @@ export function Explore() {
                 }))}
                 include={filters.postedWithin ? [filters.postedWithin] : []}
                 exclude={[]}
-                onToggle={(value) =>
-                  patch({ postedWithin: filters.postedWithin === value ? "" : value })
+                onToggle={(value, mode) =>
+                  patch({ postedWithin: mode === "clear" ? "" : value })
                 }
               />
             </Section>
@@ -620,6 +666,7 @@ export function Explore() {
                 {t("explore.excludeOrganizations")}
               </p>
               <OrgPicker
+                exclude
                 value={filters.orgsExclude}
                 onChange={(names) => patch({ orgsExclude: names })}
                 placeholder={t("explore.excludeOrgPlaceholder")}
@@ -670,10 +717,98 @@ export function Explore() {
                 data-testid="saved-only"
               />
             </label>
+            <label className="flex items-center justify-between text-xs text-slate-600">
+              <span title={t("explore.hideSeenTitle")}>{t("explore.hideSeen")}</span>
+              <input
+                type="checkbox"
+                checked={filters.seenExclude}
+                onChange={(e) => patch({ seenExclude: e.target.checked })}
+                data-testid="seen-exclude"
+              />
+            </label>
           </div>
         </aside>
 
         <div className="flex-1 space-y-3">
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void runSmartSearch();
+            }}
+            data-testid="smart-search"
+          >
+            <Sparkles aria-hidden className="h-3.5 w-3.5 text-slate-400" />
+            <input
+              value={smartQuery}
+              onChange={(e) => setSmartQuery(e.target.value)}
+              placeholder={t("explore.smartSearchPlaceholder")}
+              className="flex-1 min-w-[12rem] border border-slate-200 rounded-lg px-2 py-1.5 text-xs"
+              aria-label={t("explore.smartSearchPlaceholder")}
+              data-testid="smart-search-input"
+            />
+            <button
+              type="submit"
+              disabled={smartBusy || !smartQuery.trim()}
+              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 disabled:opacity-50"
+              data-testid="smart-search-submit"
+            >
+              {t("explore.smartSearchSubmit")}
+            </button>
+          </form>
+          {smartApplied && (
+            <div className="flex flex-wrap items-center gap-1 text-[10px] text-slate-500">
+              <span>{t("explore.interpretedAs")}</span>
+              {smartApplied.interpreted && <span data-testid="smart-interpreted">{smartApplied.interpreted}</span>}
+              {smartApplied.keys.map((key) => (
+                <span
+                  key={key}
+                  className="bg-primary-50 text-primary-700 border border-primary-200 rounded-full px-2 py-0.5 flex items-center gap-1"
+                  data-testid={`smart-chip-${key}`}
+                >
+                  {key}
+                  <button
+                    onClick={() => removeSmartKey(key)}
+                    aria-label={t("explore.removeInterpreted", { key })}
+                    data-testid={`smart-chip-remove-${key}`}
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {smartApplied.keys.length === 0 && (
+                <button
+                  onClick={() => setSmartApplied(null)}
+                  className="text-slate-400 hover:text-slate-600"
+                  aria-label={t("explore.dismissInterpreted")}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500" data-testid="explore-result-count">
+              {total ? t("explore.matching", { count: total }) : ""}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />
+              <span>{t("explore.sortBy")}</span>
+              <div
+                className="w-44"
+                data-testid="explore-sort-wrap"
+                title={filters.sort === "smart" ? t("explore.smartChipInfo") : undefined}
+              >
+                <SearchableDropdown
+                  options={sortOptions}
+                  value={filters.sort}
+                  onChange={(value) => patch({ sort: value })}
+                  label={t("explore.sortBy")}
+                  hideLabel
+                />
+              </div>
+            </div>
+          </div>
           {error && <p className="text-sm text-rose-600">{error}</p>}
           {items.length === 0 && !error && (
             <EmptyState
@@ -685,6 +820,7 @@ export function Explore() {
             <PostingCard
               key={posting.id}
               posting={posting}
+              smartSort={filters.sort === "smart"}
               onOpen={(item) => navigate(`/postings/${item.ref}`)}
               onChanged={() => load(filters, false)}
             />
@@ -707,6 +843,19 @@ export function Explore() {
             </button>
           )}
         </div>
+
+        <PostingsStatsRail
+          onPostedWithin={(value) =>
+            patch({
+              postedWithin: filters.postedWithin === value ? "" : value,
+            })
+          }
+          onSkill={addSkillFilter}
+          onSource={(key) => {
+            const next = triStateToggle(filters.source, filters.sourceExclude, key, "include");
+            patch({ source: next.include, sourceExclude: next.exclude });
+          }}
+        />
       </div>
     </div>
   );

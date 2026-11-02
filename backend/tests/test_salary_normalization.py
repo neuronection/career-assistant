@@ -169,3 +169,12 @@ async def test_explore_salary_sort_orders_by_normalized(
         "the monthly 54k annual outranks the yearly 20k — the unit-blind "
         "raw order would have sorted them backwards"
     )
+
+
+def test_annualized_accepts_db_decimals():
+    """Numeric columns come back as Decimal on both dialects — arithmetic
+    must normalize (the 2026-10-30 desktop crash: Decimal * float)."""
+    from decimal import Decimal
+
+    assert annualized(Decimal("3000"), Decimal("4500"), "month") == (36000.0, 54000.0)
+    assert annualized(Decimal("25.5"), None, "hour") == (53040.0, None)

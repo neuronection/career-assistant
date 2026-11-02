@@ -42,15 +42,18 @@ Personio, JOIN, Recruitee and Teamtailor carry no credentials; the
 StepStone/Xing alert URL often embeds a per-user token, so it is declared
 as an `x-secret` slot and never written into stored config.
 
-### The Remotive robots caveat, honestly
+### The Remotive robots caveat, resolved
 
-Remotive's site-level `robots.txt` disallows its API path, and Career
-Assistant respects robots policies by default — so Remotive syncs can
-surface a clear, typed *network denied* error instead of fetching
-silently. Remotive's own API terms welcome API consumers; if you run
-the instance and agree, an admin can lift the check for that deployment
-(the `CAREER_CONNECTOR_RESPECT_ROBOTS` setting). It is deliberately an
-admin's explicit decision, never a quiet bypass baked into the app.
+Remotive's site-level `robots.txt` disallows its API path
+(`Disallow: /api/*`), and Career Assistant respects robots policies by
+default — so the connector used to surface a typed *network denied*
+error there. The connector now rides the feed robots **does** allow
+(`remotive.com/remote-jobs/feed`), which carries the same listings plus
+the full job description. The fail-closed law is unchanged: if a board
+disallows a path, the app refuses it rather than fetching silently, and
+lifting that check per deployment (`CAREER_CONNECTOR_RESPECT_ROBOTS`)
+stays an admin's explicit decision, never a quiet bypass baked into the
+app.
 
 ## The other bundled engines
 
@@ -103,8 +106,10 @@ derived from them go with it.
 
 ## Follow my radar (search source)
 
-The source form's **Search source** switch decides where the search
-comes from:
+The source form's **Search source** setting decides where the search
+comes from — **new sources default to Follow my job radar** (the static
+config is the explicit alternative, and the reverse switch is guarded
+until the required fields exist):
 
 - **Static config** — the source's own settings (keywords etc. in its
   Tool options) drive every sync.

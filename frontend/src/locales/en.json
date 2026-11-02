@@ -6,6 +6,14 @@
     "badge": "Demo — synthetic data",
     "description": "This instance runs on fictional data and resets periodically."
   },
+  "update": {
+    "tooltip": "Version {{version}} is available",
+    "releaseNotes": "Release notes",
+    "allReleases": "All releases",
+    "installed": "installed",
+    "availableSuffix": "available",
+    "title": "Update available"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "chat": "Chat",
@@ -25,7 +33,8 @@
     "sectionExtensions": "Extensions",
     "paths": "Career paths",
     "companies": "Companies",
-    "radar": "Job radar"
+    "radar": "Job radar",
+    "marketStats": "Market stats"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -283,7 +292,7 @@
     "feedCaughtUp": "Your feed is all caught up. Nice.",
     "dismissNudge": "Dismiss nudge",
     "targetMode": "Target mode",
-    "liveTab": "Live tab →",
+    "liveTab": "Postings →",
     "microRun": "5-min micro-run",
     "openTargetJobs": "Open jobs for your targets",
     "expandCareer": "Expand your career",
@@ -369,14 +378,13 @@
     "orgExample": "e.g. Acme",
     "deepExtractedOnly": "Deep-extracted only",
     "savedOnly": "Saved only",
+    "hideSeen": "Hide seen",
+    "hideSeenTitle": "Hide postings you have already opened",
     "nothingMatches": "Nothing matches those filters",
     "nothingMatchesBody": "Loosen a filter or ask an admin to connect more posting sources.",
     "loadMore": "Load more",
     "loadingMore": "Loading more postings…",
-    "searchSaved": "Search saved — schedule it in Settings → Scheduler.",
-    "saveFailed": "Could not save the search",
     "intro": "Every open vacancy across your sources — filter, facet, deep-extract.",
-    "saveSearch": "Save this search",
     "facet": {
       "skills": "Skills",
       "workMode": "Work mode",
@@ -430,7 +438,20 @@
     "radarApply": "My radar",
     "radarClear": "Clear radar",
     "radarActive": "Showing your radar matches.",
-    "radarNotConfigured": "Your job radar is not configured yet — set it up in Settings."
+    "radarNotConfigured": "Your job radar is not configured yet — set it up in Settings.",
+    "matching": "{{count}} matching",
+    "sortBy": "Sort",
+    "sortFit": "Best fit",
+    "sortFresh": "Newest",
+    "sortSalary": "Highest salary",
+    "sortRelevance": "Relevance",
+    "sortSmart": "Smart",
+    "smartChipInfo": "Ranked by your fit blended with interest affinity. Seen postings rank lower and at most two per employer lead the first page; when interest data is missing it degrades to the fit ranking.",
+    "smartSearchPlaceholder": "Describe what you are looking for (e.g. remote junior python roles in Athens)",
+    "smartSearchSubmit": "Search",
+    "interpretedAs": "Interpreted as",
+    "removeInterpreted": "Remove the {key} filter",
+    "dismissInterpreted": "Dismiss"
   },
   "applications": {
     "title": "My applications",
@@ -523,9 +544,6 @@
     "saved": "Saved"
   },
   "postings": {
-    "title": "Postings",
-    "tabFeed": "Feed",
-    "tabSearch": "Search",
     "sortBestFit": "Best fit",
     "sortFreshest": "Freshest",
     "filterBySkill": "Filter by skill…",
@@ -852,13 +870,12 @@
     "lastRun": "last run {{date}}",
     "openCount": "{{count}} open",
     "tokens": "{{count}} tokens",
-    "hideWork": "Hide work",
-    "whatSearched": "What I searched",
     "noSurvivors": "No matches survived the filters this run.",
     "deleteTitle": "Delete this goal?",
     "deleteBody": "Its runs and findings go with it. This cannot be undone.",
     "delete": "Delete",
     "fitScore": "Fit score",
+    "mustHaves": "Must-haves {{hits}}/{{total}}",
     "moreLikeThis": "More like this",
     "hideLikeThis": "Hide like this — the goal learns to skip these",
     "status": {
@@ -910,7 +927,9 @@
       "kept": "filtered noise · kept {{count}}",
       "seen": "{{count}} seen",
       "neverTerms": "{{count}} never-terms",
-      "cooldown": "{{count}} in cooldown"
+      "cooldown": "{{count}} in cooldown",
+      "examined": "{{count}} examined",
+      "replanned": "broadened the search"
     },
     "modal": {
       "editTitle": "Edit goal",
@@ -934,12 +953,168 @@
     "cooldownSuffix": "days before re-surfacing",
     "cadenceLabel": "Cadence",
     "saveChanges": "Save changes",
-    "createGoal": "Create goal"
+    "createGoal": "Create goal",
+    "runDetail": {
+      "title": "Run details",
+      "missing": "This run could not be found (it may have been deleted).",
+      "unavailable": "This run predates the detailed step trace — showing its search timeline instead.",
+      "inputs": "Inputs",
+      "graph": "Graph",
+      "steps": "Step trace",
+      "branch": "Broadened — pass {{iteration}}",
+      "args": "Arguments & output",
+      "calls": "AI calls",
+      "viewCall": "View call",
+      "duration": "{{seconds}} s",
+      "ms": "{{ms}} ms",
+      "abortedAs": "aborted: {{reason}}",
+      "profile": "Profile snapshot: {{parts}}",
+      "budgetKey": "budget: {{key}}",
+      "step": {
+        "plan": "Plan",
+        "search": "Search",
+        "filter": "Filter",
+        "replan": "Replan",
+        "evaluate": "Evaluate",
+        "graph_sweep": "Graph sweep",
+        "budget_guard": "Budget guard",
+        "curate": "Curate",
+        "deliver": "Deliver"
+      },
+      "summary": {
+        "plan": "{{count}} search variants planned",
+        "search": "{{probes}} probes · pool {{pool}}",
+        "filter": "kept {{kept}} · pool {{pool}}",
+        "evaluate": "ranked pool of {{pool}}",
+        "replan": "{{count}} broadened queries",
+        "graphSweep": "+{{found}} found · {{examined}} examined via related roles",
+        "guardAbort": "abort: {{reason}}",
+        "guardTokens": "{{tokens}} tokens spent so far",
+        "curate": "{{count}} picks explained",
+        "deliver": "{{count}} findings · {{status}}"
+      },
+      "profileSkills": "{{skills}} skills",
+      "profileLanguages": "{{count}} languages",
+      "profileStage": "stage {{stage}}",
+      "openFull": "Open full view",
+      "backToFeed": "All findings",
+      "viewInFeed": "Show in the feed",
+      "dismissAll": "Dismiss all from this run",
+      "dismissAllTitle": "Dismiss all findings from this run?",
+      "dismissAllBody": "Every open finding of this run moves out of the feed. This teaches the goal nothing — it is cleanup, not feedback."
+    },
+    "summary": {
+      "skills": "Skills: {{items}}",
+      "skillsNone": "Skills: none recorded",
+      "skillsUnused": "Skills: not used",
+      "education": "Education: {{level}}",
+      "educationNone": "Education: not recorded",
+      "educationUnused": "Education: not used",
+      "languages": "Languages: {{items}}",
+      "languagesNone": "Languages: none recorded",
+      "languagesUnused": "Languages: not used",
+      "stage": "Stage: {{stage}}",
+      "stageFromProfile": "Stage: from your profile",
+      "stageNone": "Stage: not recorded",
+      "stageUnused": "Experience: not used",
+      "location": "Location: {{city}}",
+      "locationNone": "Location: not recorded",
+      "locationUnused": "Location: not used",
+      "lifestyle": "Lifestyle: {{count}}",
+      "lifestyleUnused": "Lifestyle: not used",
+      "loading": "Checking your profile…"
+    },
+    "profileUsage": {
+      "title": "What the autopilot uses from your profile",
+      "goalOnly": "With inputs switched off, this goal searches from your goal text only.",
+      "footnote": "Match estimates (postings not yet deep-extracted) ignore these toggles.",
+      "stageSourceLabel": "Career stage",
+      "stageSource": {
+        "profile": "From my profile",
+        "goal": "From this goal's seniority"
+      },
+      "toggles": {
+        "use_skills": {
+          "label": "Skills",
+          "description": "Your skills steer the search vocabulary and the skill score."
+        },
+        "use_education": {
+          "label": "Education & certificates",
+          "description": "Education and certificate requirements check your profile."
+        },
+        "use_languages": {
+          "label": "Languages",
+          "description": "Language requirements check the languages in your profile."
+        },
+        "use_location": {
+          "label": "Location",
+          "description": "Your city and remote preference shape the location score."
+        },
+        "use_experience": {
+          "label": "Experience",
+          "description": "Your career stage is scored against each posting's seniority."
+        },
+        "use_lifestyle": {
+          "label": "Lifestyle constraints",
+          "description": "Your travel, shift and hour limits flag postings."
+        }
+      },
+      "chips": {
+        "use_skills": "no skills",
+        "use_education": "no education",
+        "use_languages": "no languages",
+        "use_location": "no location",
+        "use_experience": "no experience",
+        "use_lifestyle": "no lifestyle flags",
+        "stage_source": "stage from goal"
+      }
+    },
+    "workspace": {
+      "allGoals": "All goals",
+      "viewLabel": "View",
+      "viewFlat": "Flat",
+      "viewByRun": "By run",
+      "runsRail": "Runs",
+      "railFindings": "{{count}} findings",
+      "railExamined": "{{count}} examined",
+      "filtersTitle": "Filters",
+      "feedCount": "{{count}} findings",
+      "loadMore": "Load more",
+      "markApplied": "Mark applied",
+      "applied": "Applied",
+      "viewPosting": "View posting",
+      "evidence": "Why this match",
+      "disabledDims": "{{count}} profile inputs off for this goal",
+      "estimateFootnote": "Estimate — this posting has not been deep-read yet, so profile toggles are ignored for it.",
+      "runProvenance": "Run · {{date}}",
+      "stateSection": "State",
+      "stateOpen": "Open",
+      "stateDismissed": "Dismissed",
+      "stateAll": "All",
+      "latestOnly": "Latest evaluation per posting",
+      "hideApplied": "Hide applied",
+      "scoreSection": "Score",
+      "minScore": "Fit ≥",
+      "coverageMin": "Must-haves ≥",
+      "orgSection": "Company",
+      "orgPlaceholder": "Employer contains…",
+      "sourceSection": "Source",
+      "senioritySection": "Seniority",
+      "remoteSection": "Location",
+      "remoteOnly": "Remote only",
+      "postedSection": "Posted",
+      "noSources": "No boards with findings yet",
+      "sortLabel": "Sort",
+      "sortNewest": "Newest",
+      "sortScore": "Best fit",
+      "emptyFilteredTitle": "No findings match these filters",
+      "emptyFilteredBody": "Loosen a filter or clear them all — the shortlist is still there."
+    }
   },
   "scheduler": {
     "searchesTitle": "Scheduled searches",
-    "searchesBody": "The app runs your saved postings searches on a schedule — new matches ping you and land in the Live tab.",
-    "noSavedSearches": "No saved searches yet — save one from the Live tab first.",
+    "searchesBody": "The app runs your saved postings searches on a schedule — new matches ping you and land in Postings.",
+    "noSavedSearches": "No saved searches yet — save one from Postings first.",
     "filtersOnly": "filters only",
     "notScheduled": "not scheduled",
     "failures_one": "{{count}} failure",
@@ -1217,6 +1392,25 @@
       "enrichment": "Enrichment",
       "translations": "Translations",
       "relations": "Relations"
+    },
+    "stats": {
+      "skillsGroup": "Skills ontology · {{total}} total",
+      "queueGroup": "Review queue · {{total}} actionable",
+      "active": "Active",
+      "proposed": "Proposed",
+      "deprecated": "Deprecated",
+      "autoPromoted": "Auto-promoted",
+      "relations": "Relations",
+      "enrichment": "Enrichment",
+      "paths": "Draft paths",
+      "translations": "Translations",
+      "hint": {
+        "active": "curated, in pickers",
+        "awaiting": "awaiting review",
+        "promoted": "+{{count}} promoted in 7d",
+        "deprecated": "resolvable, hidden",
+        "allTime": "all time"
+      }
     },
     "newTag": "New tag",
     "keyPlaceholder": "key (stable slug, e.g. renewable-energy)",
@@ -1648,7 +1842,8 @@
     "sectionsAria": "Tools sections",
     "section": {
       "web-search": "Web search",
-      "connectors": "Connectors"
+      "mcp": "MCP",
+      "sources": "Sources"
     },
     "webSearch": {
       "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. SearXNG rides the SSRF-guarded client; keyed providers (Tavily, Brave, Exa, Serper, Google PSE) ride the guarded POST transport.",
@@ -1705,6 +1900,9 @@
         "hint": "Posting ingestion sources through the polite runtime — SSRF-guarded fetches, robots.txt and per-host rate caps enforced. Credentials are sealed at rest and shown as hints only.",
         "empty": "No job sources configured yet.",
         "add": "Add source",
+        "searchPlaceholder": "Search sources…",
+        "selectAria": "Select source",
+        "edit": "Edit",
         "key": "Source key (unique)",
         "queryMode": "Search source",
         "queryModeStatic": "Static config (this source's own settings)",
@@ -1717,19 +1915,14 @@
         "test": "Test",
         "sync": "Sync now",
         "syncQueued": "Sync queued for {{key}}",
-        "edit": "Edit",
         "save": "Save source",
         "cancel": "Cancel",
         "probeOk": "OK · {{items}} item(s) · {{latency}} ms",
         "probeError": "{{code}}: {{detail}}",
-        "needsConfig": "needs config",
         "secretSetShort": "set — leave empty to keep",
         "secretMissingShort": "not set",
         "select": "Select…",
         "githubTokenPlaceholder": "gh_pat_…",
-        "statusOk": "Healthy",
-        "statusDegraded": "Degraded",
-        "statusFailing": "Failing",
         "lastSuccess": "Last success",
         "kind": {
           "posting": "Job boards",
@@ -1781,7 +1974,44 @@
         "sealedNote": "Secrets are sealed at rest and never echoed back.",
         "keyPlaceholder": "e.g. acme-board",
         "keyTaken": "This key is already in use.",
-        "planSources": "{{count}} radar(s)"
+        "planSources": "{{count}} radar(s)",
+        "paused": "Paused",
+        "originMcp": "MCP",
+        "originBundled": "Bundled",
+        "statusOk": "Healthy",
+        "statusDegraded": "Degraded",
+        "statusFailing": "Failing",
+        "pauseSelected": "Pause selected",
+        "resumeSelected": "Resume selected",
+        "syncSelected": "Sync now",
+        "bulkPauseDone": "Paused {{count}} sources.",
+        "bulkResumeDone": "Resumed {{count}} sources.",
+        "bulkSyncDone": "Queued {{count}} syncs.",
+        "countryFilterAria": "Filter sources by country",
+        "countryAll": "All sources",
+        "countryCustom": "Custom",
+        "worldwide": "Worldwide",
+        "problemsOnly": "Problems only"
+      },
+      "presets": {
+        "title": "Add a job source",
+        "subtitle": "Verified presets — one click, no configuration needed.",
+        "searchPlaceholder": "Search companies, providers, countries…",
+        "filterAria": "Preset filter",
+        "filterAll": "All",
+        "filterAts": "Company ATS",
+        "filterRemote": "Remote",
+        "worldwide": "Worldwide",
+        "noMatches": "No presets match this search.",
+        "footerHint": "Presets fill in the connector for you — everything stays adjustable before saving.",
+        "addSelected": "Add {{count}} selected",
+        "addedBadge": "Added",
+        "addedNotice": "Added {{count}} of {{total}} presets.",
+        "custom": "Custom source",
+        "openings": "{{count}} openings",
+        "verified": "Verified {{date}}",
+        "countryFilterAria": "Filter by country",
+        "countryAll": "All sources"
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -3227,6 +3457,7 @@
     "unsave": "Unsave",
     "hide": "hide",
     "hideTitle": "Hide from the live tab",
+    "markSeen": "Mark as seen",
     "salaryBasis": {
       "gross": "gross",
       "net": "net"
@@ -4341,6 +4572,11 @@
   },
   "companies": {
     "subtitle": "Companies hiring right now — reviewed facts, financials with sources, and every open posting in one place.",
+    "count": "{{count}} companies",
+    "sortBy": "Sort",
+    "sortOpen": "Most open roles",
+    "sortName": "Name A–Z",
+    "sortRecent": "Recently hiring",
     "searchPlaceholder": "Search companies…",
     "loadError": "Could not load companies.",
     "noneYetTitle": "No companies yet",
@@ -4362,7 +4598,28 @@
       "new": "New"
     },
     "noMatchTitle": "No companies match",
-    "noMatchBody": "Try a different name or clear the New filter."
+    "noMatchBody": "Try a different name or clear the New filter.",
+    "railTitle": "Filter by active hiring",
+    "clearFilters": "Clear filters ({count})",
+    "locationPlaceholder": "City or country",
+    "minOpenN": "≥ {{count}} open roles",
+    "minOpenAny": "Any number of roles",
+    "facetTitle": {
+      "work_mode": "Work mode",
+      "seniority": "Seniority",
+      "employment": "Employment type",
+      "industries": "Industries",
+      "locations": "Where the jobs are",
+      "minOpen": "Open roles"
+    },
+    "facet": {
+      "work_mode": {},
+      "seniority": {},
+      "employment": {},
+      "industries": {},
+      "locations": {}
+    },
+    "statusTitle": "Status"
   },
   "companyDetail": {
     "back": "All companies",
@@ -4486,7 +4743,8 @@
     "queryMode": "Search source",
     "radarMode": "Follow my job radar",
     "staticMode": "Static config",
-    "configHint": "Full bundle settings (keywords, filters, pacing) live on the Tools page under this source's Edit form.",
+    "staticNeedsFields": "Set {{fields}} in the configuration below before switching to static mode — radar mode supplies them per sync.",
+    "configHint": "This connector has no settings to edit here.",
     "runsEmpty": "No runs recorded yet — hit Run now.",
     "runStarted": "Started",
     "runTrigger": "Trigger",
@@ -4547,10 +4805,15 @@
     "runPartial": "Partial",
     "runFailed": "Failed",
     "runSkipped": "Skipped",
-    "budgetCustom": "Custom · {{seconds}}s",
     "budgetKept": "Budget reached — kept {{count}} postings; the rest continues next sync",
     "presetLabel": "Start with",
-    "advancedLabel": "Advanced (traffic safety)"
+    "advancedLabel": "Advanced (traffic safety)",
+    "customValue": "Custom…",
+    "customValueFor": "{{label}} — custom value",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Open the source page",
+    "radarNotCapable": "This connector ingests the provider's full board — the job-radar rotation does not apply to it.",
+    "connectorSettings": "Connector settings"
   },
   "filters": {
     "title": "Filters",
@@ -4596,7 +4859,9 @@
     "include": "Include",
     "exclude": "Exclude",
     "clickToInclude": "Click to include — right-click to exclude",
-    "clickToExclude": "Click to exclude — right-click to remove",
+    "clickToExclude": "Click to exclude",
+    "clickToClear": "Click to clear",
+    "removeValue": "Remove {{value}}",
     "clickToIncludeOnly": "Click to include",
     "clickToToggle": "Click to filter by this",
     "min": "min",
@@ -4651,7 +4916,9 @@
     "perYear": "≈ {{range}} {{currency}}/yr",
     "type": "type",
     "size": "size",
-    "founded": "founded"
+    "founded": "founded",
+    "smartBadge": "Smart",
+    "smartBadgeInfo": "Smart match: fit + interest affinity. Degrades to fit-only when interest data is missing."
   },
   "companyRules": {
     "title": "Companies rules",
@@ -4808,12 +5075,19 @@
     "tab": {
       "overview": "Overview",
       "ai": "AI activity",
-      "security": "Security & access"
+      "security": "Security & access",
+      "jobs": "Jobs & runs",
+      "failures": "Failures",
+      "changes": "Data changes",
+      "usage": "Usage & throughput"
     },
     "window": {
       "24h": "24h",
       "7d": "7d",
-      "30d": "30d"
+      "30d": "30d",
+      "custom": "custom…",
+      "fromLabel": "From",
+      "toLabel": "To"
     },
     "kpi": {
       "calls": "AI calls",
@@ -4847,7 +5121,55 @@
     },
     "failures": {
       "title": "Recent failures",
-      "none": "No failures in this window"
+      "none": "No failures in this window",
+      "badge_one": "{{count}} failed job needs attention",
+      "badge_other": "{{count}} failed jobs need attention",
+      "aiBadge_one": "{{count}} failed AI call",
+      "aiBadge_other": "{{count}} failed AI calls",
+      "count_one": "{{count}} in window",
+      "count_other": "{{count}} in window",
+      "fullRerun": "Full re-run",
+      "sweep": "Global sweep",
+      "estJobs_one": "Would requeue {{count}} job",
+      "estJobs_other": "Would requeue {{count}} jobs",
+      "requeueGroup": "Requeue…",
+      "requeueAll_one": "Requeue {{count}} job…",
+      "requeueAll_other": "Requeue {{count}} jobs…",
+      "requeueRow": "Requeue this job",
+      "payload": "Payload",
+      "confirmTitle": "Confirm requeue",
+      "confirmGroup_one": "Requeues {{count}} job of this type as a fresh queue row",
+      "confirmGroup_other": "Requeues {{count}} jobs of this type as fresh queue rows",
+      "confirmAll_one": "Requeues {{count}} job across all types as fresh queue rows",
+      "confirmAll_other": "Requeues {{count}} jobs across all types as fresh queue rows",
+      "confirmCap": "cap {{cap}} per action",
+      "confirmDup_one": "{{count}} duplicate skipped (a twin is queued or running)",
+      "confirmDup_other": "{{count}} duplicates skipped (a twin is queued or running)",
+      "confirmTruncated_one": "{{count}} older failure beyond the scan bound",
+      "confirmTruncated_other": "{{count}} older failures beyond the scan bound",
+      "confirmFreshRows": "Failed jobs are requeued as fresh rows — the failure history stays untouched.",
+      "confirmGo": "Requeue now",
+      "empty": "No failed jobs in this window.",
+      "truncated_one": "+{{count}} older failure beyond the 1000-row scan bound",
+      "truncated_other": "+{{count}} older failures beyond the 1000-row scan bound",
+      "outcomeTitle": "Requeue done",
+      "collapsed_one": "{{count}} collapsed into one sweep requeue",
+      "collapsed_other": "{{count}} collapsed into one sweep requeue",
+      "outcome": {
+        "requeued_one": "{{count}} requeued",
+        "requeued_other": "{{count}} requeued",
+        "skipped_dup_one": "{{count}} skipped (duplicate queued)",
+        "skipped_dup_other": "{{count}} skipped (duplicates queued)",
+        "skipped_cap_one": "{{count}} skipped (cap)",
+        "skipped_cap_other": "{{count}} skipped (cap)"
+      },
+      "maintenance": {
+        "title": "Related maintenance",
+        "embeddings": "Embeddings recompute",
+        "embeddingsHint": "rebuild posting embeddings from the AI configuration surface — for failure waves behind the embedding slot.",
+        "sweeps": "Scheduled sweeps",
+        "sweepsHint": "the fit sweep and curator rebuilds are queue jobs of their own (fit_refit, query_curator) — requeue them here or run them from Automations."
+      }
     },
     "stream": {
       "ai": "AI",
@@ -4883,7 +5205,22 @@
       "stageChip": "stage {{stage}}",
       "promptChip": "prompt {{version}}",
       "packChip": "pack {{key}} v{{version}}",
-      "range": "{{from}}–{{to}} of {{total}} rows"
+      "range": "{{from}}–{{to}} of {{total}} rows",
+      "drawer": {
+        "model": "Model",
+        "tokens": "Tokens",
+        "promptVersion": "Prompt version",
+        "pack": "Skill pack",
+        "run": "Run",
+        "stage": "Stage",
+        "user": "User",
+        "parsed": "Parsed",
+        "raw": "Raw",
+        "prompt": "Prompt",
+        "output": "Output",
+        "viewAria": "Detail view",
+        "position": "{{index}} of {{total}}"
+      }
     },
     "security": {
       "groupFilter": "Action group",
@@ -4907,6 +5244,330 @@
       "colOutcome": "Outcome",
       "colResource": "Resource",
       "empty": "No events in this window"
+    },
+    "export": {
+      "csv": "Export CSV",
+      "exporting": "Exporting…"
+    },
+    "jobs": {
+      "schedulesFailing": "{{count}} schedules failing",
+      "manageSchedules": "Manage in Automations",
+      "statusFilter": "Status",
+      "allStatuses": "All statuses",
+      "status": {
+        "queued": "queued",
+        "running": "running",
+        "succeeded": "succeeded",
+        "failed": "failed",
+        "cancelled": "cancelled"
+      },
+      "typeFilter": "Job type",
+      "allTypes": "All types",
+      "colStatus": "Status",
+      "colType": "Type",
+      "colUser": "User",
+      "colAttempts": "Attempts",
+      "colWhen": "When",
+      "empty": "No jobs in this window",
+      "sourceRuns": "Source runs (last 7 days)",
+      "runStatusFilter": "Run status",
+      "runStatus": {
+        "running": "running",
+        "ok": "ok",
+        "degraded": "degraded",
+        "failed": "failed",
+        "skipped": "skipped"
+      },
+      "trigger": {
+        "manual": "manual",
+        "scheduled": "scheduled"
+      },
+      "noRuns": "No ingestion runs",
+      "runTotal": "{{total}} runs total",
+      "failureStreak_one": "{{count}} consecutive failure",
+      "failureStreak_other": "{{count}} consecutive failures"
+    },
+    "changes": {
+      "entityAria": "Journal entity",
+      "entity": {
+        "postings": "Postings",
+        "skills": "Skills"
+      },
+      "actorFilter": "Actor",
+      "allActors": "All actors",
+      "actor": {
+        "sync_run": "sync run",
+        "extract_llm": "extraction",
+        "detail_fetch": "detail fetch",
+        "company_match": "company match",
+        "retag": "re-tag",
+        "manual": "manual",
+        "expiry": "expiry",
+        "admin": "admin",
+        "system": "system",
+        "sync": "sync",
+        "job": "job",
+        "user": "user"
+      },
+      "resultFilter": "Result",
+      "allOutcomes": "All outcomes",
+      "allEvents": "All events",
+      "result": {
+        "ok": "ok",
+        "partial": "partial",
+        "error": "error",
+        "created": "created",
+        "updated": "updated",
+        "promoted": "promoted",
+        "auto_promoted": "auto-promoted",
+        "deprecated": "deprecated",
+        "restored": "restored",
+        "merged": "merged",
+        "deleted": "deleted"
+      },
+      "colOutcome": "Outcome",
+      "colEvent": "Event",
+      "colSubject": "Subject",
+      "colActor": "Actor",
+      "postingRef": "posting {{id}}",
+      "operationLabel": "Operation — ",
+      "noDiff": "No recorded diff",
+      "empty": "No changes in this window"
+    },
+    "usage": {
+      "models": "Model usage",
+      "tokenTrend": "Token usage over time",
+      "tokensIn": "tokens in",
+      "tokensOut": "tokens out",
+      "tokensShort": "{{tin}} → {{tout}} tok",
+      "errors": "{{count}} errors",
+      "postingsIngested": "Postings ingested",
+      "itemsSynced": "{{count}} items synced",
+      "skillsCreated": "Skills created",
+      "skillsPromoted": "{{count}} promoted (incl. auto)",
+      "companiesCreated": "Companies created",
+      "jobsPublished": "Catalog jobs published",
+      "jobsCreated": "{{count}} created",
+      "postingActivity": "Posting processing activity",
+      "skillEvents": "Skill lifecycle events",
+      "noActivity": "No activity in this range"
+    },
+    "autoRefresh": "Auto-refresh 30s"
+  },
+  "presets": {
+    "title": "Presets",
+    "saveCurrent": "Save current view",
+    "saveHint": "Save these filters as a one-click preset",
+    "updateNamed": "Update {{name}}",
+    "save": "Save preset",
+    "update": "Update preset",
+    "nameLabel": "Preset name",
+    "saveTitle": "Save this view as a preset",
+    "rename": "Rename",
+    "renameTitle": "Rename preset",
+    "delete": "Delete preset",
+    "deleteTitle": "Delete preset “{{name}}”?",
+    "deleteBody": "The saved filters are removed; the postings stay.",
+    "updateCurrent": "Update with current filters",
+    "options": "Options for {{name}}",
+    "saved": "Preset saved",
+    "updated": "Preset updated",
+    "renamed": "Preset renamed",
+    "deleted": "Preset deleted",
+    "defaultName": "My search",
+    "summary": {
+      "query": "Search: {{value}}",
+      "skills": "Skills: {{list}}",
+      "skillsExclude": "Excluded skills: {{list}}",
+      "include": "{{label}}: {{list}}",
+      "exclude": "{{label}} excluded: {{list}}",
+      "posted": "Posted: {{value}}",
+      "salary": "Salary from: {{value}}",
+      "sort": "Sorted by: {{value}}",
+      "empty": "No filters — shows every open posting."
     }
+  },
+  "marketStats": {
+    "title": "Market stats",
+    "subtitle": "How the job market is moving — volume, skills and pay over time.",
+    "window": {
+      "title": "Time window",
+      "24h": "Last 24h",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days",
+      "90d": "Last 90 days",
+      "all": "All time",
+      "custom": "Custom range",
+      "fromLabel": "From",
+      "toLabel": "Until"
+    },
+    "basis": {
+      "title": "Status basis",
+      "open": "Open",
+      "all": "All statuses"
+    },
+    "basisHint": "Open counts only live postings; All also counts expired ones.",
+    "compare": {
+      "groupAria": "Comparison window",
+      "off": "No comparison",
+      "previous": "Previous window",
+      "custom": "Custom B range",
+      "fromLabel": "Compare from",
+      "toLabel": "Compare until",
+      "legendCurrent": "Selected window",
+      "legendPrev": "Previous",
+      "legendB": "Comparison",
+      "paused": "Comparison pauses while a split is on — it applies without a split.",
+      "hintDates": "Pick both comparison dates to overlay the B window.",
+      "hintAll": "All time has no edge to mirror — pick both comparison dates.",
+      "hintCrop": "Aligned by offset — {{count}} bucket(s) cropped from the comparison.",
+      "hintPad": "Aligned by offset — {{count}} bucket(s) zero-padded in the comparison.",
+      "error": "The comparison range hit the server's bucket bound — choose a shorter B window."
+    },
+    "copy": {
+      "link": "Copy link",
+      "copied": "Link copied ✓",
+      "failed": "Copy failed — the URL stays in the address bar"
+    },
+    "export": "Export CSV",
+    "tiles": {
+      "new24h": "New in 24h",
+      "new7d": "New in 7 days",
+      "new30d": "New in 30 days",
+      "newInRange": "New in range",
+      "openTotal": "Open postings"
+    },
+    "delta": {
+      "new": "New",
+      "vsPrev": "{{pct}}% vs previous"
+    },
+    "insights": {
+      "subjectPostings": "Posting volume",
+      "volumeHigh": "{{subject}} is {{pct}}% above the recent norm",
+      "volumeLow": "{{subject}} is {{pct}}% below the recent norm",
+      "shareHigh": "{{subject}} share is {{pct}}% above its recent level",
+      "shareLow": "{{subject}} share is {{pct}}% below its recent level",
+      "skillLead": "{{subject}} overtook the previous leading skill",
+      "fallback": "{{subject}} moved unusually in this window"
+    },
+    "cards": {
+      "overview": "Market overview",
+      "volume": "Postings over time",
+      "volumeHint": "Counts per bucket, with the previous period as ghost bars when compared.",
+      "skills": "Skills in demand",
+      "skillsHint": "Top-demanded skills with their trend against the previous window.",
+      "dimensions": "Market structure",
+      "dimensionsHint": "Grouped demand by one dimension — the rows carry their filter mapping.",
+      "salary": "Salary bands",
+      "salaryHint": "Per currency, annualized normalized basis; thin samples hide the band.",
+      "companies": "Who is hiring",
+      "rhythm": "When the market posts",
+      "rhythmHint": "Posting counts by weekday and hour, UTC."
+    },
+    "series": {
+      "prev": "Previous period"
+    },
+    "table": {
+      "toggleAria": "Chart or data table view",
+      "chart": "Chart",
+      "data": "Data",
+      "volume": "Postings per bucket, with the previous window's counts.",
+      "dimensions": "Counts and shares for one market dimension.",
+      "salary": "Salary bands per currency, with medians by seniority.",
+      "companies": "Top hiring companies: open postings and the window delta.",
+      "rhythm": "Posting clock totals by weekday and by hour, with the peak.",
+      "skillsCaption": "Ranked skill rows — count, share of postings and trend.",
+      "quadrantCaption": "Skills placed by demand (count) and momentum (trend arrows)."
+    },
+    "rhythm": {
+      "gridAria": "Posting counts by weekday and hour (UTC)",
+      "peak": "Busiest: {{cell}} UTC",
+      "cellTitle": "{{cell}} UTC — {{count}} postings",
+      "hour": "{{hour}}:00",
+      "totalPair": "{{label}} {{count}}",
+      "summaryPeak": "Busiest: {{cell}} UTC.",
+      "summaryByWeekday": "Totals by weekday: {{totals}}.",
+      "summaryByHour": "Totals by hour: {{totals}}.",
+      "weekday": {
+        "1": "Mon",
+        "2": "Tue",
+        "3": "Wed",
+        "4": "Thu",
+        "5": "Fri",
+        "6": "Sat",
+        "7": "Sun"
+      }
+    },
+    "bucketLabel": "Bucket: {{bucket}}",
+    "split": {
+      "title": "Split by",
+      "none": "No split",
+      "status": "By status",
+      "source": "By source",
+      "work_mode": "By work mode",
+      "seniority": "By seniority",
+      "employment": "By employment"
+    },
+    "skills": {
+      "top": "Most demanded skills",
+      "rising": "Rising",
+      "falling": "Cooling",
+      "categoryMix": "Category mix",
+      "levelHistogram": "Demand level",
+      "priority": "Priority mix",
+      "avgLevel": "Avg. level",
+      "perPosting": "Skills per posting",
+      "trendAria": "Trend {{pct}}%"
+    },
+    "quadrant": {
+      "title": "Volume × momentum",
+      "share": "Share of postings",
+      "momentum": "Momentum"
+    },
+    "dimension": {
+      "title": "Dimension",
+      "seniority": "Seniority",
+      "work_mode": "Work mode",
+      "employment": "Employment type",
+      "contract": "Contract type",
+      "education": "Education",
+      "source": "Source",
+      "location": "Location",
+      "org": "Company",
+      "family": "Career family"
+    },
+    "browse": "Show postings for {{label}}",
+    "browseSkill": "Show postings needing {{skill}}",
+    "share": "{{pct}}%",
+    "salary": {
+      "coverage": "{{pct}}% disclose pay",
+      "thin": "Too few disclosed postings to show a band"
+    },
+    "companies": {
+      "hiring": "Companies hiring",
+      "newCompanies": "New companies",
+      "topHiring": "Top hiring",
+      "industryMix": "Industry mix",
+      "open": "{{count}} open postings"
+    },
+    "coverage": {
+      "salary": "{{pct}}% salary disclosed",
+      "location": "{{pct}}% location given",
+      "orgLinked": "{{pct}}% linked to companies",
+      "skillTagged": "{{pct}}% skill-tagged"
+    },
+    "freshness": {
+      "asOf": "Data as of {{date}}",
+      "stale": "Catching up: {{sources}}"
+    },
+    "error": "Could not load market statistics.",
+    "noData": "No data in this window",
+    "rail": {
+      "title": "Market pulse",
+      "topSources": "Top sources",
+      "openFull": "Open full market stats",
+      "unavailable": "Market pulse is unavailable right now."
+    },
+    "exportAll": "Download all current statistics as CSV"
   }
 }

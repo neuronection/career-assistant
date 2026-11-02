@@ -1,20 +1,47 @@
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useSearchParams,
+} from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Building2, Globe, MapPin, Search } from "lucide-react";
+import { ArrowUpDown, Building2, Globe, MapPin, Search } from "lucide-react";
 import { fetchCompanies } from "@/api/companies";
-import { Badge, EmptyState } from "@/components/ui";
+import { rememberListSearch, isListReturn } from "@/lib/listReturn";
+import {
+  peekCompaniesList,
+  rememberCompaniesList,
+  type CompaniesListSnapshot,
+} from "@/features/companies/companiesListCache";
+import { useProfilesStore } from "@/stores/profilesStore";
+import { Badge, EmptyState, SearchableDropdown } from "@/components/ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
 import { ItemCardShell } from "@/components/cards/ItemCardShell";
+import {
+  Section,
+  TriStateChips,
+  triStateToggle,
+  type FacetChip,
+} from "@/components/filters/filterBits";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
-import type { Company } from "@/types/wire";
+import { CompaniesStatsRail } from "@/components/stats/StatsRail";
+import type { Company, CompanyFacets } from "@/types/wire";
+import {
+  MIN_OPEN_OPTIONS,
+  SORT_OPTIONS,
+  countActive,
+  parseFilters,
+  toParams,
+  toSearchParams,
+  type CompanyFilters,
+} from "@/features/companies/companiesParams";
+import type { TriStateMode } from "@/components/filters/filterBits";
 
-type StatusFilter = "all" | "new";
-
-const FILTERS: StatusFilter[] = ["all", "new"];
+const STATUS_FILTERS: CompanyFilters["status"][] = ["all", "new"];
 
 function employeesRange(company: Company): string | null {
   const parts = [company.employees_min, company.employees_max].filter(
@@ -23,62 +50,296 @@ function employeesRange(company: Company): string | null {
   return parts.length > 0 ? parts.join("–") : null;
 }
 
+/** Companies directory (plan 154): the postings-derived filter language —
+ * tri-state chips with facet counts computed over the active positions
+ * the companies are hiring with — on top of the busiest-first list.
+ * One filter language with Explore via the shared filter bits. */
 export function Companies() {
   const { t } = useTranslation();
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<StatusFilter>("all");
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseFilters(searchParams), [searchParams]);
+  const profileEpoch = useProfilesStore((state) => state.epoch);
+  const plainKey = useMemo(() => toSearchParams(filters).toString(), [filters]);
+  const snapshotKey = `${profileEpoch}|${plainKey}`;
+  const navigationType = useNavigationType();
+  const locationState = useLocation().state;
+  const restorable = navigationType === "POP" || isListReturn(locationState);
+  const restoredRef = useRef<CompaniesListSnapshot | null | undefined>(
+    undefined
+  );
+  if (restoredRef.current === undefined) {
+    restoredRef.current = restorable ? peekCompaniesList(snapshotKey) : null;
+  }
+  const restored = restoredRef.current;
+  const [companies, setCompanies] = useState<Company[]>(
+    () => restored?.companies ?? []
+  );
+  const [facets, setFacets] = useState<CompanyFacets | null>(
+    () => restored?.facets ?? null
+  );
   const [error, setError] = useState("");
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => restored !== null);
 
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      const params = query.trim() ? { q: query.trim() } : {};
-      void fetchCompanies(params)
-        .then(setCompanies)
+  const patch = useCallback(
+    (update: Partial<CompanyFilters>) => {
+      setSearchParams(toSearchParams({ ...filters, ...update }), { replace: true });
+    },
+    [filters, setSearchParams]
+  );
+
+  const toggleAxis = useCallback(
+    (
+      includeKey: keyof CompanyFilters,
+      excludeKey: keyof CompanyFilters,
+      value: string,
+      mode: TriStateMode
+    ) => {
+      const next = triStateToggle(
+        filters[includeKey] as string[],
+        filters[excludeKey] as string[],
+        value,
+        mode
+      );
+      patch({ [includeKey]: next.include, [excludeKey]: next.exclude } as Partial<CompanyFilters>);
+    },
+    [filters, patch]
+  );
+
+  const fetchWith = useCallback(
+    (current: CompanyFilters) => {
+      void fetchCompanies({ ...toParams(current), facets: true })
+        .then((result) => {
+          const items = result.items ?? [];
+          setCompanies(items);
+          setFacets(result.facets ?? null);
+          setError("");
+          rememberCompaniesList(
+            `${profileEpoch}|${toSearchParams(current).toString()}`,
+            { companies: items, facets: result.facets ?? null }
+          );
+        })
         .catch(() => setError(t("companies.loadError")))
         .finally(() => setLoaded(true));
+    },
+    [t, profileEpoch]
+  );
+
+  const restoredForRef = useRef<CompanyFilters | null>(null);
+  useEffect(() => {
+    if (restoredRef.current && restoredForRef.current === null) {
+      restoredForRef.current = filters;
+      return;
+    }
+    if (restoredForRef.current === filters) return;
+    const handle = setTimeout(() => {
+      fetchWith(filters);
     }, 250);
     return () => clearTimeout(handle);
-  }, [query, t]);
+  }, [filters, fetchWith]);
+
+  useEffect(() => {
+    rememberListSearch("/companies", plainKey);
+  }, [plainKey]);
+
+  useEffect(() => {
+    const canonical = toSearchParams(parseFilters(searchParams)).toString();
+    if (canonical !== searchParams.toString()) {
+      setSearchParams(new URLSearchParams(canonical), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const visible =
-    filter === "new" ? companies.filter((c) => c.status === "proposed") : companies;
-  const searching = query.trim().length > 0;
+    filters.status === "new"
+      ? companies.filter((c) => c.status === "proposed")
+      : companies;
+  const searching = filters.q.trim().length > 0;
+  const filtersActive = countActive(filters);
+
+  const facetChips = useCallback(
+    (facet: keyof CompanyFacets): FacetChip[] =>
+      Object.entries(facets?.[facet] ?? {}).map(([value, count]) => ({
+        value,
+        label: t(`companies.facet.${facet}.${value}`, { defaultValue: value }),
+        count,
+        testId: `company-${facet}-${value}`,
+      })),
+    [facets, t]
+  );
+
+  const clearAll = () => setSearchParams(new URLSearchParams(), { replace: true });
 
   return (
-    <div className="ca-card-page max-w-4xl mx-auto space-y-6" data-testid="companies">
+    <div className="ca-stats-page space-y-4" data-testid="companies">
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="relative min-w-0 flex-1 basis-56">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-[var(--as-muted-fg)]" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("companies.searchPlaceholder")}
-            aria-label={t("companies.searchPlaceholder")}
-            className="w-full rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] py-2 pl-9 pr-3 text-sm text-[var(--as-fg)] outline-none focus:border-[var(--as-accent)]"
-            data-testid="company-search"
-          />
-        </label>
-        <div className="flex gap-1.5" data-testid="company-filter-statuses">
-          {FILTERS.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              aria-pressed={filter === mode}
-              onClick={() => setFilter(mode)}
-              className={`cursor-pointer rounded-full border px-2.5 py-0.5 text-xs ${
-                filter === mode
-                  ? "border-[var(--as-accent)] bg-[var(--as-accent)] text-white"
-                  : "border-[var(--as-border)] text-[var(--as-muted-fg)] hover:text-[var(--as-fg)]"
-              }`}
-              data-testid={`company-filter-${mode}`}
+      <div className="ca-stats-cols">
+        <aside
+          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
+          data-testid="company-filters"
+        >
+          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-700">
+                {t("companies.railTitle")}
+              </div>
+              {filtersActive > 0 ? (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="text-xs text-slate-400 hover:text-slate-600"
+                  data-testid="company-filters-clear"
+                >
+                  {t("companies.clearFilters", { count: filtersActive })}
+                </button>
+              ) : null}
+            </div>
+
+            <label className="flex items-center gap-2 text-sm">
+              <Search className="w-4 h-4 text-slate-400 shrink-0" />
+              <input
+                value={filters.q}
+                onChange={(e) => patch({ q: e.target.value })}
+                placeholder={t("companies.searchPlaceholder")}
+                aria-label={t("companies.searchPlaceholder")}
+                className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+                data-testid="company-search"
+              />
+            </label>
+
+            <div data-testid="company-filter-statuses">
+              <p className="text-xs font-medium text-slate-500 pt-1">
+                {t("companies.statusTitle")}
+              </p>
+              <div className="flex flex-wrap gap-1 pt-1">
+                {STATUS_FILTERS.map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    aria-pressed={filters.status === mode}
+                    onClick={() => patch({ status: mode })}
+                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                      filters.status === mode
+                        ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    }`}
+                    data-testid={`company-filter-${mode}`}
+                  >
+                    {t(`companies.filter.${mode}`)}
+                  </button>
+                ))}
+              </div>
+            </div>
+        <div className="grid gap-2">
+          <Section
+            title={t("companies.facetTitle.work_mode")}
+            active={filters.workMode.length + filters.workModeExclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("work_mode")}
+              include={filters.workMode}
+              exclude={filters.workModeExclude}
+              onToggle={(value, mode) => toggleAxis("workMode", "workModeExclude", value, mode)}
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.seniority")}
+            active={filters.seniority.length + filters.seniorityExclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("seniority")}
+              include={filters.seniority}
+              exclude={filters.seniorityExclude}
+              onToggle={(value, mode) => toggleAxis("seniority", "seniorityExclude", value, mode)}
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.employment")}
+            active={filters.employment.length + filters.employmentExclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("employment")}
+              include={filters.employment}
+              exclude={filters.employmentExclude}
+              onToggle={(value, mode) => toggleAxis("employment", "employmentExclude", value, mode)}
+              showCounts
+            />
+          </Section>
+          <Section
+            title={t("companies.facetTitle.industries")}
+            active={filters.industries.length + filters.industriesExclude.length > 0}
+          >
+            <TriStateChips
+              values={facetChips("industries")}
+              include={filters.industries}
+              exclude={filters.industriesExclude}
+              onToggle={(value, mode) =>
+                toggleAxis("industries", "industriesExclude", value, mode)
+              }
+              showCounts
+            />
+          </Section>
+        </div>
+        <div className="space-y-2 pt-1">
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium text-slate-500">
+              {t("companies.facetTitle.locations")}
+            </span>
+            <input
+              value={filters.location}
+              onChange={(e) => patch({ location: e.target.value })}
+              placeholder={t("companies.locationPlaceholder")}
+              aria-label={t("companies.facetTitle.locations")}
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+              data-testid="company-filter-location"
+            />
+          </label>
+          <label className="block text-xs">
+            <span className="mb-1 block font-medium text-slate-500">
+              {t("companies.facetTitle.minOpen")}
+            </span>
+            <select
+              value={String(filters.minOpen)}
+              onChange={(e) => patch({ minOpen: Number(e.target.value) })}
+              aria-label={t("companies.facetTitle.minOpen")}
+              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
+              data-testid="company-filter-min-open"
             >
-              {t(`companies.filter.${mode}`)}
-            </button>
-          ))}
+              <option value={0}>{t("companies.minOpenAny")}</option>
+              {MIN_OPEN_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {t("companies.minOpenN", { count: option })}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+          </div>
+        </aside>
+
+        <div className="flex-1 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs text-slate-500" data-testid="company-count">
+          {loaded ? t("companies.count", { count: visible.length }) : ""}
+        </p>
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <ArrowUpDown aria-hidden className="h-3.5 w-3.5" />
+          <span>{t("companies.sortBy")}</span>
+          <div className="w-48">
+            <SearchableDropdown
+              options={SORT_OPTIONS.map((option) => ({
+                value: option.value,
+                label: t(option.labelKey),
+              }))}
+              value={filters.sort}
+              onChange={(value) => patch({ sort: value })}
+              label={t("companies.sortBy")}
+              hideLabel
+            />
+          </div>
         </div>
       </div>
       {error && <p className="text-sm text-[var(--as-danger)]">{error}</p>}
@@ -93,9 +354,13 @@ export function Companies() {
         <EmptyState
           icon={Building2}
           compact
-          title={searching || filter === "new" ? t("companies.noMatchTitle") : t("companies.noneYetTitle")}
+          title={
+            searching || filtersActive > 0 || filters.status === "new"
+              ? t("companies.noMatchTitle")
+              : t("companies.noneYetTitle")
+          }
           description={
-            searching || filter === "new"
+            searching || filtersActive > 0 || filters.status === "new"
               ? t("companies.noMatchBody")
               : t("companies.noneYetBody")
           }
@@ -107,6 +372,21 @@ export function Companies() {
           ))}
         </div>
       )}
+        </div>
+
+        <CompaniesStatsRail
+          onNewCompanies={() => patch({ status: "new" })}
+          onIndustry={(key) =>
+            toggleAxis(
+              "industries",
+              "industriesExclude",
+              key,
+              filters.industries.includes(key) ? "clear" : "include"
+            )
+          }
+          onCompany={(key) => navigate(`/companies/${key}`)}
+        />
+      </div>
     </div>
   );
 }

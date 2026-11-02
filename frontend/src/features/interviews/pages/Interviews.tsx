@@ -599,7 +599,7 @@ function CreateSessionModal({
         <ModalHeader>
           <ModalTitle>{t("interviews.modalTitle")}</ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-6">
+        <div className="space-y-4">
           <SelectField
             label={t("interviews.focus")}
             value={kind}

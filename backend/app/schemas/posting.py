@@ -343,6 +343,22 @@ class SeenIn(BaseModel):
     posting_ids: list[UUID] = Field(min_length=1, max_length=200)
 
 
+class SmartSearchIn(BaseModel):
+    """One free-text search sentence (plan 179)."""
+
+    query: str = Field(min_length=1, max_length=300)
+
+
+class SmartSearchOut(BaseModel):
+    """The mapped spec, its honest echo, cache state and the resolved
+    explore-filter params the client applies into the URL state."""
+
+    spec: dict
+    interpreted: str
+    cached: bool
+    filters: dict
+
+
 class SaveIn(BaseModel):
     posting_id: UUID
     saved: bool = True

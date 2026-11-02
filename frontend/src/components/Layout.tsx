@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
@@ -10,6 +10,7 @@ import { useIsShortViewport } from "@/hooks/useMediaQuery";
 import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
+import { loadUpdateCheck } from "@/components/UpdateBadge";
 import { currentLocale, isSupportedLocale, setAppLocale } from "@/lib/i18n";
 import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
@@ -29,6 +30,7 @@ import { useProfilesStore } from "@/stores/profilesStore";
 import { BetaBanner } from "@/components/BetaBanner";
 import { FirstRunSetupGate } from "@/features/profile/components/onboarding/FirstRunSetupGate";
 import { AiMockChip } from "@/components/ai/AiSetupPrompt";
+import { useMainScrollRestoration } from "@/hooks/useMainScrollRestoration";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -36,9 +38,24 @@ export function Layout() {
   const { bootstrap, load: loadBootstrap } = useBootstrapStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
+  useMainScrollRestoration(mainRef);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState<Awaited<
+    ReturnType<typeof loadUpdateCheck>
+  >>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadUpdateCheck().then((value) => {
+      if (alive) setUpdateCheck(value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
   const isShort = useIsShortViewport();
   const isBuilderRoute = useMatch("/cv/:id") !== null;
   const isTemplateRoute = useMatch("/cv/templates/:id") !== null;
@@ -181,13 +198,38 @@ export function Layout() {
                     ? { name: user.full_name, email: user.email }
                     : { email: user.email }
                 }
+                status={
+                  updateCheck?.update_available && updateCheck.latest_version
+                    ? {
+                        label: t("update.tooltip", {
+                          version: updateCheck.latest_version,
+                        }),
+                        tone: "info",
+                      }
+                    : undefined
+                }
+                items={
+                  isAdmin && updateCheck?.update_available
+                    ? [
+                        {
+                          id: "release-notes",
+                          label: t("update.releaseNotes"),
+                        },
+                      ]
+                    : undefined
+                }
+                onItemSelect={(id) => {
+                  if (id === "release-notes" && updateCheck) {
+                    window.open(updateCheck.release_url, "_blank", "noreferrer");
+                  }
+                }}
                 onLogout={() => void useAuthStore.getState().logout()}
                 logoutLabel={t("auth.signOut")}
               />
             )}
           </div>
         </header>
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto">
+        <main id="main" ref={mainRef} className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={
               fullBleed

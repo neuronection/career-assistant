@@ -4,6 +4,7 @@ snapshots, check-ins. Everything is deterministic over shipped layers
 scoring concepts, no AI in the hot path."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -109,7 +110,7 @@ async def near_miss_radar(db: AsyncSession, user_id: UUID, limit: int = 8) -> li
                 .where(JobSkill.job_id == job.id)
             )
         ).all()
-        deficits = []
+        deficits: list[dict[str, Any]] = []
         for link, skill in links:
             current = skill_levels.get(link.skill_id)
             level = int(current) if current is not None else 0
@@ -142,7 +143,7 @@ async def near_miss_radar(db: AsyncSession, user_id: UUID, limit: int = 8) -> li
                 "code": job.code,
                 "title": title,
                 "family_key": job.family.key if job.family else "",
-                "fit_score": float(insight.fit_score),
+                "fit_score": float(cast(float, insight.fit_score)),
                 "deficits": sorted(deficits, key=lambda d: (-d["delta"], d["label"]))[:4],
                 "headline": (
                     f"{len(deficits)} skill{'s' if len(deficits) != 1 else ''} away"

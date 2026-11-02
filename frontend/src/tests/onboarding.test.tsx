@@ -413,7 +413,7 @@ describe("Explore wizard (path-scoped steps)", () => {
     );
     expect(screen.getByTestId("finish-explore")).toHaveAttribute(
       "href",
-      "/postings/search"
+      "/postings"
     );
 
     vi.mocked(analyzeProfile).mockResolvedValue({

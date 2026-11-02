@@ -634,7 +634,7 @@ export function JobRadarSettings() {
                 </ul>
               )}
               <Link
-                to="/postings/search"
+                to="/postings"
                 className="mt-2 inline-block text-sm text-[var(--as-primary)] underline decoration-transparent transition-colors hover:decoration-current"
               >
                 {t("jobRadar.openExplore")}

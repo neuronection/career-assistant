@@ -24,7 +24,9 @@ from __future__ import annotations
 import html
 import json
 import re
+import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from urllib.parse import quote
 
 from pydantic import BaseModel, Field
@@ -147,6 +149,22 @@ def _coerce_bool(value) -> bool:
     if isinstance(value, bool):
         return value
     return str(value or "").strip().lower() in {"1", "true", "yes"}
+
+
+def _parse_rfc822_utc(value) -> datetime | None:
+    """RSS 2.0 ``pubDate`` (RFC 822, e.g. ``Sun, 16 Jun 2024 17:30:51 +0000``)."""
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    try:
+        parsed = parsedate_to_datetime(text)
+    except (TypeError, ValueError):
+        return _parse_iso_utc(text)
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 def _parse_iso_utc(value) -> datetime | None:
@@ -430,44 +448,60 @@ class RemotiveConfig(BaseModel):
     max_items: int = Field(default=100, ge=1, le=500)
 
 
-REMOTIVE_URL = "https://remotive.com/api/remote-jobs"
+REMOTIVE_URL = "https://remotive.com/remote-jobs/feed"
 REMOTIVE_DOMAINS = ("remotive.com",)
 
 
-def parse_remotive_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
-    """``{jobs: [{id, url, title, company_name, category, tags, job_type,
-    publication_date (naive ISO, read as UTC), candidate_required_location,
-    salary (free text), description (HTML)}]}``."""
-    data = json.loads(body)
-    rows = data.get("jobs")
-    if not isinstance(rows, list):
-        raise ValueError("payload 'jobs' is not a list")
+def _remotive_category_filter(items: list[RawPosting], category: str | None) -> list[RawPosting]:
+    """Client-side category keep (the feed's ``<category>`` carries titles,
+    not the API's slugs — and robots disallows ``/*category=`` query
+    params, so filtering never rides the URL)."""
+    needle = _normalize_token(category or "")
+    if not needle:
+        return items
+    return [
+        item
+        for item in items
+        if needle in _normalize_token(str((item.raw or {}).get("category") or ""))
+    ]
+
+
+def parse_remotive_feed_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
+    """The ``/remote-jobs/feed`` RSS 2.0 wire: ``<item>`` carries title,
+    jobId, company, location, type, category, link/guid, pubDate (RFC 822)
+    and the full HTML description in CDATA. Remotive's JSON API is
+    robots-disallowed (``Disallow: /api/*``) — this feed is the polite
+    endpoint."""
+    root = ET.fromstring(body)
+    channel = root.find("channel")
+    if channel is None:
+        raise ValueError("payload has no <channel>")
     items: list[RawPosting] = []
     errors: list[ConnectorError] = []
-    for row in rows:
-        if not isinstance(row, dict):
-            errors.append(_invalid_row("remotive row is not an object"))
+    for node in channel.findall("item"):
+        title = (node.findtext("title") or "").strip()
+        job_id = (node.findtext("jobId") or "").strip()
+        link = (node.findtext("link") or "").strip()
+        external_id = job_id or link
+        if not title or not external_id:
+            errors.append(_invalid_row(f"remotive row missing title/jobId (jobId={job_id!r})"))
             continue
-        external_id = str(row.get("id") or "").strip()
-        title = str(row.get("title") or "").strip()
-        if not external_id or not title:
-            errors.append(_invalid_row(f"remotive row missing id/title (id={external_id!r})"))
-            continue
-        location_note = str(row.get("candidate_required_location") or "").strip()
+        location_note = (node.findtext("location") or "").strip()
         items.append(
             RawPosting(
                 external_id=external_id[:300],
                 title=title[:300],
-                org=str(row.get("company_name") or "")[:200],
+                org=(node.findtext("company") or "").strip()[:200],
                 location=LocationSpec(remote=True),
-                url=str(row.get("url") or "")[:1000],
-                posted_at=_parse_iso_utc(row.get("publication_date")),
-                salary=parse_salary_text(str(row.get("salary") or "")),
-                employment_type=_employment_type([row.get("job_type")]),  # type: ignore[arg-type]
-                skills_raw=[str(tag) for tag in (row.get("tags") or [])][:60],
+                url=link[:1000],
+                posted_at=_parse_rfc822_utc(node.findtext("pubDate")),
+                employment_type=_employment_type([node.findtext("type")]),  # type: ignore[arg-type]
+                skills_raw=[
+                    category for category in [(node.findtext("category") or "").strip()] if category
+                ],
                 raw={
-                    "description": str(row.get("description") or "")[:8000],
-                    "category": str(row.get("category") or ""),
+                    "description": (node.findtext("description") or "")[:8000],
+                    "category": (node.findtext("category") or "").strip(),
                     "location_note": location_note,
                 },
             )
@@ -476,10 +510,12 @@ def parse_remotive_payload(body: str) -> tuple[list[RawPosting], list[ConnectorE
 
 
 class RemotiveConnector(PostingConnector):
-    """Remotive public remote-jobs API — free, no auth. Remote-jobs board:
-    every row is remote, the geo restriction rides ``raw.location_note``.
-    Their legal notice asks for attribution and a link back — the posting
-    URL IS the remotive.com URL, so attribution rides the data."""
+    """Remotive's public remote-jobs RSS feed — free, no auth, and the
+    endpoint robots.txt allows (the JSON API is ``Disallow: /api/*``).
+    Remote-jobs board: every row is remote, the geo restriction rides
+    ``raw.location_note``. Their legal notice asks for attribution and a
+    link back — the posting URL IS the remotive.com URL, so attribution
+    rides the data."""
 
     key = "remotive"
     title = "Remotive remote jobs"
@@ -498,10 +534,7 @@ class RemotiveConnector(PostingConnector):
         cfg = RemotiveConfig.model_validate(config)
         if transport is None:
             return _not_ready()
-        url = REMOTIVE_URL
-        if cfg.category:
-            url = f"{url}?category={quote(cfg.category)}"
-        resp = await transport(url, conditional_headers(state or {}))
+        resp = await transport(REMOTIVE_URL, conditional_headers(state or {}))
         if resp.status == 304:
             return ConnectorResult(
                 next_state=merge_cache_state(state, resp.etag, resp.last_modified)
@@ -513,9 +546,10 @@ class RemotiveConnector(PostingConnector):
                 partial_errors=[_provider_error(f"remotive fetch failed with status {resp.status}")]
             )
         try:
-            items, row_errors = parse_remotive_payload(resp.body)
-        except (json.JSONDecodeError, ValueError) as exc:
+            items, row_errors = parse_remotive_feed_payload(resp.body)
+        except (ET.ParseError, ValueError) as exc:
             return ConnectorResult(partial_errors=[_protocol_error(f"remotive parse: {exc}")])
+        items = _remotive_category_filter(items, cfg.category)
         items = _apply_watermark(items, state or {})
         items = _sort_and_cap(items, cfg.max_items)
         return ConnectorResult(
@@ -668,4 +702,124 @@ class JobicyConnector(PostingConnector):
             items=items,
             next_state=_stamp_watermark(state or {}, items, etag, last_modified),
             partial_errors=errors,
+        )
+
+
+# ----------------------------------------------------------------- workable
+
+
+class WorkableConfig(BaseModel):
+    account: str = Field(
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$",
+    )
+    max_items: int = Field(default=100, ge=1, le=300)
+
+
+WORKABLE_URL = "https://apply.workable.com/api/v1/widget/accounts"
+WORKABLE_DOMAINS = ("apply.workable.com",)
+
+
+def workable_feed_url(account: str) -> str:
+    # `details=true` embeds each job's full HTML description — one request
+    # carries everything the extraction pipeline needs.
+    return f"{WORKABLE_URL}/{account}?details=true"
+
+
+def parse_workable_payload(body: str) -> tuple[list[RawPosting], list[ConnectorError]]:
+    """The careers-widget account payload (the same JSON the embeddable
+    widget loads, with ``details=true``): ``{name, description, jobs:
+    [{title, shortcode, url, shortlink, city, state, country, department,
+    description (HTML), published_on (date), created_at (ISO),
+    telecommuting, employment_type, …}]}``."""
+    data = json.loads(body)
+    rows = data.get("jobs")
+    if not isinstance(rows, list):
+        raise ValueError("payload 'jobs' is not a list")
+    org = str(data.get("name") or "").strip()[:200]
+    items: list[RawPosting] = []
+    errors: list[ConnectorError] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            errors.append(_invalid_row("workable row is not an object"))
+            continue
+        external_id = str(row.get("shortcode") or "").strip()
+        title = str(row.get("title") or "").strip()
+        if not external_id or not title:
+            errors.append(
+                _invalid_row(f"workable row missing shortcode/title (shortcode={external_id!r})")
+            )
+            continue
+        city = str(row.get("city") or "").strip()
+        country = str(row.get("country") or "").strip()
+        remote = _coerce_bool(row.get("telecommuting"))
+        items.append(
+            RawPosting(
+                external_id=external_id[:300],
+                title=title[:300],
+                org=org,
+                location=LocationSpec(
+                    city=city or None,
+                    country=country or None,
+                    remote=remote or "remote" in title.lower(),
+                ),
+                url=str(row.get("url") or row.get("shortlink") or "")[:1000],
+                posted_at=_parse_iso_utc(row.get("published_on") or row.get("created_at")),
+                employment_type=_employment_type([row.get("employment_type")]),  # type: ignore[arg-type]
+                raw={
+                    "description": html.unescape(str(row.get("description") or ""))[:8000],
+                    "department": str(row.get("department") or "")[:120],
+                    "state": str(row.get("state") or "")[:120],
+                    "function": str(row.get("function") or "")[:120],
+                    "work_type": "remote" if remote else "on-site",
+                },
+            )
+        )
+    return items, errors
+
+
+class WorkableConnector(PostingConnector):
+    """Workable public widget API — free, no auth. One source per account
+    (the slug in the tenant's ``apply.workable.com/<account>`` URL); the
+    payload is the careers widget's own JSON, not a scraped page."""
+
+    key = "workable"
+    title = "Workable careers feed"
+    docs_url = "https://docs.career-assistant.local/connectors/workable"
+    capabilities = ConnectorCapabilities(
+        network_scopes=list(WORKABLE_DOMAINS),
+        supports_incremental=True,
+        max_requests_per_minute=10,
+    )
+    fixture_payload = ""
+
+    def config_model(self) -> type[BaseModel]:
+        return WorkableConfig
+
+    async def fetch(self, config, state, *, transport=None, secrets=None, **_kw) -> ConnectorResult:
+        cfg = WorkableConfig.model_validate(config)
+        if transport is None:
+            return _not_ready()
+        resp = await transport(workable_feed_url(cfg.account), conditional_headers(state or {}))
+        if resp.status == 304:
+            return ConnectorResult(
+                next_state=merge_cache_state(state, resp.etag, resp.last_modified)
+            )
+        if resp.status == 429:
+            return ConnectorResult(partial_errors=[_rate_limited("workable", resp.headers)])
+        if resp.status != 200:
+            return ConnectorResult(
+                partial_errors=[_provider_error(f"workable fetch failed with status {resp.status}")]
+            )
+        try:
+            items, row_errors = parse_workable_payload(resp.body)
+        except (json.JSONDecodeError, ValueError) as exc:
+            return ConnectorResult(partial_errors=[_protocol_error(f"workable parse: {exc}")])
+        items = _apply_watermark(items, state or {})
+        items = _sort_and_cap(items, cfg.max_items)
+        return ConnectorResult(
+            items=items,
+            next_state=_stamp_watermark(state or {}, items, resp.etag, resp.last_modified),
+            partial_errors=row_errors,
         )

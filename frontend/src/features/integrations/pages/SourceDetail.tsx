@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Radar, SlidersHorizontal } from "lucide-react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -15,15 +16,19 @@ import type {
 import {
   deleteSource,
   fetchAdminSources,
+  fetchConnectorCatalog,
   fetchSourceRuns,
   probeSource,
   syncSource,
   updateSource,
+  type ConnectorCatalogEntry,
   type PostingSource,
   type SourceRun,
 } from "@/api/sources";
 import { fetchSystemSchedules } from "@/api/scheduler";
+import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
 import { QueryPlanPanel } from "@/components/settings/QueryPlanPanel";
+import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 import { RunDetailsDialog } from "@/components/settings/RunDetailsDialog";
 
 /**
@@ -47,6 +52,83 @@ function fmtWhen(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "—";
 }
 
+/**
+ * One pacing row: presets stay one click away, and a numeric knob's bounded
+ * range is reachable through the trailing Custom entry (plan 154 — role
+ * groups 1-6, budget 20-90). A stored value outside the presets opens the
+ * custom input prefilled, never a verdict against an invisible number.
+ */
+function PacingRow({
+  label,
+  items,
+  value,
+  onChange,
+  hint,
+  custom,
+  testId,
+}: {
+  label: string;
+  items: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+  hint?: string;
+  custom?: { min: number; max: number };
+  testId: string;
+}) {
+  const { t } = useTranslation();
+  const [customOpen, setCustomOpen] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const outsidePresets = custom != null && value !== "" && !items.some((item) => item.value === value);
+  const customShown = custom != null && (customOpen || outsidePresets);
+  const tabs = custom
+    ? [...items, { value: "__custom__", label: t("sourceDetail.customValue") }]
+    : items;
+
+  return (
+    <div className="space-y-1.5" data-testid={testId}>
+      <div className="text-sm">{label}</div>
+      <SegmentedTabs
+        items={tabs}
+        value={customShown ? "__custom__" : value}
+        onValueChange={(next) => {
+          if (next === "__custom__") {
+            setDraft(value);
+            setCustomOpen(true);
+            return;
+          }
+          setCustomOpen(false);
+          onChange(next);
+        }}
+        ariaLabel={label}
+      />
+      {customShown && custom ? (
+        <input
+          type="number"
+          className="w-28 rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm"
+          min={custom.min}
+          max={custom.max}
+          step={1}
+          value={customOpen ? draft : value}
+          aria-label={t("sourceDetail.customValueFor", { label })}
+          placeholder={t("sourceDetail.customRange", { min: custom.min, max: custom.max })}
+          data-testid={`${testId}-custom`}
+          onChange={(event) => {
+            const raw = event.target.value;
+            setDraft(raw);
+            // emit only in-range integers — a half-typed value never
+            // commits a nonsense knob (plan 154 custom range)
+            const parsed = Number(raw);
+            if (raw.trim() !== "" && Number.isFinite(parsed) && parsed >= custom.min && parsed <= custom.max) {
+              onChange(String(Math.trunc(parsed)));
+            }
+          }}
+        />
+      ) : null}
+      {hint ? <p className="text-xs text-[var(--as-muted-fg)]">{hint}</p> : null}
+    </div>
+  );
+}
+
 export function SourceDetailPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,12 +145,24 @@ export function SourceDetailPage() {
   const [cadenceEvery, setCadenceEvery] = useState<number | null>(null);
   const [detailsRun, setDetailsRun] = useState<SourceRun | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
+  const [catalogEntry, setCatalogEntry] = useState<ConnectorCatalogEntry | null>(null);
+  const presetForSource = JOB_SOURCE_PRESETS.find((entry) => entry.slug === source?.key);
 
   const dirtyRef = useRef(false);
   const updateValues = (next: IntegrationConfigValues) => {
     dirtyRef.current = true;
     setConfigValues(next);
   };
+  // The options payload both the save and the mode flip send — the
+  // backend validates exactly what is on screen (plan 173).
+  const packOptions = (values: IntegrationConfigValues) =>
+    JSON.stringify(
+      Object.fromEntries(
+        Object.entries(values)
+          .filter(([, value]) => value !== null && value !== undefined && value !== "")
+          .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+      ),
+    );
   const updateBatch = (count: number) => {
     dirtyRef.current = true;
     setLocalBatch(count);
@@ -76,6 +170,15 @@ export function SourceDetailPage() {
 
   useEffect(() => {
     if (!source || dirtyRef.current) return;
+    if (!source.tool_config_schema) {
+      // T1 builtin source: the stored config IS the settings payload.
+      setConfigValues(
+        Object.fromEntries(
+          Object.entries(source.config).map(([key, value]) => [key, String(value)]),
+        ) as IntegrationConfigValues,
+      );
+      return;
+    }
     try {
       const parsed = JSON.parse(String(source.config.options ?? "{}")) as Record<string, unknown>;
       setConfigValues(
@@ -89,6 +192,67 @@ export function SourceDetailPage() {
       setConfigValues({});
     }
   }, [source]);
+
+  useEffect(() => {
+    if (!source?.connector_key) return;
+    let cancelled = false;
+    fetchConnectorCatalog()
+      .then((rows) => {
+        if (!cancelled) {
+          setCatalogEntry(rows.find((row) => row.key === source.connector_key) ?? null);
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [source?.connector_key]);
+
+  // The connector's own settings form for T1 sources (plan 180): their
+  // config is flat (company/account/url), not the managed options bag.
+  const t1Fields = useMemo(() => {
+    if (!source || source.tool_config_schema) return [];
+    const schema = catalogEntry?.config_schema;
+    return schema ? parseIntegrationConfigSchema(schema as IntegrationConfigSchema) : [];
+  }, [source?.tool_config_schema, catalogEntry]);
+
+  const packFlatConfig = (values: IntegrationConfigValues) =>
+    Object.fromEntries(
+      Object.entries(values)
+        .filter(([, value]) => value !== null && value !== undefined && value !== "")
+        .map(([key, value]) => [key, Array.isArray(value) ? value.join(",") : value]),
+    ) as Record<string, string | number | boolean>;
+
+  const configFields = useMemo(() => {
+    if (!source?.tool_config_schema) return [];
+    const customLabel = t("sourceDetail.customValue");
+    return parseIntegrationConfigSchema(source.tool_config_schema as IntegrationConfigSchema)
+      .filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")
+      .map((field) =>
+        field.type === "number" &&
+        field.choices &&
+        field.minimum != null &&
+        field.maximum != null
+          ? { ...field, customLabel }
+          : field,
+      );
+  }, [source?.tool_config_schema, t]);
+
+  // Required bundle fields still missing from the options — static mode
+  // searches the stored keywords, radar supplies them per sync (plan 173).
+  const missingForStatic = useMemo(() => {
+    const required = source?.tool_config_schema?.required ?? [];
+    return required.filter((name) => {
+      const value = configValues[name];
+      return value === undefined || value === null || String(value).trim() === "";
+    });
+  }, [source?.tool_config_schema, configValues]);
+
+  // Radar rotation needs the connector's opt-in (plan 180): board feeds
+  // (Recruitee/Workable/…) ingest the provider's whole board, so the
+  // rotation is inert for them and the picker says so.
+  const radarCapable =
+    catalogEntry?.capabilities?.dynamic_queries === true || Boolean(source?.tool_config_schema);
 
   const reload = useCallback(async () => {
     const [rows, runRows] = await Promise.all([
@@ -110,7 +274,7 @@ export function SourceDetailPage() {
       .catch(() => setCadenceEvery(null));
   }, [reload, t]);
 
-  const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 1);
+  const [localBatch, setLocalBatch] = useState<number>(source?.query_batch_size ?? 2);
   useEffect(() => {
     if (source?.query_batch_size && !dirtyRef.current) setLocalBatch(source.query_batch_size);
   }, [source?.query_batch_size]);
@@ -142,6 +306,14 @@ export function SourceDetailPage() {
     if (!cadenceEvery || !source?.last_run_at) return null;
     return new Date(new Date(source.last_run_at).getTime() + cadenceEvery * 60_000);
   }, [cadenceEvery, source?.last_run_at]);
+
+  // Detail-enrichment ticks write ledger rows without a `synced` key —
+  // they are not ingestion attempts and never belonged in this history
+  // (plan 180; they once masked a fully-failed sync).
+  const syncRuns = useMemo(
+    () => runs.filter((run) => !run.report || run.report.synced !== undefined),
+    [runs],
+  );
 
   const act = async (action: () => Promise<unknown>, done?: string) => {
     setBusy(true);
@@ -246,7 +418,14 @@ export function SourceDetailPage() {
           ← {t("sourceDetail.back")}
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-bold text-slate-900">{source?.key ?? sourceId}</h1>
+          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            {presetForSource ? (
+              <span className="shrink-0" aria-hidden>
+                <PresetLogo preset={presetForSource} size={28} />
+              </span>
+            ) : null}
+            {source?.title || source?.key || sourceId}
+          </h1>
           <span className="rounded-full border border-[var(--as-border)] px-2 py-0.5 text-xs">
             {source?.last_status ?? "…"}
           </span>
@@ -382,27 +561,81 @@ export function SourceDetailPage() {
 
       {tab === "config" && source ? (
         <div className="space-y-4 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <label className="block text-sm" htmlFor="src-query-mode">
-                {t("sourceDetail.queryMode")}
-              </label>
-              <select
-                id="src-query-mode"
-                className="w-full rounded-[var(--as-radius-sm)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm"
-                value={source.query_mode}
-                onChange={(event) =>
-                  void act(() =>
-                    updateSource(sourceId, {
-                      query_mode: event.target.value as "static" | "radar",
-                    }),
-                  )
-                }
-              >
-                <option value="static">{t("sourceDetail.staticMode")}</option>
-                <option value="radar">{t("sourceDetail.radarMode")}</option>
-              </select>
+          <div className="space-y-1">
+            <span className="block text-sm" id="src-query-mode-label">
+              {t("sourceDetail.queryMode")}
+            </span>
+            <div
+              role="radiogroup"
+              aria-labelledby="src-query-mode-label"
+              className="grid gap-2 sm:grid-cols-2"
+            >
+              {(
+                [
+                  {
+                    value: "radar" as const,
+                    label: t("sourceDetail.radarMode"),
+                    icon: Radar,
+                  },
+                  {
+                    value: "static" as const,
+                    label: t("sourceDetail.staticMode"),
+                    icon: SlidersHorizontal,
+                  },
+                ] as const
+              ).map((option) => {
+                const selected = source.query_mode === option.value;
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    disabled={!radarCapable && option.value === "radar" && !selected}
+                    onClick={() => {
+                      if (option.value === source.query_mode) return;
+                      if (
+                        option.value === "static" &&
+                        source.query_mode !== "static" &&
+                        missingForStatic.length
+                      ) {
+                        setNotice(
+                          t("sourceDetail.staticNeedsFields", {
+                            fields: missingForStatic.join(", "),
+                          }),
+                        );
+                        return;
+                      }
+                      void act(() =>
+                        updateSource(sourceId, {
+                          query_mode: option.value,
+                          config: source.tool_config_schema
+                            ? {
+                                ...(source.config as Record<string, unknown>),
+                                options: packOptions(configValues),
+                              }
+                            : source.config,
+                        }),
+                      );
+                    }}
+                    className={`flex items-center gap-2 rounded-[var(--as-radius-md)] border px-3 py-2.5 text-left text-sm transition-colors ${
+                      selected
+                        ? "border-[var(--as-accent)] bg-[var(--as-surface)] font-medium"
+                        : "border-[var(--as-border)] bg-[var(--as-surface)]/60 text-[var(--as-muted-fg)] hover:bg-[var(--as-surface)]"
+                    } ${!radarCapable && option.value === "radar" && !selected ? "cursor-not-allowed opacity-50" : ""}`}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
             </div>
+            {!radarCapable ? (
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("sourceDetail.radarNotCapable")}
+              </p>
+            ) : null}
           </div>
           {source.tool_config_schema ? (
             <div
@@ -425,7 +658,7 @@ export function SourceDetailPage() {
                       { value: "smart", label: t("sourceDetail.fetchSmart") },
                       { value: "all", label: t("sourceDetail.fetchAll") },
                     ],
-                    selected: String(configValues.detail_mode ?? "off"),
+                    selected: String(configValues.detail_mode ?? "all"),
                     select: (value: string) =>
                       updateValues({ ...configValues, detail_mode: value }),
                     hint: {
@@ -433,7 +666,7 @@ export function SourceDetailPage() {
                       sample: t("sourceDetail.fetchSampleHint"),
                       smart: t("sourceDetail.fetchSmartHint"),
                       all: t("sourceDetail.fetchAllHint"),
-                    }[String(configValues.detail_mode ?? "off")],
+                    }[String(configValues.detail_mode ?? "all")],
                   },
                   {
                     label: t("sourceDetail.queriesPerSync"),
@@ -444,32 +677,20 @@ export function SourceDetailPage() {
                     selected: String(localBatch),
                     select: (value: string) => updateBatch(Number(value)),
                     hint: t("sourceDetail.batchHint"),
+                    custom: { min: 1, max: 6 },
                   },
                   {
                     label: t("sourceDetail.timeBudget"),
-                    items: (() => {
-                      const stored = String(configValues.budget_seconds ?? 80);
-                      const presets = [
-                        { value: "30", label: t("sourceDetail.budgetQuick") },
-                        { value: "60", label: t("sourceDetail.budgetBalanced") },
-                        { value: "90", label: t("sourceDetail.budgetThorough") },
-                      ];
-                      // a stored value outside the presets stays visible —
-                      // never a verdict against an invisible number
-                      return presets.some((item) => item.value === stored)
-                        ? presets
-                        : [
-                            {
-                              value: stored,
-                              label: t("sourceDetail.budgetCustom", { seconds: stored }),
-                            },
-                            ...presets,
-                          ];
-                    })(),
-                    selected: String(configValues.budget_seconds ?? 80),
+                    items: [
+                      { value: "30", label: t("sourceDetail.budgetQuick") },
+                      { value: "60", label: t("sourceDetail.budgetBalanced") },
+                      { value: "90", label: t("sourceDetail.budgetThorough") },
+                    ],
+                    selected: String(configValues.budget_seconds ?? 90),
                     select: (value: string) =>
                       updateValues({ ...configValues, budget_seconds: Number(value) }),
                     hint: t("sourceDetail.budgetHint"),
+                    custom: { min: 20, max: 90 },
                   },
                 ] as {
                   label: string;
@@ -477,26 +698,25 @@ export function SourceDetailPage() {
                   selected: string;
                   select: (value: string) => void;
                   hint: string;
+                  custom?: { min: number; max: number };
                 }[]
               ).map((row) => (
-                <div key={row.label} className="space-y-1.5">
-                  <div className="text-sm">{row.label}</div>
-                  <SegmentedTabs
-                    items={row.items}
-                    value={row.selected}
-                    onValueChange={row.select}
-                    ariaLabel={row.label}
-                  />
-                  {row.hint ? (
-                    <p className="text-xs text-[var(--as-muted-fg)]">{row.hint}</p>
-                  ) : null}
-                </div>
+                <PacingRow
+                  key={row.label}
+                  label={row.label}
+                  items={row.items}
+                  value={row.selected}
+                  onChange={row.select}
+                  hint={row.hint}
+                  custom={row.custom}
+                  testId={`pacing-${row.label}`}
+                />
               ))}
               {(() => {
                 const pages = Number(configValues.max_pages ?? 2);
                 const nav = Number(configValues.nav_delay_seconds ?? 2.5);
                 const detailLimit = Number(configValues.detail_limit ?? 5);
-                const mode = String(configValues.detail_mode ?? "off");
+                const mode = String(configValues.detail_mode ?? "all");
                 const perGroup = pages * (nav + 7) + 5;
                 let estimate = Math.round(
                   localBatch * perGroup + (localBatch > 1 ? (localBatch - 1) * 8 : 0),
@@ -504,7 +724,7 @@ export function SourceDetailPage() {
                 // sample visits detail pages inline — the only mode that
                 // lengthens the sync itself (smart/all run in the background)
                 if (mode === "sample") estimate += detailLimit * 12;
-                const budget = Number(configValues.budget_seconds ?? 80);
+                const budget = Number(configValues.budget_seconds ?? 90);
                 const [tone, key] =
                   estimate <= budget * 0.75
                     ? ["text-[var(--as-success)]", "sourceDetail.paceFits"]
@@ -528,27 +748,17 @@ export function SourceDetailPage() {
               presets={integrationConfigPresets(
                 source.tool_config_schema as IntegrationConfigSchema,
               )}
-              fields={parseIntegrationConfigSchema(
-                source.tool_config_schema as IntegrationConfigSchema,
-              ).filter((field) => field.name !== "budget_seconds" && field.name !== "detail_mode")}
+              fields={configFields}
               values={configValues}
               onValuesChange={updateValues}
               onSave={({ secrets }) =>
                 void (async () => {
-                  const packed = Object.fromEntries(
-                    Object.entries(configValues)
-                      .filter(([, value]) => value !== null && value !== undefined && value !== "")
-                      .map(([key, value]) => [
-                        key,
-                        Array.isArray(value) ? value.join(",") : value,
-                      ]),
-                  );
                   await act(
                     () =>
                       updateSource(sourceId, {
                         config: {
                           ...(source.config as Record<string, unknown>),
-                          options: JSON.stringify(packed),
+                          options: packOptions(configValues),
                         },
                         query_mode: source.query_mode,
                         query_batch_size: localBatch,
@@ -576,6 +786,49 @@ export function SourceDetailPage() {
                 void reload();
               }}
             />
+          ) : t1Fields.length ? (
+            <div
+              className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
+              data-testid="connector-settings-card"
+            >
+              <div className="text-sm font-medium">{t("sourceDetail.connectorSettings")}</div>
+              <IntegrationConfigForm
+                fields={t1Fields}
+                values={configValues}
+                onValuesChange={updateValues}
+                onSave={({ secrets }) =>
+                  void (async () => {
+                    await act(
+                      () =>
+                        updateSource(sourceId, {
+                          config: packFlatConfig(configValues),
+                          query_mode: source.query_mode,
+                          query_batch_size: localBatch,
+                        }),
+                      t("sourceDetail.configSaved"),
+                    );
+                    dirtyRef.current = false;
+                    void secrets;
+                  })()
+                }
+                busy={busy}
+                error={notice || null}
+                secretSlots={{}}
+                labels={{
+                  presetLabel: t("sourceDetail.presetLabel"),
+                  advancedLabel: t("sourceDetail.advancedLabel"),
+                  submitLabel: t("sourceDetail.saveConfig"),
+                  cancelLabel: t("toolsSettings.connectors.sources.cancel"),
+                  secretSetLabel: t("toolsSettings.connectors.sources.secretSetShort"),
+                  secretHintLabel: t("toolsSettings.connectors.sources.secretMissingShort"),
+                  enumPlaceholder: t("toolsSettings.connectors.sources.select"),
+                }}
+                onCancel={() => {
+                  dirtyRef.current = false;
+                  void reload();
+                }}
+              />
+            </div>
           ) : (
             <p className="text-xs text-[var(--as-muted-fg)]">{t("sourceDetail.configHint")}</p>
           )}
@@ -584,7 +837,7 @@ export function SourceDetailPage() {
 
       {tab === "runs" ? (
         <div className="space-y-3 rounded-[var(--as-radius-md)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
-          {runs.length === 0 ? (
+          {syncRuns.length === 0 ? (
             <p className="text-sm text-[var(--as-muted-fg)]" data-testid="runs-empty">
               {t("sourceDetail.runsEmpty")}
             </p>
@@ -603,7 +856,7 @@ export function SourceDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {runs.map((run) => (
+                  {syncRuns.map((run) => (
                     <tr
                       key={run.id}
                       className="border-t border-[var(--as-border)]"

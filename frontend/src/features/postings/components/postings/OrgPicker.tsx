@@ -20,15 +20,26 @@ interface OrgPickerProps {
   onChange: (next: string[]) => void;
   placeholder?: string;
   className?: string;
+  /** Render the selected chips as excluded values (rose, `−` prefix). */
+  exclude?: boolean;
 }
 
-export function OrgPicker({ value, onChange, placeholder, className }: OrgPickerProps) {
+export function OrgPicker({
+  value,
+  onChange,
+  placeholder,
+  className,
+  exclude = false,
+}: OrgPickerProps) {
   const { t } = useTranslation();
 
   const search = useCallback(
     async (query: string): Promise<PickerOption[]> => {
       const companies = await fetchCompanies(query ? { q: query, limit: 25 } : { limit: 25 });
-      return companies.map((company) => ({ value: company.name, label: company.name }));
+      return (companies.items ?? []).map((company) => ({
+        value: company.name,
+        label: company.name,
+      }));
     },
     [],
   );
@@ -37,7 +48,8 @@ export function OrgPicker({ value, onChange, placeholder, className }: OrgPicker
 
   return (
     <MultiSelectPicker
-      className={className}
+      className={exclude ? `ca-picker-exclude ${className ?? ""}`.trim() : className}
+      renderChipExtra={exclude ? () => <span aria-hidden>−</span> : undefined}
       value={selection}
       onChange={(next: PickerSelection[]) =>
         onChange(next.map((entry: PickerSelection) => entry.value))

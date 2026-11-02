@@ -97,6 +97,49 @@ async def test_explore_saved_keeps_closed_posting(
     assert body["items"][0]["status"] == "expired"
 
 
+async def test_explore_seen_filters_and_seen_exclusion(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    seen = await _make_posting(db, source, external_id="seen-1")
+    unseen = await _make_posting(db, source, external_id="unseen-1")
+    marked = await client.post(
+        "/api/v1/postings/seen",
+        json={"posting_ids": [str(seen.id)]},
+        headers=auth_headers,
+    )
+    assert marked.status_code == 200, marked.text
+
+    both = await client.get("/api/v1/postings/explore", headers=auth_headers)
+    assert {i["id"] for i in both.json()["items"]} == {str(seen.id), str(unseen.id)}
+
+    seen_only = await client.get(
+        "/api/v1/postings/explore", params={"seen": "true"}, headers=auth_headers
+    )
+    assert [i["id"] for i in seen_only.json()["items"]] == [str(seen.id)]
+
+    excluded = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "true"}, headers=auth_headers
+    )
+    body = excluded.json()
+    assert body["total"] == 1
+    assert [i["id"] for i in body["items"]] == [str(unseen.id)]
+    assert body["items"][0]["seen"] is False
+
+    off = await client.get(
+        "/api/v1/postings/explore", params={"seen_exclude": "false"}, headers=auth_headers
+    )
+    assert off.json()["total"] == 2
+
+
+def test_parse_explore_filters_reads_text_booleans_honestly():
+    from app.services.postings.explore_service import parse_explore_filters
+
+    assert parse_explore_filters({"seen_exclude": "false"}) == {}
+    assert parse_explore_filters({"seen_exclude": "0"}) == {}
+    assert parse_explore_filters({"seen_exclude": "true"}) == {"seen_exclude": True}
+    assert parse_explore_filters({"saved": False}) == {}
+
+
 async def test_explore_released_windows_and_fresh_only(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
@@ -114,6 +157,24 @@ async def test_explore_released_windows_and_fresh_only(
     )
     ids = {i["id"] for i in response.json()["items"]}
     assert str(fresh.id) in ids and str(old.id) not in ids
+
+
+async def test_explore_posted_windows_fall_back_to_ingestion_date(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    undated = await _make_posting(db, source, external_id="undated-1", posted_at=None)
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"posted_within": "7d"},
+        headers=auth_headers,
+    )
+    ids = {i["id"] for i in response.json()["items"]}
+    assert str(undated.id) in ids
+
+    facets = (
+        await client.get("/api/v1/postings/explore", params={"sort": "fresh"}, headers=auth_headers)
+    ).json()["facets"]["posted"]
+    assert facets == {"24h": 1, "7d": 0, "30d": 0, "90d": 0, "older": 0}
 
 
 async def test_explore_salary_source_and_extracted_only(
@@ -267,6 +328,10 @@ async def test_explore_cursor_pagination(
     first_ids = [i["id"] for i in body["items"]]
     second_ids = [i["id"] for i in second_body["items"]]
     assert not set(first_ids) & set(second_ids)
+    # the fit score rides every sort, not only sort=fit — a salary/newest
+    # page must not render empty score bubbles
+    assert all(item["fit"] is not None for item in body["items"])
+    assert all(item["fit"] is not None for item in second_body["items"])
 
 
 # -------------------------------------------------------------- posting_fits
@@ -776,3 +841,280 @@ async def test_explore_source_exclude(
     )
     assert unknown.status_code == 400
     assert "nope" in unknown.json()["detail"]
+
+
+async def test_explore_keywords_are_any_match_and_escaped(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """The `keywords` axis matches ANY keyword on title or employer, with
+    `%`/`_` treated literally (plan 158 S1: the planner's keyword variants
+    rely on it)."""
+    from tests.conftest import _make_posting
+
+    analyst = await _make_posting(
+        db, source, external_id="kw-a", title="Data Analyst", org="ExtractCo"
+    )
+    wrangler = await _make_posting(
+        db, source, external_id="kw-b", title="Zebra Wrangler", org="Zoo Hotel"
+    )
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(keywords="analyst") == {str(analyst.id)}
+    assert await ids(keywords="analyst,wrangler") == {str(analyst.id), str(wrangler.id)}
+    assert await ids(keywords="zzz") == set()
+    assert await ids(keywords="100%") == set(), "a % is a literal, never a wildcard"
+    assert await ids(q="100%") == set(), "the phrase axis escapes wildcards too"
+
+
+async def test_explore_with_facets_off_skips_them(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, search_fixtures
+):
+    """`with_facets=False` omits the key and skips the grouped queries —
+    the agent path never renders facets (plan 158 S4.2)."""
+    from app.services.postings.explore_service import explore, parse_explore_filters
+
+    user_id = _uid(auth_headers)
+    lean = await explore(
+        db, user_id, parse_explore_filters({}), sort="fit", limit=5, with_facets=False
+    )
+    assert "facets" not in lean
+    assert lean["total"] == 3 and lean["items"]
+
+    full = await explore(db, user_id, parse_explore_filters({}), sort="fit", limit=5)
+    assert "facets" in full
+
+    chat = await search_postings_tool(db, user_id, "analyst", n=3)
+    assert chat["facets"], "the chat tool keeps facets"
+
+
+def test_ranked_window_math_is_pinned():
+    """The fit window is page size times the multiplier, inside [100, 500]
+    (plan 158 S4.1/S4.4: limit 40 gives a 200-posting window)."""
+    from app.services.postings.explore_service import (
+        RANKED_WINDOW_MAX,
+        RANKED_WINDOW_MIN,
+        _ranked_window,
+    )
+
+    assert _ranked_window(40) == 200
+    assert _ranked_window(5) == RANKED_WINDOW_MIN
+    assert _ranked_window(500) == RANKED_WINDOW_MAX
+
+
+async def test_explore_state_axes_exclude_when_false(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """`seen_exclude`, `applied_exclude`, `hidden_exclude` exclude the
+    marked rows and keep postings with no interaction row at all
+    (plan 158 S4.7, unified with the feed's `seen_exclude` key)."""
+    from app.models.application_model import Application
+    from app.models.posting_model import PostingInteraction
+
+    user_id = _uid(auth_headers)
+    clean = await _make_posting(db, source, external_id="ex-clean", title="Clean Role")
+    seen = await _make_posting(db, source, external_id="ex-seen", title="Seen Role")
+    untouched = await _make_posting(db, source, external_id="ex-row", title="Row Only Role")
+    applied = await _make_posting(db, source, external_id="ex-applied", title="Applied Role")
+    hidden = await _make_posting(db, source, external_id="ex-hidden", title="Hidden Role")
+    db.add(PostingInteraction(user_id=user_id, posting_id=seen.id, seen_at=datetime.now(UTC)))
+    db.add(PostingInteraction(user_id=user_id, posting_id=untouched.id))
+    db.add(PostingInteraction(user_id=user_id, posting_id=hidden.id, hidden_at=datetime.now(UTC)))
+    db.add(Application(user_id=user_id, posting_id=applied.id))
+    await db.commit()
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(seen_exclude="true") == {
+        str(clean.id),
+        str(untouched.id),
+        str(applied.id),
+        str(hidden.id),
+    }
+    assert await ids(applied_exclude="true") == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(hidden.id),
+    }
+    assert await ids(hidden_exclude="true") == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(applied.id),
+    }
+    assert await ids(seen="true") == {str(seen.id)}
+    assert await ids(applied="true") == {str(applied.id)}
+    assert await ids() == {
+        str(clean.id),
+        str(seen.id),
+        str(untouched.id),
+        str(applied.id),
+        str(hidden.id),
+    }, "absent axis = don't care"
+
+
+# ----------------------------------------------- S6 skill-graph expansion
+
+
+async def _skill_axis_setup(db, seeded_catalog):
+    """programming ← data-analysis (child); programming ↔ writing (related)."""
+    from app.models.enums import SkillRelationSource, SkillRelationStatus
+    from app.models.taxonomy_model import Skill, SkillRelation
+
+    skills = {
+        key: (await db.execute(select(Skill).where(Skill.key == key))).scalars().first()
+        for key in ("programming", "data-analysis", "writing")
+    }
+    skills["data-analysis"].parent_id = skills["programming"].id
+    first, second = sorted(
+        (skills["programming"].id, skills["writing"].id), key=lambda value: str(value)
+    )
+    db.add(
+        SkillRelation(
+            from_skill_id=first,
+            to_skill_id=second,
+            relation="related_to",
+            status=SkillRelationStatus.APPROVED.value,
+            source=SkillRelationSource.MANUAL.value,
+        )
+    )
+    await db.commit()
+    return skills
+
+
+async def test_explore_skill_expand_down(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """`skill_expand=down` matches a posting carrying a child skill; `off`
+    stays exact (plan 158 S6.1/S6.3)."""
+    from tests.conftest import _add_posting_skill, _make_posting
+
+    await _skill_axis_setup(db, seeded_catalog)
+    parent = await _make_posting(
+        db,
+        source,
+        external_id="se-parent",
+        title="Parent Role",
+        skills_raw=[],
+        raw={"description": "Programming daily."},
+    )
+    child = await _make_posting(
+        db,
+        source,
+        external_id="se-child",
+        title="Child Role",
+        skills_raw=[],
+        raw={"description": "Data-analysis work."},
+    )
+    await _add_posting_skill(db, parent, "programming", 5, "must_have")
+    await _add_posting_skill(db, child, "data-analysis", 5, "must_have")
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(skills="programming") == {str(parent.id)}
+    assert await ids(skills="programming", skill_expand="off") == {str(parent.id)}
+    assert await ids(skills="programming", skill_expand="down") == {
+        str(parent.id),
+        str(child.id),
+    }
+
+    unknown = await client.get(
+        "/api/v1/postings/explore",
+        params={"skills": "programming,nope", "skill_expand": "down"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 400, "unknown keys still 400 under expansion"
+    assert "nope" in unknown.json()["detail"]
+
+    bad_mode = await client.get(
+        "/api/v1/postings/explore",
+        params={"skills": "programming", "skill_expand": "sideways"},
+        headers=auth_headers,
+    )
+    assert bad_mode.status_code == 400
+
+
+async def test_explore_skill_exclude_expands_down_only(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
+):
+    """Excluding a parent excludes its children; `related` never applies to
+    excludes (plan 158 S6.1/S6.3)."""
+    from tests.conftest import _add_posting_skill, _make_posting
+
+    await _skill_axis_setup(db, seeded_catalog)
+    parent = await _make_posting(
+        db,
+        source,
+        external_id="se2-parent",
+        title="Parent Role",
+        skills_raw=[],
+        raw={"description": "Programming daily."},
+    )
+    child = await _make_posting(
+        db,
+        source,
+        external_id="se2-child",
+        title="Child Role",
+        skills_raw=[],
+        raw={"description": "Data-analysis work."},
+    )
+    related = await _make_posting(
+        db,
+        source,
+        external_id="se2-related",
+        title="Related Role",
+        skills_raw=[],
+        raw={"description": "Writing briefs."},
+    )
+    for posting, key in (
+        (parent, "programming"),
+        (child, "data-analysis"),
+        (related, "writing"),
+    ):
+        await _add_posting_skill(db, posting, key, 5, "must_have")
+
+    async def ids(**params) -> set[str]:
+        response = await client.get("/api/v1/postings/explore", params=params, headers=auth_headers)
+        assert response.status_code == 200, response.text
+        return {item["id"] for item in response.json()["items"]}
+
+    assert await ids(skill_exclude="programming") == {str(child.id), str(related.id)}
+    assert await ids(skill_exclude="programming", skill_expand="down") == {str(related.id)}
+    assert await ids(skill_exclude="programming", skill_expand="related") == {str(related.id)}, (
+        "related never widens an exclusion"
+    )
+    assert await ids(skills="programming", skill_expand="related") == {
+        str(parent.id),
+        str(child.id),
+        str(related.id),
+    }
+
+
+def test_skill_expand_is_taught_to_every_llm_caller():
+    """The engine accepting `skill_expand` is worthless if no LLM caller
+    knows it: the planner prompt, the chat grounding prompt and the
+    search_postings tool description all name it (plan 158 S6.4)."""
+    from app.ai.agents.prompts import CHATBOT
+    from app.ai.graphs.autopilot import _plan_system, _replan_system
+    from app.ai.tools.registry import list_tools
+    from app.services.postings.explore_service import SKILL_EXPAND_MODES, SKILL_MODE_VALUES
+
+    allowed_values = f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}"
+    assert allowed_values in _plan_system()
+    assert allowed_values in _replan_system()
+    allowed_modes = f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}"
+    assert allowed_modes in _plan_system()
+    assert allowed_modes in _replan_system()
+    assert "skill_expand" in CHATBOT
+    tool = next(tool for tool in list_tools() if tool["key"] == "search_postings")
+    assert "skill_expand" in tool["description"]

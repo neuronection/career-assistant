@@ -166,6 +166,19 @@ async def _echo_for(db, source_id, extension_id: str = "example-posting-fetcher"
     return preview["echo"]
 
 
+async def _compliant_options(db, install_id: uuid.UUID, **options) -> None:
+    """Plan 173: enabling enforces the manifest's required config fields —
+    give the minted source compliant options first, then enable."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    install = await db.get(ExtensionInstall, install_id)
+    row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+    src = row.scalars().first()
+    src.config = {**src.config, "options": json.dumps(options)}
+    flag_modified(src, "config")
+    await db.commit()
+
+
 # ------------------------------------------------------------- e2e import
 
 
@@ -213,6 +226,7 @@ async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots,
     assert content_dir.name == installed["digest"], "content-addressed by digest"
     assert str(content_dir / "server.py") in minted.config["command"]
 
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     enabled = await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     assert enabled["enabled"] is True
     await db.refresh(minted)
@@ -370,6 +384,7 @@ async def test_t3_spawn_refuses_a_drifted_content_tree(db, local_roots, mcp_allo
         "example-posting-fetcher",
         consent=await _echo_for(db, source.id),
     )
+    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
@@ -391,6 +406,7 @@ async def test_tombstone_retains_consent_and_never_reenables(db, local_roots, mc
     view = await install_extension(
         db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
     )
+    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
 
     tombstoned = await lifecycle.tombstone_install(db, uuid.UUID(view["id"]))
@@ -763,6 +779,7 @@ async def test_gitops_removal_from_list_parks_data_intact(db, local_roots, mcp_a
             managed_by="gitops",
         )
         install_id = uuid.UUID(view["id"])
+        await _compliant_options(db, install_id, board="jobs")
         await lifecycle.set_install_enabled(db, install_id, True)
 
         await put_desired_state(db, {"schema": 1, "sources": [], "extensions": []})
@@ -1028,6 +1045,7 @@ async def test_sources_ride_the_admin_api_surface(
     assert installed.json()["enabled"] is False
     install_id = installed.json()["id"]
 
+    await _compliant_options(db, uuid.UUID(install_id), board="jobs")
     enabled = await client.post(
         f"/api/v1/admin/extensions/installs/{install_id}/enabled",
         json={"enabled": True},
@@ -1115,6 +1133,7 @@ async def test_e2e_import_runs_against_the_canonical_template_too(
         consent=await _echo_for(db, source.id),
         actor_id=await _actor_id(db),
     )
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
@@ -1378,6 +1397,7 @@ async def test_reinstall_over_enabled_install_refuses_with_remedy(
         consent=await _echo_for(db, source.id),
         actor_id=await _actor_id(db),
     )
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
     await set_install_enabled(db, uuid.UUID(installed["id"]), True)
 
     with pytest.raises(LifecycleError) as exc:
@@ -1460,3 +1480,131 @@ async def test_install_mints_the_bundle_venv_interpreter(
     )
     await db.refresh(minted)
     assert minted.config["command"].startswith(f'"{_sys.executable}"')
+
+
+# ------------------------------------------------ origin+subpath uniqueness
+
+
+def _descriptor_at(repo: Path, subpath: str) -> dict:
+    return {**local_descriptor(repo), "subpath": subpath}
+
+
+def _second_bundle(repo: Path, subpath: str, extension_id: str) -> None:
+    """A second bundle inside the SAME repo — the integrations-repo shape."""
+    manifest = template_manifest()
+    manifest["id"] = extension_id
+    bundle_dir = repo / subpath
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURE_SERVER, bundle_dir / "server.py")
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _copy_docs(bundle_dir)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "second bundle")
+
+
+async def test_same_origin_different_subpath_is_a_second_source(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The multi-bundle repo shape: one origin, one source PER bundle
+    subpath — same origin + a different subpath adds a second source and
+    each sync discovers only its own bundle; the same origin+subpath
+    refuses typed."""
+    repo = make_repo(local_roots, name="multi-bundle", subpath="a/src")
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+
+    first = await _add(db, _descriptor_at(repo, "a/src"))
+    second = await _add(db, _descriptor_at(repo, "b/src"))
+    assert first.id != second.id
+
+    with pytest.raises(LifecycleError) as exc:
+        await add_source(db, _descriptor_at(repo, "a/src"))
+    assert "already exists" in exc.value.detail and "a/src" in exc.value.detail
+
+    first_report = await sync_source(db, first.id)
+    second_report = await sync_source(db, second.id)
+    assert [c["extensionId"] for c in first_report["candidates"]] == ["example-posting-fetcher"]
+    assert [c["extensionId"] for c in second_report["candidates"]] == ["second-posting-fetcher"]
+
+
+async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sources(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """Two same-origin sources (the multi-bundle shape): bootstrap adds BOTH
+    declared sources; a missing install drifts typed (its home is not
+    knowable); an install hosted on one source pins on THAT source —
+    never guessed."""
+    from app.models.extension_model import ExtensionInstall
+
+    repo = make_repo(local_roots, name="multi-gitops", subpath="a/src", tag=None)
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+    _git(repo, "tag", "v1.0.0")
+    fake = FakeHttpsTransport(repo)
+    set_git_transport(fake)
+    try:
+        url = "https://git.example.com/example/multi-gitops"
+        digest = lifecycle.digest_tree(repo)
+        await put_desired_state(
+            db,
+            {
+                "schema": 1,
+                "sources": [
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "a/src",
+                    },
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "b/src",
+                    },
+                ],
+                "extensions": [
+                    {
+                        "id": "second-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                    {
+                        "id": "example-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                ],
+            },
+        )
+        report = await reconcile(db)
+        # Both declared sources bootstrap (installs are consent-gated); the
+        # two extensions drift once — no install identifies their homes yet.
+        assert len((await db.execute(select(ExtensionSource))).scalars().all()) == 2
+        drifted = {entry["extensionId"]: entry["reason"] for entry in report["drift"]}
+        assert set(drifted) == {
+            "example-posting-fetcher",
+            "second-posting-fetcher",
+        }, drifted
+        assert all("install once manually" in reason for reason in drifted.values()), drifted
+
+        # The human installs once on the hosting source — reconcile follows.
+        sources = (await db.execute(select(ExtensionSource))).scalars().all()
+        host = next(s for s in sources if s.subpath == "b/src")
+        await sync_source(db, host.id)
+        await install_extension(
+            db,
+            host.id,
+            "second-posting-fetcher",
+            consent=await _echo_for(db, host.id, "second-posting-fetcher"),
+            managed_by="gitops",
+        )
+        report = await reconcile(db)
+        assert report["drift"] == [] or all(
+            entry["extensionId"] == "example-posting-fetcher" for entry in report["drift"]
+        ), "the hosted extension reconciles clean; only the still-uninstalled one drifts"
+        pinned = (await db.execute(select(ExtensionInstall))).scalars().all()
+        [second_install] = [
+            install for install in pinned if install.extension_id == "second-posting-fetcher"
+        ]
+        assert second_install.source_id == host.id, "the pin never leaves the hosting source"
+    finally:
+        set_git_transport(None)

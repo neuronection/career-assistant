@@ -88,7 +88,7 @@ Multi-step flows are checkpointed `StateGraph`s under `app/ai/graphs/`:
 
 - `cv_draft.py` — the one-shot CV generation flow (plan → enrich → synthesize
   → assemble → review/fix).
-- `autopilot.py` — the Autopilot run.
+- `autopilot.py` — the Autopilot run (the full reference below).
 - `chat_turn.py` — the main chat turn: `retrieve` → `agent_round ⇄
   execute_tools` → `synth` → `hitl` → `finalize`.
 
@@ -98,6 +98,310 @@ run id, so an interrupted run resumes from its last completed node via
 `ainvoke(None, config)`. Retention: desktop prunes SQLite at boot
 (`CAREER_CHECKPOINT_TTL_DAYS`); the server prunes Postgres on the daily
 `system_checkpoint_prune` schedule.
+
+### The Autopilot graph (reference flow)
+
+Deterministic nodes do one thing each; the three audited LLM steps (`plan`,
+`replan`, `curate`) are one gateway call apiece on the `AUTOPILOT_RUN` task.
+The LLM proposes, math ranks: fit and must-term coverage are computed in
+Python, and explanations ship only after quote verification.
+
+**Topology** — one checkpoint per node boundary; the loop edge is bounded by
+`REPLAN_LIMIT`:
+
+```mermaid
+flowchart TD
+    S([START]) --> P["plan · LLM (vocab + profile)"]
+    P -->|abort| DEL
+    P -->|else| SR["search · variants + semantic sweep"]
+    SR --> F["filter · never/seen/cooldown + must_hits"]
+    F -->|"kept < top_n and replan_attempts < 1"| RP["replan · LLM, bounded"]
+    F -->|else| E
+    RP -->|"new variants only"| SR
+    E["evaluate · (must_hits, fit) sort, curator pool"] --> GS["graph_sweep · job relations"]
+    E -->|abort| DEL
+    GS --> BG["budget_guard · ledger cap"]
+    BG -->|abort| DEL
+    BG -->|else| C["curate · LLM (+ must_hits)"]
+    C --> DEL["deliver · quote-verified, evidence, notify"]
+    DEL --> FIN([END])
+```
+
+**Candidate funnel** — three recall sources, every one of them behind the same
+deterministic gates:
+
+```mermaid
+flowchart LR
+    V["keyword/filter variants<br/>up to 6 x 40 examined<br/>200-posting fit window"] --> G{"deterministic gates<br/>open · unseen · never-terms · cooldown"}
+    M["semantic sweep<br/>top 60 by cosine"] --> G
+    R["curated job-relation sweep<br/>up to 3 seeds, 6 neighbour roles"] --> G
+    G --> C["merge + dedupe<br/>CANDIDATE_CAP 120"]
+    C --> P["curator pool (max(12, 3 x top_n))<br/>15 at the default top_n 5"]
+    P --> T["findings<br/>top_n 5"]
+```
+
+**Pinned constants** (the truth gate `backend/tests/test_autopilot_docs_truth.py`
+compares this table with the code):
+
+| Constant | Value | Meaning |
+|---|---|---|
+| `SEARCH_VARIANTS` | 6 | planned variants executed per pass |
+| `SEARCH_LIMIT` | 40 | examined postings per variant |
+| `SEMANTIC_K` | 60 | semantic candidates per run |
+| `GRAPH_SEEDS` | 3 | mapped matches that seed the relation walk |
+| `GRAPH_NEIGHBORS` | 6 | neighbour roles the walk may expand to |
+| `CANDIDATE_CAP` | 120 | checkpointed merge pool ceiling |
+| `CURATOR_POOL` | 15 | curated shortlist pool at the default top_n |
+| `REPLAN_LIMIT` | 1 | broaden passes per run |
+
+**State channels** — what is checkpointed, its bound, and why:
+
+| Channel | Bound | Why it is in the checkpoint |
+|---|---|---|
+| `plan` | ≤ 6 variants | the plan is the run's contract; a resume re-executes it |
+| `candidates` | `CANDIDATE_CAP` 120 | the merge pool rides every write — the cap bounds checkpoint weight (~1.5 KB each) on Postgres and SQLite alike |
+| `searches` | one entry per search/filter/replan step | the transparency timeline the UI renders |
+| `replan_attempts` / `replans` | 1 attempt | the loop edge's governor; resumable |
+| `curation` | ≤ 10 findings | the LLM's shortlist explanation |
+| `progress_pct` | 0-100, monotonic | the progress callback must never report backwards on a re-entry |
+| `profile_context` | ≤ 12 skills | the planner's grounding; computed once per run |
+| `abort_reason` / `tokens_used` | one value | routing + the run's recorded spend |
+| `trace_steps` | one entry per executed node | the durable run trace — persisted to `autopilot_runs.run_steps` at deliver, survives checkpoint pruning |
+
+**Similarity signals** — what each recall source catches, needs and how it
+degrades:
+
+| Source | Catches | Needs | Degrades by |
+|---|---|---|---|
+| Keyword/filter variants | exact vocabulary: titles, employers, skill keys, enums | nothing beyond the catalog | a bad variant is dropped with a timeline error; the rest still run |
+| Semantic sweep (embeddings) | wording and description-level meaning no keyword shares | stored posting embeddings + an assigned `embed` task | timeline entry with a sanitized note; lexical candidates unaffected |
+| Curated job-relation sweep | role adjacency (`similar_to`/`alternative_to`) no text encodes | postings mapped to catalog jobs + curated relations | no-op timeline entry; no embeddings, no AI, desktop-safe |
+
+All three sources share one recall contract (ADR-0012 §13 addendum): a
+candidate is only *proposed* — every one of them passes the same deterministic
+gates in code before entering the pool, so a vector hit can never resurrect a
+gated-out row; ordering stays deterministic (`(must_hits, fit)`) with cosine
+absent from it; any embedding failure degrades to lexical-only. Semantic
+candidates whose cosine is zero or negative carry no signal and are dropped
+before gating (`_semantic_sweep`) — that cutoff decides recall only, never
+rank.
+
+**Budget and abort routing** — every `abort_reason`, where it fires, and what
+still ships:
+
+| `abort_reason` | Fires at | What still ships |
+|---|---|---|
+| `budget` | `plan` (gateway refuses), `budget_guard` (ledger cap over `ai_budgets`) | searched candidates ship with deterministic `Fit …` explanations (`budget_aborted`) |
+| `cancelled` | `budget_guard` (user cancel) | the same partial path, status `cancelled` |
+| `error` | `plan`/`curate` gateway failure with no findings | status `failed`; with findings the run completes |
+| none (empty pool) | never aborts | an empty run counts toward the stale-goal nudge after 3 |
+
+A replan spends one audited call; when the run budget is already spent the
+node skips the call and the deterministic findings still ship.
+
+### Profile usage & goal-adjusted fit (plan 169)
+
+Every goal carries a `profile` block on its constraints (`ProfileUsage`:
+six `use_*` toggles + `stage_source: "profile" | "goal"`, defaults
+reproducing the pre-plan behavior). `AutopilotService.run_goal` derives a
+`FitOverrides` from it once and threads it through `GraphDeps`; the
+planner and the fit engine honor it:
+
+- **Planner context** — `collect_profile_context` drops a disabled input
+  (with everything off it plans from the goal text + vocabulary alone),
+  adds the academic languages when `use_languages`, and shows the
+  effective stage: `stage_source="goal"` derives it from the goal's
+  seniority selection by max rank (intern→`student`,
+  junior/mid→`early_career`, senior+→`experienced`; an empty selection
+  keeps the profile stage), and `use_experience=False` omits it. The
+  plan/replan vocabulary skips the user-skill neighbourhood when
+  `use_skills` is off (frequency padding only).
+- **Fit** — disabled dimensions score the engine's neutral 7.0 with a
+  `disabled` marker (`use_lifestyle` empties the gates instead — gates
+  are recomputed live, never cached); the `prereqs` dimension carries
+  internal per-part sub-scores (`parts: {education, languages,
+  certificates}`, each `{kind, cap, detail, scored}`) and merges like the
+  pre-plan accumulator: any `scored` part makes the dimension
+  non-neutral at the min over the enabled parts' `cap`s (a recognized
+  education comparison caps without scoring — education-met/below alone
+  stay the neutral 7.0, exactly the pre-plan gate), a disabled part is
+  excluded from both the min and the scored-any check so the merged
+  score can only rise or stay, and nothing scored reads 7.0 neutral.
+  `stage_source="goal"` swaps the
+  stage value into the pure `_seniority_stage_dimension`; a disabled
+  `use_experience` wins over it.
+- **Cache law** — `posting_fits` keeps ONE canonical row per
+  user×posting; the usage flags never ride `inputs_hash` (toggle
+  invariant). With active overrides the batch result is a **derived
+  rescore** over the canonical breakdown (`_rescore_cached`: pure math +
+  one pure stage recompute); a canonical miss computes and writes
+  canonically first, then rescores — adjusted values are never persisted,
+  and archetype-estimate rows are never rescored. The `explore` fit-sort
+  window accepts the same overrides, so window selection honors the
+  toggles; the non-fit-sort enrichment stays canonical, as do the posting
+  detail card and the chat "my fit" tool.
+- **Explanations** — `_deterministic_why` filters `disabled: True`
+  dimensions out BEFORE slicing to three (fit-only line when none
+  remain), and the curator system prompt forbids citing disabled
+  dimensions as strengths or weaknesses (`AUTOPILOT_RUN` prompt v7).
+
+```mermaid
+flowchart LR
+    subgraph P["Profile (per-goal usage flags)"]
+        SK[skills] -->|use_skills| V[planner vocabulary + context]
+        ED[education + certs] -->|use_education| F[fit prereqs.parts]
+        LG[languages] -->|use_languages| F
+        LOC[location] -->|use_location| F2[fit location_remote]
+        EX[experience years] -->|use_experience · stage_source| F3[fit seniority_stage]
+        LS[lifestyle tolerance] -->|use_lifestyle| G[lifestyle gates]
+    end
+    V --> PLAN[plan · LLM]
+    F --> SCORE["fit score = weighted blend<br/>(disabled part → neutral 7.0)"]
+    F2 --> SCORE
+    F3 --> SCORE
+    SCORE --> POOL["(must_hits, fit) ordering → pool → findings"]
+```
+
+### Findings feed and runs rail (plan 175)
+
+The shortlist is the product surface. `GET /autopilot/findings` returns a
+flat, keyset-paginated feed of findings joined with their postings; the
+workspace (`/autopilot`) renders it with the same card primitives as
+`/postings`, a filter rail, a runs rail and the run page
+(`/autopilot/runs/:runId`).
+
+- Filters, all server-side over the run → goal / posting joins:
+  `goal_id`, `run_id`, `state` (`open|dismissed|all`, default open),
+  `latest_per_posting` (default true — the posting's newest evaluation
+  wins via a row-value `(created_at, id)` comparison, and the state
+  filter applies to the surviving row), `sort` (`newest|score`),
+  `limit`, `cursor`, `min_score`, `coverage_min` (must-coverage hits via
+  a dialect-split JSONB path), `org` (ilike), `source`, `seniority`,
+  `remote`, `posted_within` (the shared effective-posted `window_clause`)
+  and `hide_applied`. Ownership rides the goal join — another user's
+  rows are invisible. The applied badge derives from the caller's
+  `applications` join, never a stored flag;
+  `POST /autopilot/runs/{run_id}/dismiss-findings` bulk-dismisses one
+  run's open findings (no constraint learning).
+- Cursors are opaque `(sort_key, id)` keyset markers per sort — score
+  ties are guaranteed (`score` is `Numeric(4,2)`), so a single-key
+  cursor would loop. The keyset runs over the deduped row's own
+  `(sort_key, id)`: a re-rank between pages (a newer evaluation
+  displacing the cursor row) is accepted drift, never a loop or a
+  repeat.
+- Facets for `goal`, `source`, `seniority` and `state` ride the same
+  response, self-excluding (each dimension recounts without its own
+  filter, the explore pattern).
+- `GET /autopilot/runs` is the runs rail — status, tokens, live
+  findings and the Σ `examined` per run, cross-goal, newest first. The
+  timeline itself stays on `GET /autopilot/runs/{run_id}` (plan 168).
+
+```mermaid
+flowchart LR
+    subgraph Sources
+        R["autopilot_runs (+ run_steps trace)"]
+        F["autopilot_findings"]
+        P["job_postings (+ source/status)"]
+        A["applications"]
+    end
+    F --> FE["GET /autopilot/findings<br/>filters · dedupe · facets · cursor"]
+    P --> FE
+    A -- applied badge/join --> FE
+    R --> RR["GET /autopilot/runs<br/>rail rows: findings · examined · tokens"]
+    FE --> UI["/autopilot workspace<br/>rail · feed (PostingCard + evidence) · runs rail"]
+    RR --> UI
+    UI -- "?run / row click" --> RP["/autopilot/runs/:id<br/>inputs · trace · graph · AI calls · findings"]
+    RP -- "Mark applied" --> A
+```
+
+### Run trace (plan 168)
+
+Every executed node lands one entry in the `trace_steps` state channel —
+append-return, exactly the `searches` precedent, so a retried node
+contributes nothing on its failed attempt and a resume never duplicates an
+entry (`iteration` distinguishes the legitimate second `search`/`filter`
+pass after a replan). `deliver` persists the accumulated list to
+`autopilot_runs.run_steps`; a run that dies mid-graph persists the steps up
+to the last completed node plus a `failed` status via the service's failure
+path. **The trace is a ledger, not checkpoint history**: checkpoints are
+TTL-pruned (desktop boot prune, server `system_checkpoint_prune`), the
+trace survives restarts and prunes and dies only with the goal (the run
+cascade) — `ai_generations` rows outlive it by design.
+
+Each entry carries `{step, kind, iteration, at, duration_ms, args, output,
+error, abort}` where `args`/`output` are **whitelisted summaries** — the
+plan step's goal text clipped to 400 chars, constraint/budget keys and the
+profile-context shape; search variant queries/filters with found/examined;
+filter kept/dropped counts; evaluate pool/fit-range/must-hits histogram;
+graph-sweep seeds and merge counts; guard tokens-vs-caps and the abort
+reason; curate picks; deliver findings (ids/scores), status and whether the
+notification fired. Candidate ids stay capped at 120 (`CANDIDATE_CAP`) and
+no entry carries a serialized candidate — prompts and full outputs remain
+admin-only in the audit ledger.
+
+The owner-facing surface is `GET /autopilot/runs/{run_id}` (owner-scoped
+product detail, a foreign and a missing run answer the same 404): `{run,
+steps, nodes, ai_calls, findings, timeline, trace_available}` — `ai_calls`
+joins `ai_generations` by `run_id` with metadata only (no
+prompt/output text), and `trace_available` is false for pre-0079 runs
+(steps `[]` — the UI falls back to the timeline). `nodes` is the
+**execution-ordered** node list derived from the compiled graph —
+`plan`, `search`, `filter`, `replan`, `evaluate`, `graph_sweep`,
+`budget_guard`, `curate`, `deliver` (compiled insertion order is not
+execution order; `budget_guard` is added second but runs late). Runs
+beyond the 30-row listings resolve by id. The UI renders the payload as
+the `?run=<id>` detail modal on `/autopilot`.
+
+```mermaid
+flowchart LR
+    subgraph Graph["Autopilot graph (checkpointed, thread_id = run id)"]
+        P[plan] --> S[search] --> F[filter] --> E[evaluate] --> GS[graph_sweep] --> BG[budget_guard] --> C[curate] --> D[deliver]
+        F -. replan ≤1 .-> RP[replan] -.-> S
+    end
+    Graph -- "record_step() per node" --> ST[("autopilot_runs.run_steps<br/>durable JSONB")]
+    Graph -- "RunRef per gateway call" --> AG[("ai_generations<br/>run_id + run_stage")]
+    ST --> RE["GET /autopilot/runs/{id}"]
+    AG --> RE
+    RE --> UI["/autopilot/runs/:id<br/>steps · graph chips · AI-call links"]
+```
+
+### Tracing export (plan 168)
+
+The first-party trace above is the product surface; OpenTelemetry is an
+**optional export adapter, never a second surface** (ADR-0044 addendum).
+`app/ai/tracing.py` exposes one `TraceSink`: `autopilot.run` (root, in
+`AutopilotService.run_goal` — the single entry for API, queue and chat
+callers), `autopilot.node` (one per graph node, started by the wiring
+wrapper around each node callable — `deliver` included — so retries and
+replan re-entries start fresh) and `llm.call` (in `ainvoke_structured`
+and `embed_texts`). Every span carries `run_id` + `goal_id` (a contextvar
+scope stamps nested spans, so a lost asyncio context stays correlatable)
+plus the metadata vocabulary — `node`, `task_type`, `provider`, `model`,
+`tokens_in/out`, `latency_ms`, `status`, `prompt_version` — and **never**
+prompt or output text. Destinations: any OTLP backend (Jaeger, Tempo,
+Grafana, Langfuse over OTLP). Infra knobs only, like `CAREER_MOCK_AI` —
+never AI config: `CAREER_OTEL_EXPORT` (`""` default | `console` | `otlp`),
+`CAREER_OTEL_ENDPOINT` (required for otlp), `CAREER_OTEL_SERVICE_NAME`
+(default `career-assistant`). Without the `otel` extra installed the
+guarded import keeps every span a no-op — desktop stays zero-setup and
+inert. A bad value or a missing endpoint disables the sink with exactly
+one warning; a sink failure never fails the wrapped call. Enabling builds
+the sink its **own** `TracerProvider` with the env-selected exporter behind
+a `BatchSpanProcessor` (buffered background export), and the tracer is
+taken from that same provider — the global OTel provider is never touched,
+so an unconfigured process stays a no-op `ProxyTracerProvider`. App-lifespan
+shutdown calls `sink.shutdown()`, which flushes pending spans and releases
+the provider (`sink.flush()` is available for bounded force-export before
+long-lived phases).
+
+```mermaid
+flowchart LR
+    GW["app.ai.gateway<br/>ainvoke_structured · embed_texts"] -- "span(llm.call)" --> TS["app.ai.tracing.TraceSink"]
+    AP["autopilot nodes"] -- "span(autopilot.node)" --> TS
+    TS -- "disabled (default)" --> NOOP[no-op]
+    TS -- "CAREER_OTEL_EXPORT=console" --> CON[console exporter]
+    TS -- "CAREER_OTEL_EXPORT=otlp" --> OTLP["OTLP endpoint<br/>Jaeger · Tempo · Langfuse"]
+```
 
 ## Decision models (`app/ai/decide/`)
 
@@ -161,6 +465,67 @@ retrieval (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine
 rankings over the hard-filtered candidate set in Explore's relevance sort —
 **semantic is a ranking signal, never a filter gate**.
 
+## Smart discovery (plan 179)
+
+Cost-tiered by design — LLM appears exactly once in the whole feature:
+
+| Component | LLM cost | When AI runs |
+|---|---|---|
+| `sort=smart` on /postings | **zero** | one `embed` per profile *change* (content-hash deduped, `KIND_PROFILE`), recomputed lazily inside the smart path |
+| NL smart search box | **one small `SMART_SEARCH` call per UNIQUE query**, cross-user cached (`smart_query_cache`, TTL 7d) | on submit only |
+| daily smart digest | **zero** | scheduler job per opted-in user, notifies only when ≥1 new match |
+
+The smart sort blends two deterministic signals over the ranked window:
+`smart = 0.65·fit + 0.35·affinity` with `affinity = clamp(cosine(profile
+embedding, posting embedding), 0, 1) · 10` (constants
+`SMART_FIT_WEIGHT`/`SMART_AFFINITY_WEIGHT`/`SMART_KEY_DECIMALS` in
+`app/services/postings/explore_service.py`), then the seen demotion
+(`SMART_SEEN_DEMOTION` = -1.5 — seen postings sink, never disappear) and a
+display-level org-diversity cap (`SMART_ORG_CAP` = 2 per organization, first
+page composition only; a displaced entry ranks above the page-1 cursor and
+skips later pages — documented session drift, the ranking itself is never
+mutated). Every degrade — missing profile/posting embedding, dim mismatch,
+unconfigured AI (pre-flighted through the resolver: no gateway call, no
+audit row), limiter exhaustion (rejected before the gateway's audit write),
+provider failure (the gateway's own audit row, discarded by the read-only
+explore request) — lands on the neutral affinity term 7.0
+(`SMART_AFFINITY_NEUTRAL`); the request never fails. Smart always ranks
+**canonical fits** (plan-169 goal overrides do not apply outside a goal).
+
+NL smart search (`POST /postings/smart-search`): normalize (casefold +
+whitespace collapse) → sha256 → cache hit returns the stored spec with
+zero AI; a miss goes through the gateway funnel (fast tier, per-user
+limiter, budgets, audit) into the closed `SmartSearchSpec`
+(`app/ai/agents/smart_search.py`, `extra="forbid"` over the explore
+vocabulary, prompt version v1 + golden case in `app/ai/evals/`), then a
+deterministic resolver maps `skill_labels` onto `skills.key`/`aliases`
+(exact, then deprecated-exact fallback; unresolvable labels are dropped and
+echoed in `interpreted`). The cache is **cross-user by design** — the
+mapping has no personal inputs — and is TTL-pruned (7 days) by the daily
+digest job.
+
+```mermaid
+flowchart LR
+    subgraph Smart["Smart sort (zero LLM)"]
+        FIT["posting_fits cache"] --> B["0.65·fit + 0.35·affinity<br/>− seen demotion · org cap"]
+        PE[("ai_embeddings<br/>KIND_PROFILE + KIND_POSTING")] --> AFF["cosine affinity<br/>window-bounded"]
+        AFF --> B
+    end
+    B --> EX["explore sort=smart<br/>cursor (smart_key, id)"]
+    subgraph NL["Smart search (1 cached call / unique query)"]
+        BOX["smart search box"] --> GW["SMART_SEARCH task<br/>fast tier · limiter · budget"]
+        GW --> RES["deterministic resolver<br/>labels → taxonomy keys"]
+        RES --> CACHE[("smart_query_cache<br/>cross-user · TTL 7d")]
+        CACHE --> SPEC["SmartSearchSpec"]
+    end
+    SPEC --> EX
+    subgraph Daily["Daily digest (zero LLM, opt-in)"]
+        JOB["scheduler: smart_digest"] --> RANK["S1 recipe over fresh/unseen"]
+        RANK -- "≥1 new match" --> N["notification → smart view"]
+        JOB -- "TTL prune" --> CACHE
+    end
+```
+
 ## Run linkage and budgets
 
 Multi-step flows opt each gateway call into the audit ledger with a `RunRef`
@@ -168,6 +533,63 @@ Multi-step flows opt each gateway call into the audit ledger with a `RunRef`
 `run_stage` (plain nullable indexed columns, no FK — the ledger outlives the
 run). `GET /cv/{id}/runs` assembles per-CV runs from job rows and their
 run-linked audit rows. Budgets live in `app/ai/budgets.py` / `ai_budgets`.
+
+## Bulk reprocessing of failed jobs (plan 184)
+
+When a connection/credit outage fails a window of AI jobs terminally
+(`status='failed'`, attempts exhausted), the admin audit console's
+**Failures tab** requeues them in bulk. `JobReprocessService`
+(`app/services/job_reprocess_service.py`) is the only writer:
+
+- **A requeue is a FRESH `background_jobs` row** — same type/payload/user,
+  fresh attempts budget — carrying `requeue_of` (nullable indexed UUID, no
+  FK) back to the failed row, which itself keeps `failed` and gains
+  `result.requeued_as`. Both directions of the chain stay queryable; a
+  failed row's status is NEVER mutated back into the queue. Stamp-old +
+  insert-new share one transaction (`enqueue` commits internally and cannot
+  carry the marker, so the service builds rows directly).
+- **Guards:** the preview scan is bounded (`ORDER BY created_at DESC LIMIT
+  1000`, overflow reported as `truncated`); grouping happens in Python by
+  `(job_type, error family)` where the family is the whitespace-collapsed
+  first error line (≤80 chars); the dedupe guard compares payloads
+  structurally (`dict ==` — never SQL payload equality: `StructuredJSON` is
+  JSONB on Postgres but JSON-over-TEXT on SQLite) against bounded
+  queued/running twins of the same type; the cap is 200 requeues per
+  confirmed action (`skipped_cap` reports the overflow); one bulk action at
+  a time via an `app_settings` guard row flipped by conditional UPDATE
+  (rowcount arbitrates — the queue's own claim pattern, dialect-safe); the
+  claim carries its timestamp and a claim older than 10 minutes
+  (`LOCK_STALE_SECONDS`) is re-claimed by the same UPDATE, so a guard
+  stranded by a mid-requeue failure (the session is in pending-rollback
+  state and the `finally` release cannot commit) cannot block a later
+  requeue forever.
+- **Type-class policy:** payload-driven types (posting_extract,
+  detail_enrichment, cv_*, autopilot_run, radars/digests) requeue per job —
+  the preview labels `autopilot_run` and the digest family as FULL re-runs
+  (fresh budgets, possible duplicate notifications — the 175 feed dedupes).
+  Payload-ignoring global sweeps (`query_curator`, `proposal_sweep`,
+  `followup_sweep`, `checkpoint_prune`, `market_history_capture`) collapse
+  to ONE requeue per window. Non-queue maintenance (embeddings recompute)
+  keeps its existing admin surface and is linked, not rebuilt.
+- **Endpoints** live on the admin audit router: `GET
+  /admin/audit/jobs/failures` (the grouped preview) and `POST
+  /admin/audit/jobs/requeue` (without `confirm` → preview only, mutates
+  nothing).
+
+```mermaid
+flowchart LR
+    subgraph Console["Audit console (admin)"]
+        FT["Failures tab<br/>groups: type × window × error family"]
+        JT["Jobs tab"] -->|failure badge| FT
+        AI["AI activity + drawer"]
+    end
+    FT -- "preview (GET)" --> SV["JobReprocessService<br/>dedupe guard · cap 200 · singleton"]
+    FT -- "requeue (POST, confirm)" --> SV
+    SV -- "enqueue fresh row<br/>requeue_of marker" --> Q[("background_jobs")]
+    Q --> W["worker pool · HANDLERS<br/>fresh attempts"]
+    W --> L[("ai_generations<br/>new attempt rows, same run_id/stage")]
+    AI -.drawer link.-> L
+```
 
 ## MCP
 

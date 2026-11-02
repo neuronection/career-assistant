@@ -30,3 +30,5 @@ posting_changes.operation :: keep-open operation parameters (links, never conten
 posting_changes.diff :: keep-open field→{from,to} compact diffs (strings capped at 200 chars; skills set-diff)
 skill_changes.actor_ref :: keep-open ids-only actor links (user/posting/job refs, never content)
 skill_changes.detail :: keep-open capped field diffs / merge targets / corroboration counts (strings capped at 200 chars)
+autopilot_runs.run_steps :: keep-open durable per-node run trace (step/kind/iteration/timing + whitelisted args/output summaries — plan 168; a ledger, never checkpoint history)
+smart_query_cache.spec :: typed-out closed SmartSearchSpec projection (pydantic extra=forbid over the explore vocabulary — plan 179)

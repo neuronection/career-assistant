@@ -79,6 +79,7 @@ the charter's `limits`; hosts may tighten, never loosen.
 | `kind` | ✔ | `"connector"` (imports of kind `mini-app` follow the ADR-0029 shape; `bridge` is server-class, not hosted) |
 | `packKind` | mini-app | `assessment \| surface` |
 | `id` | ✔ | pattern `^[a-z][a-z0-9-]{2,39}$`; stable id — the install's instance key and content dir name. Reserved prefixes `host-`/`neuro-` are rejected |
+| `title` | – | ≤ 80 chars — the human display name surfaces show ("LinkedIn"); optional, hosts fall back to the id. Imported connector sources carry it as the source's display name. Presentational only: not part of the consent-triggering diff (capabilities/configSchema), though a title edit still changes the bundle digest — tier re-consent law applies as for any content change |
 | `version` | ✔ | your semver, `^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$` |
 | `description` | – | ≤ 400 chars, rendered on the consent surface |
 | `entry` | ✔ (imported connector) | the code declaration: ≤ 255, relative to the bundle root, no `..`, a regular non-symlink file inside the bundle, extension `.py` on this host (`entryExtensions` is charter data). **Tier is provenance here**: `entry` alone ⇒ T2, `entry` + `mcp` ⇒ T3, no `entry` ⇒ T0. The `extension.py`/`server.py` filenames are the template repo's convention, not a rule |
@@ -178,6 +179,17 @@ MCP_CONFIG_SCHEMA = {
     },
 }
 ```
+
+**Required fields are enforced at save time for T3 managed sources**
+(plan 173): the mcp `options` passthrough is checked against the bundle
+manifest's `configSchema` whenever the source is created, its config is
+saved, its query mode changes, or it is enabled — a missing or empty
+required field (e.g. `keywords`) is a 400 naming the field, not a sync
+that fails later inside the bundle. Radar-mode sources relax
+`keywords`/`location` (the radar query overlay supplies them per sync),
+mirroring the T2 `validate_config` rule. Only required fields gate:
+optional knobs stay free-form (the settings forms store numbers as
+strings; the tool's own validation coerces them).
 
 ### Form hints (`x-choices`, `x-csv`, `x-presets`, `x-section`)
 
@@ -337,7 +349,7 @@ coerced downstream):
 | `education_level` | str | ≤ 40 free text — degree names differ per country; leave the source's wording, core maps it |
 | `skills_raw` | list[str] | ≤ 60 entries — skill mentions before taxonomy mapping |
 | `posted_at`, `expires_at` | datetime \| null | prefer timezone-aware UTC — naive datetimes are accepted and coerced downstream |
-| `raw` | object | the source's own payload — an arbitrary bag, but T3 caps it at 8 KB per row |
+| `raw` | object | the source's own payload — an arbitrary bag, but T3 caps it at 64 KB per row |
 
 The three enums are closed (`SeniorityLevel`, `EmploymentType`,
 `OnsitePolicy` in `sdk.py`): map free text onto them only where
@@ -346,7 +358,7 @@ unambiguous, and set a closed enum never for "probably".
 The result envelope is `ConnectorResult` — `{items, next_state,
 partial_errors}` — and every partial error is a typed `ConnectorError`
 (see the [Reference](reference.md#error-codes) table), never a string.
-`next_state` is yours and opaque to the host (capped at 8 KB at T3).
+`next_state` is yours and opaque to the host (capped at 8 KB at T3; the `raw` bag's cap is 64 KB — sized for full, untruncated job descriptions).
 
 **Mapping guidance** (established by the real boards, pinned by
 `backend/tests/test_job_board_connectors.py` against captured wire
@@ -398,7 +410,7 @@ config, `{}` validates — with optional filters and polite caps:
 | Connector | Endpoint | Declared domains | rpm | Config (all optional) |
 |---|---|---|---|---|
 | `arbeitnow` | `https://www.arbeitnow.com/api/job-board-api` | `www.arbeitnow.com` | 10 | `tags` (≤16), `max_items` 1–300 (default 100) |
-| `remotive` | `https://remotive.com/api/remote-jobs` | `remotive.com` | 10 | `category`, `max_items` 1–500 (default 100) |
+| `remotive` | `https://remotive.com/remote-jobs/feed` (robots-allowed RSS; the JSON API is `Disallow: /api/*`) | `remotive.com` | 10 | `category` (client-side, case-insensitive), `max_items` 1–500 (default 100) |
 | `jobicy` | `https://jobicy.com/api/v2/remote-jobs` | `jobicy.com` | 12 | `tag`, `max_items` 1–200 (default 50; ≤3 pages walked, ≤100/page) |
 
 The Arbeitnow connector is the ~90-line shape worth copying — config
@@ -514,7 +526,7 @@ capability honesty and conditional-GET forwarding — all offline.
   `fetch_postings(config, state) -> {items, next_state}`. Everything you
   return is untrusted and validated
   app-side (required `external_id`/`title`, http(s) URLs, char caps, a
-  300-item cap, 8 KB `raw`/`next_state` caps). The template repo's
+  300-item cap, 64 KB `raw` / 8 KB `next_state` caps). The template repo's
   `server.py` is the complete example —
   [recipe 2](examples-and-use-cases.md#recipe-2--a-t3-mcp-script-connector).
 - **T2 (sandboxed module)**: ship `manifest.json` whose `entry` names

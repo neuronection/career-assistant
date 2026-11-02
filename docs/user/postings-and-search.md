@@ -100,27 +100,116 @@ reviewed before they ever widen a filter.
 
 ## The Explore page
 
-**Postings → Search** (`/postings/search`) is the Postings default and
-filters every structured field — including contract type, travel, schedule
+**Postings** (`/postings`) — the page IS the search, and it filters
+every structured field — including contract type, travel, schedule
 cues, benefits and organization — with live facet counts. The filter rail
 speaks the same language as the feed's:
 
 - every multi-value axis is **tri-state** — click a chip to include, click
-  again to exclude (rendered struck in red), click once more to clear;
-  right-click excludes directly,
+  again to exclude (rendered struck in red), click once more to clear
+  (right-click jumps straight to exclude). Every selected chip carries an
+  **×** that clears it in one click, so you never have to cycle back out,
 - **skills** use the type-ahead picker with the browse-catalog modal and a
-  per-skill minimum level, plus a second picker for **excluded skills**,
+  per-skill minimum level, plus a second picker for **excluded skills**
+  (their chips render in the same excluded red as every other exclude),
 - **organization** is picked from the companies catalog (search popup)
-  with its own exclude list,
-- **sources** are include/exclude chips with live counts.
+  with its own exclude list (same excluded chip styling),
+- **sources** are include/exclude chips with live counts,
+- **state toggles** sit under the facets: deep-extracted only, saved
+  only and **Hide seen** — reviewed postings drop out of the list without
+  touching the other filters.
+
+### Sorting results
+
+The results header sorts the list without changing the filters: **Best
+fit** (the default), **Newest** (posted date), **Highest salary**
+(annualized range; unknown salary sorts last), **Smart** and — once you
+type a search query — **Relevance**, which fuses the lexical match with
+the semantic ranking. Changing the sort restarts the list at page one;
+the fit score stays on every card whichever order you pick.
+
+**Smart** is the one-click "rank for me" order. It blends your
+deterministic fit score with an interest-affinity signal — how close a
+posting's embedded content sits to your profile's embedded interests,
+skills and experience (0.65 × fit + 0.35 × affinity, where the affinity
+runs 0–10). Postings you have already seen sink by a fixed penalty (they
+stay visible), and the first page shows at most two postings per
+employer so one company cannot occupy the whole screen. The smart sort
+is deterministic — no AI runs per request; the interest signal comes
+from a stored profile embedding that refreshes only when your profile
+changes. When interest data is missing (an empty profile or an
+unconfigured AI provider) the affinity part simply sits at its neutral
+value and the ranking degrades to the fit order; the request never
+fails. Cards carry a small **Smart** chip while the sort is active. One
+honest quirk at this scale: an employer-capped posting that would have
+appeared on page one does not reappear on page two — paging continues
+below the page-one cutoff.
+
+### Smart search — describe it instead of filtering
+
+Next to the sort control sits the **smart search box**. Type what you are
+looking for in plain language — *"remote junior python roles"* — and
+press **Search** (submit only, never per keystroke). One small AI call
+translates the sentence into the same filters the rail uses, and the
+feed reruns with live facet counts. The mapping is cached and shared:
+the same phrasing asked by anyone costs nothing the second time. The
+mapping is never personalized — it maps *your sentence*, not *you*.
+
+Under the box an **"Interpreted as …"** row shows exactly what the
+sentence mapped onto (one chip per applied filter, one click to remove
+any of them). Skill names resolve against the skill taxonomy
+(exact names and known aliases); a label the taxonomy does not know is
+dropped and honestly echoed in the interpretation. Unknown filter
+vocabulary is rejected outright — the filter set is data, not free
+text. If AI is not configured yet the box says so instead of guessing.
+
+**Every filter and the sort live in the URL** — the address bar carries
+the whole search (`/postings?sort=salary&seniority=mid&seen_exclude=true`,
+skills as `skills=programming:4`, organizations as repeated `org=` values).
+A reload, the browser's back button and a shared or bookmarked link all
+open the same filtered view; unknown or malformed values are dropped and
+the page falls back to its defaults.
+
+**Opening a posting doesn't cost you the list.** Whether you come back
+with the browser's back button or the **All postings** link on the
+posting page, the list returns with the same filters, the same sort, the
+pages you had already scrolled through and the same scroll position.
+An action taken on the posting keeps the list honest: hiding it drops the
+card, and read/saved state updates in place. A fresh visit from the
+navigation starts at the top, with a fresh list; the remembered view
+lives for the current session.
+
+### Presets — save a view, not a query
+
+Above the results sits the **preset bar**. *Save current view* turns the
+whole search — text, every facet, the state toggles, the sort — into a
+named preset chip:
+
+- **Click a chip** to re-apply it; the active preset is highlighted.
+- **`⋯` on a chip** shows exactly what the preset holds (search, skills
+  with levels, included/excluded facets, salary floor, toggles, sort) and
+  offers **Update with current filters**, **Rename** and **Delete**
+  (confirmed; the postings stay).
+- When the current view *is* a preset, the save button becomes
+  **Update <name>** instead of creating a duplicate; names are unique
+  per user. Presets are saved searches, so they can also be scheduled
+  from [Notifications and scheduler](notifications-and-scheduler.md).
 
 You can also:
 
-- **Save searches** and schedule them (see
-  [Notifications and scheduler](notifications-and-scheduler.md)).
 - **Scroll** — results load infinitely: the next page fetches
   automatically as you approach the end (cursor pagination under the
   hood).
+
+### Seen, at a glance
+
+A posting is marked seen when you open it or send an application, and
+the **"Mark as seen"** action in an unseen card's status line marks it
+seen without opening anything — one click, no menu, and the same slot
+then shows the quiet double-check. Seen cards stay fully readable
+(nothing is dimmed): that double-check and a **neutral bar down the
+card's left edge** identify them, so a long results list separates fresh
+openings from ones you already reviewed. Marking is one-way.
 
 ## Opening a posting
 
@@ -141,13 +230,18 @@ everything the system knows about the role:
 - your per-posting **match score** with the per-dimension breakdown,
   source attribution and similar openings.
 
+The posting detail always shows your **canonical** match score. When an
+[autopilot goal](career-autopilot.md) turns a profile input off, that
+run's ranking scores the disabled dimension at a neutral 7/10 with a
+visible "disabled for this goal" note instead of a penalty — scores stay
+comparable across goals. Prerequisites merge over the inputs still in
+play, so switching one off can only raise or keep the merged
+prerequisite score, never lower it, and postings still awaiting deep
+extraction (estimates) ignore the toggles entirely.
+
 "Open on the original board" (the top button) jumps to the listing in a
 new tab and records the click; beside it sit the cover-letter draft, the
 practice interview and the [application tracker](applications.md) entry.
-
-The **Postings feed** (`/postings/feed`) is the discovery view of everything
-available, ordered unseen-first. **Search is the default landing** —
-`/postings` opens the Explore page.
 
 ## Semantic search
 
@@ -168,10 +262,19 @@ fuzzy scores link without asking. Learned name variants persist as
 reviewable alias rows, per-pair "never link" exclusions keep
 similar-but-different employers apart, and near-misses queue for the AI
 arbiter — a confident match links, a confident "different" creates the
-new company, anything unsettled becomes a merge suggestion. Filter the
-feed by company with the `company` chip or the **no company** audit
-filter on `/postings/feed`, and open any card's company name to see all
-of that employer's postings on `/companies/:key`.
+new company, anything unsettled becomes a merge suggestion. Filter by company with the `company` chip or the **no company** audit
+filter, and open any card's company name to see all of that employer's
+postings on `/companies/:key`.
+
+## Market pulse rail
+
+The Explore page carries a **market pulse rail** on its right edge:
+new-posting counts for the last 24 hours / 7 days / 30 days, a 14-day
+volume sparkline, the currently rising skills and the most productive
+sources. Every chip that has a matching filter applies it to the feed —
+click `New in 7 days` to filter by posted-within, a rising skill to
+require it, a source to restrict the feed to it. The full picture lives
+on the [market statistics](market-stats.md) page.
 
 ## Related
 

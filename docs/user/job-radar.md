@@ -46,7 +46,7 @@ without saving.
 
 ## Where it is used
 
-- **Explore** (`/postings/search`) — the **My radar** button runs your
+- **Explore** (`/postings`) — the **My radar** button runs your
   saved configuration as a live search; "Clear radar" returns to the
   open filters.
 - **Ingestion** — a job source set to **Follow my radar** takes its

@@ -182,7 +182,8 @@ async def entity_signature(db: AsyncSession, kind: str, entity_id: uuid.UUID) ->
     spec = KIND_SPECS.get(kind)
     if spec is None or spec.model is None or entity_id is None:
         return None
-    row = await db.execute(select(spec.model.updated_at).where(spec.model.id == entity_id))
+    model: Any = spec.model
+    row = await db.execute(select(model.updated_at).where(model.id == entity_id))
     updated_at = row.scalars().first()
     return updated_at.isoformat() if updated_at is not None else None
 

@@ -498,86 +498,117 @@ async def ainvoke_structured[T: BaseModel](
 
     await enforce_budgets(db, task, user_id)
     from app.ai.packs import compose_system, resolve_pack
+    from app.ai.prompt_versions import prompt_version
+    from app.ai.tracing import sink
 
     pack = await resolve_pack(db, task.value, user_id=user_id)
     effective_system = compose_system(system, pack)
     attempts = 3 if resolved.provider_type != "mock" else 1
     last_error = ""
-    for attempt in range(attempts):
-        try:
-            if resolved.provider_type == "mock":
-                await asyncio.sleep(0)
-                result = _mock_output(schema, task, user)
+    with sink().span(
+        "llm.call",
+        {
+            "run_id": str(run_id) if run_id else None,
+            "task_type": task.value,
+            "provider": resolved.provider_type,
+            "model": resolved.model_name,
+            "attempt_cap": attempts,
+        },
+    ) as llm_span:
+        for attempt in range(attempts):
+            try:
+                if resolved.provider_type == "mock":
+                    await asyncio.sleep(0)
+                    result = _mock_output(schema, task, user)
+                    latency = (time.perf_counter() - started) * 1000
+                    row = await _record(
+                        db,
+                        user_id,
+                        task,
+                        resolved.provider_type,
+                        user,
+                        result.model_dump(mode="json"),
+                        None,
+                        None,
+                        latency,
+                        "ok",
+                        model_name=resolved.model_name,
+                        provider_type=resolved.provider_type,
+                        pack_key=pack.key if pack else None,
+                        pack_version=pack.version if pack else None,
+                        run_id=run_id,
+                        run_stage=run_stage,
+                    )
+                    llm_span.set(
+                        {
+                            "status": "ok",
+                            "latency_ms": int(latency),
+                            "prompt_version": prompt_version(task.value),
+                        }
+                    )
+                    return (result, _audit_ref(row)) if with_audit_ref else result
+                result, tokens_in, tokens_out = await _invoke_model(
+                    schema,
+                    effective_system,
+                    user,
+                    resolved,
+                    images=images,
+                )
                 latency = (time.perf_counter() - started) * 1000
                 row = await _record(
                     db,
                     user_id,
                     task,
-                    resolved.provider_type,
+                    resolved.model_name,
                     user,
                     result.model_dump(mode="json"),
-                    None,
-                    None,
+                    tokens_in,
+                    tokens_out,
                     latency,
                     "ok",
-                    model_name=resolved.model_name,
                     provider_type=resolved.provider_type,
                     pack_key=pack.key if pack else None,
                     pack_version=pack.version if pack else None,
                     run_id=run_id,
                     run_stage=run_stage,
                 )
+                llm_span.set(
+                    {
+                        "status": "ok",
+                        "tokens_in": tokens_in,
+                        "tokens_out": tokens_out,
+                        "latency_ms": int(latency),
+                        "prompt_version": prompt_version(task.value),
+                    }
+                )
                 return (result, _audit_ref(row)) if with_audit_ref else result
-            result, tokens_in, tokens_out = await _invoke_model(
-                schema,
-                effective_system,
-                user,
-                resolved,
-                images=images,
-            )
-            latency = (time.perf_counter() - started) * 1000
-            row = await _record(
-                db,
-                user_id,
-                task,
-                resolved.model_name,
-                user,
-                result.model_dump(mode="json"),
-                tokens_in,
-                tokens_out,
-                latency,
-                "ok",
-                provider_type=resolved.provider_type,
-                pack_key=pack.key if pack else None,
-                pack_version=pack.version if pack else None,
-                run_id=run_id,
-                run_stage=run_stage,
-            )
-            return (result, _audit_ref(row)) if with_audit_ref else result
-        except Exception as exc:
-            last_error = f"{type(exc).__name__}: {exc}"
-            logger.warning("AI task %s attempt %d failed: %s", task.value, attempt + 1, last_error)
-            if resolved.provider_type == "mock":
-                break
-    latency = (time.perf_counter() - started) * 1000
-    await _record(
-        db,
-        user_id,
-        task,
-        resolved.model_name,
-        user,
-        None,
-        None,
-        None,
-        latency,
-        "error",
-        last_error,
-        run_id=run_id,
-        run_stage=run_stage,
-    )
-    raise StructuredAIError(
-        f"AI task '{task.value}' failed after {attempts} attempts: {last_error}"
-    )
+            except Exception as exc:
+                last_error = f"{type(exc).__name__}: {exc}"
+                logger.warning(
+                    "AI task %s attempt %d failed: %s", task.value, attempt + 1, last_error
+                )
+                if resolved.provider_type == "mock":
+                    break
+        latency = (time.perf_counter() - started) * 1000
+        await _record(
+            db,
+            user_id,
+            task,
+            resolved.model_name,
+            user,
+            None,
+            None,
+            None,
+            latency,
+            "error",
+            last_error,
+            run_id=run_id,
+            run_stage=run_stage,
+        )
+        llm_span.set({"status": "error", "latency_ms": int(latency)})
+        raise StructuredAIError(
+            f"AI task '{task.value}' failed after {attempts} attempts: {last_error}"
+        )
 
 
 AGENT_MOCK_SCRIPTS: dict[str, Callable[[str, list[str]], Any]] = {}
@@ -1041,6 +1072,7 @@ async def embed_texts(
     db: AsyncSession,
     texts: list[str],
     user_id=None,
+    run: RunRef | None = None,
 ) -> list[list[float]]:
     """Embed a batch of texts via the ``embed`` task.
 
@@ -1048,7 +1080,8 @@ async def embed_texts(
     unassigned), budgets, audit. The mock provider synthesizes
     deterministic unit vectors (dim ``MOCK_EMBED_DIM``) so ranking is
     testable without a provider; real providers go through the
-    embeddings model factory.
+    embeddings model factory. ``run`` opt-in links the audit row to a
+    multi-step flow run and stage, like ``ainvoke_structured``.
     """
     from app.ai.providers.resolution import resolve_task_model
 
@@ -1063,6 +1096,8 @@ async def embed_texts(
             raise DomainError(f"AI rate limit reached; retry in {retry_after}s")
 
     resolved = await resolve_task_model(db, AITaskType.EMBED.value, user_id)
+    run_id = run.id if run is not None else None
+    run_stage = run.stage if run is not None else None
     started = time.perf_counter()
     if resolved is None:
         error = (
@@ -1083,6 +1118,8 @@ async def embed_texts(
             "error",
             error,
             provider_type="none",
+            run_id=run_id,
+            run_stage=run_stage,
         )
         raise AINotConfiguredError(error)
     if resolved.provider_type == "mock" and settings.is_production:
@@ -1091,48 +1128,64 @@ async def embed_texts(
             "dev-only. Configure a real provider in Settings → AI Configuration."
         )
     from app.ai.budgets import enforce_budgets
+    from app.ai.tracing import sink
 
     await enforce_budgets(db, AITaskType.EMBED, user_id)
-    try:
-        if resolved.provider_type == "mock":
-            vectors = [_mock_embedding(text) for text in texts]
-        else:
-            from app.ai.chat_models import build_embedding_model
+    with sink().span(
+        "llm.call",
+        {
+            "run_id": str(run_id) if run_id else None,
+            "task_type": AITaskType.EMBED.value,
+            "provider": resolved.provider_type,
+            "model": resolved.model_name,
+        },
+    ) as llm_span:
+        try:
+            if resolved.provider_type == "mock":
+                vectors = [_mock_embedding(text) for text in texts]
+            else:
+                from app.ai.chat_models import build_embedding_model
 
-            model = build_embedding_model(resolved)
-            vectors = [list(map(float, v)) for v in await model.aembed_documents(texts)]
-        latency = (time.perf_counter() - started) * 1000
-        await _record(
-            db,
-            user_id,
-            AITaskType.EMBED,
-            resolved.provider_type,
-            f"embed {len(texts)} text(s), dim {len(vectors[0]) if vectors else 0}",
-            {"count": len(vectors), "dim": len(vectors[0]) if vectors else 0},
-            None,
-            None,
-            latency,
-            "ok",
-            model_name=resolved.model_name,
-            provider_type=resolved.provider_type,
-        )
-        return vectors
-    except Exception as exc:
-        latency = (time.perf_counter() - started) * 1000
-        await _record(
-            db,
-            user_id,
-            AITaskType.EMBED,
-            resolved.model_name,
-            f"embed {len(texts)} text(s)",
-            None,
-            None,
-            None,
-            latency,
-            "error",
-            f"{type(exc).__name__}: {exc}",
-        )
-        raise
+                model = build_embedding_model(resolved)
+                vectors = [list(map(float, v)) for v in await model.aembed_documents(texts)]
+            latency = (time.perf_counter() - started) * 1000
+            await _record(
+                db,
+                user_id,
+                AITaskType.EMBED,
+                resolved.provider_type,
+                f"embed {len(texts)} text(s), dim {len(vectors[0]) if vectors else 0}",
+                {"count": len(vectors), "dim": len(vectors[0]) if vectors else 0},
+                None,
+                None,
+                latency,
+                "ok",
+                model_name=resolved.model_name,
+                provider_type=resolved.provider_type,
+                run_id=run_id,
+                run_stage=run_stage,
+            )
+            llm_span.set({"status": "ok", "latency_ms": int(latency), "texts": len(texts)})
+            return vectors
+        except Exception as exc:
+            latency = (time.perf_counter() - started) * 1000
+            await _record(
+                db,
+                user_id,
+                AITaskType.EMBED,
+                resolved.model_name,
+                f"embed {len(texts)} text(s)",
+                None,
+                None,
+                None,
+                latency,
+                "error",
+                f"{type(exc).__name__}: {exc}",
+                run_id=run_id,
+                run_stage=run_stage,
+            )
+            llm_span.set({"status": "error", "latency_ms": int(latency)})
+            raise
 
 
 async def transcribe_audio(

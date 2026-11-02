@@ -6,6 +6,14 @@
     "badge": "Demo — synthetische Daten",
     "description": "Diese Instanz läuft auf fiktiven Daten und wird periodisch zurückgesetzt."
   },
+  "update": {
+    "tooltip": "Version {{version}} ist verfügbar",
+    "releaseNotes": "Versionshinweise",
+    "allReleases": "Alle Versionen",
+    "installed": "installiert",
+    "availableSuffix": "verfügbar",
+    "title": "Update verfügbar"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "chat": "Chat",
@@ -25,7 +33,8 @@
     "sectionExtensions": "Erweiterungen",
     "paths": "Karrierepfade",
     "companies": "Unternehmen",
-    "radar": "Job-Radar"
+    "radar": "Job-Radar",
+    "marketStats": "Marktdaten"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -283,7 +292,7 @@
     "feedCaughtUp": "Ihr Feed ist auf dem neuesten Stand. Schön.",
     "dismissNudge": "Benachrichtigung ablehnen",
     "targetMode": "Zielmodus",
-    "liveTab": "Live-Tab →",
+    "liveTab": "Stellen →",
     "microRun": "5-minütiger Micro-Run",
     "openTargetJobs": "Stellen für Ihre Ziele öffnen",
     "expandCareer": "Erweitern Sie Ihre Karriere",
@@ -369,14 +378,13 @@
     "orgExample": "z.B. Acme",
     "deepExtractedOnly": "Nur tief extrahierte",
     "savedOnly": "Nur gespeicherte",
+    "hideSeen": "Gesehene ausblenden",
+    "hideSeenTitle": "Bereits geöffnete Stellenangebote ausblenden",
     "nothingMatches": "Keine Ergebnisse für diese Filter",
     "nothingMatchesBody": "Entfernen Sie einen Filter oder bitten Sie einen Administrator, weitere Jobquellen zu verbinden.",
     "loadMore": "Mehr anzeigen",
     "loadingMore": "Weitere Stellen werden geladen…",
-    "searchSaved": "Suche speichern — planen Sie sie in den Einstellungen → Zeitplaner.",
-    "saveFailed": "Suche konnte nicht gespeichert werden",
     "intro": "Alle offenen Stellenangebote aus Ihren Quellen — filtern, verfeinern, detailliert analysieren.",
-    "saveSearch": "Diese Suche speichern",
     "facet": {
       "skills": "Fähigkeiten",
       "workMode": "Arbeitsweise",
@@ -430,7 +438,20 @@
     "radarApply": "Mein Radar",
     "radarClear": "Radar löschen",
     "radarActive": "Zeigt die Treffer deines Radars.",
-    "radarNotConfigured": "Dein Job-Radar ist noch nicht eingerichtet — konfiguriere ihn in den Einstellungen."
+    "radarNotConfigured": "Dein Job-Radar ist noch nicht eingerichtet — konfiguriere ihn in den Einstellungen.",
+    "matching": "{{count}} Treffer",
+    "sortBy": "Sortieren",
+    "sortFit": "Beste Passung",
+    "sortFresh": "Neueste",
+    "sortSalary": "Höchstes Gehalt",
+    "sortRelevance": "Relevanz",
+    "sortSmart": "Smart",
+    "smartChipInfo": "Sortiert nach Ihrer Passung, vermischt mit Interessen-Affinität. Gesehene Stellen rutschen nach hinten, pro Arbeitgeber führen höchstens zwei der ersten Seite; fehlen Interessen­daten, fällt die Sortierung auf die Passung zurück.",
+    "smartSearchPlaceholder": "Beschreiben Sie, was Sie suchen (z. B. remote Junior Python Stellen in Athen)",
+    "smartSearchSubmit": "Suchen",
+    "interpretedAs": "Interpretiert als",
+    "removeInterpreted": "Filter {key} entfernen",
+    "dismissInterpreted": "Ausblenden"
   },
   "applications": {
     "title": "Meine Bewerbungen",
@@ -523,9 +544,6 @@
     "saved": "Gespeichert"
   },
   "postings": {
-    "title": "Stellenangebote",
-    "tabFeed": "Feed",
-    "tabSearch": "Suche",
     "sortBestFit": "Beste Übereinstimmung",
     "sortFreshest": "Neueste",
     "filterBySkill": "Filter nach Fähigkeit…",
@@ -852,13 +870,12 @@
     "lastRun": "letzter Durchlauf {{date}}",
     "openCount": "{{count}} offene",
     "tokens": "{{count}} Token",
-    "hideWork": "Arbeit ausblenden",
-    "whatSearched": "Was ich gesucht habe",
     "noSurvivors": "Keine Ergebnisse haben die Filter dieses Durchlaufs überstanden.",
     "deleteTitle": "Diese Aufgabe löschen?",
     "deleteBody": "Es wird und die Ergebnisse gehen mit. Dies kann nicht rückgängig gemacht werden.",
     "delete": "Löschen",
     "fitScore": "Passungsgrad",
+    "mustHaves": "Muss-Kriterien {{hits}}/{{total}}",
     "moreLikeThis": "Mehr wie das",
     "hideLikeThis": "Ausblenden — das Ziel lernt, diese zu überspringen",
     "status": {
@@ -910,7 +927,9 @@
       "kept": "Rauschen gefiltert · {{count}} beibehalten",
       "seen": "{{count}} gesehen",
       "neverTerms": "{{count}} nie-Terms",
-      "cooldown": "{{count}} im Wartezustand"
+      "cooldown": "{{count}} im Wartezustand",
+      "examined": "{{count}} geprüft",
+      "replanned": "Suche erweitert"
     },
     "modal": {
       "editTitle": "Ziel bearbeiten",
@@ -934,12 +953,168 @@
     "cooldownSuffix": "Tage vor erneuter Suche",
     "cadenceLabel": "Zyklus",
     "saveChanges": "Änderungen speichern",
-    "createGoal": "Ziel erstellen"
+    "createGoal": "Ziel erstellen",
+    "runDetail": {
+      "title": "Lauf-Details",
+      "missing": "Dieser Lauf wurde nicht gefunden (möglicherweise gelöscht).",
+      "unavailable": "Dieser Lauf stammt aus der Zeit vor dem detaillierten Schritt-Trace — stattdessen wird die Such-Chronik angezeigt.",
+      "inputs": "Eingaben",
+      "graph": "Graph",
+      "steps": "Schritt-Trace",
+      "branch": "Erweitert — Durchgang {{iteration}}",
+      "args": "Argumente & Ausgabe",
+      "calls": "KI-Aufrufe",
+      "viewCall": "Aufruf ansehen",
+      "duration": "{{seconds}} s",
+      "ms": "{{ms}} ms",
+      "abortedAs": "abgebrochen: {{reason}}",
+      "profile": "Profil-Snapshot: {{parts}}",
+      "budgetKey": "Budget: {{key}}",
+      "step": {
+        "plan": "Planen",
+        "search": "Suche",
+        "filter": "Filter",
+        "replan": "Neu planen",
+        "evaluate": "Bewerten",
+        "graph_sweep": "Graph-Erweiterung",
+        "budget_guard": "Budget-Wächter",
+        "curate": "Kuratieren",
+        "deliver": "Ausliefern"
+      },
+      "summary": {
+        "plan": "{{count}} Suchvarianten geplant",
+        "search": "{{probes}} Abfragen · Pool {{pool}}",
+        "filter": "{{kept}} behalten · Pool {{pool}}",
+        "evaluate": "Ranking-Pool mit {{pool}}",
+        "replan": "{{count}} erweiterte Abfragen",
+        "graphSweep": "+{{found}} gefunden · {{examined}} geprüft über verwandte Rollen",
+        "guardAbort": "Abbruch: {{reason}}",
+        "guardTokens": "{{tokens}} Tokens bisher ausgegeben",
+        "curate": "{{count}} Ausnahmen erklärt",
+        "deliver": "{{count}} Treffer · {{status}}"
+      },
+      "profileSkills": "{{skills}} Skills",
+      "profileLanguages": "{{count}} Sprachen",
+      "profileStage": "Stufe {{stage}}",
+      "openFull": "Vollansicht öffnen",
+      "backToFeed": "Alle Treffer",
+      "viewInFeed": "Im Feed zeigen",
+      "dismissAll": "Alle dieses Laufs verwerfen",
+      "dismissAllTitle": "Alle Treffer dieses Laufs verwerfen?",
+      "dismissAllBody": "Jede offene Anzeige dieses Laufs verschwindet aus dem Feed. Das bringt das Ziel nichts bei — es ist Aufräumen, kein Feedback."
+    },
+    "summary": {
+      "skills": "Skills: {{items}}",
+      "skillsNone": "Skills: keine erfasst",
+      "skillsUnused": "Skills: nicht verwendet",
+      "education": "Bildung: {{level}}",
+      "educationNone": "Bildung: nicht erfasst",
+      "educationUnused": "Bildung: nicht verwendet",
+      "languages": "Sprachen: {{items}}",
+      "languagesNone": "Sprachen: keine erfasst",
+      "languagesUnused": "Sprachen: nicht verwendet",
+      "stage": "Stufe: {{stage}}",
+      "stageFromProfile": "Stufe: aus deinem Profil",
+      "stageNone": "Stufe: nicht erfasst",
+      "stageUnused": "Erfahrung: nicht verwendet",
+      "location": "Ort: {{city}}",
+      "locationNone": "Ort: nicht erfasst",
+      "locationUnused": "Ort: nicht verwendet",
+      "lifestyle": "Lebensstil: {{count}}",
+      "lifestyleUnused": "Lebensstil: nicht verwendet",
+      "loading": "Profil wird geprüft …"
+    },
+    "profileUsage": {
+      "title": "Was der Autopilot aus deinem Profil verwendet",
+      "goalOnly": "Mit deaktivierten Eingaben sucht dieses Ziel nur anhand deines Zieltextes.",
+      "footnote": "Match-Schätzungen (noch nicht tief extrahierte Stellen) ignorieren diese Schalter.",
+      "stageSourceLabel": "Karrierestufe",
+      "stageSource": {
+        "profile": "Aus meinem Profil",
+        "goal": "Aus der Seniorität dieses Ziels"
+      },
+      "toggles": {
+        "use_skills": {
+          "label": "Skills",
+          "description": "Deine Skills lenken das Suchvokabular und die Skill-Bewertung."
+        },
+        "use_education": {
+          "label": "Bildung & Zertifikate",
+          "description": "Bildungs- und Zertifikatsanforderungen prüfen dein Profil."
+        },
+        "use_languages": {
+          "label": "Sprachen",
+          "description": "Sprachanforderungen prüfen die Sprachen in deinem Profil."
+        },
+        "use_location": {
+          "label": "Ort",
+          "description": "Deine Stadt und Remote-Präferenz beeinflussen die Ortsbewertung."
+        },
+        "use_experience": {
+          "label": "Erfahrung",
+          "description": "Deine Karrierestufe wird gegen die Seniorität jeder Stelle bewertet."
+        },
+        "use_lifestyle": {
+          "label": "Lebensstil-Constraints",
+          "description": "Deine Reise-, Schicht- und Zeitgrenzen kennzeichnen Stellen."
+        }
+      },
+      "chips": {
+        "use_skills": "keine Skills",
+        "use_education": "keine Bildung",
+        "use_languages": "keine Sprachen",
+        "use_location": "kein Ort",
+        "use_experience": "keine Erfahrung",
+        "use_lifestyle": "keine Lebensstil-Flags",
+        "stage_source": "Stufe aus Ziel"
+      }
+    },
+    "workspace": {
+      "allGoals": "Alle Ziele",
+      "viewLabel": "Ansicht",
+      "viewFlat": "Flach",
+      "viewByRun": "Nach Lauf",
+      "runsRail": "Läufe",
+      "railFindings": "{{count}} Treffer",
+      "railExamined": "{{count}} geprüft",
+      "filtersTitle": "Filter",
+      "feedCount": "{{count}} Treffer",
+      "loadMore": "Mehr laden",
+      "markApplied": "Als beworben markieren",
+      "applied": "Beworben",
+      "viewPosting": "Anzeige öffnen",
+      "evidence": "Warum dieser Treffer",
+      "disabledDims": "{{count}} Profil-Eingaben für dieses Ziel aus",
+      "estimateFootnote": "Schätzung — diese Anzeige wurde noch nicht tief gelesen; Profil-Schalter bleiben unberücksichtigt.",
+      "runProvenance": "Lauf · {{date}}",
+      "stateSection": "Status",
+      "stateOpen": "Offen",
+      "stateDismissed": "Verworfen",
+      "stateAll": "Alle",
+      "latestOnly": "Neueste Bewertung pro Anzeige",
+      "hideApplied": "Beworbene ausblenden",
+      "scoreSection": "Score",
+      "minScore": "Fit ≥",
+      "coverageMin": "Muss-Kriterien ≥",
+      "orgSection": "Unternehmen",
+      "orgPlaceholder": "Arbeitgeber enthält…",
+      "sourceSection": "Quelle",
+      "senioritySection": "Erfahrungslevel",
+      "remoteSection": "Ort",
+      "remoteOnly": "Nur remote",
+      "postedSection": "Veröffentlicht",
+      "noSources": "Noch keine Boards mit Treffern",
+      "sortLabel": "Sortierung",
+      "sortNewest": "Neueste",
+      "sortScore": "Beste Passung",
+      "emptyFilteredTitle": "Keine Treffer für diese Filter",
+      "emptyFilteredBody": "Lockere oder leere alle Filter — die Shortlist ist noch da."
+    }
   },
   "scheduler": {
     "searchesTitle": "Geplante Suchanfragen",
-    "searchesBody": "Die App führt Ihre gespeicherten Suchanfragen nach Zeitplan aus — neue Übereinstimmungen benachrichtigen Sie und landen im Live-Tab.",
-    "noSavedSearches": "Noch keine gespeicherten Suchanfragen — starten Sie zuerst eine von der Live-Seite aus.",
+    "searchesBody": "Die App führt deine gespeicherten Suchen nach Zeitplan aus — neue Treffer landen in den Stellen.",
+    "noSavedSearches": "Noch keine gespeicherten Suchen — speichere eine in den Stellen.",
     "filtersOnly": "Nur filtern",
     "notScheduled": "nicht geplant",
     "failures_one": "{{count}} Fehler",
@@ -1217,6 +1392,25 @@
       "enrichment": "Ergänzung",
       "translations": "Übersetzungen",
       "relations": "Relationen"
+    },
+    "stats": {
+      "skillsGroup": "Skill-Ontologie · {{total}} gesamt",
+      "queueGroup": "Prüf-Warteschlange · {{total}} offen",
+      "active": "Aktiv",
+      "proposed": "Vorgeschlagen",
+      "deprecated": "Veraltet",
+      "autoPromoted": "Auto-befördert",
+      "relations": "Relationen",
+      "enrichment": "Ergänzung",
+      "paths": "Entwurfs-Pfade",
+      "translations": "Übersetzungen",
+      "hint": {
+        "active": "kuratiert, in Auswahllisten",
+        "awaiting": "wartet auf Prüfung",
+        "promoted": "+{{count}} in 7 T. befördert",
+        "deprecated": "auflösbar, ausgeblendet",
+        "allTime": "gesamt"
+      }
     },
     "newTag": "Neuer Tag",
     "keyPlaceholder": "Schlüssel (stabiler Slug, z.B. renewable-energy)",
@@ -1648,7 +1842,8 @@
     "sectionsAria": "Tools-Bereiche",
     "section": {
       "web-search": "Websuche",
-      "connectors": "Verbindungen"
+      "mcp": "MCP",
+      "sources": "Quellen"
     },
     "webSearch": {
       "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. SearXNG nutzt den SSRF-geschützten Client; Anbieter mit Schlüssel (Tavily, Brave, Exa, Serper, Google PSE) nutzen den geschützten POST-Transport.",
@@ -1705,6 +1900,9 @@
         "hint": "Eingabe von Job-Quellen über den sicheren Runtime — SSRF-geschützte Abfragen, robots.txt und pro-Host-Rate-Limits werden durchgesetzt. Anmeldeinformationen werden im Ruhezustand verschlüsselt und nur als Hinweise angezeigt.",
         "empty": "Noch keine Job-Quellen konfiguriert.",
         "add": "Quelle hinzufügen",
+        "searchPlaceholder": "Quellen suchen…",
+        "selectAria": "Quelle auswählen",
+        "edit": "Bearbeiten",
         "key": "Quell-Schlüssel (eindeutig)",
         "queryMode": "Suchquelle",
         "queryModeStatic": "Statische Konfiguration (Einstellungen dieser Quelle)",
@@ -1717,19 +1915,14 @@
         "test": "Test",
         "sync": "Jetzt synchronisieren",
         "syncQueued": "Synchronisierung für {{key}} geplant",
-        "edit": "Bearbeiten",
         "save": "Quelle speichern",
         "cancel": "Abbrechen",
         "probeOk": "OK · {{items}} Artikel · {{latency}} ms",
         "probeError": "{{code}}: {{detail}}",
-        "needsConfig": "Konfiguration erforderlich",
         "secretSetShort": "Festlegen — leer lassen, um beizubehalten",
         "secretMissingShort": "Nicht festgelegt",
         "select": "Auswählen…",
         "githubTokenPlaceholder": "gh_pat_…",
-        "statusOk": "Gesund",
-        "statusDegraded": "Beeinträchtigt",
-        "statusFailing": "Fehlerhaft",
         "lastSuccess": "Letzter Erfolg",
         "kind": {
           "posting": "Jobbörsen",
@@ -1781,7 +1974,44 @@
         "sealedNote": "Geheimnisse werden versiegelt gespeichert und nie zurückgespielt.",
         "keyPlaceholder": "z. B. acme-board",
         "keyTaken": "Dieser Schlüssel ist bereits vergeben.",
-        "planSources": "{{count}} Radar(e)"
+        "planSources": "{{count}} Radar(e)",
+        "paused": "Pausiert",
+        "originMcp": "MCP",
+        "originBundled": "Eingebaut",
+        "statusOk": "Gesund",
+        "statusDegraded": "Beeinträchtigt",
+        "statusFailing": "Fehlerhaft",
+        "pauseSelected": "Auswahl pausieren",
+        "resumeSelected": "Auswahl fortsetzen",
+        "syncSelected": "Jetzt synchronisieren",
+        "bulkPauseDone": "{{count}} Quellen pausiert.",
+        "bulkResumeDone": "{{count}} Quellen fortgesetzt.",
+        "bulkSyncDone": "{{count}} Synchronisierungen eingeplant.",
+        "countryFilterAria": "Quellen nach Land filtern",
+        "countryAll": "Alle Quellen",
+        "countryCustom": "Benutzerdefiniert",
+        "worldwide": "Weltweit",
+        "problemsOnly": "Nur Probleme"
+      },
+      "presets": {
+        "title": "Job-Quelle hinzufügen",
+        "subtitle": "Verifizierte Vorlagen — ein Klick, keine Konfiguration nötig.",
+        "searchPlaceholder": "Unternehmen, Anbieter, Länder suchen…",
+        "filterAria": "Vorlagenfilter",
+        "filterAll": "Alle",
+        "filterAts": "Unternehmens-ATS",
+        "filterRemote": "Remote",
+        "worldwide": "Weltweit",
+        "noMatches": "Keine Vorlagen passen zu dieser Suche.",
+        "footerHint": "Vorlagen füllen den Connector für dich aus — alles bleibt vor dem Speichern anpassbar.",
+        "addSelected": "{{count}} ausgewählte hinzufügen",
+        "addedBadge": "Hinzugefügt",
+        "addedNotice": "{{count}} von {{total}} Vorlagen hinzugefügt.",
+        "custom": "Eigene Quelle",
+        "openings": "{{count}} offene Stellen",
+        "verified": "Verifiziert {{date}}",
+        "countryFilterAria": "Nach Land filtern",
+        "countryAll": "Alle Quellen"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -3226,6 +3456,7 @@
     "unsave": "Nicht speichern",
     "hide": "verstecken",
     "hideTitle": "Aus dem Live-Tab ausblenden",
+    "markSeen": "Als gesehen markieren",
     "salaryBasis": {
       "gross": "brutto",
       "net": "netto"
@@ -4340,6 +4571,11 @@
   },
   "companies": {
     "subtitle": "Unternehmen, die gerade einstellen — geprüfte Fakten, Finanzangaben mit Quellen und alle offenen Stellen an einem Ort.",
+    "count": "{{count}} Unternehmen",
+    "sortBy": "Sortieren",
+    "sortOpen": "Meiste offene Stellen",
+    "sortName": "Name A–Z",
+    "sortRecent": "Zuletzt ausgeschrieben",
     "searchPlaceholder": "Unternehmen suchen…",
     "loadError": "Unternehmen konnten nicht geladen werden.",
     "noneYetTitle": "Noch keine Unternehmen",
@@ -4361,7 +4597,28 @@
       "new": "Neu"
     },
     "noMatchTitle": "Keine passenden Unternehmen",
-    "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter."
+    "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter.",
+    "railTitle": "Nach aktiver Stellenlage filtern",
+    "clearFilters": "Filter löschen ({count})",
+    "locationPlaceholder": "Stadt oder Land",
+    "minOpenN": "≥ {{count}} offene Stellen",
+    "minOpenAny": "Beliebige Anzahl",
+    "facetTitle": {
+      "work_mode": "Arbeitsmodus",
+      "seniority": "Erfahrungslevel",
+      "employment": "Anstellungsart",
+      "industries": "Branchen",
+      "locations": "Wo die Stellen sind",
+      "minOpen": "Offene Stellen"
+    },
+    "facet": {
+      "work_mode": {},
+      "seniority": {},
+      "employment": {},
+      "industries": {},
+      "locations": {}
+    },
+    "statusTitle": "Status"
   },
   "companyDetail": {
     "back": "Alle Unternehmen",
@@ -4485,7 +4742,8 @@
     "queryMode": "Suchquelle",
     "radarMode": "Meinem Job-Radar folgen",
     "staticMode": "Statische Konfiguration",
-    "configHint": "Vollständige Paket-Einstellungen (Stichwörter, Filter, Taktung) liegen auf der Tools-Seite im Bearbeiten-Formular dieser Quelle.",
+    "staticNeedsFields": "Setze {{fields}} unten in der Konfiguration, bevor du in den statischen Modus wechselst — der Radar-Modus liefert sie pro Sync.",
+    "configHint": "Dieser Connector hat hier keine zu bearbeitenden Einstellungen.",
     "runsEmpty": "Noch keine Ausführungen — klicken Sie auf „Jetzt ausführen“.",
     "runStarted": "Start",
     "runTrigger": "Auslöser",
@@ -4546,10 +4804,15 @@
     "runPartial": "Teilweise",
     "runFailed": "Fehlgeschlagen",
     "runSkipped": "Übersprungen",
-    "budgetCustom": "Benutzerdefiniert · {{seconds}} s",
     "budgetKept": "Budget erreicht — {{count}} Stellen behalten; der Rest kommt beim nächsten Sync",
     "presetLabel": "Starten mit",
-    "advancedLabel": "Erweitert (Traffic-Sicherheit)"
+    "advancedLabel": "Erweitert (Traffic-Sicherheit)",
+    "customValue": "Eigener Wert…",
+    "customValueFor": "{{label}} — eigener Wert",
+    "customRange": "{{min}}–{{max}}",
+    "openSource": "Quellenseite öffnen",
+    "radarNotCapable": "Dieser Connector übernimmt das gesamte Angebot des Anbieters — die Job-Radar-Rotation gilt hier nicht.",
+    "connectorSettings": "Connector-Einstellungen"
   },
   "filters": {
     "title": "Filter",
@@ -4595,7 +4858,9 @@
     "include": "Einbeziehen",
     "exclude": "Ausschließen",
     "clickToInclude": "Klicken zum Einschließen — Rechtsklick zum Ausschließen",
-    "clickToExclude": "Klicken zum Ausschließen — Rechtsklick zum Entfernen",
+    "clickToExclude": "Zum Ausschließen klicken",
+    "clickToClear": "Zum Entfernen klicken",
+    "removeValue": "{{value}} entfernen",
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "clickToToggle": "Klicken, um danach zu filtern",
     "min": "min",
@@ -4650,7 +4915,9 @@
     "perYear": "≈ {{range}} {{currency}}/Jahr",
     "type": "Typ",
     "size": "Größe",
-    "founded": "gegründet"
+    "founded": "gegründet",
+    "smartBadge": "Smart",
+    "smartBadgeInfo": "Smart-Treffer: Passung + Interessen-Affinität. Fällt auf reine Passung zurück, wenn Interessen­daten fehlen."
   },
   "companyRules": {
     "title": "Unternehmensregeln",
@@ -4807,12 +5074,19 @@
     "tab": {
       "overview": "Überblick",
       "ai": "KI-Aktivität",
-      "security": "Sicherheit & Zugriff"
+      "security": "Sicherheit & Zugriff",
+      "jobs": "Jobs & Läufe",
+      "failures": "Fehlschläge",
+      "changes": "Datenänderungen",
+      "usage": "Nutzung & Durchsatz"
     },
     "window": {
       "24h": "24h",
       "7d": "7d",
-      "30d": "30d"
+      "30d": "30d",
+      "custom": "benutzerdefiniert…",
+      "fromLabel": "Von",
+      "toLabel": "Bis"
     },
     "kpi": {
       "calls": "KI-Aufrufe",
@@ -4846,7 +5120,55 @@
     },
     "failures": {
       "title": "Letzte Fehler",
-      "none": "Keine Fehler in diesem Zeitraum"
+      "none": "Keine Fehler in diesem Zeitraum",
+      "badge_one": "{{count}} fehlgeschlagener Job braucht Aufmerksamkeit",
+      "badge_other": "{{count}} fehlgeschlagene Jobs brauchen Aufmerksamkeit",
+      "aiBadge_one": "{{count}} fehlgeschlagener KI-Aufruf",
+      "aiBadge_other": "{{count}} fehlgeschlagene KI-Aufrufe",
+      "count_one": "{{count}} im Zeitraum",
+      "count_other": "{{count}} im Zeitraum",
+      "fullRerun": "Vollständiger Neustart",
+      "sweep": "Globale Aufräumarbeit",
+      "estJobs_one": "Würde {{count}} Job neu einreihen",
+      "estJobs_other": "Würde {{count}} Jobs neu einreihen",
+      "requeueGroup": "Neu einreihen…",
+      "requeueAll_one": "{{count}} Job neu einreihen…",
+      "requeueAll_other": "{{count}} Jobs neu einreihen…",
+      "requeueRow": "Diesen Job neu einreihen",
+      "payload": "Payload",
+      "confirmTitle": "Neueinreihung bestätigen",
+      "confirmGroup_one": "Reiht {{count}} Job dieses Typs als neue Queue-Zeile ein",
+      "confirmGroup_other": "Reiht {{count}} Jobs dieses Typs als neue Queue-Zeilen ein",
+      "confirmAll_one": "Reiht {{count}} Job über alle Typen als neue Queue-Zeilen ein",
+      "confirmAll_other": "Reiht {{count}} Jobs über alle Typen als neue Queue-Zeilen ein",
+      "confirmCap": "Limit {{cap}} pro Aktion",
+      "confirmDup_one": "{{count}} Duplikat übersprungen (ein Zwillingsjob wartet oder läuft)",
+      "confirmDup_other": "{{count}} Duplikate übersprungen (Zwillingsjobs warten oder laufen)",
+      "confirmTruncated_one": "{{count}} älterer Fehler jenseits der Scangrenze",
+      "confirmTruncated_other": "{{count}} ältere Fehler jenseits der Scangrenze",
+      "confirmFreshRows": "Fehlgeschlagene Jobs werden als neue Zeilen eingereiht — die Fehlerhistorie bleibt unverändert.",
+      "confirmGo": "Jetzt neu einreihen",
+      "empty": "Keine fehlgeschlagenen Jobs in diesem Zeitraum.",
+      "truncated_one": "+{{count}} älterer Fehler jenseits der 1000-Zeilen-Scangrenze",
+      "truncated_other": "+{{count}} ältere Fehler jenseits der 1000-Zeilen-Scangrenze",
+      "outcomeTitle": "Neueinreihung abgeschlossen",
+      "collapsed_one": "{{count}} in einer Aufräum-Neueinreihung zusammengefasst",
+      "collapsed_other": "{{count}} in einer Aufräum-Neueinreihung zusammengefasst",
+      "outcome": {
+        "requeued_one": "{{count}} neu eingereiht",
+        "requeued_other": "{{count}} neu eingereiht",
+        "skipped_dup_one": "{{count}} übersprungen (Duplikat wartet)",
+        "skipped_dup_other": "{{count}} übersprungen (Duplikate warten)",
+        "skipped_cap_one": "{{count}} übersprungen (Limit)",
+        "skipped_cap_other": "{{count}} übersprungen (Limit)"
+      },
+      "maintenance": {
+        "title": "Verwandte Wartung",
+        "embeddings": "Embeddings neu berechnen",
+        "embeddingsHint": "Posting-Embeddings über die KI-Konfiguration neu aufbauen — bei Fehlerwellen hinter dem Embedding-Slot.",
+        "sweeps": "Geplante Aufräumjobs",
+        "sweepsHint": "Fit-Sweep und Curator-Aufbau sind eigene Queue-Jobs (fit_refit, query_curator) — hier neu einreihen oder in Automatisierungen ausführen."
+      }
     },
     "stream": {
       "ai": "KI",
@@ -4882,7 +5204,22 @@
       "stageChip": "Phase {{stage}}",
       "promptChip": "Prompt {{version}}",
       "packChip": "Paket {{key}} v{{version}}",
-      "range": "{{from}}–{{to}} von {{total}} Zeilen"
+      "range": "{{from}}–{{to}} von {{total}} Zeilen",
+      "drawer": {
+        "model": "Modell",
+        "tokens": "Tokens",
+        "promptVersion": "Prompt-Version",
+        "pack": "Skill-Paket",
+        "run": "Lauf",
+        "stage": "Phase",
+        "user": "Benutzer",
+        "parsed": "Strukturiert",
+        "raw": "Roh",
+        "prompt": "Prompt",
+        "output": "Ausgabe",
+        "viewAria": "Detailansicht",
+        "position": "{{index}} von {{total}}"
+      }
     },
     "security": {
       "groupFilter": "Aktionsgruppe",
@@ -4906,6 +5243,330 @@
       "colOutcome": "Ergebnis",
       "colResource": "Ressource",
       "empty": "Keine Ereignisse in diesem Zeitraum"
+    },
+    "export": {
+      "csv": "CSV exportieren",
+      "exporting": "Exportiere…"
+    },
+    "jobs": {
+      "schedulesFailing": "{{count}} Zeitpläne fehlerhaft",
+      "manageSchedules": "In Automatisierungen verwalten",
+      "statusFilter": "Status",
+      "allStatuses": "Alle Status",
+      "status": {
+        "queued": "in Warteschlange",
+        "running": "läuft",
+        "succeeded": "erfolgreich",
+        "failed": "fehlgeschlagen",
+        "cancelled": "abgebrochen"
+      },
+      "typeFilter": "Job-Typ",
+      "allTypes": "Alle Typen",
+      "colStatus": "Status",
+      "colType": "Typ",
+      "colUser": "Benutzer",
+      "colAttempts": "Versuche",
+      "colWhen": "Zeitpunkt",
+      "empty": "Keine Jobs in diesem Zeitraum",
+      "sourceRuns": "Quellen-Läufe (letzte 7 Tage)",
+      "runStatusFilter": "Laufstatus",
+      "runStatus": {
+        "running": "läuft",
+        "ok": "ok",
+        "degraded": "beeinträchtigt",
+        "failed": "fehlgeschlagen",
+        "skipped": "übersprungen"
+      },
+      "trigger": {
+        "manual": "manuell",
+        "scheduled": "geplant"
+      },
+      "noRuns": "Keine Abruf-Läufe",
+      "runTotal": "{{total}} Läufe insgesamt",
+      "failureStreak_one": "{{count}} Fehler in Folge",
+      "failureStreak_other": "{{count}} Fehler in Folge"
+    },
+    "changes": {
+      "entityAria": "Journal-Entität",
+      "entity": {
+        "postings": "Stellenangebote",
+        "skills": "Skills"
+      },
+      "actorFilter": "Akteur",
+      "allActors": "Alle Akteure",
+      "actor": {
+        "sync_run": "Synchronisierung",
+        "extract_llm": "Extraktion",
+        "detail_fetch": "Detailabruf",
+        "company_match": "Firmenabgleich",
+        "retag": "Neu-Tagging",
+        "manual": "manuell",
+        "expiry": "Ablauf",
+        "admin": "Admin",
+        "system": "System",
+        "sync": "Sync",
+        "job": "Job",
+        "user": "Benutzer"
+      },
+      "resultFilter": "Ergebnis",
+      "allOutcomes": "Alle Ergebnisse",
+      "allEvents": "Alle Ereignisse",
+      "result": {
+        "ok": "ok",
+        "partial": "teilweise",
+        "error": "Fehler",
+        "created": "erstellt",
+        "updated": "aktualisiert",
+        "promoted": "befördert",
+        "auto_promoted": "autom. befördert",
+        "deprecated": "deprefiert",
+        "restored": "wiederhergestellt",
+        "merged": "zusammengeführt",
+        "deleted": "gelöscht"
+      },
+      "colOutcome": "Ergebnis",
+      "colEvent": "Ereignis",
+      "colSubject": "Objekt",
+      "colActor": "Akteur",
+      "postingRef": "Angebot {{id}}",
+      "operationLabel": "Operation — ",
+      "noDiff": "Kein Diff aufgezeichnet",
+      "empty": "Keine Änderungen in diesem Zeitraum"
+    },
+    "usage": {
+      "models": "Modellnutzung",
+      "tokenTrend": "Tokenverbrauch im Zeitverlauf",
+      "tokensIn": "Tokens rein",
+      "tokensOut": "Tokens raus",
+      "tokensShort": "{{tin}} → {{tout}} Tok",
+      "errors": "{{count}} Fehler",
+      "postingsIngested": "Stellenangebote aufgenommen",
+      "itemsSynced": "{{count}} Elemente synchronisiert",
+      "skillsCreated": "Skills erstellt",
+      "skillsPromoted": "{{count}} befördert (inkl. auto)",
+      "companiesCreated": "Firmen erstellt",
+      "jobsPublished": "Katalog-Jobs veröffentlicht",
+      "jobsCreated": "{{count}} erstellt",
+      "postingActivity": "Verarbeitungsaktivität (Angebote)",
+      "skillEvents": "Skill-Lebenszyklus-Ereignisse",
+      "noActivity": "Keine Aktivität in diesem Zeitraum"
+    },
+    "autoRefresh": "Auto-Aktualisierung 30s"
+  },
+  "presets": {
+    "title": "Vorlagen",
+    "saveCurrent": "Aktuelle Ansicht speichern",
+    "saveHint": "Diese Filter als Vorlage mit einem Klick speichern",
+    "updateNamed": "{{name}} aktualisieren",
+    "save": "Vorlage speichern",
+    "update": "Vorlage aktualisieren",
+    "nameLabel": "Name der Vorlage",
+    "saveTitle": "Diese Ansicht als Vorlage speichern",
+    "rename": "Umbenennen",
+    "renameTitle": "Vorlage umbenennen",
+    "delete": "Vorlage löschen",
+    "deleteTitle": "Vorlage „{{name}}“ löschen?",
+    "deleteBody": "Die gespeicherten Filter werden entfernt; die Stellenangebote bleiben.",
+    "updateCurrent": "Mit aktuellen Filtern aktualisieren",
+    "options": "Optionen für {{name}}",
+    "saved": "Vorlage gespeichert",
+    "updated": "Vorlage aktualisiert",
+    "renamed": "Vorlage umbenannt",
+    "deleted": "Vorlage gelöscht",
+    "defaultName": "Meine Suche",
+    "summary": {
+      "query": "Suche: {{value}}",
+      "skills": "Fähigkeiten: {{list}}",
+      "skillsExclude": "Ausgeschlossene Fähigkeiten: {{list}}",
+      "include": "{{label}}: {{list}}",
+      "exclude": "{{label}} ausgeschlossen: {{list}}",
+      "posted": "Veröffentlicht: {{value}}",
+      "salary": "Gehalt ab: {{value}}",
+      "sort": "Sortiert nach: {{value}}",
+      "empty": "Keine Filter — zeigt alle offenen Stellen."
     }
+  },
+  "marketStats": {
+    "title": "Marktdaten",
+    "subtitle": "Wie sich der Stellenmarkt bewegt — Volumen, Skills und Gehälter im Zeitverlauf.",
+    "window": {
+      "title": "Zeitfenster",
+      "24h": "Letzte 24 Std.",
+      "7d": "Letzte 7 Tage",
+      "30d": "Letzte 30 Tage",
+      "90d": "Letzte 90 Tage",
+      "all": "Gesamter Zeitraum",
+      "custom": "Eigener Zeitraum",
+      "fromLabel": "Von",
+      "toLabel": "Bis"
+    },
+    "basis": {
+      "title": "Statusbasis",
+      "open": "Offene",
+      "all": "Alle Status"
+    },
+    "basisHint": "Offene zählt nur laufende Stellen; Alle zählt auch abgelaufene.",
+    "compare": {
+      "groupAria": "Vergleichsfenster",
+      "off": "Kein Vergleich",
+      "previous": "Vorzeitraum",
+      "custom": "Eigenes B-Fenster",
+      "fromLabel": "Vergleichen ab",
+      "toLabel": "Vergleichen bis",
+      "legendCurrent": "Gewählter Zeitraum",
+      "legendPrev": "Vorheriges",
+      "legendB": "Vergleich",
+      "paused": "Der Vergleich pausiert bei einem Split — er gilt ohne Split.",
+      "hintDates": "Beide Vergleichsdaten wählen, um das B-Fenster zu überlagern.",
+      "hintAll": "Gesamtzeitraum ohne Rand — beide Vergleichsdaten wählen.",
+      "hintCrop": "Per Versatz ausgerichtet — {{count}} Intervalle aus dem Vergleich gekürzt.",
+      "hintPad": "Per Versatz ausgerichtet — {{count}} Intervalle des Vergleichs mit Nullen gefüllt.",
+      "error": "Der Vergleichszeitraum stieß an das Serverlimit — kürzeres B-Fenster wählen."
+    },
+    "copy": {
+      "link": "Link kopieren",
+      "copied": "Link kopiert ✓",
+      "failed": "Kopieren fehlgeschlagen — die URL bleibt in der Adressleiste"
+    },
+    "export": "CSV exportieren",
+    "tiles": {
+      "new24h": "Neu in 24 Std.",
+      "new7d": "Neu in 7 Tagen",
+      "new30d": "Neu in 30 Tagen",
+      "newInRange": "Neu im Zeitraum",
+      "openTotal": "Offene Stellen"
+    },
+    "delta": {
+      "new": "Neu",
+      "vsPrev": "{{pct}} % ggü. Vorzeitraum"
+    },
+    "insights": {
+      "subjectPostings": "Stellenvolumen",
+      "volumeHigh": "{{subject}} liegt {{pct}} % über der jüngeren Norm",
+      "volumeLow": "{{subject}} liegt {{pct}} % unter der jüngeren Norm",
+      "shareHigh": "Der Anteil von {{subject}} liegt {{pct}} % über dem jüngeren Niveau",
+      "shareLow": "Der Anteil von {{subject}} liegt {{pct}} % unter dem jüngeren Niveau",
+      "skillLead": "{{subject}} hat den bisher führenden Skill überholt",
+      "fallback": "{{subject}} hat sich in diesem Zeitraum ungewöhnlich bewegt"
+    },
+    "cards": {
+      "overview": "Marktüberblick",
+      "volume": "Stellen im Zeitverlauf",
+      "volumeHint": "Anzahl je Intervall, beim Vergleich mit Geisterbalken des Vorzeitraums.",
+      "skills": "Gefragte Skills",
+      "skillsHint": "Die meistgeforderten Skills mit Trend gegenüber dem Vorzeitraum.",
+      "dimensions": "Marktstruktur",
+      "dimensionsHint": "Gruppierte Nachfrage je Dimension — Zeilen tragen ihre Filterzuordnung.",
+      "salary": "Gehaltsspannen",
+      "salaryHint": "Je Währung, annualisierte Normalisierung; dünne Stichproben blenden die Spanne aus.",
+      "companies": "Wer stellt ein",
+      "rhythm": "Wann der Markt postet",
+      "rhythmHint": "Posting-Zählungen nach Wochentag und Stunde, UTC."
+    },
+    "series": {
+      "prev": "Vorzeitraum"
+    },
+    "table": {
+      "toggleAria": "Diagramm- oder Datentabelle",
+      "chart": "Diagramm",
+      "data": "Daten",
+      "volume": "Postings je Intervall, mit den Zählungen des Vorzeitraums.",
+      "dimensions": "Zählungen und Anteile je Marktdimension.",
+      "salary": "Gehaltsspannen je Währung, mit Medians nach Seniorität.",
+      "companies": "Top-Employer: offene Postings und Δ im Zeitraum.",
+      "rhythm": "Posting-Uhr — Summen nach Wochentag und Stunde, mit Peak.",
+      "skillsCaption": "Sortierte Skill-Zeilen — Zählung, Anteil und Trend.",
+      "quadrantCaption": "Skills nach Nachfrage (Zählung) und Schwung (Trendpfeilen)."
+    },
+    "rhythm": {
+      "gridAria": "Posting-Zählungen nach Wochentag und Stunde (UTC)",
+      "peak": "Stärkster Moment: {{cell}} UTC",
+      "cellTitle": "{{cell}} UTC — {{count}} Postings",
+      "hour": "{{hour}} Uhr",
+      "totalPair": "{{label}} {{count}}",
+      "summaryPeak": "Stärkster Moment: {{cell}} UTC.",
+      "summaryByWeekday": "Summen nach Wochentag: {{totals}}.",
+      "summaryByHour": "Summen nach Stunde: {{totals}}.",
+      "weekday": {
+        "1": "Mo",
+        "2": "Di",
+        "3": "Mi",
+        "4": "Do",
+        "5": "Fr",
+        "6": "Sa",
+        "7": "So"
+      }
+    },
+    "bucketLabel": "Intervall: {{bucket}}",
+    "split": {
+      "title": "Aufschlüsseln nach",
+      "none": "Keine Aufschlüsselung",
+      "status": "Nach Status",
+      "source": "Nach Quelle",
+      "work_mode": "Nach Arbeitsmodus",
+      "seniority": "Nach Seniorität",
+      "employment": "Nach Anstellung"
+    },
+    "skills": {
+      "top": "Meistgeforderte Skills",
+      "rising": "Aufstrebend",
+      "falling": "Abklingend",
+      "categoryMix": "Kategorienmix",
+      "levelHistogram": "Anforderungsniveau",
+      "priority": "Prioritätenmix",
+      "avgLevel": "Ø Niveau",
+      "perPosting": "Skills pro Stelle",
+      "trendAria": "Trend {{pct}} %"
+    },
+    "quadrant": {
+      "title": "Volumen × Dynamik",
+      "share": "Anteil der Stellen",
+      "momentum": "Dynamik"
+    },
+    "dimension": {
+      "title": "Dimension",
+      "seniority": "Seniorität",
+      "work_mode": "Arbeitsmodus",
+      "employment": "Anstellungsart",
+      "contract": "Vertragsart",
+      "education": "Ausbildung",
+      "source": "Quelle",
+      "location": "Standort",
+      "org": "Unternehmen",
+      "family": "Laufbahnfamilie"
+    },
+    "browse": "Stellen für {{label}} anzeigen",
+    "browseSkill": "Stellen mit {{skill}} anzeigen",
+    "share": "{{pct}} %",
+    "salary": {
+      "coverage": "{{pct}} % nennen ein Gehalt",
+      "thin": "Zu wenige Gehaltsangaben für eine Spanne"
+    },
+    "companies": {
+      "hiring": "Unternehmen stellen ein",
+      "newCompanies": "Neue Unternehmen",
+      "topHiring": "Meiste Stellen",
+      "industryMix": "Branchenmix",
+      "open": "{{count}} offene Stellen"
+    },
+    "coverage": {
+      "salary": "{{pct}} % mit Gehaltsangabe",
+      "location": "{{pct}} % mit Standort",
+      "orgLinked": "{{pct}} % mit Unternehmen verknüpft",
+      "skillTagged": "{{pct}} % mit Skills erfasst"
+    },
+    "freshness": {
+      "asOf": "Datenstand: {{date}}",
+      "stale": "Holt auf: {{sources}}"
+    },
+    "error": "Marktdaten konnten nicht geladen werden.",
+    "noData": "Keine Daten in diesem Zeitraum",
+    "rail": {
+      "title": "Marktpuls",
+      "topSources": "Top-Quellen",
+      "openFull": "Vollständige Marktdaten öffnen",
+      "unavailable": "Der Marktpuls ist gerade nicht verfügbar."
+    },
+    "exportAll": "Alle aktuellen Statistiken als CSV herunterladen"
   }
 }

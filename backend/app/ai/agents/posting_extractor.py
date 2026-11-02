@@ -524,7 +524,7 @@ async def extract_posting(
             + context_json(
                 {
                     "title": title,
-                    "posting_text": description[:6000],
+                    "posting_text": description[:24000],
                     "skills_raw": skills_raw[:60],
                     "skill_taxonomy": skill_taxonomy_keys,
                 }

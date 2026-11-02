@@ -15,13 +15,14 @@ describe("feature registry", () => {
   });
 
   it("pins the un-gate decision of 2026-10-21", () => {
+    // postings + companies graduate to shipped on 2026-10-30;
+    // market stats arrives beta (plan 170, 2026-10-31)
     expect(betaFeatures().map((feature) => feature.key)).toEqual([
-      "/postings",
       "/autopilot",
       "/interviews",
       "/growth",
       "/paths",
-      "/companies",
+      "/postings/stats",
     ]);
   });
 

@@ -191,20 +191,29 @@ describe("tools sections (derived state)", () => {
     expect(probe()).toBe("/settings/tools");
   });
 
-  it("lands a valid ?section=connectors deep link on connectors", () => {
+  it("lands the legacy ?section=connectors deep link on mcp", () => {
     renderPage("/settings/tools?section=connectors", <ToolsConfig />);
-    expect(screen.getByRole("tab", { name: "Connectors" })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: "MCP" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    expect(probe()).toBe("/settings/tools?section=connectors");
+    expect(probe()).toBe("/settings/tools?section=mcp");
+  });
+
+  it("lands ?section=sources on the sources view", () => {
+    renderPage("/settings/tools?section=sources", <ToolsConfig />);
+    expect(screen.getByRole("tab", { name: "Sources" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(probe()).toBe("/settings/tools?section=sources");
   });
 });
 
 describe("tools section parse helper", () => {
   it("falls back to web-search on missing or unknown values", () => {
     expect(parseToolsSection(null)).toBe("web-search");
-    expect(parseToolsSection("connectors")).toBe("connectors");
+    expect(parseToolsSection("connectors")).toBe("mcp");
     expect(parseToolsSection("bogus")).toBe("web-search");
   });
 });

@@ -8,5 +8,6 @@ export {
   MenuGroup,
   MenuItem,
   type MenuItemProps,
+  MenuLabel,
   MenuSeparator,
 } from "@neuronection/assistant-ui/menu";

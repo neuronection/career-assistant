@@ -27,9 +27,17 @@ interface SkillPickerProps {
   onChange: (next: string[]) => void;
   placeholder?: string;
   className?: string;
+  /** Render the selected chips as excluded values (rose, `−` prefix). */
+  exclude?: boolean;
 }
 
-export function SkillPicker({ value, onChange, placeholder, className }: SkillPickerProps) {
+export function SkillPicker({
+  value,
+  onChange,
+  placeholder,
+  className,
+  exclude = false,
+}: SkillPickerProps) {
   const { t } = useTranslation();
   const [skills, setSkills] = useState<SkillItem[]>([]);
 
@@ -67,7 +75,8 @@ export function SkillPicker({ value, onChange, placeholder, className }: SkillPi
 
   return (
     <MultiSelectPicker
-      className={className}
+      className={exclude ? `ca-picker-exclude ${className ?? ""}`.trim() : className}
+      renderChipExtra={exclude ? () => <span aria-hidden>−</span> : undefined}
       options={options}
       value={selection}
       onChange={(next: PickerSelection[]) =>

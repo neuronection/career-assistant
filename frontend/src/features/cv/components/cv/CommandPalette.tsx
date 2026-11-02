@@ -57,6 +57,7 @@ export function CommandPalette({ open, onClose, commands }: CommandPaletteProps)
       <Modal open onOpenChange={(next) => !next && onClose()}>
         <ModalContent
           size="md"
+          padding="none"
           className="absolute top-24"
           onClick={(event) => event.stopPropagation()}
         >

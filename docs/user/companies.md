@@ -24,9 +24,32 @@ app's item-card grammar:
   (when known) — plus headquarters and website domain,
 - industry tags and the number of open postings.
 
-The search box filters by company name; the **New** filter narrows the
+Filter by the hiring the companies are doing right now (plan 154): a
+filter rail over the **active postings** — work mode, seniority,
+employment type and industries as tri-state chips with live counts
+("12 companies hiring remote"), plus a location box and a minimum
+open-roles floor. The chips reuse the Explore filter language — click to
+include, click again to exclude (struck in red), a third click clears,
+and every selected chip has its own **×**; the counts recompute as you
+filter. The search box filters by company
+name; the **New** filter narrows the
 list to posting-born companies (created from a job post and not yet
 reviewed — they carry a New badge until an admin promotes them).
+
+The results header **sorts** the directory: **Most open roles** (the
+default), **Name A–Z** or **Recently hiring** (latest open posting first).
+**The whole rail is URL state**: the name search, the status chips, every
+tri-state facet, the location box, the open-roles floor and the sort are
+encoded in the address bar
+(`/companies?status=new&work_mode=remote&min_open=5&location=Athens&sort=recent`),
+so a filtered directory survives a reload and can be bookmarked or shared;
+unknown or malformed values are dropped and the page falls back to its
+defaults. The open-roles select carries an **Any number of roles** entry
+for "no floor". Opening a company and coming back — via the browser's
+back button or the **All companies** link on the company page — restores
+the same filtered, sorted directory at the same scroll position (for the
+current session); a fresh visit from the navigation starts at the top
+with a fresh list.
 
 ## The company page
 
@@ -45,7 +68,7 @@ Open a company to see everything about it in one place:
 - **Open postings** — every open posting as the **same card the live feed
   uses**: fit bubble, requirement-ordered skills, and the same actions
   (apply, save, hide — applied/saved state stays in sync with
-  `/postings/feed`). The card opens the posting's in-app page
+  `/postings`). The card opens the posting's in-app page
   (`/postings/:ref`); the source-board link is the card's Apply action.
 
 ## Where the data comes from
@@ -57,6 +80,15 @@ Ltd" are one company, not three. Admins maintain the reviewed facts
 through the admin API (`PUT /api/v1/admin/companies/{key}` — an in-app
 settings surface is planned); when two company entries are merged, a
 moved profile is flagged for review rather than silently combined.
+
+## Market pulse rail
+
+The companies list carries a **market pulse rail** on its right edge:
+how many companies are hiring, how many appeared in the last 30 days
+(the chip filters the list to new companies), the busiest hiring
+companies and the industry mix. Each chip applies its filter or opens
+the company page it names; the market-wide picture lives on the
+[market statistics](market-stats.md) page.
 
 ## Related
 

@@ -241,15 +241,15 @@ def test_prereqs_unknown_education_level_scores_neutral_instead_of_crashing():
     dimension notes it and stays neutral; it must never raise."""
     from types import SimpleNamespace
 
-    from app.services.postings.posting_fit_service import _prereqs_dimension
+    from app.services.postings.posting_fit_service import _merge_prereqs, _prereq_parts
 
     posting = SimpleNamespace(extract={"education": {"level": "degree"}}, education_level=None)
     profile = SimpleNamespace(basics={"education_level": "bachelor"})
 
-    result = _prereqs_dimension(posting, profile, set())
+    result = _merge_prereqs(_prereq_parts(posting, profile, set()))
     assert "unrecognized" in result["detail"]
     assert result["score"] == 10.0, "unrankable levels never penalize"
 
     profile.basics = {"education_level": "not-a-level-either"}
-    result = _prereqs_dimension(posting, profile, set())
+    result = _merge_prereqs(_prereq_parts(posting, profile, set()))
     assert result["score"] == 10.0

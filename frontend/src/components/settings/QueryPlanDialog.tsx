@@ -50,7 +50,7 @@ export function QueryPlanDialog({
             })}
           </ModalTitle>
         </ModalHeader>
-        <div className="px-6 pb-6">
+        <div>
           {loading ? (
             <p className="text-sm text-[var(--as-muted-fg)]" role="status">
               {t("toolsSettings.connectors.sources.planLoading")}

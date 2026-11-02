@@ -232,7 +232,7 @@ export function Dashboard() {
                 {target.families.map((f) => f.replace(/-/g, " ")).join(" · ")}
               </span>
             </h2>
-            <Link to="/postings/feed" className="text-sm text-primary-700">{t("dashboard.liveTab")}</Link>
+            <Link to="/postings" className="text-sm text-primary-700">{t("dashboard.liveTab")}</Link>
           </div>
 
           {(target.nudges ?? []).length > 0 && (

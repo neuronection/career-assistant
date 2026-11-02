@@ -32,6 +32,30 @@ class SkillOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TaxonomySkillStats(BaseModel):
+    total: int
+    active: int
+    proposed: int
+    deprecated: int
+    auto_promoted: int
+    promoted_7d: int
+
+
+class TaxonomyQueueStats(BaseModel):
+    relations: int
+    enrichment: int
+    paths: int
+    translations: int
+    total: int
+
+
+class TaxonomyStatsOut(BaseModel):
+    """Backlog counts behind the taxonomy work-queue bar (plan 161)."""
+
+    skills: TaxonomySkillStats
+    queue: TaxonomyQueueStats
+
+
 class TagCreateIn(BaseModel):
     key: str = Field(min_length=1, max_length=80)
     label: str = Field(min_length=1, max_length=120)

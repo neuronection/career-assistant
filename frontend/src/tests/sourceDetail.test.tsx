@@ -39,6 +39,17 @@ const SOURCE: PostingSource = {
 
 const RUNS: SourceRun[] = [
   {
+    id: "run-detail-tick",
+    trigger: "scheduled",
+    status: "ok",
+    started_at: "2026-10-27T09:05:00+00:00",
+    finished_at: "2026-10-27T09:05:00+00:00",
+    duration_ms: 3,
+    items_synced: 0,
+    error: "",
+    report: { enriched: 2, detail_rows: 0, errors: [] },
+  },
+  {
     id: "run-1",
     trigger: "manual",
     status: "failed",
@@ -62,6 +73,7 @@ const RUNS: SourceRun[] = [
 
 const mocks = vi.hoisted(() => ({
   fetchAdminSources: vi.fn(),
+  fetchConnectorCatalog: vi.fn(),
   fetchSourceRuns: vi.fn(),
   syncSource: vi.fn(),
   probeSource: vi.fn(),
@@ -85,6 +97,7 @@ function renderPage() {
 
 beforeEach(() => {
   mocks.fetchAdminSources.mockResolvedValue([SOURCE]);
+  mocks.fetchConnectorCatalog.mockResolvedValue([]);
   mocks.fetchSourceRuns.mockResolvedValue(RUNS);
   mocks.syncSource.mockResolvedValue({ job_id: "j1", status: "queued" });
   mocks.fetchSystemSchedules.mockResolvedValue([
@@ -142,6 +155,139 @@ describe("SourceDetailPage", () => {
     await user.click(screen.getByRole("tab", { name: "Query plan" }));
     expect(await screen.findByTestId("query-plan")).toBeTruthy();
   });
+
+  it("hides detail-enrichment ticks from the run history", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Run history" }));
+    expect(screen.queryByTestId("run-run-detail-tick")).toBeNull();
+    expect(screen.getByTestId("run-run-1")).toBeTruthy();
+  });
+
+  it("edits a T1 source's connector settings from the catalog schema", async () => {
+    const user = userEvent.setup();
+    mocks.fetchConnectorCatalog.mockResolvedValue([
+      {
+        key: "recruitee",
+        title: "Recruitee",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        capabilities: {},
+        config_schema: {
+          type: "object",
+          properties: { company: { type: "string", title: "Recruitee company" } },
+          required: ["company"],
+        },
+        manifest: { id: "recruitee", capabilities: ["net", "sync"], supportsIncremental: true },
+      },
+    ]);
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        connector_key: "recruitee",
+        query_mode: "static",
+        config: { company: "ballysintralotsa", max_items: "50" },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const card = await screen.findByTestId("connector-settings-card");
+    const input = card.querySelector("input") as HTMLInputElement;
+    expect(input.value).toBe("ballysintralotsa");
+    await user.clear(input);
+    await user.type(input, "keyes");
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.config).toMatchObject({ company: "keyes", max_items: "50" });
+  });
+
+  it("disables the radar option for connectors without dynamic queries", async () => {
+    const user = userEvent.setup();
+    mocks.fetchConnectorCatalog.mockResolvedValue([
+      {
+        key: "recruitee",
+        title: "Recruitee",
+        docs_url: "",
+        builtin: true,
+        secret_fields: [],
+        capabilities: {},
+        config_schema: {
+          type: "object",
+          properties: { company: { type: "string", title: "Recruitee company" } },
+          required: ["company"],
+        },
+      },
+    ]);
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        connector_key: "recruitee",
+        query_mode: "static",
+        config: { company: "keyes" },
+      },
+    ]);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const radar = screen.getByRole("radio", { name: "Follow my job radar" });
+    expect(radar.getAttribute("disabled")).not.toBeNull();
+    expect(screen.getByText(/job-radar rotation does not apply/)).toBeTruthy();
+  });
+
+  it("blocks the radar → static switch while required fields are missing", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        query_mode: "radar",
+        config: { options: JSON.stringify({ max_pages: 2 }) },
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", title: "Keywords", minLength: 1 },
+            max_pages: { type: "number", title: "Max pages" },
+          },
+          required: ["keywords"],
+        },
+      },
+    ]);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    const before = mocks.updateSource.mock.calls.length;
+    await user.click(screen.getByRole("radio", { name: "Static config" }));
+    const notes = await screen.findAllByText(/switching to static mode/);
+    expect(notes[0].textContent).toContain("keywords");
+    expect(mocks.updateSource.mock.calls.length).toBe(before);
+  });
+
+  it("switches to static when the required fields are present", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        query_mode: "radar",
+        config: { options: JSON.stringify({ keywords: "devops", max_pages: 2 }) },
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            keywords: { type: "string", title: "Keywords", minLength: 1 },
+            max_pages: { type: "number", title: "Max pages" },
+          },
+          required: ["keywords"],
+        },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+    await user.click(screen.getByRole("radio", { name: "Static config" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.query_mode).toBe("static");
+    expect(JSON.parse(call.config.options).keywords).toBe("devops");
+  });
 });
 
 
@@ -175,5 +321,56 @@ describe("SourceDetailPage", () => {
     const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
     expect(call.query_batch_size).toBe(2);
     expect(JSON.parse(call.config.options).budget_seconds).toBe(90);
-    expect(JSON.parse(call.config.options).detail_mode ?? "off").toBe("off");
+    expect(JSON.parse(call.config.options).detail_mode ?? "all").toBe("all");
+  });
+
+  it("accepts a custom role-group count and budget through the Custom entry", async () => {
+    const user = userEvent.setup();
+    mocks.fetchAdminSources.mockResolvedValue([
+      {
+        ...SOURCE,
+        tool_config_schema: {
+          type: "object",
+          properties: {
+            max_pages: { type: "number", title: "Max pages" },
+            budget_seconds: { type: "number", title: "Time budget" },
+            detail_mode: { type: "string", title: "Detail mode" },
+          },
+        },
+      },
+    ]);
+    mocks.updateSource.mockResolvedValue({});
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: "Configuration" }));
+
+    const batchRow = screen.getByTestId("pacing-Role groups per sync");
+    await user.click(within(batchRow).getByRole("tab", { name: "Custom…" }));
+    const batchInput = screen.getByTestId("pacing-Role groups per sync-custom");
+    expect(batchInput).toHaveAttribute("min", "1");
+    expect(batchInput).toHaveAttribute("max", "6");
+    await user.clear(batchInput);
+    await user.type(batchInput, "5");
+
+    const budgetRow = screen.getByTestId("pacing-Time budget");
+    await user.click(within(budgetRow).getByRole("tab", { name: "Custom…" }));
+    const budgetInput = screen.getByTestId("pacing-Time budget-custom");
+    expect(budgetInput).toHaveAttribute("min", "20");
+    expect(budgetInput).toHaveAttribute("max", "90");
+    await user.clear(budgetInput);
+    await user.type(budgetInput, "75");
+
+    // picking a preset again returns to the presets
+    await user.click(within(batchRow).getByRole("tab", { name: "3" }));
+    expect(screen.queryByTestId("pacing-Role groups per sync-custom")).toBeNull();
+
+    await user.click(within(batchRow).getByRole("tab", { name: "Custom…" }));
+    const reopened = screen.getByTestId("pacing-Role groups per sync-custom");
+    await user.clear(reopened);
+    await user.type(reopened, "4");
+
+    await user.click(screen.getByRole("button", { name: "Save configuration" }));
+    await waitFor(() => expect(mocks.updateSource).toHaveBeenCalled());
+    const call = mocks.updateSource.mock.calls[mocks.updateSource.mock.calls.length - 1]?.[1];
+    expect(call.query_batch_size).toBe(4);
+    expect(JSON.parse(call.config.options).budget_seconds).toBe(75);
   });

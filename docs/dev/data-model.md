@@ -92,7 +92,7 @@ provenance.
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
+| `job_sources` | `posting_model.py` | Configured connector sources: `kind` (`posting`/`market`/`university`/`search`/`webhook_in`), `title` (optional display name from the extension manifest), `schedule_kind`, `paused_at`, `last_status` (`ok`/`degraded`/`failed`) |
 | `job_postings` | `posting_model.py` | Live postings + extraction payload |
 | `posting_skills` | `posting_model.py` | Extracted skills with level/priority/evidence |
 | `posting_interactions` | `posting_model.py` | Engagement state only: seen / saved / hidden |
@@ -103,7 +103,7 @@ provenance.
 | `webhook_endpoints` | `posting_model.py` | Inbound-webhook keys (`target` = `posting_status`/`application_status`/`ingest`), hashed token, health |
 | `posting_fits` | `posting_model.py` | Per-posting fit + `inputs_hash` staleness, `computed_at` and `fit_version` for bounded recompute/trends |
 | `market_snapshots` | `market_model.py` | Aggregated market data |
-| `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs and explainable findings |
+| `autopilot_goals`, `autopilot_runs`, `autopilot_findings` | `autopilot_model.py` | Goals, runs (with the durable `run_steps` step trace) and explainable findings |
 
 **Application pipeline lifecycle.** `app/services/postings/applications_service.py`
 is the only writer of both tables. Any stage move — forward, backward or
@@ -154,6 +154,27 @@ deletion).
 
 ### Migration notes
 
+- **0083** — plan 179: `smart_query_cache`, the cross-user NL-search
+  cache (`query_hash` PK = sha256 of the normalized query — casefold +
+  whitespace collapse, so keys are stable across users; closed
+  `SmartSearchSpec` JSONB; `created_at`). Cache data, not records: the
+  daily smart-digest job prunes rows older than 7 days (explicit,
+  documented purge). The downgrade drops the table — rebuildable by
+  definition.
+- **0080** — plan 173: `job_sources.title`, the display name for imported
+  sources (the extension manifest's root `title` — "LinkedIn", not the
+  generic connector label). Nullable: builtin sources keep NULL and fall
+  back to the connector title at read time; managed imports seed the
+  title and refresh it on every consented re-apply. The downgrade drops
+  the column.
+- **0079** — plan 168: `autopilot_runs.run_steps`, the durable per-node
+  step trace (one append-return entry per executed node: step, kind,
+  iteration, timing, whitelisted args/output summaries, abort marker). A
+  ledger, not checkpoint history — checkpoints stay resume-only and
+  TTL-pruned, the trace survives restarts and prunes and dies with the
+  goal via the run cascade. JSONB with a dialect-safe `'[]'` server
+  default (the NOT NULL add on SQLite); rebuildable forward only, so the
+  downgrade drops it and pre-0079 runs read `trace_available=false`.
 - **0073** — plan 148: `skill_changes`, the append-only skill lifecycle
   journal (`created | updated | promoted | auto_promoted | deprecated |
   restored | merged | deleted` — `event_allowed` CHECK mirrors
@@ -404,6 +425,7 @@ deletion).
 | `growth_plans`, `growth_plan_steps` | `growth_model.py` | Roadmaps |
 | `learning_resources` | `growth_model.py` | Resources for skill gaps |
 | `search_history` | `engagement_model.py` | Saved/recent searches |
+| `smart_query_cache` | `smart_search_model.py` | Cross-user NL-search cache (plan 179): `query_hash` PK = sha256 of the normalized query, closed `SmartSearchSpec` JSONB, `created_at`. TTL-pruned (7 days) by the daily smart-digest job — cache data, never a record |
 | `notifications`, `notification_recipients`, `notification_deliveries` | `engagement_model.py` | The notification funnel (dedup keys, delivery state); `channel` spans `in_app`/`desktop`/`browser`/`email`/`webhook`. A `pending` delivery with `error = deferred:<quiet_hours|digest_mode>` is email waiting for the next digest run; webhook rows stay `pending` until the queued delivery job reports |
 | `user_channel_configs` | `engagement_model.py` | Per-user, per-channel config — email: `address` override, `digest_mode`, `pending_address`/`verification_hash`/`verification_expires_at` while double opt-in is open; webhook: `url` + `template` (`generic`/`slack`/`teams`/`telegram`/`ntfy`) — sealed `secrets` (webhook token only; URLs are not secrets) + `verified_at` |
 | `notification_kinds`, `notification_kind_prefs`, `notification_rules`, `notification_preferences`, `notification_subscriptions` | `engagement_model.py` | Kind registry, per-rule caps/cooldowns, quiet hours |

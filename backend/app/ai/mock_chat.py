@@ -7,6 +7,7 @@ module registers the CHAT structured-reply fixture with the gateway.
 """
 
 import json
+import re
 from typing import Any
 
 from app.ai.agents.context import parse_context
@@ -680,6 +681,113 @@ def mock_translate_batch(schema, user_prompt: str) -> dict:
                     }
                 )
     return {"items": items}
+
+
+_SENIORITY_TOKENS = ("intern", "junior", "mid", "senior", "lead", "principal")
+_REMOTE_TOKENS = ("onsite", "hybrid", "remote")
+_RECENT_PATTERNS = (
+    ("today", "24h"),
+    ("last 24", "24h"),
+    ("this week", "7d"),
+    ("last week", "7d"),
+    ("this month", "30d"),
+    ("last month", "30d"),
+    ("recently", "30d"),
+)
+_STOP_TOKENS = {
+    "a",
+    "an",
+    "and",
+    "any",
+    "at",
+    "for",
+    "from",
+    "in",
+    "jobs",
+    "job",
+    "me",
+    "near",
+    "of",
+    "over",
+    "role",
+    "roles",
+    "position",
+    "positions",
+    "paying",
+    "show",
+    "find",
+    "salary",
+    "the",
+    "with",
+    "work",
+}
+
+
+def mock_smart_search_spec(schema, user: str) -> dict:
+    """Deterministic NL-query mapping for the mock provider (plan 179).
+
+    A token scan over the query — the same mapping shape the real task
+    is asked for, fixed so tests and E2E never need a provider."""
+    context = parse_context(user)
+    query = str(context.get("query") or "")
+    lowered = query.lower()
+    seniority = [token for token in _SENIORITY_TOKENS if re.search(rf"\b{token}\b", lowered)]
+    remote_policy = [token for token in _REMOTE_TOKENS if re.search(rf"\b{token}\b", lowered)]
+    posted_within = next((value for pattern, value in _RECENT_PATTERNS if pattern in lowered), None)
+    salary_min = None
+    salary_match = re.search(
+        r"(?:over|above|from|at least)\s*(?:€?\$?)?(\d[\d.,]*)\s*(k)?", lowered
+    )
+    if salary_match:
+        amount = float(salary_match.group(1).replace(",", "").rstrip("."))
+        if salary_match.group(2):
+            amount *= 1000
+        salary_min = amount
+    city = None
+    place = re.search(r"\bin\s+([A-Z][\w-]*(?:\s+[A-Z][\w-]*)?)", query)
+    if place:
+        city = place.group(1)
+    labels: list[str] = []
+    recent_patterns = {pattern for pattern, _value in _RECENT_PATTERNS}
+    for token in re.findall(r"[A-Za-z][A-Za-z+-]{1,}", query):
+        probe = token.lower()
+        if probe in _STOP_TOKENS or probe in _SENIORITY_TOKENS or probe in _REMOTE_TOKENS:
+            continue
+        if probe in recent_patterns:
+            continue
+        if place and token in place.group(1):
+            continue
+        if probe not in labels and len(labels) < 6:
+            labels.append(probe)
+    parts = []
+    if remote_policy:
+        parts.append("/".join(remote_policy))
+    if seniority:
+        parts.append("/".join(seniority))
+    if city:
+        parts.append(f"in {city}")
+    if salary_min is not None:
+        parts.append(f"salary ≥ {salary_min:g}")
+    if posted_within:
+        parts.append(f"posted {posted_within}")
+    if labels:
+        parts.append("skills: " + ", ".join(labels))
+    interpreted = ("Filtered on " + "; ".join(parts)) if parts else "No filters recognized."
+    return {
+        "seniority": seniority,
+        "remote_policy": remote_policy,
+        "posted_within": posted_within,
+        "city": city,
+        "country": None,
+        "employment_type": [],
+        "salary_min": salary_min,
+        "mapped_family": [],
+        "skill_labels": labels,
+        "interpreted": interpreted[:300],
+    }
+
+
+register_mock_fixture(AITaskType.SMART_SEARCH, mock_smart_search_spec)
 
 
 register_mock_fixture(AITaskType.TRANSLATE, mock_translate_batch)

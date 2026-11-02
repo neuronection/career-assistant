@@ -771,7 +771,7 @@ export function SkillPage() {
               {t("skillPage.positionsCount", { count: positions?.total ?? 0 })}
             </h2>
             <Link
-              to={`/postings/search?skills=${encodeURIComponent(key)}`}
+              to={`/postings?skills=${encodeURIComponent(key)}`}
               className="text-sm text-[var(--as-accent)] underline"
               data-testid="positions-explore-link"
             >

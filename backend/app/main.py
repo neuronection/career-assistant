@@ -126,6 +126,12 @@ async def lifespan(app: FastAPI):
             await close_connector_client()
         except Exception:
             logger.warning("Connector client shutdown failed", exc_info=True)
+        try:
+            from app.ai.tracing import sink as tracing_sink
+
+            tracing_sink().shutdown()
+        except Exception:
+            logger.warning("Tracing shutdown failed", exc_info=True)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

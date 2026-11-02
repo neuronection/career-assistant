@@ -20,10 +20,12 @@ from app.ai.agents.skill_relation_suggest import SkillEdgeVerdictSet
 from app.ai.prompt_versions import prompt_version
 from app.ai.schemas import (
     ChatReply,
+    Curation,
     CvBuildCritique,
     JobDraftSet,
     MatchResult,
     ProfileInsight,
+    SearchPlan,
     UniversityExtraction,
 )
 from app.models.enums import AITaskType
@@ -152,6 +154,182 @@ def _check_skill_edge_verdicts(reply: SkillEdgeVerdictSet) -> None:
     assert "Evidence quote: ML required" in by_ref["p2"].rationale
 
 
+def _smart_search_prompt(query: str) -> tuple[str, str]:
+    from app.ai.agents.smart_search import SMART_SEARCH_SYSTEM, build_smart_search_prompt
+
+    return SMART_SEARCH_SYSTEM, build_smart_search_prompt(query)
+
+
+def _smart_search_schema():
+    from app.ai.agents.smart_search import SmartSearchSpec
+
+    return SmartSearchSpec
+
+
+def _check_smart_search_spec(spec) -> None:
+    from app.services.postings.explore_service import ALLOWED_FILTER_KEYS
+
+    assert spec.seniority == ["junior"]
+    assert spec.remote_policy == ["remote"]
+    assert spec.city == "Athens"
+    assert spec.skill_labels == ["python"]
+    assert spec.posted_within is None and spec.salary_min is None
+    assert spec.interpreted
+    assert set(spec.model_dump()) <= {
+        "seniority",
+        "remote_policy",
+        "posted_within",
+        "city",
+        "country",
+        "employment_type",
+        "salary_min",
+        "mapped_family",
+        "skill_labels",
+        "interpreted",
+    }, "the spec stays closed over the explore vocabulary"
+    for key in (
+        "seniority",
+        "remote_policy",
+        "posted_within",
+        "city",
+        "country",
+        "employment_type",
+        "salary_min",
+        "mapped_family",
+        "skills",
+    ):
+        assert key in ALLOWED_FILTER_KEYS or key == "skills", key
+
+
+_AUTOPILOT_STATE = {
+    "goal_text": "junior data analyst role, remote, where I can use programming",
+    "constraints": {
+        "must_terms": ["sql"],
+        "never_terms": ["sales"],
+        "seniority": ["junior"],
+        "top_n": 5,
+        "profile": {"use_skills": True, "stage_source": "goal"},
+    },
+    "profile_context": {
+        "skills": [{"key": "programming", "level": 7}],
+        "education_level": "high_school",
+        "languages": [{"code": "en", "level": "advanced"}],
+        "country": "Greece",
+        "city": "Athens",
+        "stage": "early_career",
+        "stage_source": "goal",
+        "target_seniority": ["junior"],
+    },
+}
+
+_AUTOPILOT_VOCABULARY = {
+    "skills": ["programming", "data-analysis", "problem-solving"],
+    "families": ["technology"],
+    "sources": ["synth"],
+}
+
+_AUTOPILOT_POOL = [
+    {
+        "posting_id": "11111111-1111-1111-1111-111111111111",
+        "title": "Junior Data Analyst",
+        "org": "ExtractCo",
+        "location": {"city": "Athens", "country": "Greece"},
+        "seniority": "junior",
+        "salary_min": 28000,
+        "salary_currency": "EUR",
+        "posted_at": "2026-10-28T00:00:00+00:00",
+        "fit": 8.4,
+        "must_hits": 1,
+        "breakdown": {"skills": {"score": 8.0, "detail": "programming 7/8"}},
+        "skills": [{"key": "programming", "level": 6, "priority": "must_have"}],
+        "responsibilities": [{"text": "Build dashboards"}],
+        "snippet": "We need programming and sql daily. Salary: 28000-36000 EUR per year.",
+    },
+    {
+        "posting_id": "22222222-2222-2222-2222-222222222222",
+        "title": "Reporting Analyst",
+        "org": "Numbers Ltd",
+        "location": {"city": "Athens", "country": "Greece"},
+        "seniority": "mid",
+        "salary_min": 32000,
+        "salary_currency": "EUR",
+        "posted_at": "2026-10-27T00:00:00+00:00",
+        "fit": 6.1,
+        "must_hits": 0,
+        "breakdown": {"skills": {"score": 5.0, "detail": "python 4/8"}},
+        "skills": [{"key": "data-analysis", "level": 5, "priority": "nice_to_have"}],
+        "responsibilities": [{"text": "Own the weekly pack"}],
+        "snippet": "Monthly reporting for the finance team.",
+    },
+]
+
+
+def _autopilot_planner_prompt() -> tuple[str, str]:
+    from app.ai.graphs.autopilot import _plan_system, _plan_user_prompt
+
+    return _plan_system(), _plan_user_prompt(_AUTOPILOT_STATE, _AUTOPILOT_VOCABULARY)
+
+
+def _autopilot_replan_prompt() -> tuple[str, str]:
+    from app.ai.graphs.autopilot import _replan_system, _replan_user_prompt
+
+    previous = [
+        {
+            "query": "",
+            "filters": {"keywords": ["zzz-no-such-role"]},
+            "found": 0,
+        }
+    ]
+    return _replan_system(), _replan_user_prompt(_AUTOPILOT_STATE, previous, _AUTOPILOT_VOCABULARY)
+
+
+def _autopilot_curator_prompt() -> tuple[str, str]:
+    from app.ai.graphs.autopilot import _curate_system, _curate_user_prompt
+
+    return _curate_system(5), _curate_user_prompt(_AUTOPILOT_STATE, _AUTOPILOT_POOL)
+
+
+def _check_autopilot_plan(plan: SearchPlan) -> None:
+    """The planner emits explore-vocabulary variants with keyword-style
+    queries (plan 158 S1)."""
+    from app.services.postings.explore_service import ALLOWED_FILTER_KEYS
+
+    assert plan.variants
+    for variant in plan.variants:
+        assert set(variant.filters or {}) <= ALLOWED_FILTER_KEYS, (
+            f"unknown filter key in variant {variant.rationale!r}"
+        )
+    keyword_variants = [v for v in plan.variants if "keywords" in (v.filters or {})]
+    assert keyword_variants, "at least one variant searches by escaped keywords"
+    for variant in keyword_variants:
+        keywords = variant.filters["keywords"]
+        assert isinstance(keywords, list) and keywords
+        assert all(isinstance(keyword, str) and " " not in keyword for keyword in keywords)
+    assert any("skills" in (v.filters or {}) for v in plan.variants), (
+        "the user's skill neighbourhood is used"
+    )
+
+
+def _check_autopilot_replan(plan: SearchPlan) -> None:
+    """A thin pass broadens instead of giving up: valid keys, at least one
+    filterless variant, same never-terms (plan 158 S5.2)."""
+    from app.services.postings.explore_service import ALLOWED_FILTER_KEYS
+
+    assert plan.variants
+    assert len(plan.variants) <= 3
+    for variant in plan.variants:
+        assert set(variant.filters or {}) <= ALLOWED_FILTER_KEYS
+    assert any(not (variant.filters or {}) for variant in plan.variants), "a widened net"
+
+
+def _check_autopilot_curation(curation: Curation) -> None:
+    assert curation.findings
+    for finding in curation.findings:
+        assert 0 <= finding.index < len(_AUTOPILOT_POOL)
+        assert " at " in finding.why
+        assert finding.quotes, "curation quotes candidate text verbatim"
+
+
 def _build_cases() -> list[GoldenCase]:
     import app.ai.agents
     import app.ai.agents.cv_build_reviewer  # noqa: F401 — fixture side effect
@@ -163,6 +341,14 @@ def _build_cases() -> list[GoldenCase]:
     from app.schemas.cv_extract import CvExtract
 
     cases = [
+        GoldenCase(
+            task=AITaskType.SMART_SEARCH.value,
+            schema=_smart_search_schema(),
+            system=_smart_search_prompt("remote junior python roles in Athens")[0],
+            user=_smart_search_prompt("remote junior python roles in Athens")[1],
+            prompt_version=_blessed(AITaskType.SMART_SEARCH.value),
+            check=_check_smart_search_spec,
+        ),
         GoldenCase(
             task=AITaskType.CHAT.value,
             schema=ChatReply,
@@ -402,6 +588,37 @@ def _build_cases() -> list[GoldenCase]:
             check=_check_skill_edge_verdicts,
         ),
     ]
+    planner_system, planner_user = _autopilot_planner_prompt()
+    replan_system, replan_user = _autopilot_replan_prompt()
+    curator_system, curator_user = _autopilot_curator_prompt()
+    cases.extend(
+        [
+            GoldenCase(
+                task=AITaskType.AUTOPILOT_RUN.value,
+                schema=SearchPlan,
+                system=planner_system,
+                user=planner_user,
+                prompt_version=_blessed(AITaskType.AUTOPILOT_RUN.value),
+                check=_check_autopilot_plan,
+            ),
+            GoldenCase(
+                task=AITaskType.AUTOPILOT_RUN.value,
+                schema=SearchPlan,
+                system=replan_system,
+                user=replan_user,
+                prompt_version=_blessed(AITaskType.AUTOPILOT_RUN.value),
+                check=_check_autopilot_replan,
+            ),
+            GoldenCase(
+                task=AITaskType.AUTOPILOT_RUN.value,
+                schema=Curation,
+                system=curator_system,
+                user=curator_user,
+                prompt_version=_blessed(AITaskType.AUTOPILOT_RUN.value),
+                check=_check_autopilot_curation,
+            ),
+        ]
+    )
     return cases
 
 

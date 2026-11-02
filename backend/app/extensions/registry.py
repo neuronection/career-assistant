@@ -44,6 +44,7 @@ from app.extensions.builtin.job_boards import (
     ArbeitnowConnector,
     JobicyConnector,
     RemotiveConnector,
+    WorkableConnector,
 )
 from app.extensions.builtin.mcp import McpConnector
 from app.extensions.sdk import PostingConnector
@@ -61,6 +62,7 @@ _BUILTINS: list[PostingConnector] = [
     ArbeitnowConnector(),
     RemotiveConnector(),
     JobicyConnector(),
+    WorkableConnector(),
     PersonioConnector(),
     JoinComConnector(),
     StepstoneXingConnector(),

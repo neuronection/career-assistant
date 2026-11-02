@@ -11,7 +11,7 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -96,11 +96,18 @@ def _record_health(source: JobSource, errors: list[dict]) -> None:
 async def _query_overlay(db: AsyncSession, source: JobSource, connector) -> tuple[dict | None, str]:
     """Plan 130 radar mode: the next rotated role group arrives as a
     call-time ``config["query"]`` overlay — never stored, never fanned
-    out (one focused query per sync). ``None`` config = polite skip."""
+    out (one focused query per sync). ``None`` config = polite skip.
+
+    A source left in radar mode over a connector that cannot rotate
+    queries (no ``dynamic_queries``) normalizes to ``static`` — the label
+    then matches the behavior instead of silently doing nothing."""
     call_config = dict(source.config or {})
-    if source.query_mode != SourceQueryMode.RADAR.value or not getattr(
-        connector.capabilities, "dynamic_queries", False
-    ):
+    if not getattr(connector.capabilities, "dynamic_queries", False):
+        if source.query_mode == SourceQueryMode.RADAR.value:
+            source.query_mode = SourceQueryMode.STATIC.value
+            await db.commit()
+        return call_config, ""
+    if source.query_mode != SourceQueryMode.RADAR.value:
         return call_config, ""
     from sqlalchemy.orm.attributes import flag_modified
 
@@ -160,16 +167,72 @@ async def sync_source(
         logger.warning("company triage enqueue failed for %s", source.key, exc_info=True)
     if run_row is not None:
         await _finish_run(db, run_row.id, started=started, report=report)
+    await _pause_on_operator_action(db, source, report)
     return report
+
+
+PAUSE_ON_CODES = frozenset({"provider", "auth", "needs-secret", "unsupported"})
+
+
+def _pause_reason(errors: list[dict]) -> str:
+    """The first typed error that needs a human (a provider block, a
+    sign-in wall, missing credentials, an unsupported host) — retrying
+    those on the schedule only deepens the problem, so the source pauses
+    instead (plan 174 follow-up: hourly retries against a Cloudflare block
+    refresh the bot score and extend it)."""
+    for error in errors:
+        if error.get("code") in PAUSE_ON_CODES and error.get("retryable") != "yes":
+            return f"{error.get('code')}: {error.get('detail')}"
+    return ""
+
+
+async def _pause_on_operator_action(db: AsyncSession, source: JobSource, report: dict) -> None:
+    """Auto-pause on a non-retryable operator-action error + alert admins.
+
+    The run itself keeps its honest status; the pause stops the scheduler
+    (and the sources list's paused filter) from retrying an external block
+    every hour. Resuming stays an explicit user act."""
+    if source.paused_at is not None:
+        return
+    reason = _pause_reason(report.get("errors") or [])
+    if not reason:
+        return
+    source.paused_at = _utcnow()
+    source.error = f"{reason} — source paused until you resume it"[:2000]
+    await db.commit()
+    await _notify_source_paused(db, source, reason)
+
+
+async def _notify_source_paused(db: AsyncSession, source: JobSource, reason: str) -> None:
+    from app.models.user_model import User
+    from app.services.notification_service import NotificationService
+
+    admins = (await db.execute(select(User.id).where(User.is_admin.is_(True)))).scalars().all()
+    name = getattr(source, "title", None) or source.key
+    for user_id in list(admins)[:20]:
+        await NotificationService(db).emit(
+            "background_failed",
+            [user_id],
+            title=f"Job source paused: {name}",
+            body=(
+                f"{reason[:300]} — the source was paused so the scheduler stops "
+                "retrying; resume it when the provider is reachable again."
+            ),
+            payload={"source_id": str(source.id), "link": f"/sources/{source.id}"},
+            source_ref={"source_id": str(source.id)},
+            dedup_key=f"source-paused:{source.id}:{user_id}",
+            dedup_ttl_days=1,
+            max_per_day=10,
+        )
 
 
 def _run_status(report: dict) -> str:
     if report.get("error"):
         return "failed"
-    if report.get("note") and not report.get("synced"):
-        return "skipped"
     if report.get("errors"):
         return "degraded"
+    if report.get("note") and not report.get("synced"):
+        return "skipped"
     return "ok"
 
 
@@ -349,6 +412,7 @@ async def _sync_source_inner(
         error = ConnectorError.from_polite(exc)
         source.error = f"{error.code}: {error.detail}"
         source.last_status = "failed"
+        source.last_run_at = _utcnow()
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
     except Exception:
@@ -368,6 +432,7 @@ async def _sync_source_inner(
         )
         source.error = f"{error.code}: {error.detail}"[:2000]
         source.last_status = "failed"
+        source.last_run_at = _utcnow()
         await db.commit()
         return {"synced": 0, "error": source.error, "errors": [error.model_dump(mode="json")]}
 
@@ -480,6 +545,10 @@ async def upsert_posting(
             from app.services.catalog.organization_service import OrganizationService
 
             org_service = OrganizationService(db)
+        # The PK is assigned at INSERT — the org-match journal below takes
+        # posting.id, and a decision that doesn't flush (a link to an
+        # existing org) would hand it None (plan 176 follow-up).
+        await db.flush()
         await org_service.attach_to_posting(posting, run_id=run_id)
     posting.location = raw.location.model_dump(mode="json")
     posting.url = raw.url[:1000]
@@ -622,7 +691,11 @@ async def map_posting(
     for skill_id in inferred.values():
         skills.setdefault(skill_id, (PostingEvidence.INFERRED.value, confidence_ai))
 
-    await db.execute(PostingSkill.__table__.delete().where(PostingSkill.posting_id == posting.id))
+    await db.execute(
+        PostingSkill.__table__.delete().where(  # type: ignore[attr-defined]
+            PostingSkill.posting_id == posting.id
+        )
+    )
     for skill_id, (evidence, confidence) in skills.items():
         db.add(
             PostingSkill(
@@ -717,7 +790,7 @@ async def _best_catalog_job(
     from app.services.postings.fit.dimensions import IMPORTANCE_WEIGHT
 
     rows = await db.execute(select(Job, JobSkill).join(JobSkill, JobSkill.job_id == Job.id))
-    scored: dict[UUID, tuple[float, float, Job]] = {}
+    scored: dict[UUID, list] = {}
     for job, link in rows:
         weight = IMPORTANCE_WEIGHT.get(link.importance, 1.0) * (min(link.required_level, 10) / 10.0)
         entry = scored.setdefault(job.id, [0.0, 0.0, job])
@@ -885,7 +958,7 @@ async def list_postings(
         query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
-    items = []
+    items: list[dict[str, Any]] = []
     unseen = 0
     for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
@@ -1048,8 +1121,8 @@ async def search_postings(
     normalized: list[tuple[str, int | None]] = []
     for key, lvl in entries:
         normalized.append((_norm(key), lvl))
-    rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
-    by_key = {skill.key: skill for skill in rows.scalars().all()}
+    skill_rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
+    by_key = {skill.key: skill for skill in skill_rows.scalars().all()}
     unknown = [
         orig for (orig, _), (key, _) in zip(entries, normalized, strict=False) if key not in by_key
     ]
@@ -1126,7 +1199,7 @@ async def search_postings(
         query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
-    items = []
+    items: list[dict[str, Any]] = []
     unseen = 0
     for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
@@ -1191,7 +1264,11 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
     from app.models.user_model import UserSkill
 
     rows = await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id))
-    links = [link for link in rows.scalars().all() if link.required_level is not None]
+    links = [
+        (link, required_level)
+        for link in rows.scalars().all()
+        if (required_level := link.required_level) is not None
+    ]
     if not links:
         return 0.0
     level_rows = await db.execute(
@@ -1205,7 +1282,7 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
     covered = 0.0
     must_unmet = 0
     must_partial = 0
-    for link in links:
+    for link, required_level in links:
         weight = PRIORITY_WEIGHT.get(link.priority or "", 1.0)
         total_weight += weight
         level = user_levels.get(link.skill_id)
@@ -1213,7 +1290,7 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
             if link.priority == PostingSkillPriority.MUST_HAVE.value:
                 must_unmet += 1
             continue
-        ratio = min(level, link.required_level) / max(1, link.required_level)
+        ratio = min(level, required_level) / max(1, required_level)
         covered += weight * ratio
         if link.priority == PostingSkillPriority.MUST_HAVE.value:
             if ratio <= 0:
@@ -1465,7 +1542,7 @@ async def run_sync_job(db: AsyncSession, payload: dict, *, job_id=None) -> dict:
             .scalars()
             .all()
         )
-    totals = {"synced": 0, "sources": len(sources), "errors": []}
+    totals: dict[str, Any] = {"synced": 0, "sources": len(sources), "errors": []}
     trigger = str(payload.get("trigger") or ("manual" if source_id else "scheduled"))
     for source in sources:
         result = await sync_source(db, source, trigger=trigger)

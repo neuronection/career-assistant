@@ -211,3 +211,35 @@ async def stage_for_user(db, user_id) -> tuple[CareerStage, str]:
     experience = await ExperienceService(db).stage_dicts(user_id)
     level = await effective_education_level(db, user_id, basics.get("education_level"))
     return effective_stage(basics, experience, education_level=level)
+
+
+GOAL_SENIORITY_STAGE: dict[str, CareerStage] = {
+    "intern": CareerStage.STUDENT,
+    "junior": CareerStage.EARLY_CAREER,
+    "mid": CareerStage.EARLY_CAREER,
+    "senior": CareerStage.EXPERIENCED,
+    "lead": CareerStage.EXPERIENCED,
+    "principal": CareerStage.EXPERIENCED,
+}
+
+
+def stage_from_seniority(seniority: list[str]) -> CareerStage | None:
+    """The goal's target stage from its seniority selection's max rank.
+
+    intern → ``student``, junior/mid → ``early_career``,
+    senior/lead/principal → ``experienced``; an empty (or unknown-token)
+    selection returns ``None`` — the caller keeps the profile stage.
+    """
+    ranks = {
+        CareerStage.STUDENT: 0,
+        CareerStage.EARLY_CAREER: 1,
+        CareerStage.EXPERIENCED: 2,
+    }
+    mapped = [
+        GOAL_SENIORITY_STAGE[str(value).strip().lower()]
+        for value in seniority or []
+        if str(value).strip().lower() in GOAL_SENIORITY_STAGE
+    ]
+    if not mapped:
+        return None
+    return max(mapped, key=lambda stage: ranks[stage])

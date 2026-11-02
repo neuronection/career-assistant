@@ -7,10 +7,10 @@ unified fan-out stack while keeping these rule/trigger semantics.
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError, ValidationError
@@ -33,7 +33,7 @@ SEARCH_CAP = 200
 DEDUP_TTL_DAYS = 7
 SCORE_CHANGE_STEP = 0.5
 
-DEFAULT_RULE_PARAMS = {
+DEFAULT_RULE_PARAMS: dict[NotificationRuleKind, dict[str, Any]] = {
     NotificationRuleKind.FIT_THRESHOLD: {"min_fit": 7.0, "max_per_day": 5},
     NotificationRuleKind.NEW_IN_FAMILY: {"max_per_day": 5},
     NotificationRuleKind.NEW_POSTING_MATCH: {"min_fit": 7.0, "max_per_day": 5},
@@ -96,17 +96,25 @@ class EngagementService:
         query: str,
         filters: dict,
         result_count: int,
+        *,
+        saved: bool = False,
+        name: str | None = None,
     ) -> SearchHistory:
-        """Debounced write: same query+filters inside the window updates."""
-        scope = scope.value if isinstance(scope, SearchScope) else str(scope)
+        """Debounced write: same query+filters inside the window updates.
+
+        Passing a `name` promotes the row to a named preset (and therefore
+        saves it); names are unique per user among saved searches.
+        """
+        scope_value = scope.value if isinstance(scope, SearchScope) else str(scope)
         query = query.strip()
+        clean_name = self._clean_name(name)
         filters_hash = canonical_hash(filters)
         window_start = _utcnow() - DEBOUNCE_WINDOW
         rows = await self.db.execute(
             select(SearchHistory)
             .where(
                 SearchHistory.user_id == user_id,
-                SearchHistory.scope == scope,
+                SearchHistory.scope == scope_value,
                 SearchHistory.query == query,
                 SearchHistory.filters_hash == filters_hash,
                 SearchHistory.created_at >= window_start,
@@ -120,13 +128,18 @@ class EngagementService:
         else:
             row = SearchHistory(
                 user_id=user_id,
-                scope=scope,
+                scope=scope_value,
                 query=query,
                 filters=filters,
                 filters_hash=filters_hash,
                 result_count=result_count,
             )
             self.db.add(row)
+        if clean_name:
+            await self._assert_name_free(user_id, clean_name, exclude_id=row.id)
+            row.name = clean_name
+        if saved or clean_name:
+            row.saved = True
         await self.db.flush()
         await self._prune_searches(user_id)
         await self.db.commit()
@@ -143,6 +156,58 @@ class EngagementService:
         for row in stale:
             await self.db.delete(row)
         return len(stale)
+
+    @staticmethod
+    def _clean_name(name: str | None) -> str | None:
+        if name is None:
+            return None
+        clean = " ".join(name.split())
+        return clean or None
+
+    async def _assert_name_free(
+        self, user_id: UUID, name: str, *, exclude_id: UUID | None = None
+    ) -> None:
+        query = select(SearchHistory.id).where(
+            SearchHistory.user_id == user_id,
+            SearchHistory.saved.is_(True),
+            func.lower(SearchHistory.name) == name.lower(),
+        )
+        if exclude_id is not None:
+            query = query.where(SearchHistory.id != exclude_id)
+        if (await self.db.execute(query.limit(1))).first() is not None:
+            raise ValidationError(f"A preset named {name!r} already exists")
+
+    async def update_search(
+        self,
+        user_id: UUID,
+        search_id: UUID,
+        *,
+        name: str | None = None,
+        query: str | None = None,
+        filters: dict | None = None,
+        result_count: int | None = None,
+    ) -> SearchHistory:
+        """Edit a saved search / preset: rename, re-point its filters or
+        refresh its result count. Renaming a row makes it saved."""
+        row = await self._own_search(user_id, search_id)
+        if name is not None:
+            clean_name = self._clean_name(name)
+            if clean_name is None:
+                raise ValidationError("A preset needs a name")
+            await self._assert_name_free(user_id, clean_name, exclude_id=row.id)
+            row.name = clean_name
+            row.saved = True
+        if filters is not None:
+            row.filters = filters
+            row.filters_hash = canonical_hash(filters)
+            row.saved = True
+        if query is not None:
+            row.query = query.strip()
+        if result_count is not None:
+            row.result_count = result_count
+        await self.db.commit()
+        await self.db.refresh(row)
+        return row
 
     async def list_searches(
         self,
@@ -297,7 +362,7 @@ class EngagementService:
             # the loser adopts the DB-side winner instead of 500ing.
             await insert_insight_if_absent(self.db, user_id, job_id)
             insight = await self._select_insight(user_id, job_id)
-        return insight
+        return cast(MatchInsight, insight)
 
     async def mark_seen(self, user_id: UUID, job_ids: list[UUID]) -> int:
         """Batch impression marking; insight rows are lazily created."""

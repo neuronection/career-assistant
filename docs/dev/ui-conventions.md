@@ -237,8 +237,16 @@ Information is **three tiers**, never one chip soup:
    row: a faded second row reads as disabled.
 3. **State markers** (`CardState`) — binary facts as a compact icon (+
    optional label), never a pill: **seen** = one muted double-check in the
-   kicker (unseen renders nothing — the normal state is silent, and cards
-   are never dimmed); **closed** = neutral lock + close date tooltip,
+   kicker plus a 3 px neutral rail on the card's leading edge
+   (`[data-seen="true"]::before` in `index.css` — a read marker, not a
+   state hue: accent stays hover/interactive and fit bands stay the only
+   colour language; unseen renders nothing, the normal state is silent,
+   and cards are never dimmed). While unseen, the *same kicker slot*
+   carries the `posting-mark-seen` action (a quiet text action with an
+   accent check) — state and action share one slot, so clicking it turns
+   the slot into the seen mark in place; seen is one-way (no un-see
+   endpoint), which is why it is not a toggle. **closed** =
+   neutral lock + close date tooltip,
    with the whole card desaturated via `data-state="closed"` (tokens, not
    `filter: grayscale`, so contrast holds) and Apply disabled; saved /
    applied ride the kicker; **partial details** = info dot (extraction
@@ -262,7 +270,8 @@ group headings. Unmapped skills get a dashed border (data quality, not
 ranking).
 
 Testids are contracts: `posting-card`/`posting-details`/`posting-title`/
-`posting-apply`/`posting-save`/`posting-hide`/`posting-provenance`/
+`posting-apply`/`posting-save`/`posting-hide`/`posting-mark-seen`/
+`posting-provenance`/
 `posting-coverage`/`posting-seen`/`posting-closed`/`posting-partial`/
 `posting-details-pending`, `job-card`/`job-title`/`education-chip`,
 `scores-{code}`/`breakdown-toggle-{code}`/`compare-add-{code}`,
@@ -453,7 +462,8 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   drawer or on the review card — never inline on the row, and hover
   reveals nothing destructive.
 - **Details drawer**: ONE generalized `EntityDetailsDrawer` (PanelModal —
-  right sheet on desktop, full-screen on mobile) with per-kind adapters;
+  a centered modal that width-caps on desktop and goes full-screen below
+  `sm`; never a side sheet) with per-kind adapters;
   the skills adapter keeps the richer stats/history surface.
 - **Bulk**: `BulkBar`/`SelectionToggle` (per-id endpoints loop client-side
   with per-item outcomes: successes summarized, failures listed — the
@@ -471,6 +481,98 @@ raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
   icon prop) and keep a phone-floor width inside an `overflow-x-auto`
   wrapper — six labels scroll instead of squeezing. Loading stays the
   app's Spinner + label row (previews are the shimmer exception, §6).
+
+## 2i. Filter chips — one cycle, one clear (plan 167)
+
+Every filter chip follows the same contract (`TriStateChips` in
+`components/filters/filterBits.tsx`), on every rail (`/postings`,
+`/companies`):
+
+- **off → include → exclude → off**: one click includes (accent), the
+  second excludes (rose, `−` prefix), the third clears. Right-click jumps
+  straight to exclude. Values are mutually exclusive across the pair of
+  lists, and every mode drops the value from the other list.
+- **A selected chip carries an ×** that clears it in one click — never
+  make a user cycle back out of a state, and never hover-reveal it.
+- **The pill is a wrapper with two sibling buttons** (value + remove):
+  a `<button>` inside a `<button>` is invalid markup and swallows the
+  inner click. Keep the value button's `data-testid` (its accessible name
+  is the label + count) and give the remove button
+  `data-testid="{testId}-clear"` + `aria-label` "Remove {label}".
+- Chips that intentionally cannot be excluded (`allowExclude={false}`,
+  e.g. the posted-window selector) cycle include → clear only, and still
+  get the × — the visual contract stays identical.
+- Binary state toggles (saved only, hide seen, deep-extracted) are
+  checkboxes, not chips: their uncheck *is* the clear.
+- **Exclude pickers are excluded chips too** (plan 166): the skills /
+  organizations exclude lists keep the library `MultiSelectPicker`, but
+  their selected chips carry `ca-picker-exclude` (rose bg + text, `−`
+  prefix via `renderChipExtra`) so the same value reads the same whether
+  it was excluded by a chip or by a picker. The wrapper class is the
+  only lever — the library chip styling is internal, so scope the CSS to
+  `[data-as="picker-chips"] > li` under that wrapper; never restyle the
+  include pickers.
+
+## 2j. The preset bar — saved views (plan 165)
+
+A list page whose filter set is URL state gets a **preset bar** above the
+results (`PresetBar`, `/postings` today):
+
+- presets are **chips**, never a dropdown: apply on click, active state
+  highlighted, a `⋯` menu per chip carrying the filter summary plus
+  update/rename/delete (delete confirmed). Saving offers **Update
+  {active}** instead of duplicating; names are unique per user.
+- the preset is a **saved search** (`search_history.name`, `PATCH
+  /me/searches/{id}`), not a second store — digests, RSS feeds and the
+  scheduler already resolve saved searches by id.
+- the save dialog shows the same human-readable summary the menu does, so
+  what you are about to save is visible before it lands.
+
+## 2h. Shareable list state — the URL is the state (plan 163)
+
+A list page whose filters/order a user would want to reload, go back to
+or send to someone else keeps that state **in the URL, not in
+`useState`**:
+
+- derive the page state from `useSearchParams` during render through an
+  exported pure helper — `/postings` uses one vocabulary module
+  (`features/catalog/exploreParams.ts`: `parseFilters` / `toParams` /
+  `toSearchParams` / `countActive`, the same shape the API and saved
+  searches use);
+- handlers write the **canonical** search string with `replace: true`
+  (no history spam, no dual state → no sync effect);
+- one guarded mount effect drops unknown/malformed params and falls back
+  to defaults — never error on a hand-edited link;
+- omit defaults (`sort=fit` never appears), keep names that may contain
+  commas as repeated params (`org=Acme%2C+Inc.`), and validate every
+  closed vocabulary on parse.
+- `/companies` is the second adopter (`features/companies/companiesParams.ts`):
+  the directory rail, the search text, the status chips, the sort and the
+  open-roles floor all ride the URL (`?status=new&work_mode=remote&min_open=5`),
+  with the same parse → write → canonicalize contract.
+
+### 2h+. Returning to a list keeps its view (plan 172)
+
+URL state covers filters/order on back, but a remounted list also loses
+its loaded pages and scroll height. The return contract on top of §2h:
+
+- list pages remember their canonical search in session memory
+  (`lib/listReturn.ts`, `rememberListSearch`); detail pages' back links
+  (`/postings/:ref` → "All postings", `/companies/:key` → back) and
+  detail-side list re-entries (hide) navigate to `listReturnHref(path)`
+  carrying `{ listReturn: true }` state — never the bare path;
+- the rendered list is snapshotted in session memory keyed by
+  `profileEpoch|canonical-search` (`exploreListCache` /
+  `companiesListCache`): a remount that is a **return** — POP, or a PUSH
+  carrying the list-return state — restores items + cursor synchronously
+  and skips the first fetch; any other navigation refetches page one as
+  before. Any filter change refetches page one as before, and
+  detail-side mutations keep the snapshot honest (hide drops the row,
+  seen/saved patch it);
+- `useMainScrollRestoration` journals `#main`'s scrollTop per
+  `pathname+search`: POP restores it, a fresh PUSH starts at the top, a
+  PUSH carrying `listReturn` restores it, REPLACE (filter patches, mount
+  canonicalization) never moves it.
 
 ## 2d. Feature state (beta affordance)
 

@@ -13,6 +13,7 @@ form the matcher compares.
 
 import re
 import unicodedata
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import select
@@ -20,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.econ_model import GeoRegion, GeoRegionAlias
+from app.models.enums import GeoRegionKind
 from app.schemas.econ import RegionRef, RegionResolution
 
 _KIND_SPECIFICITY = {
@@ -56,7 +58,7 @@ def _code_token(value: str | None) -> str:
 def _ref(region: GeoRegion) -> RegionRef:
     return RegionRef(
         id=region.id,
-        kind=region.kind,
+        kind=GeoRegionKind(region.kind),
         code=region.code,
         country=region.country,
         label=region.label,
@@ -108,6 +110,7 @@ async def resolve_region(
             candidates=[_ref(region) for region in sorted(country_matches, key=lambda r: r.code)],
         )
     country_region = country_matches[0]
+    country_source: Literal["code", "label", "alias"]
     if _code_token(country_region.code) == _code_token(country_raw):
         country_source = "code"
     elif normalize_place(country_region.label) == country_norm:

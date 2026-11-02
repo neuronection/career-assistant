@@ -299,7 +299,8 @@ routes through the sandbox runner), `iter_connectors()`,
 | manifest bytes | 512 KiB |
 | tree files / bytes | 4096 / 128 MiB |
 | T3 items per fetch | 300 |
-| T3 `raw` / `next_state` JSON | 8 KiB each |
+| T3 `raw` JSON | 64 KiB |
+| T3 `next_state` JSON | 8 KiB |
 | T3 `run_summary` JSON | 2 KiB |
 | extension state per instance | 256 KiB |
 | capability-RPC line | 1 MiB |

@@ -1,4 +1,5 @@
 import logging
+import time
 from uuid import UUID
 
 import httpx
@@ -20,6 +21,9 @@ from app.models.enums import AIProviderType, AITaskTier
 from app.models.user_model import User
 
 logger = logging.getLogger(__name__)
+
+
+CONNECTION_TEST_PROMPT = "Reply with the single word: OK"
 
 
 def _test_failure(error: Exception, provider: AIProvider, detail: str) -> dict:
@@ -567,6 +571,7 @@ class AIProviderService:
             if not settings.is_dev:
                 raise ValidationError("The mock provider is only available in development.")
             return {"ok": True, "reply": "mock provider: always OK"}
+        started = time.monotonic()
         if (
             provider.provider_type == "decision"
             or model.decision_transport
@@ -574,25 +579,37 @@ class AIProviderService:
         ):
             from app.ai.decide.systemone.probe import DecisionProbeInput, probe_decision_provider
 
-            result = await probe_decision_provider(
+            probe = await probe_decision_provider(
                 DecisionProbeInput(provider=provider, model=model, api_key=provider.api_key or "")
             )
-            if result.ok:
-                return {
+            if probe.ok:
+                result: dict = {
                     "ok": True,
-                    "reply": f"decision endpoint OK ({result.resolved_model or 'probe'})",
+                    "reply": f"decision endpoint OK ({probe.resolved_model or 'probe'})",
                 }
-            return {
-                "ok": False,
-                "error": result.error or "decision probe failed",
-                "code": "unknown",
-            }
-        if provider.provider_type == "google":
-            return await self._run_test_google(provider, model, transport)
+            else:
+                result = {
+                    "ok": False,
+                    "error": probe.error or "decision probe failed",
+                    "code": "unknown",
+                }
+        elif provider.provider_type == "google":
+            result = await self._run_test_google(provider, model, transport)
+        else:
+            result = await self._run_test_openai_compatible(provider, model, transport)
+        await self._record_connection_test(user, provider, model, result, started)
+        return result
+
+    async def _run_test_openai_compatible(
+        self,
+        provider: AIProvider,
+        model: AIModel,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> dict:
         url = f"{provider.api_base.rstrip('/')}/chat/completions"
         payload = {
             "model": model.model_name,
-            "messages": [{"role": "user", "content": "Reply with the single word: OK"}],
+            "messages": [{"role": "user", "content": CONNECTION_TEST_PROMPT}],
             **token_cap_kwargs(provider.provider_type, 5, provider.api_base),
         }
         if model.temperature is not None:
@@ -611,6 +628,34 @@ class AIProviderService:
             return _test_failure(exc, provider, detail[:300])
         except Exception as exc:
             return _test_failure(exc, provider, sanitize_error_detail(str(exc)))
+
+    async def _record_connection_test(
+        self,
+        user: User,
+        provider: AIProvider,
+        model: AIModel,
+        result: dict,
+        started: float,
+    ) -> None:
+        """Every connection ping lands in ``ai_generations`` — a transport
+        probe is not a task (no registry entry, no prompt version), but it
+        spends tokens and belongs in the audit trail like any other call."""
+        from app.models.ai_model import AIGeneration
+
+        ok = bool(result.get("ok"))
+        row = AIGeneration(
+            user_id=user.id,
+            task_type="connection_test",
+            provider=provider.provider_type,
+            model=model.model_name[:80],
+            prompt=CONNECTION_TEST_PROMPT,
+            output={"reply": str(result.get("reply") or "")[:500]} if ok else None,
+            latency_ms=(time.monotonic() - started) * 1000,
+            status="ok" if ok else "error",
+            error=str(result.get("error") or "")[:1000],
+        )
+        self.db.add(row)
+        await self.db.commit()
 
     async def _run_test_google(
         self,

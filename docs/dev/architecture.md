@@ -277,6 +277,10 @@ There is no side door around it.
   (`job.result.polish.llm_calls`) and the finalized polish trace carry
   the run's compact call ledger; an opt-in `with_audit_ref` on the
   gateway returns the audit row just written without a second SELECT.
+  The read side over all the ledgers is the audit & monitoring surface
+  (`/settings/audit`, plans 151–157 — `app/services/audit/`,
+  `app/api/v1/audit.py`): the family reference implementation of
+  ADR-0044 / `guidelines/observability.md` in the family dev repo.
   `GET /cv/{id}/runs` assembles per-CV runs (generation + every polish
   re-run) from the job rows and their run-linked audit rows — the
   builder's "Runs & metrics" popup (65.5) reads this, not a new ledger.

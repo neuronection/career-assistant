@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
@@ -43,7 +44,7 @@ class MatchingService:
         insights = await self.backfilled_insights(profile)
         job_service = JobService(self.db)
         jobs, _ = await job_service.list_jobs(family_key=family_key, page_size=500)
-        items = []
+        items: list[dict[str, Any]] = []
         for job in jobs:
             insight = insights.get(job.id)
             if insight is None or insight.fit_score is None:
@@ -220,7 +221,7 @@ class MatchingService:
                 raise IntegrityError(
                     "insight vanished between insert and read",
                     None,
-                    None,
+                    None,  # type: ignore[arg-type]
                 )
         insight.ai_score = float(result.score)
         insight.ai_confidence = float(result.confidence)
@@ -263,7 +264,11 @@ class MatchingService:
             await self._insert_if_absent(user_id, job.id)
             insight = await self._get_insight(user_id, job.id)
             if insight is None:
-                raise IntegrityError("insight vanished between insert and read", None, None)
+                raise IntegrityError(
+                    "insight vanished between insert and read",
+                    None,
+                    None,  # type: ignore[arg-type]
+                )
         if user_score is not None:
             insight.user_score = user_score
         if status is not None:

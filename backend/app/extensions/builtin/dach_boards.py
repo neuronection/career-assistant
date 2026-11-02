@@ -19,13 +19,13 @@ retry or open sockets.
 from __future__ import annotations
 
 import json
+import re
 import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
-from email.utils import parsedate_to_datetime
 from typing import cast
 from urllib.parse import quote
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.extensions.builtin.job_boards import (
     _apply_watermark,
@@ -34,6 +34,7 @@ from app.extensions.builtin.job_boards import (
     _normalize_token,
     _not_ready,
     _parse_iso_utc,
+    _parse_rfc822_utc,
     _protocol_error,
     _provider_error,
     _rate_limited,
@@ -116,22 +117,7 @@ _JSONLD_UNIT = {
 }
 JOIN_PAGE_SIZE_CAP = 5
 JOIN_MAX_PAGES = 3
-
-
-def _parse_rfc822_utc(value) -> datetime | None:
-    """RSS 2.0 ``pubDate`` (RFC 822, e.g. ``Sun, 16 Jun 2024 17:30:51 +0000``)."""
-    if value in (None, ""):
-        return None
-    text = str(value).strip()
-    try:
-        parsed = parsedate_to_datetime(text)
-    except (TypeError, ValueError):
-        return _parse_iso_utc(text)
-    if parsed is None:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=UTC)
-    return parsed.astimezone(UTC)
+JOIN_MAX_DETAILS = 10
 
 
 def _parse_space_utc(value) -> datetime | None:
@@ -305,6 +291,15 @@ class JoinComConfig(BaseModel):
     )
     page_size: int = Field(default=JOIN_PAGE_SIZE_CAP, ge=1, le=JOIN_PAGE_SIZE_CAP)
     max_items: int = Field(default=50, ge=1, le=200)
+    detail_ids: str = Field(default="", max_length=300)
+
+    @field_validator("detail_ids")
+    @classmethod
+    def _detail_ids(cls, value: str) -> str:
+        ids = [item.strip() for item in value.split(",") if item.strip()]
+        if len(ids) > JOIN_MAX_DETAILS:
+            raise ValueError(f"detail_ids: at most {JOIN_MAX_DETAILS} ids per call")
+        return ",".join(ids)
 
 
 JOIN_DOMAINS = ("join.com",)
@@ -403,6 +398,104 @@ def parse_join_payload(
     return items, errors, pagination
 
 
+JOIN_DETAIL_URL = "https://join.com/companies/{slug}/{external_id}"
+
+
+def join_detail_url(company_slug: str, external_id: str) -> str:
+    """The job-ad page — the route resolves on the list API's numeric
+    ``id`` alone (captured 2026-11-01); no ``idParam`` slug needed."""
+    return JOIN_DETAIL_URL.format(slug=company_slug, external_id=quote(str(external_id)))
+
+
+def _extract_jsonld_jobposting(body: str) -> dict | None:
+    """The page's schema.org JobPosting JSON-LD block — the node itself,
+    found inside ``<script type="application/ld+json">`` payloads (dict,
+    list or ``@graph``)."""
+    for block in re.findall(
+        r"<script[^>]*type=\"application/ld\+json\"[^>]*>(.*?)</script>",
+        body,
+        re.IGNORECASE | re.DOTALL,
+    ):
+        try:
+            data = json.loads(block)
+        except json.JSONDecodeError:
+            continue
+        stack = [data]
+        while stack:
+            node = stack.pop()
+            if isinstance(node, dict):
+                types = node.get("@type")
+                types = types if isinstance(types, list) else [types]
+                if "JobPosting" in types:
+                    return node
+                stack.extend(value for value in node.values() if isinstance(value, (dict, list)))
+            elif isinstance(node, list):
+                stack.extend(node)
+    return None
+
+
+def parse_join_detail_payload(
+    body: str, *, external_id: str, source_url: str = ""
+) -> RawPosting | None:
+    """One job-ad page → one detail row (the ``detail_ids`` contract the
+    host's enrichment funnel drives). The external_id stays the REQUESTED
+    list id — the page's canonical url carries a different numeric id."""
+    posting = _extract_jsonld_jobposting(body)
+    if posting is None:
+        return None
+    raw_hiring = posting.get("hiringOrganization")
+    if isinstance(raw_hiring, list):
+        raw_hiring = raw_hiring[0] if raw_hiring else {}
+    hiring = raw_hiring if isinstance(raw_hiring, dict) else {}
+    employment = posting.get("employmentType")
+    return RawPosting(
+        external_id=external_id[:300],
+        title=(str(posting.get("title") or "").strip() or external_id)[:300],
+        org=str(hiring.get("name") or "")[:200],
+        location=_jsonld_location(posting),
+        url=(str(posting.get("url") or "").strip() or source_url)[:1000],
+        posted_at=_parse_iso_utc(posting.get("datePosted")),
+        salary=_jsonld_salary(posting),
+        employment_type=cast(
+            EmploymentType | None,
+            _employment_type(employment if isinstance(employment, list) else [employment]),
+        ),
+        raw={
+            "description": str(posting.get("description") or "")[:8000],
+            "detail_extractor": "jsonld",
+            "source_page": source_url,
+        },
+    )
+
+
+async def _fetch_join_details(cfg: JoinComConfig, ids: list[str], transport) -> ConnectorResult:
+    """Targeted detail pages: one paced GET per id, per-id typed errors —
+    no conditional headers, no state writes (state belongs to search runs)."""
+    items: list[RawPosting] = []
+    errors: list[ConnectorError] = []
+    for external_id in ids:
+        url = join_detail_url(cfg.company_slug, external_id)
+        resp = await transport(url, {})
+        if resp.status == 429:
+            errors.append(_rate_limited("join.com", resp.headers))
+            break
+        if resp.status != 200:
+            errors.append(
+                _provider_error(
+                    f"join.com detail fetch failed with status {resp.status} ({external_id})"
+                )
+            )
+            continue
+        row = parse_join_detail_payload(resp.body, external_id=external_id, source_url=url)
+        if row is None:
+            errors.append(
+                _provider_error(f"join.com detail page has no JobPosting JSON-LD ({external_id})")
+            )
+            continue
+        items.append(row)
+    return ConnectorResult(items=items, partial_errors=errors)
+
+
 class JoinComConnector(PostingConnector):
     """JOIN.com public company job API — free, no auth. ``pageSize`` is
     capped at 5 by the API (captured); pagination walks up to three pages
@@ -425,6 +518,9 @@ class JoinComConnector(PostingConnector):
         cfg = JoinComConfig.model_validate(config)
         if transport is None:
             return _not_ready()
+        detail_ids = [item for item in cfg.detail_ids.split(",") if item.strip()]
+        if detail_ids:
+            return await _fetch_join_details(cfg, detail_ids, transport)
         items: list[RawPosting] = []
         errors: list[ConnectorError] = []
         etag: str | None = None
@@ -886,6 +982,8 @@ __all__ = [
     "RecruiteeConnector",
     "StepstoneXingConnector",
     "TeamtailorConnector",
+    "join_detail_url",
+    "parse_join_detail_payload",
     "parse_join_payload",
     "parse_personio_payload",
     "parse_recruitee_payload",

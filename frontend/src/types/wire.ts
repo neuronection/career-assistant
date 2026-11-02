@@ -82,6 +82,8 @@ export type UniversityDetail = Schemas["UniversityDetailOut"];
 
 // ---------------------------------------------------------------- companies
 export type Company = Schemas["CompanyOut"];
+export type CompaniesList = Schemas["CompaniesOut"];
+export type CompanyFacets = Schemas["CompanyFacets"];
 export type CompanyDetail = Schemas["CompanyDetailOut"];
 
 // ---------------------------------------------------------------- job radar
@@ -119,6 +121,7 @@ export type PostingDetailSkill = Schemas["PostingExtractSkillOut"];
 export type PostingDetailOut = Schemas["PostingDetailOut"];
 export type PostingsResponse = Schemas["PostingsOut"];
 export type ExploreResponse = Schemas["ExploreOut"];
+export type SmartSearchResponse = Schemas["SmartSearchOut"];
 
 // ---------------------------------------------------------------- skills
 export type SkillDetail = Schemas["SkillJobsOut"];

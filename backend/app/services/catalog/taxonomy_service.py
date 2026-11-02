@@ -1,3 +1,4 @@
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select, update
@@ -182,7 +183,7 @@ class TaxonomyService:
         if "aliases" in data and data["aliases"] is not None:
             skill.aliases = [str(a).strip() for a in data["aliases"] if str(a).strip()]
         if "level_anchors" in data and data["level_anchors"] is not None:
-            anchors = []
+            anchors: list[dict[str, Any]] = []
             for anchor in data["level_anchors"]:
                 level = int(anchor.get("level", 0))
                 if not 1 <= level <= 10:
@@ -517,7 +518,7 @@ class TaxonomyService:
             else:
                 # deprecate/restore of a row already in that state is a no-op
                 # write, not a transition — count only real changes
-                if action in ("deprecate", "restore") and before == skill.status:
+                if action in ("deprecate", "restore") and before == cast(Skill, skill).status:
                     continue
                 affected.append(skill_id)
         return {"affected": affected, "failed": failed}

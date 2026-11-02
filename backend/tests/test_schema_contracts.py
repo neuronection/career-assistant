@@ -81,6 +81,7 @@ SCHEDULE_TASKS = {
     "digest",
     "saved_search_run",
     "radar_digest",
+    "smart_digest",
     "fit_refit",
     "catalog_enrich",
     "autopilot_run",

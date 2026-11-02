@@ -54,6 +54,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ValidationError
 from app.extensions import contract
 from app.models.extension_model import ExtensionInstall, ExtensionSource
 
@@ -607,6 +608,10 @@ def discover_manifests(tree: Path, subpath: str) -> list[dict]:
         base.relative_to(tree.resolve())
     except ValueError as exc:
         raise LifecycleError("path-denied", "subpath escapes the cloned tree") from exc
+    if not base.is_dir():
+        # A ref older/newer than the declared bundle layout (e.g. a release
+        # tag predating the bundle's dir) — typed, never a raw crash.
+        raise LifecycleError("not-found", f"subpath {subpath!r} is not present in the fetched tree")
     schema = _load_json("extension-manifest.schema.json")
     found: list[dict] = []
     candidates = [base, *(child for child in sorted(base.iterdir()) if child.is_dir())]
@@ -880,6 +885,13 @@ def _secret_destinations(manifest: dict) -> list[dict]:
     return rows
 
 
+def _display_title(manifest: dict, extension_id: str) -> str:
+    """The manifest's human display name (plan 173) with the id as fallback
+    — what surfaces show; never a lookup key (the row key stays the id)."""
+    title = str(manifest.get("title") or "").strip()
+    return (title or extension_id)[:80]
+
+
 def consent_payload(
     manifest: dict, digest: str, *, subpath: str = "", tier: str | None = None
 ) -> dict:
@@ -986,7 +998,7 @@ def _source_view(source: ExtensionSource, installs: list[ExtensionInstall]) -> d
             "url": descriptor.get("url"),
             "local": descriptor.get("local"),
             "ref": descriptor.get("ref"),
-            "subpath": descriptor.get("subpath"),
+            "subpath": source.subpath or descriptor.get("subpath"),
             "credentialSlots": [c.get("slot") for c in descriptor.get("credentials") or []],
         },
         "status": source.status,
@@ -1004,6 +1016,7 @@ def _install_view(install: ExtensionInstall) -> dict:
     return {
         "id": str(install.id),
         "extensionId": install.extension_id,
+        "title": _display_title(manifest, install.extension_id),
         "version": install.version,
         "digest": install.digest,
         "pinRef": install.pin_ref,
@@ -1178,16 +1191,24 @@ async def add_source(
     https root or the gated local variant). No fetch happens here: a
     failed fetch must be a *status*, never a failed add."""
     parsed = validate_source_descriptor(descriptor)
-    existing = await db.execute(
-        select(ExtensionSource).where(ExtensionSource.origin == parsed.origin)
+    clash = await db.execute(
+        select(ExtensionSource).where(
+            ExtensionSource.origin == parsed.origin, ExtensionSource.subpath == parsed.subpath
+        )
     )
-    if existing.scalars().first() is not None:
-        raise LifecycleError("invalid", f"source already exists: {parsed.origin}")
+    if clash.scalars().first() is not None:
+        where = parsed.subpath or "the repo root"
+        raise LifecycleError(
+            "invalid",
+            f"source already exists: {parsed.origin} at {where} — one source per "
+            "origin+subpath; a different subpath on the same origin is fine",
+        )
     from app.core.encryption import encrypt_secret
 
     source = ExtensionSource(
         origin=parsed.origin,
         kind=parsed.kind,
+        subpath=parsed.subpath,
         descriptor=parsed.document,
         secrets={
             slot: encrypt_secret(str(value))
@@ -1218,13 +1239,21 @@ async def update_source(
         parsed = validate_source_descriptor(descriptor)
         clash = await db.execute(
             select(ExtensionSource).where(
-                ExtensionSource.origin == parsed.origin, ExtensionSource.id != source.id
+                ExtensionSource.origin == parsed.origin,
+                ExtensionSource.subpath == parsed.subpath,
+                ExtensionSource.id != source.id,
             )
         )
         if clash.scalars().first() is not None:
-            raise LifecycleError("invalid", f"source already exists: {parsed.origin}")
+            where = parsed.subpath or "the repo root"
+            raise LifecycleError(
+                "invalid",
+                f"source already exists: {parsed.origin} at {where} — one source per "
+                "origin+subpath; a different subpath on the same origin is fine",
+            )
         source.origin = parsed.origin
         source.kind = parsed.kind
+        source.subpath = parsed.subpath
         source.descriptor = parsed.document
         source.status = "stale"
         source.error = ""
@@ -1580,6 +1609,7 @@ async def _land_install(
     kind = manifest.get("kind")
     if tier is None:
         tier = "T0" if kind == "mini-app" else "T3"
+    display_title = _display_title(manifest, extension_id)
     if kind == "connector" and tier == "T3":
         # T3 connector imports: the instance is a managed-spawn job
         # source (external MCP process, Phase 2/3 shape).
@@ -1592,6 +1622,7 @@ async def _land_install(
             job_source = JobSource(
                 key=source_key,
                 connector_key="mcp",
+                title=display_title,
                 config={
                     "transport": "stdio",
                     "command": command,
@@ -1611,6 +1642,7 @@ async def _land_install(
                     "invalid", f"a non-imported job source already owns the key {source_key!r}"
                 )
             existing_row.config = {**existing_row.config, "command": command}
+            existing_row.title = display_title
             existing_row.enabled = False
     elif kind == "connector" and tier == "T2":
         # T2 connector imports (plan 32 Phase 5): the instance is a job
@@ -1622,6 +1654,7 @@ async def _land_install(
         job_source = JobSource(
             key=source_key,
             connector_key=source_key,
+            title=display_title,
             config=config,
             enabled=False,
         )
@@ -1635,6 +1668,7 @@ async def _land_install(
                     "invalid", f"a non-imported job source already owns the key {source_key!r}"
                 )
             existing_row.config = config
+            existing_row.title = display_title
             existing_row.enabled = False
     payload = consent_payload(manifest, digest, subpath=subpath, tier=tier)
     record = {
@@ -1840,23 +1874,23 @@ async def apply_update(
             install.content_path = str(content_dir)
             install.tier = candidate.tier or install.tier
             install.update = {}
-            if (
-                candidate.manifest.get("kind") == "connector"
-                and (candidate.tier or install.tier) == "T3"
-            ):
+            if candidate.manifest.get("kind") == "connector":
                 from app.models.posting_model import JobSource
 
                 row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
                 job_source = row.scalars().first()
                 if job_source is not None:
-                    entry_path = content_dir / str(candidate.manifest.get("entry"))
-                    interpreter = _bundle_interpreter(source, candidate.subpath)
-                    job_source.config = {
-                        **job_source.config,
-                        "command": f'"{interpreter}" "{entry_path}"',
-                    }
-            # T2 updates need no instance mutation: the sandbox runner
-            # reads the install row's content_path + manifest at spawn.
+                    if (candidate.tier or install.tier) == "T3":
+                        entry_path = content_dir / str(candidate.manifest.get("entry"))
+                        interpreter = _bundle_interpreter(source, candidate.subpath)
+                        job_source.config = {
+                            **job_source.config,
+                            "command": f'"{interpreter}" "{entry_path}"',
+                        }
+                    job_source.title = _display_title(candidate.manifest, install.extension_id)
+            # Beyond the title, T2 updates need no instance mutation: the
+            # sandbox runner reads the install row's content_path + manifest
+            # at spawn.
         await db.commit()
     return _install_view(install)
 
@@ -1973,6 +2007,15 @@ async def set_install_enabled(db: AsyncSession, install_id: uuid.UUID, enabled: 
         job_source = row.scalars().first()
         if job_source is None:
             raise LifecycleError("not-found", "the minted job source is gone — re-import")
+        if enabled and job_source.connector_key == "mcp":
+            schema = (install.manifest or {}).get("configSchema")
+            if isinstance(schema, dict):
+                from app.extensions.builtin.mcp import ensure_source_tool_options
+
+                try:
+                    ensure_source_tool_options(job_source, schema)
+                except ValidationError as exc:
+                    raise LifecycleError("invalid", str(exc)) from exc
         job_source.enabled = enabled
         await db.commit()
     return _install_view(install)
@@ -2047,6 +2090,46 @@ async def put_desired_state(db: AsyncSession, document: dict) -> dict:
     return document
 
 
+def _pick_gitops_source(
+    same_origin: list[ExtensionSource],
+    install: ExtensionInstall | None,
+    desired_entries: list[dict],
+) -> tuple[ExtensionSource | None, str | None]:
+    """Reconcile's source resolution under origin+subpath uniqueness
+    (2026-10-30): the source hosting this install wins outright; else the
+    desired entry whose subpath matches a registered source; else a lone
+    same-origin source. ``(None, None)`` means nothing registered — the
+    caller adds from the desired entries; ``(None, reason)`` means
+    ambiguous — the caller reports drift."""
+    if not same_origin:
+        return None, None
+    if install is not None and install.source_id is not None:
+        hosted = [source for source in same_origin if source.id == install.source_id]
+        if hosted:
+            return hosted[0], None
+    if len(same_origin) == 1:
+        return same_origin[0], None
+    if install is None:
+        return (
+            None,
+            f"desired source is ambiguous: {len(same_origin)} sources share this origin "
+            "(different subpaths) and no install identifies this extension's home — "
+            "install once manually and reconcile again",
+        )
+    # A foreign-hosted install plus multiple same-origin sources: the
+    # registered subpaths decide.
+    for entry in desired_entries:
+        sub = str(entry.get("subpath") or "")
+        matches = [source for source in same_origin if source.subpath == sub]
+        if len(matches) == 1:
+            return matches[0], None
+    return (
+        None,
+        f"desired source is ambiguous: {len(same_origin)} sources share this origin "
+        "(different subpaths) and none can be disambiguated for this install",
+    )
+
+
 async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
     """GitOps reconcile (D13/D22) — installs and moves pins ONLY for the
     extensions the list names; never auto-enables; never deletes data.
@@ -2070,7 +2153,9 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
     entries = desired.get("extensions") or []
     if not desired:
         return report
-    named_sources = {str(entry.get("url") or ""): entry for entry in desired.get("sources") or []}
+    named_sources: dict[str, list[dict]] = {}
+    for source_entry in desired.get("sources") or []:
+        named_sources.setdefault(str(source_entry.get("url") or ""), []).append(source_entry)
     installs = (await db.execute(select(ExtensionInstall))).scalars().all()
     by_extension = {install.extension_id: install for install in installs}
 
@@ -2082,14 +2167,18 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
             report["ignoredEnableIntent"].append(
                 {"extensionId": extension_id, "reason": "reconcile never auto-enables (D22)"}
             )
-        source = (
+        install = by_extension.get(extension_id)
+        same_origin = (
             (await db.execute(select(ExtensionSource).where(ExtensionSource.origin == source_url)))
             .scalars()
-            .first()
+            .all()
+        )
+        source, ambiguity = _pick_gitops_source(
+            same_origin, install, named_sources.get(source_url) or []
         )
         if source is None:
-            descriptor = named_sources.get(source_url)
-            if descriptor is None:
+            declared = named_sources.get(source_url) or []
+            if not declared:
                 report["drift"].append(
                     {
                         "extensionId": extension_id,
@@ -2097,18 +2186,35 @@ async def reconcile(db: AsyncSession, *, data_dir: Path | None = None) -> dict:
                     }
                 )
                 continue
-            try:
-                view = await add_source(db, dict(descriptor))
-            except LifecycleError as exc:
-                report["failures"].append({"extensionId": extension_id, "error": exc.detail})
+            add_error: str | None = None
+            for desired_source in declared:
+                sub = str(desired_source.get("subpath") or "")
+                if any(s.subpath == sub for s in same_origin):
+                    continue
+                try:
+                    view = await add_source(db, dict(desired_source))
+                except LifecycleError as exc:
+                    add_error = exc.detail
+                    report["failures"].append({"extensionId": extension_id, "error": exc.detail})
+                    continue
+                source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
+                same_origin.append(source)
+            source, ambiguity = _pick_gitops_source(same_origin, install, declared)
+            if source is None:
+                report["drift"].append(
+                    {
+                        "extensionId": extension_id,
+                        "reason": ambiguity
+                        or add_error
+                        or f"desired source not declared: {source_url}",
+                    }
+                )
                 continue
-            source = await db.get(ExtensionSource, uuid.UUID(view["id"]))
         assert source is not None
         try:
             # Serialize with install/apply/sync on this source (Phase 3.7);
             # a losing reconcile reports typed, mutating nothing.
             async with _exclusive(f"source:{source.id}"):
-                install = by_extension.get(extension_id)
                 if install is None:
                     await _reconcile_missing_install(
                         db, source, extension_id, pin, report, data_dir=data_dir

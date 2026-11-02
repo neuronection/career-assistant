@@ -67,6 +67,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.SMART_SEARCH.value,
+        "Natural-language search query into explore filters (plan 179)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MATCH_SCORE.value,
         "Per-user job match score with rationale + prerequisites",
         AICapability.TEXT.value,

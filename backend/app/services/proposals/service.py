@@ -142,7 +142,7 @@ class ProfileProposalService(PreviewMixin):
             patch = ProfileSectionPatchIn.model_validate(payload)
             section_model = _SECTION_MODELS[patch.section]
             section_model.model_validate(patch.value)
-            stored_payload = {
+            stored_payload: dict[str, Any] = {
                 "section": patch.section,
                 "value": patch.value,
             }
@@ -160,14 +160,14 @@ class ProfileProposalService(PreviewMixin):
             label = self._cv_synth_label(stored_payload)
             diff = self._cv_synth_diff(stored_payload)
         elif kind == ProposalKind.CV_SET_BULLETS.value:
-            op_payload = CvSetBulletsOpPayload.model_validate(payload)
-            stored_payload = op_payload.model_dump(mode="json")
+            bullets_op = CvSetBulletsOpPayload.model_validate(payload)
+            stored_payload = bullets_op.model_dump(mode="json")
             # Plan 107: ground in server truth ONCE at card creation —
             # the card shows the CURRENT bullets (override ?? snapshot)
             # against the proposal, and revert restores `prior`.
             resolved = await resolve_cv_set_bullets(self.db, user_id, stored_payload)
             base_updated_at = resolved["cv_updated_at"]
-            entity_id = op_payload.cv_id
+            entity_id = bullets_op.cv_id
             stored_payload.update(
                 {
                     "cv_title": resolved["cv_title"],
@@ -208,18 +208,18 @@ class ProfileProposalService(PreviewMixin):
             label = _cv_choice_label(stored_payload)
             diff = _cv_choice_diff(stored_payload)
         elif kind == ProposalKind.TOOL_EXECUTION.value:
-            op_payload = ToolExecutionPayload.model_validate(payload)
-            stored_payload = op_payload.model_dump(mode="json")
-            label = op_payload.summary or op_payload.tool
+            tool_op = ToolExecutionPayload.model_validate(payload)
+            stored_payload = tool_op.model_dump(mode="json")
+            label = tool_op.summary or tool_op.tool
             diff = [
-                {"field": "tool", "label": "Tool", "after": op_payload.tool},
+                {"field": "tool", "label": "Tool", "after": tool_op.tool},
                 *(
                     {
                         "field": name,
                         "label": name.replace("_", " ").title(),
                         "after": value,
                     }
-                    for name, value in op_payload.args.items()
+                    for name, value in tool_op.args.items()
                 ),
             ]
         elif action == ProposalAction.CREATE.value:
@@ -383,12 +383,12 @@ class ProfileProposalService(PreviewMixin):
             return proposal, None, True
         if proposal.status != ProposalStatus.PENDING.value:
             raise ValidationError(f"Cannot approve a {proposal.status} proposal")
-        if proposal.kind == ProposalKind.CV_CHOICE.value and not option_keys:
-            raise ValidationError("select at least one option to proceed")
         if proposal.kind == ProposalKind.CV_CHOICE.value:
             # Pre-terminal client-error validation: wrong keys or bounds
             # reject with a clean validation error and leave the card
             # pending — never burn the terminal-first commit on them.
+            if not option_keys:
+                raise ValidationError("select at least one option to proceed")
             choice = CvChoiceOpPayload.model_validate(dict(proposal.payload_json or {}))
             known = {option.key for option in choice.options}
             unknown = [key for key in option_keys if key not in known]
@@ -420,6 +420,7 @@ class ProfileProposalService(PreviewMixin):
             proposal.resolved_at = datetime.now(UTC)
             await self.db.commit()
         try:
+            applied: dict | None
             if proposal.kind == ProposalKind.CV_CHOICE.value:
                 applied = await self._materialize_choice(proposal, list(option_keys or []))
             else:
@@ -542,4 +543,4 @@ class ProfileProposalService(PreviewMixin):
             )
         )
         await self.db.commit()
-        return int(result.rowcount or 0)
+        return int(result.rowcount or 0)  # type: ignore[attr-defined]

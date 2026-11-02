@@ -206,17 +206,17 @@
     {
       "id": "tools.connectors",
       "group": "tools",
-      "title": "Connectors (MCP client + job sources)",
-      "definition": "External tool servers the assistant can call (MCP client connectors) AND job-source connectors (posting ingestion sources with catalog-driven config; plan 32 Phase 1 / ADR-0040) — one connectors section covers both connector-kind surfaces.",
+      "title": "Connectors — the MCP server surface",
+      "definition": "The MCP server section: endpoint + transport, the write-access switch, client tokens (sealed, shown once), the live tool catalog and the recent-call audit.",
       "home": {
         "tab": "tools",
-        "section": "connectors"
+        "section": "mcp"
       },
       "secrets": "product secret store — never a plaintext column",
       "scope": "user",
       "adopters": {
         "study-assistant": "aligned (connectors section manages MCP server instances — D19 rows with keyring token/env slots, per-tool allowlists, explicit refresh — plus the read-only MCP resource-server info card, ADR-0012; plan 32 Phase 7)",
-        "career-assistant": "aligned (admin tools tab → connectors section: MCP GitHub token + job-source connector instances with x-secret slots and per-source probes, plan 32 Phase 1; extension sources — git import, consent, pins — ride the same section since Phase 3)",
+        "career-assistant": "aligned (plan 148: MCP-only after sources split off)",
         "health-assistant/core": "n/a (data-source connectors — the extension integrations — live in the user-tier Integrations page: config-flow instances with sealed credential slots, not the tools tab; the tools tab hosts only tools.agent)"
       }
     },
@@ -278,6 +278,21 @@
       "scope": "device-local (desktop)",
       "adopters": {
         "desktop-assistant": "aligned"
+      }
+    },
+    {
+      "id": "tools.sources",
+      "group": "tools",
+      "title": "Sources — posting ingestion",
+      "definition": "Job-source connector instances (catalog-driven, sealed secrets, probes, query plans) and extension sources imported from git (digest-pinned, consent-gated).",
+      "home": {
+        "tab": "tools",
+        "section": "sources"
+      },
+      "secrets": "product secret store — sealed at rest, shown as hints only",
+      "scope": "instance (admin)",
+      "adopters": {
+        "career-assistant": "aligned (plan 154: split from tools.connectors)"
       }
     }
   ],
@@ -554,13 +569,19 @@
               ]
             },
             {
-              "id": "connectors",
+              "id": "mcp",
               "domains": [
                 "tools.connectors"
               ]
+            },
+            {
+              "id": "sources",
+              "domains": [
+                "tools.sources"
+              ]
             }
           ],
-          "note": "plan 27 Phase 3: the former AI-config web tab split into web-search (SearXNG URL) + connectors (GitHub token); plan 32 Phase 1 broadened connectors to also host job-source connector instances (manifest catalog + x-secret slots + probes); plan 119 added the MCP server section (endpoint + token lifecycle, per-scope tool/resource visibility, opt-in write switch)"
+          "note": "plan 27 Phase 3: the former AI-config web tab split into web-search (SearXNG URL) + connectors (GitHub token); plan 32 Phase 1 broadened connectors to also host job-source connector instances (manifest catalog + x-secret slots + probes); plan 119 added the MCP server section (endpoint + token lifecycle, per-scope tool/resource visibility, opt-in write switch); plan 154 split the connectors section into mcp (the MCP server surface) and sources (job-source + extension ingestion)"
         },
         {
           "id": "automations",

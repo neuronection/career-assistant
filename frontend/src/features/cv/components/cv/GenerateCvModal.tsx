@@ -28,6 +28,7 @@ export function GenerateCvModal({
     <Modal open={open} onOpenChange={(next) => !next && onOpenChange(false)}>
       <ModalContent
         size="xl"
+        padding="none"
         className={`max-w-none ${SMALL_FULLSCREEN} ${
           previewActive ? WIDE_WIDTH : COMPACT_WIDTH
         }`}

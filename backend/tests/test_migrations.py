@@ -7,6 +7,7 @@ import os
 from datetime import UTC, datetime
 
 import pytest
+import sqlalchemy as sa
 from alembic.config import Config
 
 from alembic import command
@@ -123,11 +124,33 @@ def _column_present(table: str, column: str) -> bool:
     return bool(asyncio.run(run()))
 
 
+def _index_present(table: str, index: str) -> bool:
+    from sqlalchemy import inspect
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                names = await conn.run_sync(
+                    lambda sync_conn: [
+                        entry["name"] for entry in inspect(sync_conn).get_indexes(table)
+                    ]
+                )
+            return index in names
+        finally:
+            await engine.dispose()
+
+    return bool(asyncio.run(run()))
+
+
 def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0075"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0086"], (
         "revision chain stays linear on one head"
     )
 
@@ -139,6 +162,79 @@ def test_0027_cv_synth_items_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present(), "re-upgrade restores the table"
+
+
+def test_0078_search_preset_name_roundtrip():
+    """Plan 165: saved searches carry a preset name; the column is nullable
+    so existing remembered rows survive the upgrade unchanged."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("search_history", "name"), "preset names exist at head"
+
+    command.downgrade(config, "0077")
+    assert not _column_present("search_history", "name"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("search_history", "name"), "re-upgrade restores the column"
+
+
+def test_0079_autopilot_run_steps_roundtrip():
+    """Plan 168: the durable step-trace ledger lives on the run row; the
+    NOT NULL add carries a dialect-safe server default."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("autopilot_runs", "run_steps"), "trace ledger exists at head"
+
+    command.downgrade(config, "0078")
+    assert not _column_present("autopilot_runs", "run_steps"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("autopilot_runs", "run_steps"), "re-upgrade restores the column"
+
+
+def test_0080_source_display_title_roundtrip():
+    """Plan 173: job_sources carry the manifest display name; the column is
+    nullable so builtin sources (no manifest) keep NULL through the upgrade."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("job_sources", "title"), "display titles exist at head"
+
+    command.downgrade(config, "0079")
+    assert not _column_present("job_sources", "title"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("job_sources", "title"), "re-upgrade restores the column"
+
+
+def test_0082_findings_feed_indexes_roundtrip():
+    """Plan 175: the findings feed's two indexes exist at head and die on
+    the downgrade (created_at ordering, posting_id dedupe/applied join)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+    command.downgrade(config, "0081")
+    assert not _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert not _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+    command.upgrade(config, "head")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_created")
+    assert _index_present("autopilot_findings", "ix_autopilot_findings_posting")
+
+
+def test_0083_smart_query_cache_roundtrip():
+    """Plan 179: the cross-user NL-query cache exists at head and drops on
+    the downgrade (cache data is rebuildable, never a record)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _table_present("smart_query_cache"), "smart_query_cache exists at head"
+
+    command.downgrade(config, "0082")
+    assert not _table_present("smart_query_cache"), "downgrade drops the cache table"
+
+    command.upgrade(config, "head")
+    assert _table_present("smart_query_cache"), "re-upgrade restores the cache table"
 
 
 def test_0033_profile_proposals_roundtrip():
@@ -2170,6 +2266,44 @@ def test_0058_radar_digest_check_roundtrip():
     assert "radar_digest" in checks["task_allowed"]
 
 
+def test_0084_smart_digest_schedule_roundtrip():
+    """Plan 179: the smart-digest schedule kind + task widen both CHECKs
+    (the 0058 recipe); the downgrade restores the previous text."""
+    config = _configured()
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_smart_digest" in checks["kind_allowed"]
+    assert "smart_digest" in checks["task_allowed"]
+
+    command.downgrade(config, "0083")
+    checks = _schedules_checks()
+    assert "user_smart_digest" not in checks["kind_allowed"]
+    assert "smart_digest" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "user_smart_digest" in checks["kind_allowed"]
+    assert "smart_digest" in checks["task_allowed"]
+
+
+def test_0085_job_requeue_of_roundtrip():
+    """Plan 184: the requeue marker column + its index exist at head and
+    die on the downgrade (marker data is auxiliary audit data — its loss
+    is documented in the migration)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "requeue_of"), "requeue marker exists at head"
+    assert _index_present("background_jobs", "ix_background_jobs_requeue_of")
+
+    command.downgrade(config, "0084")
+    assert not _column_present("background_jobs", "requeue_of"), "downgrade drops the marker"
+    assert not _index_present("background_jobs", "ix_background_jobs_requeue_of")
+
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "requeue_of"), "re-upgrade restores the marker"
+    assert _index_present("background_jobs", "ix_background_jobs_requeue_of")
+
+
 def _job_sources_shape() -> tuple[set[str], dict[str, str]]:
     """(column names, short-name CHECK texts) of `job_sources` (dialect-safe)."""
 
@@ -2261,33 +2395,54 @@ def _fold_seed() -> None:
                 from sqlalchemy import delete
 
                 await session.execute(delete(JobSource).where(JobSource.key.like("fold-%")))
-                session.add_all(
-                    [
-                        JobSource(
-                            key="fold-sample",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x", "fetch_details": True},
-                        ),
-                        JobSource(
-                            key="fold-off",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x", "fetch_details": False},
-                        ),
-                        JobSource(
-                            key="fold-plain",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"keywords": "x"},
-                        ),
-                    ]
+                await _seed_legacy_source(
+                    session, engine, "fold-sample", {"keywords": "x", "fetch_details": True}
                 )
+                await _seed_legacy_source(
+                    session, engine, "fold-off", {"keywords": "x", "fetch_details": False}
+                )
+                await _seed_legacy_source(session, engine, "fold-plain", {"keywords": "x"})
                 await session.commit()
         finally:
             await engine.dispose()
 
     asyncio.run(_run())
+
+
+async def _seed_legacy_source(
+    session, engine, key: str, config: dict, connector_key: str = "synthetic"
+) -> str:
+    """One job_sources row at its pre-0080 shape — raw SQL with an explicit
+    legacy column list: the ORM flush renders the model's full column set
+    (plan 173's `title` included) and the downgraded table predates it.
+    Returns the seeded row's id."""
+    import json
+    import uuid as _uuid
+
+    from sqlalchemy import text
+
+    is_postgres = engine.dialect.name == "postgresql"
+    cast = (
+        (lambda param: f"CAST(:{param} AS jsonb)") if is_postgres else (lambda param: f":{param}")
+    )
+    row_id = str(_uuid.uuid4())
+    await session.execute(
+        text(
+            "INSERT INTO job_sources "
+            "(id, key, connector_key, kind, config, secrets, sync_state, error, enabled) "
+            "VALUES (:id, :key, :connector_key, 'posting', "
+            f"{cast('config')}, {cast('secrets')}, {cast('sync_state')}, '', true)"
+        ),
+        {
+            "id": row_id,
+            "key": key,
+            "connector_key": connector_key,
+            "config": json.dumps(config),
+            "secrets": "{}",
+            "sync_state": "{}",
+        },
+    )
+    return row_id
 
 
 def _fold_read() -> dict[str, dict]:
@@ -2355,27 +2510,25 @@ def _timeout_seed() -> None:
             session = async_sessionmaker(engine, expire_on_commit=False)()
             async with session:
                 await session.execute(delete(JobSource).where(JobSource.key.like("timeout-%")))
-                session.add_all(
-                    [
-                        JobSource(
-                            key="timeout-mint",
-                            connector_key="mcp",
-                            kind="posting",
-                            config={"tool": "fetch_postings", "timeout_seconds": 30},
-                        ),
-                        JobSource(
-                            key="timeout-kept",
-                            connector_key="mcp",
-                            kind="posting",
-                            config={"timeout_seconds": 60},
-                        ),
-                        JobSource(
-                            key="timeout-other",
-                            connector_key="synthetic",
-                            kind="posting",
-                            config={"timeout_seconds": 30},
-                        ),
-                    ]
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-mint",
+                    {"tool": "fetch_postings", "timeout_seconds": 30},
+                    connector_key="mcp",
+                )
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-kept",
+                    {"timeout_seconds": 60},
+                    connector_key="mcp",
+                )
+                await _seed_legacy_source(
+                    session,
+                    engine,
+                    "timeout-other",
+                    {"timeout_seconds": 30},
                 )
                 await session.commit()
         finally:
@@ -2707,7 +2860,6 @@ def _om_state_seed() -> None:
         from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
         from app.core.config import settings
-        from app.models.posting_model import JobSource
 
         engine = create_async_engine(settings.database_url)
         try:
@@ -2716,14 +2868,8 @@ def _om_state_seed() -> None:
                 await session.execute(
                     text("DELETE FROM job_postings WHERE external_id LIKE 'omstate-%'")
                 )
-                source = JobSource(
-                    key="omstate-source",
-                    connector_key="synthetic",
-                    kind="posting",
-                    config={},
-                )
-                session.add(source)
-                await session.flush()
+                await session.execute(text("DELETE FROM job_sources WHERE key = 'omstate-source'"))
+                sid = await _seed_legacy_source(session, engine, "omstate-source", {})
                 # SQLite has no jsonb: CAST(x AS jsonb) numeric-casts the JSON
                 # text to 0 there, so the dialect picks its own binding.
                 if engine.dialect.name == "postgresql":
@@ -2744,7 +2890,7 @@ def _om_state_seed() -> None:
                     {
                         "id": str(_uuid.uuid4()),
                         "ref": _uuid.uuid4().hex[:8].upper(),
-                        "sid": str(source.id),
+                        "sid": sid,
                         "ch": _uuid.uuid4().hex,
                         "loc": "{}",
                         "raw": "{}",
@@ -3277,7 +3423,267 @@ def test_0073_skill_changes_roundtrip():
     assert asyncio.run(_shape())[0] == columns, "re-upgrade restores the same shape"
 
 
-def test_0075_embeddings_reconcile_task_roundtrip():
+def test_0075_extension_source_subpath_uniqueness():
+    """Origin+subpath uniqueness (the multi-bundle repo): the column
+    backfills from the descriptor JSONB, the origin-only unique becomes
+    (origin, subpath), and the downgrade folds the column back."""
+    config = _configured()
+
+    async def seed(row_id: str, origin: str, descriptor: dict):
+        import json
+
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO extension_sources (id, origin, kind, "
+                        "descriptor, candidates, secrets, status, error, "
+                        "consecutive_failures, created_at, updated_at) "
+                        "VALUES (CAST(:id AS uuid), :origin, 'git', CAST(:descriptor AS jsonb), "
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', '', 0, now(), now())"
+                    ).bindparams(
+                        id=row_id,
+                        origin=origin,
+                        descriptor=json.dumps(descriptor),
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    async def read_subpath(origin: str):
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                return (
+                    await conn.execute(
+                        text("SELECT subpath FROM extension_sources WHERE origin = :o"),
+                        {"o": origin},
+                    )
+                ).scalar()
+        finally:
+            await engine.dispose()
+
+    async def insert_same_origin_other_subpath():
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO extension_sources (id, origin, subpath, kind, "
+                        "descriptor, candidates, secrets, status, error, "
+                        "consecutive_failures, created_at, updated_at) "
+                        "VALUES ('11111111-1111-4111-8111-111111111111', "
+                        "'https://git.example.com/multi', 'a/src', 'git', '{}'::jsonb, "
+                        "'[]'::jsonb, '{}'::jsonb, 'ok', '', 0, now(), now())"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    async def read_origin_rows():
+        from sqlalchemy import text
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                return (
+                    await conn.execute(
+                        text(
+                            "SELECT origin, descriptor FROM extension_sources "
+                            "WHERE origin LIKE 'https://git.example.com/multi%'"
+                        )
+                    )
+                ).all()
+        finally:
+            await engine.dispose()
+
+    try:
+        # Normalize: a crashed earlier run can leave the DB at 0075 —
+        # alembic `upgrade` never descends, so descend explicitly first
+        # (no-op when already at 0074), then clear this test's rows.
+        command.downgrade(config, "0074")
+        _es_cleanup()
+        assert not _column_present("extension_sources", "subpath")
+        asyncio.run(
+            seed(
+                "22222222-2222-4222-8222-222222222222",
+                "https://git.example.com/multi",
+                {"url": "https://git.example.com/multi"},
+            )
+        )
+        asyncio.run(
+            seed(
+                "33333333-3333-4333-8333-333333333333",
+                "https://git.example.com/multi-b",
+                {"url": "https://git.example.com/multi-b", "subpath": "b/src"},
+            )
+        )
+
+        command.upgrade(config, "head")
+        assert _column_present("extension_sources", "subpath")
+        assert asyncio.run(read_subpath("https://git.example.com/multi")) == ""
+        assert asyncio.run(read_subpath("https://git.example.com/multi-b")) == "b/src"
+
+        # The composite unique admits the same origin at a different
+        # subpath and refuses the same origin+subpath.
+        asyncio.run(insert_same_origin_other_subpath())
+
+        command.downgrade(config, "0074")
+        assert not _column_present("extension_sources", "subpath")
+        # ...then restore the chain head for the tests that follow this one.
+        command.upgrade(config, "head")
+        assert _column_present("extension_sources", "subpath")
+        # The downgrade folds each survivor's subpath into its descriptor.
+        # These two rows carry DIFFERENT origins, so both survive — the
+        # dedupe keeps one row per origin only.
+        remaining = asyncio.run(read_origin_rows())
+
+        assert len(remaining) == 2, remaining
+        folded = {origin: (descriptor or {}).get("subpath") for origin, descriptor in remaining}
+        assert folded["https://git.example.com/multi"] is None, (
+            "the '' subpath row folds nothing (absent key)"
+        )
+        assert folded["https://git.example.com/multi-b"] == "b/src"
+    finally:
+        _es_cleanup()
+
+
+def _es_cleanup() -> None:
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def _run():
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "DELETE FROM extension_sources "
+                        "WHERE origin LIKE 'https://git.example.com/multi%'"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_run())
+
+
+def test_0076_alert_manage_urls_roundtrip():
+    """Plan 156: the three scheduler-era kinds follow the Automations move
+    on upgrade; the downgrade restores the legacy links so the fold is
+    reversible. The kinds are boot-seeded, not migration-seeded, so the
+    test inserts the legacy rows itself on the downlevel schema."""
+
+    async def _seed_legacy() -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for index, key in enumerate(("digest_ready", "background_failed", "checkin_due")):
+                    await conn.execute(
+                        sa.text("DELETE FROM notification_kinds WHERE key = :key"),
+                        {"key": key},
+                    )
+                    await conn.execute(
+                        sa.text(
+                            "INSERT INTO notification_kinds "
+                            '(id, key, label, "group", severity, default_enabled, '
+                            "default_channels, mutable, manage_url, created_at, updated_at) "
+                            "VALUES "
+                            f"('{index + 1:0>32}', :key, :key, 'career', 'info', TRUE, "
+                            "'[\"in_app\"]', TRUE, '/settings/scheduler', "
+                            "CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+                        ),
+                        {"key": key},
+                    )
+        finally:
+            await engine.dispose()
+
+    async def _urls() -> dict[str, str | None]:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        sa.text(
+                            "SELECT key, manage_url FROM notification_kinds "
+                            "WHERE key IN ('digest_ready', 'background_failed', 'checkin_due')"
+                        )
+                    )
+                ).all()
+        finally:
+            await engine.dispose()
+        return dict(rows)
+
+    config = _configured()
+    command.downgrade(config, "0075")
+    asyncio.run(_seed_legacy())
+
+    command.upgrade(config, "head")
+    urls = asyncio.run(_urls())
+    assert len(urls) == 3, urls
+    assert all(url == "/settings/automations" for url in urls.values()), urls
+
+    command.downgrade(config, "0075")
+    restored = asyncio.run(_urls())
+    assert all(url == "/settings/scheduler" for url in restored.values()), restored
+
+    command.upgrade(config, "head")
+    assert all(url == "/settings/automations" for url in asyncio.run(_urls()).values()), (
+        "re-upgrade re-applies the Automations links"
+    )
+
+    async def _cleanup() -> None:
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    sa.text(
+                        "DELETE FROM notification_kinds "
+                        "WHERE id IN ('00000000000000000000000000000001', "
+                        "'00000000000000000000000000000002', "
+                        "'00000000000000000000000000000003')"
+                    )
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(_cleanup())
+
+
+def test_0086_embeddings_reconcile_task_roundtrip():
     """Both `schedules` CHECKs admit the reconcile job at head and narrow
     back on downgrade — the mirrored-vocabulary discipline of 0067/0068."""
     config = _configured()
@@ -3287,7 +3693,7 @@ def test_0075_embeddings_reconcile_task_roundtrip():
     assert "system_embeddings_reconcile" in checks["kind_allowed"]
     assert "embeddings_reconcile" in checks["task_allowed"]
 
-    command.downgrade(config, "0074")
+    command.downgrade(config, "0085")
     checks = _schedules_checks()
     assert "system_embeddings_reconcile" not in checks["kind_allowed"]
     assert "embeddings_reconcile" not in checks["task_allowed"]

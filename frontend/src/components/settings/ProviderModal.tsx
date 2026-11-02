@@ -100,7 +100,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
             {provider ? t("aiSettings.providerModal.editTitle") : t("aiSettings.providerModal.addTitle")}
           </ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-6">
+        <div className="space-y-4">
           <ProviderForm
             presets={presetOptions}
             presetKey={presetKey}

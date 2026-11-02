@@ -3,6 +3,8 @@ preset CRUD — every axis tested in the include/exclude/empty matrix."""
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -239,6 +241,29 @@ async def test_filter_endpoint_returns_matching_postings(
     items = response.json()
     assert len(items) == 1
     assert items[0]["external_id"] == "1"
+
+
+async def test_filter_endpoint_posted_within_uses_effective_date(
+    db, client, auth_headers, synthetic_connector
+):
+    src = _source({"keywords": "test"})
+    db.add(src)
+    await db.flush()
+    db.add_all(
+        [
+            _posting(src, "undated", posted_at=None),
+            _posting(src, "stale", posted_at=datetime.now(UTC) - timedelta(days=40)),
+        ]
+    )
+    await db.commit()
+
+    response = await client.post(
+        "/api/v1/postings/filter",
+        json={"filters": {"posted_within": {"days": 7}}},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    assert {item["external_id"] for item in response.json()} == {"undated"}
 
 
 async def test_filter_endpoint_composes_company_feed_filters(

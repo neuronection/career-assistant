@@ -112,7 +112,7 @@ class JobWorker:
             )
         )
         await self.db.commit()
-        if result.rowcount == 0:
+        if result.rowcount == 0:  # type: ignore[attr-defined]
             return None
         await self.db.refresh(job)
         return job
@@ -593,6 +593,16 @@ async def _run_radar_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict
     return await run_radar_digest(db, payload)
 
 
+async def _run_smart_digest(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """The opt-in daily smart digest (plan 179): the S1 smart ranking over
+    fresh/unseen/unapplied, notifying only when new matches exist — and
+    the smart-search cache's TTL prune."""
+    from app.services.postings.digest_service import run_smart_digest
+
+    payload = job.payload or {}
+    return await run_smart_digest(db, payload)
+
+
 async def _run_detail_enrichment(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
     from app.services.postings.detail_service import run_detail_enrichment
 
@@ -915,6 +925,7 @@ HANDLERS: dict[str, Handler] = {
     "extension_reconcile": _run_extension_reconcile,
     "saved_search_run": _run_saved_search,
     "radar_digest": _run_radar_digest,
+    "smart_digest": _run_smart_digest,
     "query_curator": _run_query_curator,
     "cv_extract_text": _run_cv_extract_text,
     "cv_ocr": _run_cv_ocr,

@@ -1795,7 +1795,7 @@ export function CvBuilder() {
               </Button>
             </div>
           </ModalHeader>
-          <div className="p-4 pt-0">
+          <div>
             <iframe
               title={t("cvBuilder.previewVersionTitle", { version: versionPreview?.version })}
               srcDoc={versionPreview?.html ?? ""}
@@ -1825,7 +1825,7 @@ export function CvBuilder() {
             </ModalTitle>
           </ModalHeader>
           <div
-            className="grid grid-cols-1 gap-4 p-4 pt-0 sm:grid-cols-2"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2"
             data-testid="version-diff-panel"
           >
             <figure className="space-y-1.5">

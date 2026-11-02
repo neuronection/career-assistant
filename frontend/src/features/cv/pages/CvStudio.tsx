@@ -258,6 +258,7 @@ export function CvStudio() {
                 key={cv.id}
                 className="flex cursor-pointer gap-3 p-4 transition-colors hover:border-[var(--as-accent)]"
                 onClick={() => navigate(`/cv/${cv.id}`)}
+                data-capture="cv-studio"
               >
                 <div className="flex min-w-0 flex-1 flex-col">
                   <div className="flex items-start justify-between gap-2">
@@ -378,7 +379,7 @@ export function CvStudio() {
           <ModalHeader>
             <ModalTitle>{t("cvStudio.newLetter")}</ModalTitle>
           </ModalHeader>
-          <div className="space-y-4 p-4 pt-0">
+          <div className="space-y-4">
             <label className="block text-sm">
               <span className="mb-1 block font-medium">{t("cvStudio.targetPosting")}</span>
               <select
@@ -453,7 +454,7 @@ export function CvStudio() {
                 : t("cvStudio.newCv")}
             </ModalTitle>
           </ModalHeader>
-          <div className="space-y-4 p-4 pt-0">
+          <div className="space-y-4">
             {!chosenTemplate && (
               <SegmentedRow
                 label={t("cvStudio.modeLabel")}

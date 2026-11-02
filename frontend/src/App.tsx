@@ -39,15 +39,15 @@ import { ProfileEdit } from "@/features/profile/pages/ProfileEdit";
 import { ProfileImport } from "@/features/profile/pages/ProfileImport";
 import { Rankings } from "@/features/catalog/pages/Rankings";
 import { Compare } from "@/features/catalog/pages/Compare";
-import { Postings } from "@/features/postings/pages/Postings";
 import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
-import { PostingsFeed } from "@/features/postings/components/postings/PostingsFeed";
 import { Explore } from "@/features/catalog/pages/Explore";
 import { Autopilot } from "@/features/growth/pages/Autopilot";
+import { AutopilotRunPage } from "@/features/growth/pages/AutopilotRunPage";
 import { Assessment } from "@/features/assessment/pages/Assessment";
 import { Universities } from "@/features/university/pages/Universities";
 import { UniversityDetail } from "@/features/university/pages/UniversityDetail";
 import { Companies } from "@/features/companies/pages/Companies";
+import { MarketStats } from "@/features/postings/pages/MarketStats";
 import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
 import { SkillPage } from "@/features/skills/pages/SkillPage";
 
@@ -81,16 +81,16 @@ export function App() {
           <Route path="/generate" element={<Navigate to="/catalog/generate" replace />} />
           <Route path="/rankings" element={<Rankings />} />
           <Route path="/compare" element={<Compare />} />
-          <Route path="/postings" element={<Postings />}>
-            <Route index element={<Navigate to="/postings/search" replace />} />
-            <Route path="feed" element={<PostingsFeed />} />
-            <Route path="search" element={<Explore />} />
-          </Route>
+          <Route path="/postings" element={<Explore />} />
+          <Route path="/postings/search" element={<Navigate to="/postings" replace />} />
+          <Route path="/postings/feed" element={<Navigate to="/postings" replace />} />
+          <Route path="/postings/stats" element={<MarketStats />} />
           <Route path="/postings/:ref" element={<PostingDetailPage />} />
           <Route path="/applications" element={<Applications />} />
-          <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
+          <Route path="/explore" element={<Navigate to="/postings" replace />} />
           <Route path="/radar" element={<JobRadarSettings />} />
           <Route path="/autopilot" element={<Autopilot />} />
+          <Route path="/autopilot/runs/:runId" element={<AutopilotRunPage />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
           <Route path="/paths" element={<PathExplorer />} />

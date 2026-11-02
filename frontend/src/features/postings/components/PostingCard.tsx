@@ -1,7 +1,9 @@
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import {
   Bookmark,
+  Check,
   Clock,
   ExternalLink,
   EyeOff,
@@ -52,13 +54,26 @@ export function PostingCard({
   posting,
   onOpen,
   onChanged,
+  smartSort = false,
 }: {
   posting: PostingOut;
   onOpen?: (posting: PostingOut) => void;
   onChanged?: () => void;
+  /** The smart sort is active: a small chip marks the blended ranking. */
+  smartSort?: boolean;
 }) {
   const { t } = useTranslation();
   const peek = useSkillPeek();
+  const [markedSeenId, setMarkedSeenId] = useState<string | null>(null);
+  const seenSlotRef = useRef<HTMLSpanElement | null>(null);
+  const seen = Boolean(posting.seen) || markedSeenId === posting.id;
+  const markSeen = () => {
+    setMarkedSeenId(posting.id);
+    void markPostingsSeen([posting.id]).catch(() => setMarkedSeenId(null));
+  };
+  useEffect(() => {
+    if (markedSeenId === posting.id) seenSlotRef.current?.focus();
+  }, [markedSeenId, posting.id]);
   const open = isPostingOpen(posting);
   const provenance = provenanceOf(posting);
   const ProvenanceIcon = PROVENANCE_ICON[provenance];
@@ -79,7 +94,7 @@ export function PostingCard({
     <ItemCardShell
       testId="posting-card"
       state={open ? undefined : "closed"}
-      seen={posting.seen}
+      seen={seen}
       onOpen={onOpen ? () => onOpen(posting) : undefined}
       actions={
         <>
@@ -91,6 +106,7 @@ export function PostingCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() => {
+                  setMarkedSeenId(posting.id);
                   void markPostingsSeen([posting.id]).catch(() => undefined);
                   void markApplied(posting.id, posting.url).catch(() => undefined);
                 }}
@@ -136,6 +152,15 @@ export function PostingCard({
         <span className="text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--as-muted-fg)]">
           {t("card.fit")}
         </span>
+        {smartSort ? (
+          <span
+            className="text-[9px] font-semibold uppercase tracking-[0.07em] rounded-full border border-[var(--as-border)] px-1.5 py-px text-[var(--as-muted-fg)]"
+            title={t("card.smartBadgeInfo")}
+            data-testid="posting-smart-chip"
+          >
+            {t("card.smartBadge")}
+          </span>
+        ) : null}
         {posting.coverage != null ? (
           <span
             className="text-[10px] text-[var(--as-muted-fg)]"
@@ -237,12 +262,26 @@ export function PostingCard({
         ) : null}
 
         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--as-muted-fg)]">
-          {posting.seen ? (
-            <>
+          {seen ? (
+            <span ref={seenSlotRef} tabIndex={-1} className="rounded-[4px] outline-none">
               <SeenMark label={t("card.seen")} testId="posting-seen" />
-              <span className="text-[var(--as-border)]">|</span>
-            </>
-          ) : null}
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                markSeen();
+              }}
+              className="-my-1 -ml-1 inline-flex items-center gap-1 rounded-[6px] px-1 py-1 transition-colors hover:bg-[var(--as-muted)] hover:text-[var(--as-fg)]"
+              title={t("postingCard.markSeen")}
+              data-testid="posting-mark-seen"
+            >
+              <Check aria-hidden className="h-3 w-3 text-[var(--as-accent)]" />
+              {t("postingCard.markSeen")}
+            </button>
+          )}
+          <span className="text-[var(--as-border)]">|</span>
           <span>
             {posting.source_key || posting.ref}
             {posting.source_key && posting.ref ? ` · ${posting.ref}` : ""}

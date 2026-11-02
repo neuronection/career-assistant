@@ -5,14 +5,14 @@ import { BetaBanner } from "@/components/BetaBanner";
 
 describe("BetaBanner", () => {
   it("chips a beta surface with the shared expectation line", () => {
-    render(<BetaBanner pathname="/postings" />);
+    render(<BetaBanner pathname="/autopilot" />);
     expect(screen.getByTestId("beta-chip")).toHaveTextContent("Beta");
     expect(screen.getByTestId("beta-banner")).toHaveTextContent(
       "expect rough edges"
     );
     expect(screen.getByTestId("beta-banner")).toHaveAttribute(
       "data-feature",
-      "/postings"
+      "/autopilot"
     );
   });
 
@@ -22,10 +22,10 @@ describe("BetaBanner", () => {
   });
 
   it("follows nested routes to their registered prefix", () => {
-    render(<BetaBanner pathname="/postings/search" />);
+    render(<BetaBanner pathname="/paths/nested" />);
     expect(screen.getByTestId("beta-banner")).toHaveAttribute(
       "data-feature",
-      "/postings"
+      "/paths"
     );
   });
 });

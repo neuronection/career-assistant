@@ -30,6 +30,7 @@ class BackgroundJobType(StrEnum):
     DIGEST = "digest"
     SAVED_SEARCH_RUN = "saved_search_run"
     RADAR_DIGEST = "radar_digest"
+    SMART_DIGEST = "smart_digest"  # plan 179: the opt-in daily smart digest
     QUERY_CURATOR = "query_curator"
     CV_EXTRACT_TEXT = "cv_extract_text"
     CV_OCR = "cv_ocr"
@@ -65,6 +66,7 @@ class ScheduleKind(StrEnum):
     SYSTEM_EMBEDDINGS_RECONCILE = "system_embeddings_reconcile"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_RADAR_DIGEST = "user_radar_digest"
+    USER_SMART_DIGEST = "user_smart_digest"
     USER_CHECKIN = "user_checkin"
     USER_AUTOPILOT = "user_autopilot"
 

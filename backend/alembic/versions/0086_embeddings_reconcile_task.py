@@ -14,8 +14,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0075"
-down_revision = "0074"
+revision = "0086"
+down_revision = "0085"
 branch_labels = None
 depends_on = None
 
@@ -33,6 +33,7 @@ OLD_KINDS = (
     "system_skill_relation_learn",
     "user_saved_search",
     "user_radar_digest",
+    "user_smart_digest",
     "user_checkin",
     "user_autopilot",
 )
@@ -43,6 +44,7 @@ OLD_TASKS = (
     "digest",
     "saved_search_run",
     "radar_digest",
+    "smart_digest",
     "fit_refit",
     "catalog_enrich",
     "autopilot_run",

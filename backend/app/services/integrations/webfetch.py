@@ -16,6 +16,7 @@ import logging
 import time
 from enum import StrEnum
 from html.parser import HTMLParser
+from typing import Any, cast
 from urllib.parse import ParseResult, urlencode, urlparse
 
 import httpx
@@ -151,7 +152,7 @@ async def _guarded_get(url: str, *, headers: dict | None = None) -> tuple[httpx.
     current = url
     for _hop in range(MAX_REDIRECTS + 1):
         parsed = parse_web_url(current)
-        await assert_public_url(parsed.hostname)
+        await assert_public_url(cast(str, parsed.hostname))
         try:
             resp = await _client().get(current, headers=headers)
         except httpx.TimeoutException as exc:
@@ -264,7 +265,7 @@ def _searxng_base(url: str) -> str:
 
 async def probe_searxng(url: str | None) -> dict:
     """Cached probe statuses; the Search-API host needs `format: json`."""
-    if not (url or "").strip():
+    if not url or not url.strip():
         return {"status": SearxngProbeStatus.UNCONFIGURED.value}
     cached = _probe_cache.get(url)
     if cached and time.monotonic() - cached["at"] < _SEARXNG_PROBE_TTL:
@@ -275,7 +276,7 @@ async def probe_searxng(url: str | None) -> dict:
             params={"q": "probe", "format": "json"},
         )
     except httpx.HTTPError as exc:
-        result = {
+        result: dict[str, Any] = {
             "status": SearxngProbeStatus.UNREACHABLE.value,
             "detail": str(exc)[:200],
         }
@@ -308,7 +309,7 @@ async def search_web(url: str | None, query: str, n: int) -> dict:
         return {"available": False, **probe}
     try:
         resp = await _client().get(
-            f"{_searxng_base(url)}/search",
+            f"{_searxng_base(cast(str, url))}/search",
             params={"q": query, "format": "json", "pageno": 1, "safesearch": 1},
         )
         data = _json_body(resp)
@@ -380,7 +381,7 @@ async def render_text(url: str, *, page_timeout: float = 15.0) -> WebFetchResult
     )
 
     parse_web_url(url)
-    await assert_public_url(urlparse(url).hostname)
+    await assert_public_url(cast(str, urlparse(url).hostname))
     p = await _get_playwright()
     browser = await _get_browser(p)
     page = await browser.new_page()

@@ -148,8 +148,8 @@ async def resolve_cv_synth_payload(db: AsyncSession, user_id: uuid.UUID, payload
             parsed = None
         posting = None
         if parsed is not None:
-            rows = await db.execute(select(JobPosting).where(JobPosting.id == parsed))
-            posting = rows.scalars().first()
+            posting_result = await db.execute(select(JobPosting).where(JobPosting.id == parsed))
+            posting = posting_result.scalars().first()
         if posting is not None:
             posting_label = str(posting.ref)
             posting_title = str(posting.title)
@@ -534,7 +534,7 @@ async def resolve_ops(
     for op in ops:
         try:
             action = str(op.get("action") or "")
-            entity_id = op.get("entity_id")
+            entity_id: uuid.UUID | None = op.get("entity_id")
             if isinstance(entity_id, str) and entity_id:
                 entity_id = uuid.UUID(entity_id)
             kind = str(op.get("kind") or "")
