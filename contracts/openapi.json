@@ -11425,6 +11425,52 @@
         "title": "JobOut",
         "type": "object"
       },
+      "JobProposalApplyIn": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "short_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Description"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "family_key"
+        ],
+        "title": "JobProposalApplyIn",
+        "type": "object"
+      },
       "JobRequeueRequest": {
         "description": "Body of the bulk-requeue action: filters or explicit ids + confirm.",
         "properties": {
@@ -28337,6 +28383,57 @@
         ]
       }
     },
+    "/api/v1/admin/postings/job-proposals": {
+      "get": {
+        "description": "Postings whose catalog join ended unmapped with a rich extract \u2014\nthe HITL \"create the job\" queue (plan 185), enrichment-queue shaped:\nthe proposal plus the join's signals trace (the admin's \"apply or\nwrite a better job\" context).",
+        "operationId": "job_proposal_queue_api_v1_admin_postings_job_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Job Proposal Queue Api V1 Admin Postings Job Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job Proposal Queue",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/reextract": {
       "post": {
         "description": "Re-run deep extraction for the given postings (admin, bulk \u2014 the\n/postings multi-select). Same rules as the per-source bulk: only\npostings WITH a description queue; already-queued ones are skipped;\nunknown ids are reported as missing.",
@@ -28750,6 +28847,108 @@
           }
         },
         "summary": "Reextract Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/apply": {
+      "post": {
+        "description": "Create the published catalog job from the proposal's extract, map\nthe posting MANUAL, clear the proposal and embed the new job \u2014 one\ntransaction (a mid-apply failure leaves no job row).",
+        "operationId": "apply_job_proposal_api_v1_admin_postings__posting_id__job_proposal_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobProposalApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Job Proposal",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/dismiss": {
+      "post": {
+        "description": "Discard the proposal: explicit JSON null + the audit timestamp.",
+        "operationId": "dismiss_job_proposal_api_v1_admin_postings__posting_id__job_proposal_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dismiss Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Dismiss Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Job Proposal",
         "tags": [
           "admin"
         ]

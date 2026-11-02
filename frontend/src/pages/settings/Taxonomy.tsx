@@ -22,6 +22,7 @@ import {
 } from "@/api/taxonomy";
 import { api } from "@/api/client";
 import { apiDetail } from "@/api/client";
+import { fetchFamilyTree } from "@/api/jobs";
 import {
   ConfirmationModal,
   EmptyState,
@@ -41,6 +42,13 @@ import {
   TaxonomyEnrichmentCards,
   type EnrichmentRow,
 } from "@/components/settings/TaxonomyEnrichmentCards";
+import {
+  TaxonomyJobProposalCards,
+} from "@/components/settings/TaxonomyJobProposalCards";
+import {
+  fetchJobProposals,
+  type JobProposalRow,
+} from "@/api/taxonomy";
 import { categoryIcon, STATUS_GROUP_ICONS } from "@/components/settings/taxonomyIcons";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import {
@@ -138,6 +146,8 @@ export function Taxonomy() {
   const [stats, setStats] = useState<TaxonomyStats | null>(null);
   const [paths, setPaths] = useState<PathRow[]>([]);
   const [enrichment, setEnrichment] = useState<EnrichmentRow[]>([]);
+  const [jobProposals, setJobProposals] = useState<JobProposalRow[]>([]);
+  const [familyOptions, setFamilyOptions] = useState<Array<{ key: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -191,6 +201,15 @@ export function Taxonomy() {
       } else if (kind === "enrichment") {
         const { data } = await api.get<EnrichmentRow[]>("/admin/jobs/enrichment");
         setEnrichment(data);
+        setJobProposals(await fetchJobProposals());
+        try {
+          const tree = await fetchFamilyTree();
+          setFamilyOptions(
+            tree.map((family) => ({ key: family.key, label: family.label })),
+          );
+        } catch {
+          setFamilyOptions([]);
+        }
       } else if (kind === "paths") {
         const { data } = await api.get<PathRow[]>("/admin/paths", {
           params: { status: "draft" },
@@ -347,6 +366,11 @@ export function Taxonomy() {
     } catch (err) {
       setError(apiDetail(err));
     }
+  };
+
+  const reloadAfterModeration = async (noteText: string) => {
+    setNote(noteText);
+    await load();
   };
 
   const activeSkills = skills.filter((s) => s.status === "active");
@@ -575,18 +599,34 @@ export function Taxonomy() {
           <p className="mt-3 text-sm text-slate-400">{t("common.loading")}</p>
         </div>
       ) : kind === "enrichment" ? (
-        enrichment.length === 0 ? (
-          <EmptyState
-            icon={Sparkles}
-            title={t("taxonomy.noEnrichment", { defaultValue: "No enrichment proposals" })}
-            description={t("taxonomy.noEnrichmentBody", { defaultValue: "AI-generated job enrichment proposals appear here for review." })}
-          />
-        ) : (
-          <TaxonomyEnrichmentCards
-            rows={enrichment}
-            onModerate={moderateEnrichment}
-          />
-        )
+        <div className="space-y-6">
+          {enrichment.length === 0 ? (
+            <EmptyState
+              icon={Sparkles}
+              title={t("taxonomy.noEnrichment", { defaultValue: "No enrichment proposals" })}
+              description={t("taxonomy.noEnrichmentBody", { defaultValue: "AI-generated job enrichment proposals appear here for review." })}
+            />
+          ) : (
+            <TaxonomyEnrichmentCards
+              rows={enrichment}
+              onModerate={moderateEnrichment}
+            />
+          )}
+          <section className="space-y-2" data-testid="job-proposals-section">
+            <h2 className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {t("taxonomy.jobProposals.sectionTitle")}
+            </h2>
+            {jobProposals.length === 0 ? (
+              <p className="text-sm text-slate-400">{t("taxonomy.jobProposals.empty")}</p>
+            ) : (
+              <TaxonomyJobProposalCards
+                rows={jobProposals}
+                families={familyOptions}
+                onDone={reloadAfterModeration}
+              />
+            )}
+          </section>
+        </div>
       ) : kind === "paths" ? (
         paths.length === 0 ? (
           <EmptyState

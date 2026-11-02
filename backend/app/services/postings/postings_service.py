@@ -886,8 +886,7 @@ async def decide_catalog(
             )
         posting.status = "new" if posting.status == "mapped" else posting.status
 
-    facts = {**(posting.posting_facts or {})}
-    facts["mapping_signals"] = {
+    signals_payload = {
         "overlap": {
             "score": round(overlap_score, 4) if overlap_score is not None else None,
             "runner_up": round(runner_up, 4) if runner_up is not None else None,
@@ -898,6 +897,8 @@ async def decide_catalog(
             "candidates": semantic_candidates,
         },
     }
+    facts = {**(posting.posting_facts or {})}
+    facts["mapping_signals"] = signals_payload
     posting.posting_facts = facts
     flag_modified(posting, "posting_facts")
 

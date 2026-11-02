@@ -13,6 +13,17 @@ All notable changes to **Career Assistant** are documented here.
   any embedding failure degrades to the overlap-only decision. Both raw
   scores and runner-ups land in the posting's `mapping_signals` facts and
   the `retag` audit row.
+- **Unmatched postings become job proposals an admin can apply.** When
+  the join ends unmapped and the deep extract is rich enough (a kept
+  title + at least three kept skills), the posting lands in the new
+  "Job proposals" queue on the Taxonomy settings page. Applying creates
+  the catalog job published (slug deduped, skills from the extract with
+  must-have→core priority mapping), maps the posting manual and embeds
+  the new job — one transaction; dismissal clears the proposal with an
+  explicit audit trail. New admin endpoints:
+  `GET /admin/postings/job-proposals`,
+  `POST /admin/postings/{id}/job-proposal/apply`,
+  `POST /admin/postings/{id}/job-proposal/dismiss`.
 - **The deep extract re-decides the catalog mapping.** After the extract
   fills skill levels on the resolved rows, the two-signal join
   runs again before the extract commits — a job published (or embedded)

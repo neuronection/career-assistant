@@ -506,12 +506,16 @@ async def extract_posting_now(
             .scalars()
             .all()
         )
+        from app.services.postings.job_proposal_service import store_job_proposal
         from app.services.postings.postings_service import decide_catalog
 
         await decide_catalog(db, posting, skill_ids, run_id=job_id)
+        # Plan 185 S4.1 — the unmapped-and-rich residue proposes (HITL).
+        store_job_proposal(db, posting, actor_ref=actor_ref)
     await db.commit()
     return {
         "extracted": True,
         "skills": len(result.skills),
         "needs_review": posting.needs_review,
+        "catalog_method": posting.mapping_method,
     }

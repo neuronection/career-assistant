@@ -1607,6 +1607,26 @@
       "discardTitle": "Discard this proposal?",
       "discardBody": "The AI proposal is deleted and cannot be restored."
     },
+    "jobProposals": {
+      "sectionTitle": "Job proposals",
+      "empty": "Postings the catalog could not match land here as job proposals after their deep extract.",
+      "apply": "Apply",
+      "dismiss": "Dismiss",
+      "applyTitle": "Create the catalog job",
+      "applyHint": "The job is created published, the posting maps as manual and the new job is embedded — all in one step.",
+      "family": "Job family",
+      "jobTitle": "Title",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "auto from the title",
+      "applyConfirm": "Create job",
+      "appliedNote": "Catalog job {{code}} created and the posting mapped.",
+      "dismissedNote": "Proposal dismissed.",
+      "applyFailed": "Applying the proposal failed.",
+      "dismissFailed": "Dismissing the proposal failed.",
+      "dismissTitle": "Dismiss this proposal?",
+      "dismissMessage": "The proposal for “{{title}}” is cleared. A later re-extract can propose again.",
+      "signalsLabel": "Closest catalog jobs"
+    },
     "draft": "Draft"
   },
   "aiSettings": {

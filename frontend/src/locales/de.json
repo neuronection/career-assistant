@@ -1607,6 +1607,26 @@
       "discardTitle": "Diesen Vorschlag verwerfen?",
       "discardBody": "Der KI-Vorschlag wird gelöscht und kann nicht wiederhergestellt werden."
     },
+    "jobProposals": {
+      "sectionTitle": "Stellenvorschläge",
+      "empty": "Stellenanzeigen, die der Katalog nicht zuordnen konnte, erscheinen nach der Tiefenextraktion hier als Stellenvorschläge.",
+      "apply": "Übernehmen",
+      "dismiss": "Verwerfen",
+      "applyTitle": "Katalogjob anlegen",
+      "applyHint": "Der Job wird veröffentlicht angelegt, die Stellenanzeige manuell zugeordnet und der neue Job eingebettet — alles in einem Schritt.",
+      "family": "Jobfamilie",
+      "jobTitle": "Titel",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "automatisch aus dem Titel",
+      "applyConfirm": "Job anlegen",
+      "appliedNote": "Katalogjob {{code}} angelegt, die Anzeige zugeordnet.",
+      "dismissedNote": "Vorschlag verworfen.",
+      "applyFailed": "Die Übernahme des Vorschlags ist fehlgeschlagen.",
+      "dismissFailed": "Das Verwerfen des Vorschlags ist fehlgeschlagen.",
+      "dismissTitle": "Diesen Vorschlag verwerfen?",
+      "dismissMessage": "Der Vorschlag für „{{title}}“ wird gelöscht. Eine spätere Neuextraktion kann ihn erneut vorschlagen.",
+      "signalsLabel": "Nächste Katalogjobs"
+    },
     "draft": "Entwurf"
   },
   "aiSettings": {

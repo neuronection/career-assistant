@@ -56,6 +56,50 @@ export interface TaxonomyStats {
   };
 }
 
+/** A posting-sourced catalog-job proposal awaiting moderation (plan 185).
+ * The proposal is the extract-shaped dict the writer stored; the signals
+ * trace carries the join's raw scores for the apply-or-write-better
+ * decision. */
+export interface JobProposalRow {
+  id: string;
+  ref: string;
+  title: string;
+  org: string | null;
+  proposal: {
+    title_norm?: string;
+    short_description?: string;
+    skills?: Array<{
+      skill_key?: string | null;
+      raw_label?: string | null;
+      required_level?: number | null;
+      priority?: string | null;
+    }>;
+    seniority?: string | null;
+    extract_version?: number | null;
+    proposed_at?: string;
+  } | null;
+  proposed_at: string | null;
+  mapping_signals: Record<string, unknown> | null;
+  extract_version: number | null;
+}
+
+export async function fetchJobProposals(): Promise<JobProposalRow[]> {
+  const { data } = await api.get<JobProposalRow[]>("/admin/postings/job-proposals");
+  return data;
+}
+
+export async function applyJobProposal(
+  id: string,
+  payload: { family_key: string; code?: string; title?: string; short_description?: string },
+): Promise<{ job_code: string }> {
+  const { data } = await api.post(`/admin/postings/${id}/job-proposal/apply`, payload);
+  return data;
+}
+
+export async function dismissJobProposal(id: string): Promise<void> {
+  await api.post(`/admin/postings/${id}/job-proposal/dismiss`);
+}
+
 export async function fetchInterests(includeDeprecated = true): Promise<Tag[]> {
   const { data } = await api.get<Tag[]>("/taxonomy/interests", {
     params: { include_deprecated: includeDeprecated },

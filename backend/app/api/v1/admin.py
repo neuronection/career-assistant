@@ -1402,6 +1402,95 @@ async def manual_map_posting(
     }
 
 
+class JobProposalApplyIn(BaseModel):
+    family_key: str
+    code: str | None = None
+    title: str | None = None
+    short_description: str | None = None
+
+
+@router.get("/postings/job-proposals")
+async def job_proposal_queue(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> list[dict]:
+    """Postings whose catalog join ended unmapped with a rich extract —
+    the HITL "create the job" queue (plan 185), enrichment-queue shaped:
+    the proposal plus the join's signals trace (the admin's "apply or
+    write a better job" context)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    rows = await JobProposalService(db).pending(limit=limit)
+    return [
+        {
+            "id": str(p.id),
+            "ref": p.ref,
+            "title": p.title,
+            "org": p.org,
+            "proposal": (p.posting_facts or {}).get("job_proposal"),
+            "proposed_at": (p.posting_facts or {}).get("job_proposal", {}).get("proposed_at")
+            if isinstance((p.posting_facts or {}).get("job_proposal"), dict)
+            else None,
+            "mapping_signals": (p.posting_facts or {}).get("mapping_signals"),
+            "extract_version": p.extract_version,
+        }
+        for p in rows
+    ]
+
+
+@router.post("/postings/{posting_id}/job-proposal/apply")
+async def apply_job_proposal(
+    posting_id: uuid.UUID,
+    payload: JobProposalApplyIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Create the published catalog job from the proposal's extract, map
+    the posting MANUAL, clear the proposal and embed the new job — one
+    transaction (a mid-apply failure leaves no job row)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        job = await service.apply(
+            posting,
+            family_key=payload.family_key,
+            code=payload.code,
+            title=payload.title,
+            short_description=payload.short_description,
+            user=user,
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {
+        "id": str(posting.id),
+        "job_id": str(job.id),
+        "job_code": job.code,
+        "mapping_method": posting.mapping_method,
+        "status": posting.status,
+    }
+
+
+@router.post("/postings/{posting_id}/job-proposal/dismiss")
+async def dismiss_job_proposal(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Discard the proposal: explicit JSON null + the audit timestamp."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        await service.dismiss(posting, user=user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(posting.id), "dismissed": True}
+
+
 @router.get("/postings")
 async def admin_list_postings(
     needs_review: bool | None = None,
