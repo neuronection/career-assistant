@@ -30011,7 +30011,7 @@
     },
     "/api/v1/ai/embeddings/recompute": {
       "post": {
-        "description": "Embed stale/un-embedded postings.\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel.",
+        "description": "Embed stale/un-embedded entities of one served kind.\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel. An unconfigured\nembed provider degrades the skill kind to a no-op result, never an\nerror.",
         "operationId": "recompute_embeddings_api_v1_ai_embeddings_recompute_post",
         "parameters": [
           {
@@ -30022,6 +30022,16 @@
               "default": 50,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "posting",
+              "title": "Kind",
+              "type": "string"
             }
           }
         ],
