@@ -15,7 +15,11 @@ bounded queued/running twins of the same type, the cap is 200 requeues
 per confirmed action with the overflow reported, payload-ignoring global
 sweeps collapse to ONE requeue per window, and a single bulk action runs
 at a time via an ``app_settings`` guard row flipped by conditional UPDATE
-(rowcount arbitrates — the queue's own claim pattern, dialect-safe).
+(rowcount arbitrates — the queue's own claim pattern, dialect-safe); the
+claim carries its timestamp and a claim older than ``LOCK_STALE_SECONDS``
+is re-claimed by the same UPDATE, so a guard stranded by a mid-requeue
+failure (the session is in pending-rollback state and the ``finally``
+release cannot commit) never blocks a later requeue forever.
 """
 
 from __future__ import annotations
@@ -23,10 +27,10 @@ from __future__ import annotations
 import uuid
 from collections import Counter
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import ColumnElement, func, select, update
+from sqlalchemy import ColumnElement, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,6 +43,7 @@ CAP = 200
 SCAN_LIMIT = 1000
 ERROR_FAMILY_MAX = 80
 LOCK_KEY = "background_jobs.reprocess_lock"
+LOCK_STALE_SECONDS = 600
 
 FULL_RERUN_TYPES = frozenset({"autopilot_run", "digest", "radar_digest", "smart_digest"})
 SWEEP_TYPES = frozenset(
@@ -256,13 +261,20 @@ class JobReprocessService:
 
     def _lock_free_clause(self) -> ColumnElement[bool]:
         """The guard row is free when its ``locked`` JSON value is null or
-        absent — tested by TYPE, never by key presence (both dialects)."""
+        absent — tested by TYPE, never by key presence (both dialects) —
+        or when the claim went stale: a claim older than
+        ``LOCK_STALE_SECONDS`` is a stranded release (a failure after a
+        bad flush leaves the session in pending-rollback state, so the
+        ``finally`` release UPDATE cannot commit) and is re-claimed by
+        this very UPDATE."""
         value_col = AppSetting.__table__.c["value"]
         if self.db.get_bind().dialect.name == "postgresql":
             kind = func.jsonb_typeof(value_col.op("->")("locked"))
         else:
             kind = func.json_type(value_col, "$.locked")
-        return func.coalesce(kind, "null") == "null"
+        free = func.coalesce(kind, "null") == "null"
+        stale = AppSetting.updated_at < _utcnow() - timedelta(seconds=LOCK_STALE_SECONDS)
+        return or_(free, stale)
 
     async def _acquire_lock(self) -> None:
         existing = (
@@ -274,10 +286,18 @@ class JobReprocessService:
                 await self.db.commit()
             except IntegrityError:
                 await self.db.rollback()
+        claim_at = _utcnow()
         claim = await self.db.execute(
             update(AppSetting)
             .where(AppSetting.key == LOCK_KEY, self._lock_free_clause())
-            .values(value={"locked": True, "action": uuid.uuid4().hex}, updated_at=_utcnow())
+            .values(
+                value={
+                    "locked": True,
+                    "claimed_at": claim_at.isoformat(),
+                    "action": uuid.uuid4().hex,
+                },
+                updated_at=claim_at,
+            )
         )
         await self.db.commit()
         if claim.rowcount == 0:  # type: ignore[attr-defined]

@@ -557,7 +557,12 @@ When a connection/credit outage fails a window of AI jobs terminally
   queued/running twins of the same type; the cap is 200 requeues per
   confirmed action (`skipped_cap` reports the overflow); one bulk action at
   a time via an `app_settings` guard row flipped by conditional UPDATE
-  (rowcount arbitrates — the queue's own claim pattern, dialect-safe).
+  (rowcount arbitrates — the queue's own claim pattern, dialect-safe); the
+  claim carries its timestamp and a claim older than 10 minutes
+  (`LOCK_STALE_SECONDS`) is re-claimed by the same UPDATE, so a guard
+  stranded by a mid-requeue failure (the session is in pending-rollback
+  state and the `finally` release cannot commit) cannot block a later
+  requeue forever.
 - **Type-class policy:** payload-driven types (posting_extract,
   detail_enrichment, cv_*, autopilot_run, radars/digests) requeue per job —
   the preview labels `autopilot_run` and the digest family as FULL re-runs

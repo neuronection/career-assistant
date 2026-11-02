@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from app.models.background_job_model import BackgroundJob
 from app.models.settings_model import AppSetting
-from app.services.job_reprocess_service import LOCK_KEY, SCAN_LIMIT
+from app.services.job_reprocess_service import LOCK_KEY, LOCK_STALE_SECONDS, SCAN_LIMIT
 from tests.conftest import decode_session_token, session_headers
 
 
@@ -278,6 +278,43 @@ async def test_singleton_guard_rejects_a_second_action(db, client, _admin_and_us
         headers=admin,
     )
     assert third.status_code == 200
+
+
+async def test_stranded_stale_guard_does_not_block_a_new_requeue(db, client, _admin_and_user):
+    admin, _ = _admin_and_user
+    db.add(_failed(payload={"n": 1}, error="worker died mid-flight"))
+    stranded_at = datetime.now(UTC) - timedelta(seconds=LOCK_STALE_SECONDS + 60)
+    db.add(
+        AppSetting(
+            key=LOCK_KEY,
+            value={"locked": True, "claimed_at": stranded_at.isoformat(), "action": "stranded"},
+            updated_at=stranded_at,
+        )
+    )
+    await db.flush()
+
+    requeued = await client.post(
+        "/api/v1/admin/audit/jobs/requeue",
+        json={"job_type": "posting_extract", "window": "24h", "confirm": True},
+        headers=admin,
+    )
+    assert requeued.status_code == 200
+    assert requeued.json()["requeued"] == 1
+
+    guard = (await db.execute(select(AppSetting).where(AppSetting.key == LOCK_KEY))).scalar_one()
+    assert guard.value["locked"] is None
+
+    guard.value = {"locked": True, "claimed_at": datetime.now(UTC).isoformat()}
+    guard.updated_at = datetime.now(UTC)
+    await db.flush()
+
+    blocked = await client.post(
+        "/api/v1/admin/audit/jobs/requeue",
+        json={"job_type": "posting_extract", "window": "24h", "confirm": True},
+        headers=admin,
+    )
+    assert blocked.status_code == 400
+    assert "already running" in blocked.json()["detail"]
 
 
 async def test_truncation_signal_at_the_scan_bound(db, client, _admin_and_user):
