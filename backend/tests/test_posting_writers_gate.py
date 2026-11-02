@@ -33,6 +33,7 @@ MANIFEST: dict[str, dict[str, str]] = {
     "postings_service": {
         "upsert_posting": "sync_run",
         "map_posting": "retag",
+        "decide_catalog": "retag",
         "expire_stale": "expiry",
     },
     "extract_service": {

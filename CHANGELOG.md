@@ -5,6 +5,14 @@ All notable changes to **Career Assistant** are documented here.
 ## [Unreleased]
 
 ### Added (hybrid catalog mapping, 2026-11-02)
+- **The catalog decision is now a join of two signals.** A posting still
+  maps by weighted skill overlap first (unchanged verdicts), but when the
+  overlap misses, a semantic cosine ranking against the embedded catalog
+  jobs can rescue the map — only with a similarity ≥ 0.6 AND at least one
+  resolved skill shared with the job; draft jobs are never candidates and
+  any embedding failure degrades to the overlap-only decision. Both raw
+  scores and runner-ups land in the posting's `mapping_signals` facts and
+  the `retag` audit row.
 - **Catalog jobs are now embedded.** The admin embeddings pass gained a
   kind: `POST /admin/embeddings/recompute?kind=job` embeds every
   published catalog job (title, short description and its skill
