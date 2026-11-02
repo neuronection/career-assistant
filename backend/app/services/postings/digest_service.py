@@ -275,9 +275,9 @@ async def run_saved_search(db: AsyncSession, payload: dict) -> dict:
         from sqlalchemy import and_
 
         query = query.where(and_(*conditions))
-    rows = (await db.execute(query)).all()
+    match_rows = (await db.execute(query)).all()
     new_matches = 0
-    for _posting, interaction in rows:
+    for _posting, interaction in match_rows:
         if interaction is None or interaction.seen_at is None:
             new_matches += 1
 

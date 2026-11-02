@@ -15,12 +15,14 @@ import hashlib
 import json
 import re
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import TypeGuard, cast
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import Table, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.enums import CareerStage, EducationLevel, EducationLevelOrder, PostingSkillPriority
@@ -80,10 +82,14 @@ async def _user_skills(db: AsyncSession, user_id: UUID) -> dict[UUID, int]:
     return dict(rows.all())
 
 
-def _skills_dimension(links: list[PostingSkill], user_levels: dict[UUID, int]) -> dict:
+def _skills_dimension(links: Sequence[PostingSkill], user_levels: dict[UUID, int]) -> dict:
     """`min(user, required) / required`, priority-weighted; fully-unmet
     must-haves cap the score (the curve, sharpened by levels)."""
-    live = [link for link in links if link.required_level is not None]
+    live = [
+        (link, required_level)
+        for link in links
+        if (required_level := link.required_level) is not None
+    ]
     if not live:
         return {
             "score": 7.0,
@@ -94,7 +100,7 @@ def _skills_dimension(links: list[PostingSkill], user_levels: dict[UUID, int]) -
     covered = 0.0
     must_unmet = 0
     must_partial = 0
-    for link in live:
+    for link, required_level in live:
         weight = PRIORITY_WEIGHT.get(link.priority or "", 1.0)
         total_weight += weight
         level = user_levels.get(link.skill_id)
@@ -102,7 +108,7 @@ def _skills_dimension(links: list[PostingSkill], user_levels: dict[UUID, int]) -
             if link.priority == PostingSkillPriority.MUST_HAVE.value:
                 must_unmet += 1
             continue
-        ratio = min(level, link.required_level) / max(1, link.required_level)
+        ratio = min(level, required_level) / max(1, required_level)
         covered += weight * ratio
         if link.priority == PostingSkillPriority.MUST_HAVE.value:
             if ratio <= 0:
@@ -629,7 +635,7 @@ def _expected_hash(user_id: UUID, posting: JobPosting, context: dict) -> str:
     )
 
 
-def _cache_is_fresh(cached: PostingFit | None, inputs_hash: str) -> bool:
+def _cache_is_fresh(cached: PostingFit | None, inputs_hash: str) -> TypeGuard[PostingFit]:
     return (
         cached is not None
         and cached.inputs_hash == inputs_hash
@@ -743,9 +749,9 @@ async def _write_fit_rows(db: AsyncSession, rows: list[dict]) -> None:
         return
     from sqlalchemy.dialects import postgresql, sqlite
 
-    table = PostingFit.__table__
+    table = cast("Table", PostingFit.__table__)
     if db.get_bind().dialect.name == "sqlite":
-        statement = sqlite.insert(table).values(rows)
+        statement: sqlite.Insert | postgresql.Insert = sqlite.insert(table).values(rows)
     else:
         statement = postgresql.insert(table).values(rows)
     updated = {
@@ -872,7 +878,7 @@ async def sweep_posting_fits(
     from app.models.user_model import Profile
 
     if user_id is not None:
-        user_ids = [user_id]
+        user_ids: Sequence[UUID] = [user_id]
     else:
         user_ids = (await db.execute(select(Profile.user_id).distinct())).scalars().all()
     cutoff = _utcnow() - older_than
@@ -900,7 +906,7 @@ async def sweep_posting_fits(
                 .scalars()
                 .all()
             )
-            missing_ids: list[UUID] = []
+            missing_ids: Sequence[UUID] = []
             if len(stale_ids) < batch_limit:
                 missing_ids = (
                     (

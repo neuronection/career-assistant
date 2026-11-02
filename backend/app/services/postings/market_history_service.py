@@ -6,6 +6,7 @@ scope per day: re-running upserts today's row.
 """
 
 from datetime import UTC, date, datetime
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -76,7 +77,7 @@ async def capture_scope(
     return row
 
 
-async def scopes_with_data(db: AsyncSession) -> list[tuple[str, object]]:
+async def scopes_with_data(db: AsyncSession) -> list[tuple[str, str | UUID]]:
     """Every family key / job id that has live postings to snapshot."""
     from app.models.job_model import Job, JobFamily
     from app.models.posting_model import JobPosting
@@ -89,7 +90,7 @@ async def scopes_with_data(db: AsyncSession) -> list[tuple[str, object]]:
         .group_by(JobFamily.key, Job.id)
     )
     seen_families: set[str] = set()
-    scopes: list[tuple[str, object]] = []
+    scopes: list[tuple[str, str | UUID]] = []
     for family_key, job_id in rows.all():
         if family_key not in seen_families:
             seen_families.add(family_key)
@@ -104,9 +105,9 @@ async def capture_all(db: AsyncSession, *, limit: int = 500) -> int:
     done = 0
     for kind, value in scopes:
         if kind == "family":
-            await capture_scope(db, family_key=value)
+            await capture_scope(db, family_key=cast(str, value))
         else:
-            await capture_scope(db, job_id=value)
+            await capture_scope(db, job_id=cast(UUID, value))
         done += 1
     return done
 

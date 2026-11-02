@@ -1082,6 +1082,7 @@ async def _ranked_page(
 def _sort_key(entry: dict, sort: str) -> tuple[Any, UUID]:
     """Total order per sort: (key, id) with the id as stable tiebreak."""
     posting = entry["posting"]
+    key: Any
     if sort == "salary":
         normalized = (
             posting.salary_normalized_max
@@ -1461,9 +1462,9 @@ async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5
         )
     )
     shared: dict[UUID, set] = {}
-    for other, skill_id in rows.all():
+    for other_posting, skill_id in rows.all():
         if skill_id is not None:
-            shared.setdefault(other.id, set()).add(skill_id)
+            shared.setdefault(other_posting.id, set()).add(skill_id)
     jaccard: dict[UUID, float] = {}
     for other_id, skills in shared.items():
         union = mine | skills
@@ -1474,8 +1475,8 @@ async def similar_postings(db: AsyncSession, posting: JobPosting, limit: int = 5
 
     ordered = sorted(jaccard.items(), key=lambda kv: -kv[1])[: limit * 2]
     ids = [posting_id for posting_id, _ in ordered]
-    rows = await db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
-    by_id = {p.id: p for p in rows.scalars().all()}
+    posting_rows = await db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
+    by_id = {p.id: p for p in posting_rows.scalars().all()}
     results = []
     for posting_id, score in ordered:
         other = by_id.get(posting_id)

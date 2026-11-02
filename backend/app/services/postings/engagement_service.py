@@ -7,7 +7,7 @@ unified fan-out stack while keeping these rule/trigger semantics.
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -33,7 +33,7 @@ SEARCH_CAP = 200
 DEDUP_TTL_DAYS = 7
 SCORE_CHANGE_STEP = 0.5
 
-DEFAULT_RULE_PARAMS = {
+DEFAULT_RULE_PARAMS: dict[NotificationRuleKind, dict[str, Any]] = {
     NotificationRuleKind.FIT_THRESHOLD: {"min_fit": 7.0, "max_per_day": 5},
     NotificationRuleKind.NEW_IN_FAMILY: {"max_per_day": 5},
     NotificationRuleKind.NEW_POSTING_MATCH: {"min_fit": 7.0, "max_per_day": 5},
@@ -105,7 +105,7 @@ class EngagementService:
         Passing a `name` promotes the row to a named preset (and therefore
         saves it); names are unique per user among saved searches.
         """
-        scope = scope.value if isinstance(scope, SearchScope) else str(scope)
+        scope_value = scope.value if isinstance(scope, SearchScope) else str(scope)
         query = query.strip()
         clean_name = self._clean_name(name)
         filters_hash = canonical_hash(filters)
@@ -114,7 +114,7 @@ class EngagementService:
             select(SearchHistory)
             .where(
                 SearchHistory.user_id == user_id,
-                SearchHistory.scope == scope,
+                SearchHistory.scope == scope_value,
                 SearchHistory.query == query,
                 SearchHistory.filters_hash == filters_hash,
                 SearchHistory.created_at >= window_start,
@@ -128,7 +128,7 @@ class EngagementService:
         else:
             row = SearchHistory(
                 user_id=user_id,
-                scope=scope,
+                scope=scope_value,
                 query=query,
                 filters=filters,
                 filters_hash=filters_hash,
@@ -362,7 +362,7 @@ class EngagementService:
             # the loser adopts the DB-side winner instead of 500ing.
             await insert_insight_if_absent(self.db, user_id, job_id)
             insight = await self._select_insight(user_id, job_id)
-        return insight
+        return cast(MatchInsight, insight)
 
     async def mark_seen(self, user_id: UUID, job_ids: list[UUID]) -> int:
         """Batch impression marking; insight rows are lazily created."""

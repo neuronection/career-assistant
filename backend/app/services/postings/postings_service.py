@@ -11,7 +11,7 @@ import hashlib
 import json
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
@@ -685,7 +685,11 @@ async def map_posting(
     for skill_id in inferred.values():
         skills.setdefault(skill_id, (PostingEvidence.INFERRED.value, confidence_ai))
 
-    await db.execute(PostingSkill.__table__.delete().where(PostingSkill.posting_id == posting.id))
+    await db.execute(
+        PostingSkill.__table__.delete().where(  # type: ignore[attr-defined]
+            PostingSkill.posting_id == posting.id
+        )
+    )
     for skill_id, (evidence, confidence) in skills.items():
         db.add(
             PostingSkill(
@@ -780,7 +784,7 @@ async def _best_catalog_job(
     from app.services.postings.fit.dimensions import IMPORTANCE_WEIGHT
 
     rows = await db.execute(select(Job, JobSkill).join(JobSkill, JobSkill.job_id == Job.id))
-    scored: dict[UUID, tuple[float, float, Job]] = {}
+    scored: dict[UUID, list] = {}
     for job, link in rows:
         weight = IMPORTANCE_WEIGHT.get(link.importance, 1.0) * (min(link.required_level, 10) / 10.0)
         entry = scored.setdefault(job.id, [0.0, 0.0, job])
@@ -948,7 +952,7 @@ async def list_postings(
         query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
-    items = []
+    items: list[dict[str, Any]] = []
     unseen = 0
     for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
@@ -1111,8 +1115,8 @@ async def search_postings(
     normalized: list[tuple[str, int | None]] = []
     for key, lvl in entries:
         normalized.append((_norm(key), lvl))
-    rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
-    by_key = {skill.key: skill for skill in rows.scalars().all()}
+    skill_rows = await db.execute(select(Skill).where(Skill.key.in_([k for k, _ in normalized])))
+    by_key = {skill.key: skill for skill in skill_rows.scalars().all()}
     unknown = [
         orig for (orig, _), (key, _) in zip(entries, normalized, strict=False) if key not in by_key
     ]
@@ -1189,7 +1193,7 @@ async def search_postings(
         query = query.where(JobPosting.org_id.is_(None), JobPosting.org_match_state == no_company)
     rows = (await db.execute(query.order_by(JobPosting.posted_at.desc()))).all()
 
-    items = []
+    items: list[dict[str, Any]] = []
     unseen = 0
     for posting, interaction, application in rows:
         seen = interaction is not None and interaction.seen_at is not None
@@ -1254,7 +1258,11 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
     from app.models.user_model import UserSkill
 
     rows = await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id))
-    links = [link for link in rows.scalars().all() if link.required_level is not None]
+    links = [
+        (link, required_level)
+        for link in rows.scalars().all()
+        if (required_level := link.required_level) is not None
+    ]
     if not links:
         return 0.0
     level_rows = await db.execute(
@@ -1268,7 +1276,7 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
     covered = 0.0
     must_unmet = 0
     must_partial = 0
-    for link in links:
+    for link, required_level in links:
         weight = PRIORITY_WEIGHT.get(link.priority or "", 1.0)
         total_weight += weight
         level = user_levels.get(link.skill_id)
@@ -1276,7 +1284,7 @@ async def profile_coverage(db: AsyncSession, user_id: UUID, posting: JobPosting)
             if link.priority == PostingSkillPriority.MUST_HAVE.value:
                 must_unmet += 1
             continue
-        ratio = min(level, link.required_level) / max(1, link.required_level)
+        ratio = min(level, required_level) / max(1, required_level)
         covered += weight * ratio
         if link.priority == PostingSkillPriority.MUST_HAVE.value:
             if ratio <= 0:
@@ -1528,7 +1536,7 @@ async def run_sync_job(db: AsyncSession, payload: dict, *, job_id=None) -> dict:
             .scalars()
             .all()
         )
-    totals = {"synced": 0, "sources": len(sources), "errors": []}
+    totals: dict[str, Any] = {"synced": 0, "sources": len(sources), "errors": []}
     trigger = str(payload.get("trigger") or ("manual" if source_id else "scheduled"))
     for source in sources:
         result = await sync_source(db, source, trigger=trigger)

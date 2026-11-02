@@ -16,9 +16,6 @@ from app.models.posting_model import JobPosting
 from app.services.analytics.time_buckets import effective_posted_expr
 from app.services.postings.filter_spec import PostingFilterSpec
 
-_TRUE = func.coalesce(  # a tautology for empty clauses
-)
-
 
 def _ilike_any(column: ColumnElement, values: list[str]) -> ColumnElement | None:
     if not values:
@@ -32,7 +29,7 @@ def _ilike_none(column: ColumnElement, values: list[str]) -> ColumnElement | Non
     return and_(*[~column.ilike(f"%{value}%") for value in values])
 
 
-def _include_exclude(column: ColumnElement, spec: Any) -> list[ColumnElement]:
+def _include_exclude(column: Any, spec: Any) -> list[ColumnElement]:
     clauses: list[ColumnElement] = []
     if spec.include:
         clauses.append(or_(*[column == v for v in spec.include]))

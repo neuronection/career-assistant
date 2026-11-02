@@ -167,8 +167,8 @@ async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
             continue
 
         if rule.milestone_checkins and application.stage in MILESTONE_STAGES:
-            step = f"stage:{application.stage}"
-            if step not in sent:
+            milestone_step = f"stage:{application.stage}"
+            if milestone_step not in sent:
                 title, body = _milestone_copy(application.stage, "{role}")
                 emitted += (
                     1
@@ -176,7 +176,7 @@ async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
                         notifications,
                         application,
                         posting,
-                        step=step,
+                        step=milestone_step,
                         title=title,
                         body=body,
                     )
@@ -185,7 +185,6 @@ async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
             await application_service.set_followup_at(application.user_id, application.id, None)
             continue
 
-        step = None
         for days in normalize_cadence(rule.cadence_days):
             candidate = f"cadence:{days}"
             due = applied_at + timedelta(days=days)
@@ -208,7 +207,7 @@ async def sweep(db: AsyncSession, now: datetime | None = None) -> int:
                     else 0
                 )
                 continue
-            step, next_due = candidate, due
+            next_due = due
             break
 
         await application_service.set_followup_at(application.user_id, application.id, next_due)
