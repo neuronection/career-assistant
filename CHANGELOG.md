@@ -129,7 +129,7 @@ All notable changes to **Career Assistant** are documented here.
   Draft jobs never embed; the `/admin/embeddings/status` buckets show
   the new `job` kind alongside the existing ones. This is the substrate
   for the semantic catalog mapping above.
->>>>>>> main
+
 ### Added (sources list country lens, 2026-11-02)
 - **Your integrations, organized by country.** The job-sources list
   gained the same country lens as the preset gallery: multi-select chips
