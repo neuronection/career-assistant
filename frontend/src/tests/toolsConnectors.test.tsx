@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { SourcesSection } from "@/components/settings/SourcesSection";
@@ -94,7 +94,13 @@ const catalog = [
       },
       required: ["provider", "org"],
     },
-    manifest: { id: "career-ats-api", capabilities: ["net", "sync"], supportsIncremental: true, docs: "connectors/ats" },
+    manifest: {
+      id: "career-ats-api",
+      description: "Ingest a Greenhouse-style public board.",
+      capabilities: ["net", "sync"],
+      supportsIncremental: true,
+      docs: "connectors/ats",
+    },
   },
 ];
 
@@ -208,6 +214,18 @@ describe("SourcesSection job sources", () => {
       );
     });
     expect(sourcesApi.probeSource).toHaveBeenCalledWith("src-1");
+  });
+
+  it("renders the connector description on the setup tiles", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    const { userEvent } = await import("@testing-library/user-event");
+    renderSection();
+
+    await userEvent.click(await screen.findByTestId("add-job-source"));
+    await userEvent.click(await screen.findByTestId("preset-custom"));
+    const tile = await screen.findByTestId("source-tile-ats_api");
+    expect(tile.textContent).toContain("Ingest a Greenhouse-style public board");
   });
 
   it("opens a kit config form with a password field for x-secret slots", async () => {
@@ -443,6 +461,30 @@ describe("SourcesSection job sources", () => {
         .mock.calls.filter(([, payload]) => (payload as { paused?: boolean }).paused === true);
       expect(pausedCalls.length).toBe(pausedBefore + 2);
     });
+  });
+
+  it("shows the preset logo (monogram fallback) for preset-created sources", async () => {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([
+      {
+        id: "src-ballys",
+        key: "ballysintralotsa",
+        connector_key: "recruitee",
+        config: { company: "ballysintralotsa" },
+        secret_hints: {},
+        enabled: true,
+        last_run_at: null,
+        sync_state: {},
+        error: "",
+      },
+    ] as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    renderSection();
+
+    const card = await screen.findByTestId("integration-instance-src-ballys");
+    const logo = card.querySelector("img");
+    expect(logo?.getAttribute("src")).toBe("/presets/ballysintralotsa.svg");
+    fireEvent.error(logo!);
+    expect(screen.getByText("BI")).toBeTruthy();
   });
 
   it("shows a health strip (active count + failing badge) over the rows", async () => {

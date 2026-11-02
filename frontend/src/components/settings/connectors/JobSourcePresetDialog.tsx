@@ -14,7 +14,7 @@ import {
   SearchInput,
   SegmentedTabs,
 } from "@/components/ui";
-import { OrgAvatar } from "@/components/company/OrgAvatar";
+import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
 import {
   JOB_SOURCE_PRESETS,
   presetGroups,
@@ -32,22 +32,6 @@ import {
  */
 
 type Filter = "all" | JobSourcePresetCategory;
-
-function PresetLogo({ preset }: { preset: JobSourcePreset }) {
-  const [failed, setFailed] = useState(false);
-  if (preset.logo && !failed) {
-    return (
-      <img
-        src={preset.logo}
-        alt=""
-        loading="lazy"
-        className="size-10 shrink-0 rounded-lg object-contain"
-        onError={() => setFailed(true)}
-      />
-    );
-  }
-  return <OrgAvatar name={preset.name} size={40} className="rounded-lg" />;
-}
 
 export interface PresetAddOutcome {
   preset: JobSourcePreset;
@@ -231,6 +215,21 @@ export function JobSourcePresetDialog({
                           </span>
                           <span className="mt-0.5 block truncate text-xs text-[var(--as-muted-fg)]">
                             {preset.provider} · {country ? `${country.flag} ${countryName(preset.country)}` : countryName()}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[11px] text-[var(--as-muted-fg)]">
+                            {typeof preset.openings === "number"
+                              ? t("toolsSettings.connectors.presets.openings", {
+                                  count: preset.openings,
+                                })
+                              : null}
+                            {preset.verifiedAt
+                              ? ` · ${t("toolsSettings.connectors.presets.verified", {
+                                  date: new Date(preset.verifiedAt).toLocaleDateString(language, {
+                                    month: "short",
+                                    year: "numeric",
+                                  }),
+                                })}`
+                              : null}
                           </span>
                         </span>
                         {added ? (

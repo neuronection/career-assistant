@@ -4,6 +4,18 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (preset freshness + tile parity, 2026-11-02)
+- Preset cards now carry **freshness signals**: a live-verified openings
+  count and the verification date per tenant (all 17 ATS tenants
+  re-probed on 2026-11-02 — ~530 open roles across the catalog), rendered
+  as muted meta on every card; remote boards show Worldwide + verified.
+- The wizard's connector tiles match the preset-card grammar and show the
+  connector's own description.
+- Sources created from presets keep their identity: the list card and the
+  source page header show the preset logo (monogram until artwork is
+  dropped into `public/presets/<slug>.svg`), and the source page header
+  prefers the display title.
+
 ### Fixed (ATS integration honesty wave, 2026-11-01)
 - **Remotive sources can finally sync.** Remotive's robots.txt disallows
   its JSON API (`Disallow: /api/*`), so every Remotive sync died with

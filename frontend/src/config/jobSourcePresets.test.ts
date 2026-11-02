@@ -40,6 +40,18 @@ describe("job-source preset catalog", () => {
     }
   });
 
+  it("keeps freshness signals honest: dated verification, int openings", () => {
+    for (const preset of JOB_SOURCE_PRESETS) {
+      expect(preset.verifiedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      if (preset.category === "ats") {
+        expect(typeof preset.openings).toBe("number");
+        expect(preset.openings as number).toBeGreaterThanOrEqual(0);
+      }
+    }
+    const remote = JOB_SOURCE_PRESETS.filter((preset) => preset.category === "remote");
+    expect(remote.length).toBeGreaterThan(0);
+  });
+
   it("groups in first-seen provider order and keeps every preset", () => {
     const groups = presetGroups(JOB_SOURCE_PRESETS);
     expect(groups.map((group) => group.provider)).toEqual([

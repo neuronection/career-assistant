@@ -20,7 +20,11 @@ import { QueryPlanDialog } from "@/components/settings/QueryPlanDialog";
 import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesSection";
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
 import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
-import type { JobSourcePreset } from "@/config/jobSourcePresets";
+import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
+import {
+  JOB_SOURCE_PRESETS,
+  type JobSourcePreset,
+} from "@/config/jobSourcePresets";
 import * as sourcesApi from "@/api/sources";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
@@ -108,6 +112,7 @@ function JobSourceCard({
   const isPosting = (source.kind || "posting") === "posting";
   const lastSuccess = shortTime(source.last_run_at);
   const Icon = source.kind === "market" ? Globe : Radar;
+  const preset = JOB_SOURCE_PRESETS.find((entry) => entry.slug === source.key);
 
   return (
     <ItemCardShell
@@ -194,12 +199,18 @@ function JobSourceCard({
       }
     >
       <div className="flex min-w-0 flex-1 items-start gap-2.5">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-primary)_10%,var(--as-surface-raised))] text-[var(--as-primary)]"
-          aria-hidden
-        >
-          <Icon className="h-4 w-4" />
-        </span>
+        {preset ? (
+          <span className="shrink-0" aria-hidden>
+            <PresetLogo preset={preset} size={32} />
+          </span>
+        ) : (
+          <span
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--as-primary)_10%,var(--as-surface-raised))] text-[var(--as-primary)]"
+            aria-hidden
+          >
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
         <div className="min-w-0 flex-1 space-y-1.5">
           <button
             type="button"
