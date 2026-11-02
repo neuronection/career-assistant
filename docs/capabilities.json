@@ -178,7 +178,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted into auditable data; employer names resolve to one company with reviewable near-misses; skill filters expand.",
+      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted into auditable data; employer names resolve to one company; card values open a click/right-click filter menu (undo).",
       "category": "integrate",
       "status": "beta",
       "links": [

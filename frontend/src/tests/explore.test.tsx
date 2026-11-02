@@ -6,6 +6,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { Explore } from "@/features/catalog/pages/Explore";
 import { resetExploreListCache } from "@/features/catalog/exploreListCache";
 import { explorePostings, smartSearch } from "@/api/postings";
+import { fetchRadar, previewRadar } from "@/api/radar";
 import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
 import type { ExploreResponse } from "@/types/wire";
@@ -22,6 +23,11 @@ vi.mock("@/api/postings", async (importOriginal) => {
     ]),
   };
 });
+
+vi.mock("@/api/radar", () => ({
+  fetchRadar: vi.fn(),
+  previewRadar: vi.fn(),
+}));
 
 vi.mock("@/api/companies", () => ({
   fetchCompanies: vi.fn().mockResolvedValue([
@@ -119,6 +125,8 @@ const mockExplore = vi.mocked(explorePostings);
 const mockSmartSearch = vi.mocked(smartSearch);
 const mockRecord = vi.mocked(recordSearch);
 const mockCompanies = vi.mocked(fetchCompanies);
+const mockFetchRadar = vi.mocked(fetchRadar);
+const mockPreviewRadar = vi.mocked(previewRadar);
 
 async function pickFromPlaceholder(placeholder: string, query: string, optionName: RegExp | string) {
   const input = screen.getByPlaceholderText(placeholder);
@@ -614,6 +622,61 @@ describe("Explore page", () => {
       expect(screen.getByTestId("location-search").textContent).toBe("")
     );
     expect(screen.getByTestId("seen-exclude")).not.toBeChecked();
+  });
+
+  it("excludes from the card entity menu, refetches and offers undo", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+        <LocationProbe />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("explore");
+    await screen.findByTestId("posting-title");
+
+    await user.click(screen.getByText("ACME"));
+    await user.click(await screen.findByRole("menuitem", { name: /Exclude “ACME”/ }));
+    await waitFor(() => {
+      const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(call.org_exclude).toEqual(["ACME"]);
+      expect(screen.getByTestId("location-search").textContent).toContain("org_exclude=ACME");
+    });
+    const undo = await screen.findByTestId("explore-undo-exclude");
+    expect(undo).toHaveTextContent(/Excluded/);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Undo" }));
+    await waitFor(() => {
+      const call = mockExplore.mock.calls[mockExplore.mock.calls.length - 1][0];
+      expect(call.org_exclude).toBeUndefined();
+    });
+    expect(screen.queryByTestId("explore-undo-exclude")).not.toBeInTheDocument();
+  });
+
+  it("hides the card entity menu while the radar preview is active", async () => {
+    mockFetchRadar.mockResolvedValue({
+      keywords: ["data"],
+      locations: ["Athens"],
+      onsite_policy: null,
+      salary_min_annual: null,
+      salary_currency: null,
+      seniority: [],
+      source_keys: [],
+      cadence: "off",
+      enabled: true,
+    } as never);
+    mockPreviewRadar.mockResolvedValue(exploreResponse());
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    await screen.findByTestId("posting-title");
+    await user.click(screen.getByTestId("radar-apply"));
+    await screen.findByTestId("radar-clear");
+    fireEvent.contextMenu(screen.getByText("ACME"));
+    expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
   });
 });
 

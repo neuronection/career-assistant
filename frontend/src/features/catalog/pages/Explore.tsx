@@ -12,6 +12,7 @@ import { PostingCard } from "@/features/postings/components/PostingCard";
 import { PostingsStatsRail } from "@/components/stats/StatsRail";
 import { PresetBar } from "@/features/postings/components/postings/PresetBar";
 import { EmptyState, SearchableDropdown, Spinner } from "@/components/ui";
+import { UndoNotice } from "@neuronection/assistant-ui";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { isListReturn, rememberListSearch } from "@/lib/listReturn";
 import {
@@ -25,6 +26,12 @@ import { SkillPicker } from "@/features/postings/components/postings/SkillPicker
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
+import {
+  applyCardFilter,
+  filterStateOf,
+  type CardFilterApi,
+  type CardFilterTarget,
+} from "@/features/postings/components/postings/cardFilterMenu";
 import {
   CONTRACT_VALUES,
   POSTED_WINDOWS,
@@ -152,6 +159,31 @@ export function Explore() {
     },
     [filters, setSearchParams]
   );
+
+  const [undoExclude, setUndoExclude] = useState<{
+    message: string;
+    undo: () => void;
+  } | null>(null);
+
+  const cardFilterMenu = useMemo<CardFilterApi | undefined>(() => {
+    if (radarActive) return undefined;
+    return {
+      stateOf: (axis, value) => filterStateOf(filters, axis, value),
+      apply: (target: CardFilterTarget, mode) => {
+        const prev = filterStateOf(filters, target.axis, target.value);
+        patch(applyCardFilter(filters, target, mode));
+        if (mode === "exclude") {
+          setUndoExclude({
+            message: t("filters.menu.excludedNotice", { value: target.label }),
+            undo: () =>
+              patch(applyCardFilter(filters, target, prev ?? "clear")),
+          });
+        } else if (mode !== "clear") {
+          setUndoExclude(null);
+        }
+      },
+    };
+  }, [filters, patch, radarActive, t]);
 
   const resetFilters = useCallback(() => {
     setSearchParams(new URLSearchParams(), { replace: true });
@@ -821,10 +853,25 @@ export function Explore() {
               key={posting.id}
               posting={posting}
               smartSort={filters.sort === "smart"}
+              filterMenu={cardFilterMenu}
               onOpen={(item) => navigate(`/postings/${item.ref}`)}
               onChanged={() => load(filters, false)}
             />
           ))}
+          {undoExclude && (
+            <div className="fixed bottom-6 left-1/2 z-[var(--as-z-modal)] -translate-x-1/2" data-testid="explore-undo-exclude">
+              <UndoNotice
+                message={undoExclude.message}
+                actionLabel={t("common.undo")}
+                duration={8000}
+                onUndo={() => {
+                  undoExclude.undo();
+                  setUndoExclude(null);
+                }}
+                onDismiss={() => setUndoExclude(null)}
+              />
+            </div>
+          )}
           {cursor && !radarActive && (
             <div ref={sentinelRef} className="h-px" data-testid="load-more-sentinel" />
           )}

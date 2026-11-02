@@ -4863,6 +4863,15 @@
     "removeValue": "{{value}} entfernen",
     "clickToIncludeOnly": "Klicken zum Einschließen",
     "clickToToggle": "Klicken, um danach zu filtern",
+    "menu": {
+      "include": "„{{value}}“ einschließen",
+      "exclude": "„{{value}}“ ausschließen",
+      "removeFromFilters": "Aus den Filtern entfernen",
+      "skillDetails": "Skill-Details",
+      "openSkillPage": "Skill-Seite öffnen",
+      "openCompanyPage": "Unternehmensseite öffnen",
+      "excludedNotice": "„{{value}}“ ausgeschlossen"
+    },
     "min": "min",
     "max": "max",
     "currencyPlaceholder": "EUR",

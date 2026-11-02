@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (card entity menu on /postings, 2026-11-02)
+- **Filter straight from the cards.** On `/postings`, clicking or
+  right-clicking a skill chip or the company name — and right-clicking a
+  spec value (work mode, seniority, contract type) — opens an entity
+  menu: include or exclude that exact value using the rail's tri-state
+  filter language, remove it again, jump to the skill peek or open the
+  full skill/company page. Excluding refetches with an **Undo** strip;
+  remaining cards tint their chips with the include/exclude state. On
+  the company name, Ctrl/Cmd-click keeps the native open-in-new-tab. No
+  schema or API change — the menu drives the existing URL filters.
+
 ### Added (sources list country lens, 2026-11-02)
 - **Your integrations, organized by country.** The job-sources list
   gained the same country lens as the preset gallery: multi-select chips

@@ -28,6 +28,9 @@ export interface SpecItem {
   icon?: LucideIcon;
   /** Ordinal-value intensity cue (seniority), filled out of total. */
   scale?: { filled: number; total: number };
+  /** Opt-in entity-menu trigger (plan 188): right-click opens the menu.
+   * Spec values stay plain text to clicks (item-card grammar, §2e). */
+  onMenu?: (event: React.MouseEvent<HTMLElement>) => void;
 }
 
 /** Closed work-mode vocabulary (explore REMOTE_VALUES) → glyph. */

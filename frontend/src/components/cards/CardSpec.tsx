@@ -20,10 +20,19 @@ export function CardSpec({
       {ordered.map((item, index) => (
         <span
           key={item.key}
-          className="inline-flex items-baseline gap-1 whitespace-nowrap"
+          className={`inline-flex items-baseline gap-1 whitespace-nowrap${item.onMenu ? " cursor-context-menu" : ""}`}
           data-spec={item.key}
           data-testid={item.testId}
           title={item.hint}
+          onContextMenu={
+            item.onMenu
+              ? (event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  item.onMenu?.(event);
+                }
+              : undefined
+          }
         >
           <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
             {item.label}

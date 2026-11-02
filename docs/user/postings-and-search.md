@@ -119,6 +119,24 @@ speaks the same language as the feed's:
   only and **Hide seen** — reviewed postings drop out of the list without
   touching the other filters.
 
+### Filter straight from the cards
+
+The card itself is a filter control. **Click or right-click** a skill
+chip or the company name, and **right-click** a spec value (work mode,
+seniority, contract type) — a menu opens with that exact value:
+
+- **Include** / **Exclude** — the same tri-state filter language as the
+  rail; an active value gains a **Remove from filters** entry,
+- **Skill details** — the skill peek (level, your coverage, related
+  skills), and **Open skill page** / **Open company page** for the full
+  taxonomy or company view. On the company name, Ctrl/Cmd-click (or
+  middle-click) still opens the company page in a new browser tab.
+
+Excluding refetches the list — the excluded card folds away and an
+**Undo** strip lets you take it back for a few seconds. The filter rail
+always shows what the menu changed; chips on the remaining cards tint
+with the same include/exclude styling.
+
 ### Sorting results
 
 The results header sorts the list without changing the filters: **Best

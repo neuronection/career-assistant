@@ -55,6 +55,7 @@ function Chip({
         title={item.title}
         testId={testId}
         onOpen={item.onOpen}
+        onMenu={item.onMenu}
       />
     );
   }

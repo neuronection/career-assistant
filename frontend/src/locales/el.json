@@ -4863,6 +4863,15 @@
     "removeValue": "Αφαίρεση {{value}}",
     "clickToIncludeOnly": "Κλικ για συμπερίληψη",
     "clickToToggle": "Κλικ για φιλτράρισμα",
+    "menu": {
+      "include": "Συμπερίληψη «{{value}}»",
+      "exclude": "Αποκλεισμός «{{value}}»",
+      "removeFromFilters": "Αφαίρεση από τα φίλτρα",
+      "skillDetails": "Λεπτομέρειες δεξιότητας",
+      "openSkillPage": "Άνοιγμα σελίδας δεξιότητας",
+      "openCompanyPage": "Άνοιγμα σελίδας εταιρείας",
+      "excludedNotice": "Αποκλείστηκε «{{value}}»"
+    },
     "min": "ελάχ.",
     "max": "μέγ.",
     "currencyPlaceholder": "EUR",

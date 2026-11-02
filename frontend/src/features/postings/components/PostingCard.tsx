@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Bookmark,
   Check,
@@ -10,11 +10,14 @@ import {
   FileText,
   Link2,
   MapPin,
+  Minus,
+  Plus,
   Sparkles,
 } from "lucide-react";
 
 import { hidePosting, markApplied, markPostingsSeen, savePosting } from "@/api/postings";
 import { buttonVariants } from "@/components/ui";
+import { ContextMenu, type ContextMenuEntry } from "@neuronection/assistant-ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
@@ -25,6 +28,10 @@ import { OrgAvatar } from "@/components/company/OrgAvatar";
 import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { SkillPeekModal, useSkillPeek } from "@/components/skills/SkillPeekModal";
 import { educationChipLabel } from "@/features/catalog/components/JobCard";
+import {
+  type CardFilterApi,
+  type CardFilterTarget,
+} from "@/features/postings/components/postings/cardFilterMenu";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 import { safeExternalUrl } from "@/lib/url";
 import type { PostingOut } from "@/types/wire";
@@ -55,16 +62,28 @@ export function PostingCard({
   onOpen,
   onChanged,
   smartSort = false,
+  filterMenu,
 }: {
   posting: PostingOut;
   onOpen?: (posting: PostingOut) => void;
   onChanged?: () => void;
   /** The smart sort is active: a small chip marks the blended ranking. */
   smartSort?: boolean;
+  /** The card entity menu (plan 188): absent → the card renders exactly
+   * as before (Dashboard feed, skill/company pages). */
+  filterMenu?: CardFilterApi;
 }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const peek = useSkillPeek();
   const [markedSeenId, setMarkedSeenId] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    target: CardFilterTarget;
+    trigger: HTMLElement | null;
+    level: number | null;
+  } | null>(null);
   const seenSlotRef = useRef<HTMLSpanElement | null>(null);
   const seen = Boolean(posting.seen) || markedSeenId === posting.id;
   const markSeen = () => {
@@ -89,6 +108,111 @@ export function PostingCard({
   const closedTitle = posting.expires_at
     ? t("card.closedOn", { date: formatAbsolute(posting.expires_at) })
     : t("card.closed");
+
+  const openMenu = (
+    target: CardFilterTarget,
+    event: React.MouseEvent<HTMLElement>,
+    level: number | null = null,
+  ) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenu({
+      x: event.clientX || rect.left,
+      y: event.clientY || rect.bottom,
+      target,
+      trigger: event.currentTarget,
+      level,
+    });
+  };
+  const closeMenu = () => setMenu(null);
+
+  const orgTarget: CardFilterTarget = {
+    axis: "orgs",
+    value: posting.org,
+    label: posting.org,
+    pageTo: posting.org_key ? `/companies/${posting.org_key}` : undefined,
+  };
+
+  const specTargets: Partial<Record<string, CardFilterTarget>> = useMemo(() => {
+    if (!filterMenu) return {};
+    const targets: Partial<Record<string, CardFilterTarget>> = {};
+    const mode = posting.onsite_policy ?? (posting.location?.remote ? "remote" : null);
+    if (mode) {
+      targets.mode = {
+        axis: "remotePolicy",
+        value: mode,
+        label: t(`card.modeValue.${mode}`, { defaultValue: String(mode).replace(/_/g, " ") }),
+      };
+    }
+    if (posting.seniority) {
+      targets.level = {
+        axis: "seniority",
+        value: posting.seniority,
+        label: t(`autopilot.seniority.${posting.seniority}`, {
+          defaultValue: posting.seniority,
+        }),
+      };
+    }
+    const contract = posting.employment_type ?? posting.contract_type;
+    if (contract) {
+      targets.contract = {
+        axis: "contract",
+        value: contract,
+        label: t(`explore.facetValue.${contract}`, {
+          defaultValue: contract.replace(/_/g, " "),
+        }),
+      };
+    }
+    return targets;
+  }, [filterMenu, posting, t]);
+
+  const menuItems: ContextMenuEntry[] = useMemo(() => {
+    if (!menu || !filterMenu) return [];
+    const { target } = menu;
+    const state = filterMenu.stateOf(target.axis, target.value);
+    const entries: ContextMenuEntry[] = [
+      {
+        key: "include",
+        label: t("filters.menu.include", { value: target.label }),
+        icon: state === "include" ? Check : Plus,
+        onSelect: () => filterMenu.apply(target, "include"),
+      },
+      {
+        key: "exclude",
+        label: t("filters.menu.exclude", { value: target.label }),
+        icon: state === "exclude" ? Check : Minus,
+        danger: state !== "exclude",
+        onSelect: () => filterMenu.apply(target, "exclude"),
+      },
+    ];
+    if (state) {
+      entries.push({
+        key: "clear",
+        label: t("filters.menu.removeFromFilters"),
+        onSelect: () => filterMenu.apply(target, "clear"),
+      });
+    }
+    entries.push({ key: "sep-nav", separator: true });
+    if (target.axis === "skills") {
+      entries.push({
+        key: "details",
+        label: t("filters.menu.skillDetails"),
+        onSelect: () =>
+          peek.open(target.value, menu.trigger, menu.level),
+      });
+    }
+    if (target.pageTo) {
+      entries.push({
+        key: "page",
+        label:
+          target.axis === "skills"
+            ? t("filters.menu.openSkillPage")
+            : t("filters.menu.openCompanyPage"),
+        onSelect: () => navigate(target.pageTo!),
+      });
+    }
+    return entries;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu, filterMenu, t]);
 
   return (
     <ItemCardShell
@@ -196,14 +320,48 @@ export function PostingCard({
           {posting.org_key ? (
             <Link
               to={`/companies/${posting.org_key}`}
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (filterMenu && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+                  event.preventDefault();
+                  openMenu(orgTarget, event);
+                }
+              }}
+              onContextMenu={
+                filterMenu
+                  ? (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openMenu(orgTarget, event);
+                    }
+                  : undefined
+              }
               className="truncate text-[13px] font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
               data-testid="posting-company-link"
             >
               {posting.org}
             </Link>
           ) : (
-            <span className="truncate text-[13px] font-medium text-[var(--as-fg)]">
+            <span
+              className="truncate text-[13px] font-medium text-[var(--as-fg)]"
+              onClick={
+                filterMenu
+                  ? (event) => {
+                      event.stopPropagation();
+                      openMenu(orgTarget, event);
+                    }
+                  : undefined
+              }
+              onContextMenu={
+                filterMenu
+                  ? (event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      openMenu(orgTarget, event);
+                    }
+                  : undefined
+              }
+            >
               {posting.org}
             </span>
           )}
@@ -226,7 +384,14 @@ export function PostingCard({
 
         <CardSpec
           className="mt-1.5 border-t border-[var(--as-border)] pt-1.5"
-          items={postingSpecs(posting, t, (level) => educationChipLabel(t, level))}
+          items={postingSpecs(posting, t, (level) => educationChipLabel(t, level)).map(
+            (item) => {
+              const target = specTargets[item.key];
+              return target && filterMenu
+                ? { ...item, onMenu: (event: React.MouseEvent<HTMLElement>) => openMenu(target, event) }
+                : item;
+            },
+          )}
         />
 
         {skills.length > 0 ? (
@@ -249,6 +414,19 @@ export function PostingCard({
                     : undefined,
                 onOpen: (trigger) =>
                   peek.open(skill.key, trigger, skill.required_level ?? null),
+                onMenu: filterMenu
+                  ? (event) =>
+                      openMenu(
+                        {
+                          axis: "skills",
+                          value: skill.key,
+                          label: skill.label,
+                          pageTo: `/skills/${skill.key}`,
+                        },
+                        event,
+                        skill.required_level ?? null,
+                      )
+                  : undefined,
               }))}
               moreLabel={(count) => t("card.more", { count })}
               moreAriaLabel={(count) => t("card.moreAria", { count })}
@@ -312,6 +490,7 @@ export function PostingCard({
         onClose={peek.close}
         returnFocusRef={peek.returnFocusRef}
       />
+      <ContextMenu x={menu?.x ?? 0} y={menu?.y ?? 0} items={menuItems} onClose={closeMenu} />
     </ItemCardShell>
   );
 }

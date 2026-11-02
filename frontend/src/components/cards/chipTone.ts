@@ -34,4 +34,7 @@ export interface ChipItem {
   unmapped?: boolean;
   /** Skill variant only: opt-in skill-peek affordance (plan 149). */
   onOpen?: (trigger: HTMLElement | null) => void;
+  /** Opt-in entity-menu trigger (plan 188): click/right-click open the
+   * menu; the peek stays reachable through its menu entry. */
+  onMenu?: (event: React.MouseEvent<HTMLElement>) => void;
 }
