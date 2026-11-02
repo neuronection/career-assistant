@@ -1496,6 +1496,10 @@ export interface paths {
         /**
          * Reextract Posting
          * @description Re-run the deep extraction for one posting now (admin).
+         *
+         *     ``{"mode": "resolve"}`` is the plan-153 replay variant: the stored
+         *     raw labels re-run through candidate matching + the pass-2 resolver
+         *     only — no pass-1 spend. Without a mode the full extraction runs.
          */
         post: operations["reextract_posting_api_v1_admin_postings__posting_id__extract_post"];
         delete?: never;
@@ -15017,7 +15021,12 @@ export interface components {
              */
             evidence_quote: string;
         };
-        /** PostingExtractSkillOut */
+        /**
+         * PostingExtractSkillOut
+         * @description One stored extract skill row (v5): the verbatim `raw_label` plus
+         *     the `skill_key` the resolution stamped (null when the label stayed a
+         *     proposal — the replay substrate carries both).
+         */
         PostingExtractSkillOut: {
             /** Confidence */
             confidence: number;
@@ -15031,8 +15040,6 @@ export interface components {
             required_level: number;
             /** Skill Key */
             skill_key?: string | null;
-            /** Unresolved */
-            unresolved?: boolean | null;
         };
         /** PostingExtractTravelOut */
         PostingExtractTravelOut: {
@@ -21071,7 +21078,13 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                } | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

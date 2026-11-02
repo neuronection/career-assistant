@@ -7,7 +7,6 @@ function skill(overrides: Partial<PostingDetailSkill>): PostingDetailSkill {
   return {
     skill_key: null,
     raw_label: "Something",
-    unresolved: true,
     required_level: 5,
     priority: "must_have",
     evidence_quote: "quote",
@@ -19,9 +18,9 @@ function skill(overrides: Partial<PostingDetailSkill>): PostingDetailSkill {
 describe("normalizeSkills", () => {
   it("dedupes mentions of the same skill: max level, strictest priority, mention count", () => {
     const normalized = normalizeSkills([
-      skill({ skill_key: "programming", unresolved: false, raw_label: null, required_level: 6, priority: "must_have" }),
-      skill({ skill_key: "programming", unresolved: false, raw_label: null, required_level: 8, priority: "bonus" }),
-      skill({ skill_key: "programming", unresolved: false, raw_label: null, required_level: 4, priority: "must_have" }),
+      skill({ skill_key: "programming", raw_label: null, required_level: 6, priority: "must_have" }),
+      skill({ skill_key: "programming", raw_label: null, required_level: 8, priority: "bonus" }),
+      skill({ skill_key: "programming", raw_label: null, required_level: 4, priority: "must_have" }),
     ]);
     expect(normalized).toHaveLength(1);
     expect(normalized[0].level).toBe(8);
@@ -31,8 +30,8 @@ describe("normalizeSkills", () => {
 
   it("keeps unmapped labels distinct from mapped keys and drops the (unmapped) noise", () => {
     const normalized = normalizeSkills([
-      skill({ skill_key: null, raw_label: "Docker", unresolved: true }),
-      skill({ skill_key: null, raw_label: "docker", unresolved: true }),
+      skill({ skill_key: null, raw_label: "Docker" }),
+      skill({ skill_key: null, raw_label: "docker" }),
     ]);
     expect(normalized).toHaveLength(1);
     expect(normalized[0].label).toBe("Docker");

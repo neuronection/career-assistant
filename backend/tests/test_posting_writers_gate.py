@@ -38,6 +38,7 @@ MANIFEST: dict[str, dict[str, str]] = {
     "extract_service": {
         "apply_extract": "extract_llm",
         "_apply_extract_skills": "extract_llm",
+        "replay_posting_resolution": "extract_llm",
     },
     "detail_service": {
         "merge_detail": "detail_fetch",

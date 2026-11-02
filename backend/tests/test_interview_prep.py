@@ -27,30 +27,36 @@ async def _user_skill(db, headers, skill_row: Skill, level: int) -> None:
 
 
 async def _extracted_posting(db, source, skill_row: Skill, *, required=6):
+    from app.services.postings.extract_service import apply_extract
+
     posting = await _make_posting(db, source, external_id="interview-1")
-    posting.extract = PostingExtract(
-        title_norm="Backend Engineer",
-        skills=[
-            ExtractSkill(
-                skill_key=skill_row.key,
-                required_level=required,
-                priority="must_have",
-                evidence_quote="must know the thing",
-                confidence=0.9,
-            ),
-            ExtractSkill(
-                skill_key="totally-made-up-key",
-                required_level=3,
-                priority="must_have",
-                evidence_quote="mystery requirement",
-                confidence=0.9,
-            ),
-        ],
-        responsibilities=[
-            {"text": "Ship the payments service", "time_pct": 40},
-            {"text": "Mentor juniors", "time_pct": 10},
-        ],
-    ).model_dump(mode="json")
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            title_norm="Backend Engineer",
+            skills=[
+                ExtractSkill(
+                    raw_label=skill_row.label,
+                    required_level=required,
+                    priority="must_have",
+                    evidence_quote="must know the thing",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    raw_label="totally-made-up-key",
+                    required_level=3,
+                    priority="must_have",
+                    evidence_quote="mystery requirement",
+                    confidence=0.9,
+                ),
+            ],
+            responsibilities=[
+                {"text": "Ship the payments service", "time_pct": 40},
+                {"text": "Mentor juniors", "time_pct": 10},
+            ],
+        ),
+    )
     db.add(posting)
     await db.commit()
     await db.refresh(posting)

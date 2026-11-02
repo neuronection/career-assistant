@@ -295,7 +295,7 @@ async def test_extract_writer_journals_envelope_and_skills(db, source, seeded_ca
     assert fields_row.actor_ref.get("ai_generation_id"), "the audit row is linked"
     assert fields_row.actor_ref["ai_generation_id"] != ""
     assert fields_row.duration_ms is not None
-    assert fields_row.diff["extract_version"] == {"from": None, "to": 4}
+    assert fields_row.diff["extract_version"] == {"from": None, "to": 5}
     assert "description_clean" in fields_row.diff, "the envelope's cleaned text diffs top-level"
     assert "skills_count" in fields_row.diff
     assert fields_row.outcome in ("ok", "partial")

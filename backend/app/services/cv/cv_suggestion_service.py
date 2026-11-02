@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.cv_suggester import suggest
-from app.ai.agents.posting_extractor import PostingExtract
 from app.core.errors import NotFoundError, ValidationError
 from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
@@ -27,6 +26,7 @@ from app.schemas.cv_suggest import (
     TailorCoverage,
     VerifiedProposal,
 )
+from app.schemas.posting import PostingExtractOut
 from app.services.cv.cv_builder_service import CvBuilderService
 
 COMPACT_THRESHOLD = 180
@@ -72,7 +72,7 @@ def _sections_in_blocks(blocks: list[dict]) -> set[str]:
     return keys
 
 
-def _coverage(extract: PostingExtract, levels: dict[str, int]) -> TailorCoverage:
+def _coverage(extract: PostingExtractOut, levels: dict[str, int]) -> TailorCoverage:
     covered: list[CoverageEntry] = []
     missing: list[CoverageEntry] = []
     for skill in extract.skills:
@@ -232,7 +232,7 @@ class CvSuggestionService:
             raise NotFoundError("Posting not found")
         if not posting.extract:
             raise ValidationError("The posting has no deep extraction yet — run the extract first")
-        extract = PostingExtract.model_validate(posting.extract)
+        extract = PostingExtractOut.model_validate(posting.extract)
         rows = await self.db.execute(
             select(UserSkill, Skill)
             .join(Skill, Skill.id == UserSkill.skill_id)

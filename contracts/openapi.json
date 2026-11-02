@@ -15567,6 +15567,7 @@
         "type": "object"
       },
       "PostingExtractSkillOut": {
+        "description": "One stored extract skill row (v5): the verbatim `raw_label` plus\nthe `skill_key` the resolution stamped (null when the label stayed a\nproposal \u2014 the replay substrate carries both).",
         "properties": {
           "confidence": {
             "title": "Confidence",
@@ -15605,17 +15606,6 @@
               }
             ],
             "title": "Skill Key"
-          },
-          "unresolved": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unresolved"
           }
         },
         "required": [
@@ -28711,7 +28701,7 @@
     },
     "/api/v1/admin/postings/{posting_id}/extract": {
       "post": {
-        "description": "Re-run the deep extraction for one posting now (admin).",
+        "description": "Re-run the deep extraction for one posting now (admin).\n\n``{\"mode\": \"resolve\"}`` is the plan-153 replay variant: the stored\nraw labels re-run through candidate matching + the pass-2 resolver\nonly \u2014 no pass-1 spend. Without a mode the full extraction runs.",
         "operationId": "reextract_posting_api_v1_admin_postings__posting_id__extract_post",
         "parameters": [
           {
@@ -28725,6 +28715,24 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {

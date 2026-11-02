@@ -160,25 +160,33 @@ async def test_tailor_coverage_and_flagged_proposals(
     cv = await _make_cv(client, auth_headers)
 
     posting = await _make_posting(db, source, external_id="tailor-1")
-    posting.extract = PostingExtract(
-        title_norm="Junior DevOps Engineer",
-        skills=[
-            ExtractSkill(
-                skill_key=skill_row.key,
-                required_level=4,
-                priority="must_have",
-                evidence_quote="must know the thing",
-                confidence=0.9,
-            ),
-            ExtractSkill(
-                skill_key="kubernetes",
-                required_level=3,
-                priority="must_have",
-                evidence_quote="kubernetes required",
-                confidence=0.9,
-            ),
-        ],
-    ).model_dump(mode="json")
+    db.add(Skill(key="kubernetes", label="Kubernetes", category="test", status="active"))
+    await db.flush()
+    from app.services.postings.extract_service import apply_extract
+
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            title_norm="Junior DevOps Engineer",
+            skills=[
+                ExtractSkill(
+                    raw_label=skill_row.label,
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="must know the thing",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    raw_label="kubernetes",
+                    required_level=3,
+                    priority="must_have",
+                    evidence_quote="kubernetes required",
+                    confidence=0.9,
+                ),
+            ],
+        ),
+    )
     db.add(posting)
     await db.commit()
 

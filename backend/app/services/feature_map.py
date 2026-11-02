@@ -99,9 +99,10 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "Required skills with level + priority",
             ("posting_skills_write", "fit_skills_dimension", "skill_search"),
             prompt_hint=(
-                "skills: resolve every mention onto the taxonomy keys with "
-                "required_level 1-10, priority and a verbatim evidence_quote; "
-                "unresolvable labels come back unresolved, never dropped."
+                "skills: every skill mention verbatim as raw_label (the "
+                "posting's own wording) with required_level 1-10, priority "
+                "and a verbatim evidence_quote; never resolve onto "
+                "taxonomy keys — a later pass matches the labels."
             ),
         ),
         FeatureRow(

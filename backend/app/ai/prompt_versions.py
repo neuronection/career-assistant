@@ -26,7 +26,7 @@ PROMPT_VERSIONS: dict[str, int] = {
     AITaskType.ASSIST.value: 1,
     AITaskType.PATH_SUGGEST.value: 1,
     AITaskType.POSTING_MAP.value: 1,
-    AITaskType.POSTING_EXTRACT.value: 3,
+    AITaskType.POSTING_EXTRACT.value: 4,
     AITaskType.POSTING_SKILL_RESOLVE.value: 1,
     AITaskType.DETAIL_TRIAGE.value: 1,
     AITaskType.COMPANY_TRIAGE.value: 1,

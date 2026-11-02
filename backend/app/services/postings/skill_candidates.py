@@ -58,7 +58,9 @@ async def _query_vector(db: AsyncSession, label: str) -> list[float] | None:
         return None
 
 
-async def candidate_skills(db: AsyncSession, label: str, *, k: int = 5) -> list[Candidate]:
+async def candidate_skills(
+    db: AsyncSession, label: str, *, k: int = 5, active_only: bool = False
+) -> list[Candidate]:
     """Top-k existing skills a raw label might resolve to (plan 153).
 
     Deterministic on every dialect: the candidate pool is ranked by
@@ -68,11 +70,19 @@ async def candidate_skills(db: AsyncSession, label: str, *, k: int = 5) -> list[
     label unrelated to the whole taxonomy still yields k lexical
     candidates scored 0.0 — pass 2 adjudicates ``new``; a 0.0 score is
     "no signal", never a weak match.
+
+    ``active_only`` is the auto-promote dedup gate's lane (plan 153
+    slice 3): exact claims and candidates both restrict to active rows,
+    so a proposed twin never shadows an active near-duplicate and a
+    contested token can only ever block (never silently pick a winner
+    this gate relies on — plan-153 §7).
     """
     label = (label or "").strip()
     if not label or k <= 0:
         return []
     rows = list((await db.execute(select(Skill))).scalars().all())
+    if active_only:
+        rows = [skill for skill in rows if skill.status == "active"]
     by_id = {skill.id: skill for skill in rows}
     exact_id = _taxonomy_index_rows(rows).get(_norm(label))
     if exact_id is not None and exact_id in by_id:

@@ -1483,17 +1483,31 @@ async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(ge
 
 
 @router.post("/postings/{posting_id}/extract")
-async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
-    """Re-run the deep extraction for one posting now (admin)."""
+async def reextract_posting(
+    posting_id: uuid.UUID, payload: dict | None = None, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Re-run the deep extraction for one posting now (admin).
+
+    ``{"mode": "resolve"}`` is the plan-153 replay variant: the stored
+    raw labels re-run through candidate matching + the pass-2 resolver
+    only — no pass-1 spend. Without a mode the full extraction runs."""
     from app.models.posting_model import JobPosting
-    from app.services.postings.extract_service import extract_posting_now
+    from app.services.postings.extract_service import (
+        extract_posting_now,
+        replay_posting_resolution,
+    )
 
     posting = (
         (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    mode = (payload or {}).get("mode")
+    if mode not in (None, "resolve"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode must be 'resolve'")
     try:
+        if mode == "resolve":
+            return await replay_posting_resolution(db, posting)
         return await extract_posting_now(db, posting)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

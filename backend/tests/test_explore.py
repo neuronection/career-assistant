@@ -355,7 +355,7 @@ async def test_posting_fit_extracted_dimensions_and_cache(
         PostingExtract(
             skills=[
                 ExtractSkill(
-                    skill_key="programming",
+                    raw_label="programming",
                     required_level=5,
                     priority="must_have",
                     evidence_quote="we need programming",
@@ -416,7 +416,7 @@ async def test_posting_fit_stale_when_weights_change(
         PostingExtract(
             skills=[
                 ExtractSkill(
-                    skill_key="programming",
+                    raw_label="programming",
                     required_level=5,
                     priority="must_have",
                     evidence_quote="we need programming",
