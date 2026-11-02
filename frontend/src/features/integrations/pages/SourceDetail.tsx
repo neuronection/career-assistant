@@ -26,7 +26,9 @@ import {
   type SourceRun,
 } from "@/api/sources";
 import { fetchSystemSchedules } from "@/api/scheduler";
+import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
 import { QueryPlanPanel } from "@/components/settings/QueryPlanPanel";
+import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 import { RunDetailsDialog } from "@/components/settings/RunDetailsDialog";
 
 /**
@@ -144,6 +146,7 @@ export function SourceDetailPage() {
   const [detailsRun, setDetailsRun] = useState<SourceRun | null>(null);
   const [configValues, setConfigValues] = useState<IntegrationConfigValues>({});
   const [catalogEntry, setCatalogEntry] = useState<ConnectorCatalogEntry | null>(null);
+  const presetForSource = JOB_SOURCE_PRESETS.find((entry) => entry.slug === source?.key);
 
   const dirtyRef = useRef(false);
   const updateValues = (next: IntegrationConfigValues) => {
@@ -415,7 +418,14 @@ export function SourceDetailPage() {
           ← {t("sourceDetail.back")}
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-bold text-slate-900">{source?.key ?? sourceId}</h1>
+          <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
+            {presetForSource ? (
+              <span className="shrink-0" aria-hidden>
+                <PresetLogo preset={presetForSource} size={28} />
+              </span>
+            ) : null}
+            {source?.title || source?.key || sourceId}
+          </h1>
           <span className="rounded-full border border-[var(--as-border)] px-2 py-0.5 text-xs">
             {source?.last_status ?? "…"}
           </span>

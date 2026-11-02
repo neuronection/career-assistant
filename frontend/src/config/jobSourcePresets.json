@@ -5,153 +5,221 @@
       "name": "Bally's Intralot",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 43,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "ballysintralotsa" }
+      "config": {
+        "company": "ballysintralotsa"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "affideagreece",
       "name": "Affidea Greece",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 24,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "affideagreece" }
+      "config": {
+        "company": "affideagreece"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "tbibankgr",
       "name": "tbi bank",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 7,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "tbibankgr" }
+      "config": {
+        "company": "tbibankgr"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "petcitygroup",
       "name": "Pet City",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 44,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "petcitygroup" }
+      "config": {
+        "company": "petcitygroup"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "angelicoussisgroup",
       "name": "Angelicoussis Group",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 9,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "angelicoussisgroup" }
+      "config": {
+        "company": "angelicoussisgroup"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "keyes",
       "name": "KEYES",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 29,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "keyes" }
+      "config": {
+        "company": "keyes"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "bettercollective",
       "name": "Better Collective",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 7,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "bettercollective" }
+      "config": {
+        "company": "bettercollective"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "technomar",
       "name": "Technomar Shipping",
       "connectorKey": "recruitee",
       "provider": "Recruitee",
+      "openings": 7,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "technomar" }
+      "config": {
+        "company": "technomar"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "teamblue",
       "name": "team.blue",
       "connectorKey": "teamtailor",
       "provider": "Teamtailor",
+      "openings": 90,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "teamblue" }
+      "config": {
+        "company": "teamblue"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "huaweidusseldorf-1719303222",
       "name": "Huawei Europe",
       "connectorKey": "teamtailor",
       "provider": "Teamtailor",
+      "openings": 100,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "huaweidusseldorf-1719303222" }
+      "config": {
+        "company": "huaweidusseldorf-1719303222"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "orbia-orbia-connectivity-solutions-dura-line",
       "name": "Orbia",
       "connectorKey": "teamtailor",
       "provider": "Teamtailor",
+      "openings": 60,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "orbia-orbia-connectivity-solutions-dura-line" }
+      "config": {
+        "company": "orbia-orbia-connectivity-solutions-dura-line"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "opencosmos-1706113956",
       "name": "Open Cosmos",
       "connectorKey": "teamtailor",
       "provider": "Teamtailor",
+      "openings": 44,
       "category": "ats",
       "country": "GR",
-      "config": { "company": "opencosmos-1706113956" }
+      "config": {
+        "company": "opencosmos-1706113956"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "skroutz",
       "name": "Skroutz",
       "connectorKey": "workable",
       "provider": "Workable",
+      "openings": 9,
       "category": "ats",
       "country": "GR",
-      "config": { "account": "skroutz" }
+      "config": {
+        "account": "skroutz"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "spotawheel",
       "name": "Spotawheel",
       "connectorKey": "workable",
       "provider": "Workable",
+      "openings": 35,
       "category": "ats",
       "country": "GR",
-      "config": { "account": "spotawheel" }
+      "config": {
+        "account": "spotawheel"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "hack-the-box-ltd",
       "name": "Hack The Box",
       "connectorKey": "workable",
       "provider": "Workable",
+      "openings": 47,
       "category": "ats",
       "country": "GR",
-      "config": { "account": "hack-the-box-ltd" }
+      "config": {
+        "account": "hack-the-box-ltd"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "withplum",
       "name": "Plum",
       "connectorKey": "workable",
       "provider": "Workable",
+      "openings": 26,
       "category": "ats",
       "country": "GR",
-      "config": { "account": "withplum" }
+      "config": {
+        "account": "withplum"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "epignosis",
       "name": "Epignosis",
       "connectorKey": "workable",
       "provider": "Workable",
+      "openings": 13,
       "category": "ats",
       "country": "GR",
-      "config": { "account": "epignosis" }
+      "config": {
+        "account": "epignosis"
+      },
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "jobicy",
@@ -159,7 +227,8 @@
       "connectorKey": "jobicy",
       "provider": "Remote boards",
       "category": "remote",
-      "config": {}
+      "config": {},
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "remotive",
@@ -167,7 +236,8 @@
       "connectorKey": "remotive",
       "provider": "Remote boards",
       "category": "remote",
-      "config": {}
+      "config": {},
+      "verifiedAt": "2026-11-02"
     },
     {
       "slug": "arbeitnow",
@@ -175,7 +245,8 @@
       "connectorKey": "arbeitnow",
       "provider": "Remote boards",
       "category": "remote",
-      "config": {}
+      "config": {},
+      "verifiedAt": "2026-11-02"
     }
   ]
 }

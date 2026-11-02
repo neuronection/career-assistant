@@ -23,6 +23,10 @@ export interface JobSourcePreset {
   config: Record<string, string>;
   country?: string;
   logo: string;
+  /** Live-verified opening count (a dated snapshot, not live data). */
+  openings?: number;
+  /** When the tenant's feed was last probe-verified. */
+  verifiedAt?: string;
 }
 
 /** Connector keys a preset may reference (public builtins only). */
@@ -46,6 +50,8 @@ type RawPreset = {
   config?: Record<string, string>;
   country?: string;
   logo?: string;
+  openings?: number;
+  verifiedAt?: string;
 };
 
 export const JOB_SOURCE_PRESETS: JobSourcePreset[] = (raw.presets as RawPreset[]).map((preset) => ({

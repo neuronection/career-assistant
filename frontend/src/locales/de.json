@@ -2002,7 +2002,9 @@
         "addSelected": "{{count}} ausgewählte hinzufügen",
         "addedBadge": "Hinzugefügt",
         "addedNotice": "{{count}} von {{total}} Vorlagen hinzugefügt.",
-        "custom": "Eigene Quelle"
+        "custom": "Eigene Quelle",
+        "openings": "{{count}} offene Stellen",
+        "verified": "Verifiziert {{date}}"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",

@@ -121,18 +121,26 @@ export function AddSourceWizard({
             <div className="grid gap-2 sm:grid-cols-2" data-testid="source-tiles">
               {catalog.map((connector) => {
                 const needsSecret = connector.secret_fields.length > 0;
+                const description = String(
+                  connector.manifest?.description ?? "",
+                ).replace(/<[^>]*>/g, "");
                 return (
                   <button
                     key={connector.key}
                     type="button"
                     onClick={() => onPick(connector)}
                     data-testid={`source-tile-${connector.key}`}
-                    className="flex flex-col gap-1 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface-raised)] p-3 text-left transition-colors hover:border-[var(--as-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
+                    className="flex flex-col gap-1.5 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3 text-left transition-colors hover:border-[var(--as-accent)] hover:bg-[var(--as-surface-raised)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)]"
                   >
-                    <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--as-fg)]">
+                    <span className="text-sm font-semibold text-[var(--as-fg)]">
                       {connector.title}
                     </span>
-                    <span className="flex flex-wrap items-center gap-1">
+                    {description ? (
+                      <span className="line-clamp-2 text-xs text-[var(--as-muted-fg)]">
+                        {description}
+                      </span>
+                    ) : null}
+                    <span className="mt-auto flex flex-wrap items-center gap-1">
                       {connector.builtin ? (
                         <span className="rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)]">
                           {t("toolsSettings.connectors.sources.builtin")}

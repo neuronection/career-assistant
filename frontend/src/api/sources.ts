@@ -61,6 +61,7 @@ export type ConnectorCatalogEntry = {
   };
   manifest: {
     id: string;
+    description?: string;
     capabilities: string[];
     domains?: string[];
     supportsIncremental: boolean;

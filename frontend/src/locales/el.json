@@ -2002,7 +2002,9 @@
         "addSelected": "Προσθήκη {{count}} επιλεγμένων",
         "addedBadge": "Προστέθηκε",
         "addedNotice": "Προστέθηκαν {{count}} από {{total}} πρότυπα.",
-        "custom": "Προσαρμοσμένη πηγή"
+        "custom": "Προσαρμοσμένη πηγή",
+        "openings": "{{count}} ανοιχτές θέσεις",
+        "verified": "Επαληθευμένο {{date}}"
       },
       "extSources": {
         "title": "Επεκτατικές πηγές (εισαγωγή από git)",

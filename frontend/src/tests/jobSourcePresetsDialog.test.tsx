@@ -8,7 +8,12 @@ import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
-      let out = key;
+      const templates: Record<string, string> = {
+        "toolsSettings.connectors.presets.openings": "{{count}} openings",
+        "toolsSettings.connectors.presets.verified": "Verified {{date}}",
+        "toolsSettings.connectors.presets.worldwide": "Worldwide",
+      };
+      let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
         out = out.split(`{{${name}}}`).join(String(value));
       }
@@ -107,6 +112,16 @@ describe("JobSourcePresetDialog", () => {
     expect(report.textContent).toContain("already exists");
     expect(skroutz.getAttribute("aria-pressed")).toBe("true");
     expect(ballys.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("shows freshness meta (openings + verified date) on ats cards", async () => {
+    renderDialog();
+    const skroutz = await screen.findByTestId("preset-skroutz");
+    expect(skroutz.textContent).toContain("9 openings");
+    expect(skroutz.textContent).toContain("Verified Nov 2026");
+    const jobicy = screen.getByTestId("preset-jobicy");
+    expect(jobicy.textContent).toContain("Worldwide");
+    expect(jobicy.textContent).toContain("Verified Nov 2026");
   });
 
   it("renders already-added presets as badges and never selects them", async () => {

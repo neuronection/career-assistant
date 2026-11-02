@@ -2002,7 +2002,9 @@
         "addSelected": "Add {{count}} selected",
         "addedBadge": "Added",
         "addedNotice": "Added {{count}} of {{total}} presets.",
-        "custom": "Custom source"
+        "custom": "Custom source",
+        "openings": "{{count}} openings",
+        "verified": "Verified {{date}}"
       },
       "extSources": {
         "title": "Extension sources (git import)",
