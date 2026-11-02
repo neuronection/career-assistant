@@ -121,6 +121,12 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.POSTING_SKILL_RESOLVE.value,
+        "Pass-2 raw skill label resolution over candidate keys (batch)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.DETAIL_TRIAGE.value,
         "Detail-fetch triage (which postings deserve their description page)",
         AICapability.TEXT.value,
