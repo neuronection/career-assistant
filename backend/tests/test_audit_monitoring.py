@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from sqlalchemy import func, select
 
 from app.models.ai_model import AIGeneration
 from app.models.background_job_model import BackgroundJob
@@ -68,11 +69,16 @@ async def test_audit_endpoints_require_admin(client, _admin_and_user):
         "/api/v1/admin/audit/ai/generations",
         "/api/v1/admin/audit/jobs",
         "/api/v1/admin/audit/jobs/facets",
+        "/api/v1/admin/audit/jobs/failures",
         "/api/v1/admin/audit/source-runs",
         "/api/v1/admin/audit/changes",
     ):
         denied = await client.get(path, headers=user)
         assert denied.status_code == 403, path
+    denied_post = await client.post(
+        "/api/v1/admin/audit/jobs/requeue", json={"confirm": False}, headers=user
+    )
+    assert denied_post.status_code == 403
 
 
 async def test_audit_endpoints_require_authentication(client):
@@ -755,3 +761,83 @@ async def test_generations_filter_matrix(client, db, _admin_and_user):
     ).json()
     assert paged["total"] == 3
     assert len(paged["items"]) == 2
+
+
+async def test_failures_tab_labels_match_the_reprocess_endpoint(db, client, _admin_and_user):
+    """Plan 184 truth: the Failures tab's params and labels are the
+    reprocess endpoint's contract — groups, cap, dedupe/cap verdicts and
+    the no-confirm preview semantics."""
+    admin, _ = _admin_and_user
+    db.add_all(
+        [
+            BackgroundJob(
+                job_type="posting_extract",
+                status="failed",
+                attempts=2,
+                max_attempts=2,
+                error="Connection reset by peer",
+                payload={"posting_id": "p-1"},
+            ),
+            BackgroundJob(
+                job_type="autopilot_run",
+                status="failed",
+                attempts=2,
+                max_attempts=2,
+                error="provider quota exhausted",
+                payload={"goal_id": "g-1"},
+            ),
+            BackgroundJob(
+                job_type="query_curator",
+                status="failed",
+                attempts=2,
+                max_attempts=2,
+                error="provider down",
+                payload={},
+            ),
+            BackgroundJob(
+                job_type="posting_extract",
+                status="queued",
+                payload={"posting_id": "p-1"},
+            ),
+        ]
+    )
+    await db.flush()
+
+    preview = (
+        await client.get("/api/v1/admin/audit/jobs/failures?window=24h", headers=admin)
+    ).json()
+    assert preview["cap"] == 200
+    labels = {group["job_type"]: group for group in preview["groups"]}
+    assert set(labels) == {"posting_extract", "autopilot_run", "query_curator"}
+    assert labels["posting_extract"]["window_count"] == 1
+    assert labels["posting_extract"]["est_jobs"] == 0
+    assert preview["skipped_dup_preview"] == 1
+    assert labels["autopilot_run"]["full_rerun"] is True
+    assert labels["autopilot_run"]["sweep"] is False
+    assert labels["query_curator"]["sweep"] is True
+    assert labels["query_curator"]["est_jobs"] == 1
+    for group in preview["groups"]:
+        assert set(group) == {
+            "job_type",
+            "window_count",
+            "top_error",
+            "est_jobs",
+            "full_rerun",
+            "sweep",
+        }
+        assert len(group["top_error"]) <= 80
+
+    unconfirmed = await client.post(
+        "/api/v1/admin/audit/jobs/requeue",
+        json={"window": "24h", "job_type": "posting_extract"},
+        headers=admin,
+    )
+    assert unconfirmed.status_code == 200
+    body = unconfirmed.json()
+    assert "groups" in body and "requeued" not in body
+    remaining = (
+        await db.execute(
+            select(func.count(BackgroundJob.id)).where(BackgroundJob.status == "failed")
+        )
+    ).scalar()
+    assert remaining == 3, "the unconfirmed call mutates nothing"
