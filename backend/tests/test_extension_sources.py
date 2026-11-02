@@ -177,6 +177,14 @@ async def _compliant_options(db, install_id: uuid.UUID, **options) -> None:
     src.config = {**src.config, "options": json.dumps(options)}
     flag_modified(src, "config")
     await db.commit()
+    return src
+
+
+def _pin_static(source: JobSource) -> None:
+    """query_mode defaults to "radar" since 2dccf4f0; these tests exercise
+    the managed spawn + sync machinery, not radar rotation (own tests) —
+    a fresh radar-mode source would politely skip with no radars."""
+    source.query_mode = "static"
 
 
 # ------------------------------------------------------------- e2e import
@@ -226,7 +234,7 @@ async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots,
     assert content_dir.name == installed["digest"], "content-addressed by digest"
     assert str(content_dir / "server.py") in minted.config["command"]
 
-    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
+    _pin_static(await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs"))
     enabled = await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     assert enabled["enabled"] is True
     await db.refresh(minted)
@@ -384,7 +392,7 @@ async def test_t3_spawn_refuses_a_drifted_content_tree(db, local_roots, mcp_allo
         "example-posting-fetcher",
         consent=await _echo_for(db, source.id),
     )
-    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
+    _pin_static(await _compliant_options(db, uuid.UUID(view["id"]), board="jobs"))
     await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
@@ -1133,7 +1141,7 @@ async def test_e2e_import_runs_against_the_canonical_template_too(
         consent=await _echo_for(db, source.id),
         actor_id=await _actor_id(db),
     )
-    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
+    _pin_static(await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs"))
     await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
     minted = (
         (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))

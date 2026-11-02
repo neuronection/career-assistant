@@ -5428,7 +5428,11 @@
       "postingRef": "Angebot {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "Kein Diff aufgezeichnet",
-      "empty": "Keine Änderungen in diesem Zeitraum"
+      "empty": "Keine Änderungen in diesem Zeitraum",
+      "remap": "Neu entscheiden",
+      "remapHint": "führt den Katalog-Join ohne die Extraktion erneut aus",
+      "remapDone": "Der Katalog-Join wurde neu ausgeführt.",
+      "remapFailed": "Neu entscheiden fehlgeschlagen (manuelle Zuordnungen werden abgelehnt)."
     },
     "usage": {
       "models": "Modellnutzung",

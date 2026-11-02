@@ -5429,7 +5429,11 @@
       "postingRef": "posting {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "No recorded diff",
-      "empty": "No changes in this window"
+      "empty": "No changes in this window",
+      "remap": "Re-decide",
+      "remapHint": "re-runs the catalog join without the extract",
+      "remapDone": "The catalog join re-ran.",
+      "remapFailed": "Re-deciding failed (manual mappings are refused)."
     },
     "usage": {
       "models": "Model usage",

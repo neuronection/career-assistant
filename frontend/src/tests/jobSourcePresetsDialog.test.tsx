@@ -2,8 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
-import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
+import {
+  JobSourcePresetDialog,
+  type PresetAddOutcome,
+} from "@/components/settings/connectors/JobSourcePresetDialog";
+import { JOB_SOURCE_PRESETS, type JobSourcePreset } from "@/config/jobSourcePresets";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -30,7 +33,12 @@ let mockLanguage = "en";
 function renderDialog(
   overrides: Partial<Parameters<typeof JobSourcePresetDialog>[0]> = {},
 ) {
-  const onAddPresets = vi.fn();
+  // Default resolves empty — the add button's async continuation reads the
+  // outcome list; a bare vi.fn() resolves undefined and the continuation's
+  // `.filter` dies as an unhandled rejection after the assertions pass.
+  const onAddPresets = vi.fn(
+    async (_presets: JobSourcePreset[]): Promise<PresetAddOutcome[]> => [],
+  );
   const onCustom = vi.fn();
   const onOpenChange = vi.fn();
   render(
@@ -106,10 +114,12 @@ describe("JobSourcePresetDialog", () => {
     const skroutz = screen.getByTestId("preset-skroutz");
     await user.click(ballys);
     await user.click(skroutz);
+    const presetOf = (slug: string) =>
+      JOB_SOURCE_PRESETS.find((p) => p.slug === slug) as JobSourcePreset;
     onAddPresets.mockResolvedValueOnce([
-      { preset: JOB_SOURCE_PRESETS.find((p) => p.slug === "ballysintralotsa"), ok: true },
+      { preset: presetOf("ballysintralotsa"), ok: true },
       {
-        preset: JOB_SOURCE_PRESETS.find((p) => p.slug === "skroutz"),
+        preset: presetOf("skroutz"),
         ok: false,
         detail: "a source with this key already exists",
       },

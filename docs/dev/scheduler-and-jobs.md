@@ -41,6 +41,19 @@ boot-provisioned like every system kind (no seeded migration row).
 Jobs run as FastAPI background tasks (`CAREER_JOBS_WORKERS`); Redis ships in the
 compose file for a later worker split — there is no Celery in v1.
 
+### The deep extract re-decides the catalog mapping (plan 185)
+
+The `posting_extract` job's contract is unchanged (one structured call +
+apply), but its transaction now carries the **catalog join** too: after
+`apply_extract` fills the skill levels, `decide_catalog` re-runs the
+two-signal mapping (weighted skill overlap first, semantic rescue second —
+[ai-layer.md](ai-layer.md#the-hybrid-catalog-mapping-plan-185)) and an
+unmapped-and-rich extract stores a `job_proposal` for the admin queue.
+A `MANUAL` mapping stands. Plan-184 interplay: requeued `posting_extract`
+jobs re-run this join through the same handler — a bulk reprocess can
+therefore upgrade mappings and mint fresh proposals; the proposal writer
+never clobbers a live pending proposal.
+
 ### The failed-jobs lifecycle (plan 184)
 
 A job retries within its `max_attempts` budget (backoff between attempts);

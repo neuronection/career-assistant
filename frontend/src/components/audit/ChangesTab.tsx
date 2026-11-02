@@ -6,7 +6,7 @@ import {
   fetchAuditChanges,
   type AuditChangeRow,
 } from "@/api/audit";
-import { apiDetail } from "@/api/client";
+import { api, apiDetail } from "@/api/client";
 import { EmptyState, SegmentedTabs, Spinner } from "@/components/ui";
 import { RangeFilter, rangeParams, type RangeValue } from "@/components/audit/RangeFilter";
 import { downloadCsv } from "@/components/audit/download";
@@ -32,11 +32,41 @@ function outcomeClass(value: string): string {
 function ChangeDetail({ row, entity }: { row: AuditChangeRow; entity: ChangeEntity }) {
   const { t } = useTranslation();
   const payload = entity === "postings" ? row.diff : row.detail;
+  const [remapNote, setRemapNote] = useState("");
+  const [remapping, setRemapping] = useState(false);
+  const remap = async () => {
+    if (row.posting_id == null) return;
+    setRemapping(true);
+    try {
+      await api.post(`/admin/postings/${row.posting_id}/remap`);
+      setRemapNote(t("audit.changes.remapDone"));
+    } catch {
+      setRemapNote(t("audit.changes.remapFailed"));
+    } finally {
+      setRemapping(false);
+    }
+  };
   return (
     <div
       className="mx-2 mb-2 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3 text-xs"
       data-testid={`audit-change-detail-${row.id}`}
     >
+      {entity === "postings" && row.actor_kind === "retag" && row.posting_id != null && (
+        <div className="mb-2 flex items-center gap-2">
+          <button
+            onClick={() => void remap()}
+            disabled={remapping}
+            className="rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5 text-[11px] text-[var(--as-fg)] hover:underline disabled:opacity-50"
+            data-testid={`audit-change-remap-${row.id}`}
+          >
+            {t("audit.changes.remap")}
+          </button>
+          <span className="text-[10px] text-[var(--as-muted-fg)]">
+            {t("audit.changes.remapHint")}
+          </span>
+          {remapNote && <span className="text-[10px] text-emerald-700">{remapNote}</span>}
+        </div>
+      )}
       {row.actor_ref && Object.keys(row.actor_ref).length > 0 && (
         <div className="mb-2 flex flex-wrap gap-1.5">
           {Object.entries(row.actor_ref).map(([key, value]) => (

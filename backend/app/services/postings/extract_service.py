@@ -35,6 +35,7 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import (
     BackgroundJobStatus,
     BackgroundJobType,
+    MappingMethod,
     PostingEvidence,
     SkillOrigin,
 )
@@ -904,6 +905,28 @@ async def extract_posting_now(
         run=resolve_ref,
         thresholds=thresholds,
     )
+    # Plan 185 — the post-extract join: levels/priority are now on the
+    # rows and the extract may have resolved MORE skills than the ingest
+    # keyword pass, so the catalog decision re-runs before the commit.
+    # A MANUAL mapping stands (a human decision). decide_catalog never
+    # touches the skill rows — the join sees whichever skills were active
+    # after apply_extract.
+    if posting.mapping_method != MappingMethod.MANUAL.value:
+        skill_ids = set(
+            (
+                await db.execute(
+                    select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        from app.services.postings.job_proposal_service import store_job_proposal
+        from app.services.postings.postings_service import decide_catalog
+
+        await decide_catalog(db, posting, skill_ids, run_id=job_id)
+        # Plan 185 S4.1 — the unmapped-and-rich residue proposes (HITL).
+        await store_job_proposal(db, posting, actor_ref=actor_ref)
     await db.commit()
     gate_blocks = await _run_promotions(db, promotions, thresholds)
     return {
@@ -917,6 +940,7 @@ async def extract_posting_now(
         "gate_blocks": gate_blocks,
         "degraded": counts["degraded"],
         "replay": False,
+        "catalog_method": posting.mapping_method,
     }
 
 
@@ -982,4 +1006,5 @@ async def replay_posting_resolution(
         "gate_blocks": gate_blocks,
         "degraded": counts["degraded"],
         "replay": True,
+        "catalog_method": posting.mapping_method,
     }

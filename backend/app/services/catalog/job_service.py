@@ -185,11 +185,16 @@ class JobService:
         user: User | None,
         source: str = "user",
         status: str = "draft",
+        *,
+        commit: bool = True,
     ) -> Job:
         """Create a job; validates family/taxonomy keys and writes links.
 
         New entries land as drafts (human review before publishing, whether
         hand-written or AI-generated); publishing is an explicit step.
+        ``commit=False`` leaves the transaction to the caller — an apply
+        flow that must land job + posting map + proposal clear atomically
+        (the ``upsert_embedding`` caller-owned-transaction precedent).
         """
         family = await self._require_family(data.family_key)
         job = Job(
@@ -212,7 +217,8 @@ class JobService:
             data.skills,
             source=link_source,
         )
-        await self.db.commit()
+        if commit:
+            await self.db.commit()
         return await self._get_with_family(job.id)
 
     async def _write_links(

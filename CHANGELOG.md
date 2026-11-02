@@ -30,6 +30,73 @@ All notable changes to **Career Assistant** are documented here.
   wave after a taxonomy cleanup; postings on an older extraction version
   are reported as skipped and re-extract when next needed.
 
+### Fixed (job-proposal apply crashed on repeated skill keys, 2026-11-02)
+- **Applying a job proposal whose extract mentioned the same skill twice
+  (two mentions, one taxonomy key) hit the `job_skills` UNIQUE constraint
+  with a 500.** Apply now keeps the best entry per key (must-have first,
+  then strongest level) — one link per skill, never a 500.
+
+### Added (hybrid catalog mapping, 2026-11-02)
+- **The catalog decision is now a join of two signals.** A posting still
+  maps by weighted skill overlap first (unchanged verdicts), but when the
+  overlap misses, a semantic cosine ranking against the embedded catalog
+  jobs can rescue the map — only with a similarity ≥ 0.6 AND at least one
+  resolved skill shared with the job; draft jobs are never candidates and
+  any embedding failure degrades to the overlap-only decision. Both raw
+  scores and runner-ups land in the posting's `mapping_signals` facts and
+  the `retag` audit row.
+- **Unmatched postings become job proposals an admin can apply.** When
+  the join ends unmapped and the deep extract is rich enough (a kept
+  title + at least three kept skills), the posting lands in the new
+  "Job proposals" queue on the Taxonomy settings page. Applying creates
+  the catalog job published (slug deduped, skills from the extract with
+  must-have→core priority mapping, capped at the catalog's 15-link
+  contract — must-have first), maps the posting manual and embeds
+  the new job — one transaction; dismissal clears the proposal with an
+  explicit audit trail. Applying preselects the job family by skill
+  affinity with the published catalog — only on decisive evidence (at
+  least two shared skills and a clear margin over the runner-up; generic
+  overlap ties leave the picker empty), and the picker offers the full
+  family tree (child families included, e.g. "Technology & IT › IT
+  Operations & Security"). The proposed archetype title is
+  level-generic — seniority qualifiers ("Senior …") are stripped, the
+  posting keeps its own title and seniority attribute, and the proposal's
+  description standardizes too: the deep extract now also writes a
+  2–3-sentence catalog summary in the instance's default language
+  (Settings → default locale; English when unset), free of board
+  scaffolding ("Job Title:" / "Job Location:" headers), and the proposal
+  shows that summary — truncating at a sentence end, never mid-word.
+  Re-extract a posting (its detail page) to normalize an existing
+  proposal. A posting the join has since mapped (the
+  "Re-decide" action) leaves the queue, and an unmapped verdict's reason
+  names the signal that actually blocked it. New admin endpoints:
+  `GET /admin/postings/job-proposals`,
+  `POST /admin/postings/{id}/job-proposal/apply`,
+  `POST /admin/postings/{id}/job-proposal/dismiss`.
+- **The join is observable and steerable from Settings.** Every catalog
+  decision journals its signals (method, overlap score, semantic top and
+  the closest candidates) into the `retag` row the audit console already
+  renders; the Taxonomy settings page gains an "Embeddings & mapping"
+  card with the per-kind embedding buckets, admin recompute passes for
+  postings and catalog jobs, a per-proposal "Re-decide" action
+  (`POST /admin/postings/{id}/remap` — re-runs the join without re-paying
+  the extract, manual mappings refused), and two run switches (semantic
+  rescue, job proposals) that are read per decision — effective on the
+  next decision, no restart.
+- **The deep extract re-decides the catalog mapping.** After the extract
+  fills skill levels on the resolved rows, the two-signal join
+  runs again before the extract commits — a job published (or embedded)
+  while the posting waited in the queue is picked up there. A manual
+  mapping always stands, and the re-decision never touches the extracted
+  skill rows. Requeued `posting_extract` jobs (plan 184 bulk reprocess)
+  re-run the join through the same handler.
+- **Catalog jobs are now embedded.** The admin embeddings pass gained a
+  kind: `POST /admin/embeddings/recompute?kind=job` embeds every
+  published catalog job (title, short description and its skill
+  requirements, content-hash deduped — postings stay the default kind).
+  Draft jobs never embed; the `/admin/embeddings/status` buckets show
+  the new `job` kind alongside the existing ones. This is the substrate
+  for the semantic catalog mapping above.
 ### Added (sources list country lens, 2026-11-02)
 - **Your integrations, organized by country.** The job-sources list
   gained the same country lens as the preset gallery: multi-select chips

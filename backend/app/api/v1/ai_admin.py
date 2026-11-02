@@ -746,26 +746,31 @@ async def recompute_embeddings(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Embed stale/un-embedded entities of one served kind.
+    """Embed stale/un-embedded entities of one served kind — postings, or,
+    with ``kind=job`` / ``kind=skill``, published catalog jobs (plan 185:
+    the semantic candidate substrate) and skill labels (plan 153).
 
     Admin-triggered batch pass; the gateway ``embed`` task carries the
-    provider config (DB-only) and the audit funnel. An unconfigured
-    embed provider degrades the skill kind to a no-op result, never an
-    error.
-    """
+    provider config (DB-only) and the audit funnel. An unconfigured embed
+    provider degrades the skill kind to a no-op result, never an error."""
     from app.services.embedding_service import (
+        KIND_JOB,
         KIND_POSTING,
         KIND_SKILL,
         EmbeddingService,
     )
 
-    if kind not in {KIND_POSTING, KIND_SKILL}:
+    if kind not in {KIND_POSTING, KIND_JOB, KIND_SKILL}:
         raise ValidationError(f"Unknown embedding kind: {kind}")
     service = EmbeddingService(db)
     bounded = max(1, min(limit, 200))
-    if kind == KIND_SKILL:
-        return await service.recompute_skills(limit=bounded)
-    return await service.recompute_postings(limit=bounded)
+    if kind == KIND_JOB:
+        result = await service.recompute_jobs(limit=bounded)
+    elif kind == KIND_SKILL:
+        result = await service.recompute_skills(limit=bounded)
+    else:
+        result = await service.recompute_postings(limit=bounded)
+    return {**result, "kind": kind}
 
 
 @router.get("/embeddings/status")
