@@ -1452,6 +1452,189 @@ async def manual_map_posting(
     }
 
 
+class JobProposalApplyIn(BaseModel):
+    family_key: str
+    code: str | None = None
+    title: str | None = None
+    short_description: str | None = None
+
+
+@router.get("/postings/job-proposals")
+async def job_proposal_queue(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> list[dict]:
+    """Postings whose catalog join ended unmapped with a rich extract —
+    the HITL "create the job" queue (plan 185), enrichment-queue shaped:
+    the proposal plus the join's signals trace (the admin's "apply or
+    write a better job" context)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    rows = await JobProposalService(db).pending(limit=limit)
+    return [
+        {
+            "id": str(p.id),
+            "ref": p.ref,
+            "title": p.title,
+            "org": p.org,
+            "proposal": (p.posting_facts or {}).get("job_proposal"),
+            "proposed_at": (p.posting_facts or {}).get("job_proposal", {}).get("proposed_at")
+            if isinstance((p.posting_facts or {}).get("job_proposal"), dict)
+            else None,
+            "mapping_signals": (p.posting_facts or {}).get("mapping_signals"),
+            "extract_version": p.extract_version,
+        }
+        for p in rows
+    ]
+
+
+@router.post("/postings/{posting_id}/job-proposal/apply")
+async def apply_job_proposal(
+    posting_id: uuid.UUID,
+    payload: JobProposalApplyIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Create the published catalog job from the proposal's extract, map
+    the posting MANUAL, clear the proposal and embed the new job — one
+    transaction (a mid-apply failure leaves no job row)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        job = await service.apply(
+            posting,
+            family_key=payload.family_key,
+            code=payload.code,
+            title=payload.title,
+            short_description=payload.short_description,
+            user=user,
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {
+        "id": str(posting.id),
+        "job_id": str(job.id),
+        "job_code": job.code,
+        "mapping_method": posting.mapping_method,
+        "status": posting.status,
+    }
+
+
+@router.post("/postings/{posting_id}/job-proposal/dismiss")
+async def dismiss_job_proposal(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Discard the proposal: explicit JSON null + the audit timestamp."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        await service.dismiss(posting, user=user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(posting.id), "dismissed": True}
+
+
+@router.post("/postings/{posting_id}/remap")
+async def remap_posting(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Re-run the catalog join WITHOUT re-paying the extract LLM call
+    (plan 185 S6.4 — "a new job got published / embeddings recomputed,
+    judge me again"). A MANUAL mapping stands (the manual-map endpoint
+    stays the human override); the re-decision journals its own retag row."""
+    from app.models.enums import MappingMethod
+    from app.models.posting_model import JobPosting, PostingSkill
+    from app.services.postings.change_journal import RETAG_FIELDS, snapshot
+    from app.services.postings.postings_service import decide_catalog
+
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
+    )
+    if posting is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    if posting.mapping_method == MappingMethod.MANUAL.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This posting was mapped manually — use the manual map endpoint to override",
+        )
+    skill_ids = set(
+        (
+            await db.execute(
+                select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    before = snapshot(posting, RETAG_FIELDS)
+    await decide_catalog(db, posting, skill_ids)
+    await db.commit()
+    return {
+        "id": str(posting.id),
+        "status": posting.status,
+        "mapping_method": posting.mapping_method,
+        "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
+        "mapping_reason": posting.mapping_reason,
+        "before": {key: value for key, value in before.items() if key != "skills"},
+    }
+
+
+@router.get("/catalog-mapping/settings")
+async def catalog_mapping_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """The mapping run controls (plan 185 S6.3): the two admin switches,
+    read per decision — effective on the next decision, no restart."""
+    from app.services.postings.catalog_settings import (
+        job_proposals_enabled,
+        semantic_rescue_enabled,
+    )
+
+    return {
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "job_proposals": await job_proposals_enabled(db),
+    }
+
+
+class CatalogMappingSettingsIn(BaseModel):
+    semantic_rescue: bool | None = None
+    job_proposals: bool | None = None
+
+
+@router.put("/catalog-mapping/settings")
+async def put_catalog_mapping_settings(
+    payload: CatalogMappingSettingsIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    from app.services.postings.catalog_settings import (
+        JOB_PROPOSALS_KEY,
+        SEMANTIC_RESCUE_KEY,
+        job_proposals_enabled,
+        semantic_rescue_enabled,
+        set_switch,
+    )
+
+    if payload.semantic_rescue is not None:
+        await set_switch(db, SEMANTIC_RESCUE_KEY, payload.semantic_rescue)
+    if payload.job_proposals is not None:
+        await set_switch(db, JOB_PROPOSALS_KEY, payload.job_proposals)
+    return {
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "job_proposals": await job_proposals_enabled(db),
+    }
+
+
 @router.get("/postings")
 async def admin_list_postings(
     needs_review: bool | None = None,

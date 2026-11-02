@@ -71,6 +71,7 @@ class MappingMethod(StrEnum):
     SKILL_OVERLAP = "skill_overlap"
     AI = "ai"
     MANUAL = "manual"
+    SEMANTIC = "semantic"
 
 
 class PostingChangeKind(StrEnum):

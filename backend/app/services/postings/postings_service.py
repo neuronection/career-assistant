@@ -45,6 +45,14 @@ from app.services.postings.salary import annualized
 logger = logging.getLogger(__name__)
 
 AUTO_MAP_THRESHOLD = 0.34
+# Plan 185 — the semantic rescue: fires ONLY where the overlap signal
+# missed, under a deterministic shared-evidence gate (≥1 resolved skill
+# linked to both posting and job). Cosine never decides alone and every
+# embedding failure degrades to the overlap-only decision (signal, not
+# gate — the family RRF discipline).
+SEMANTIC_MAP_THRESHOLD = 0.6
+SEMANTIC_MIN_SHARED_SKILLS = 1
+SEMANTIC_CANDIDATES_K = 5
 FRESH_DECAY_PER_WEEK = 0.5
 FRESH_DECAY_CAP = 2.0
 POSTING_MAX_AGE_DAYS = 45
@@ -705,28 +713,208 @@ async def map_posting(
                 confidence=confidence,
             )
         )
+    await db.flush()
+    # The skill rewrite journals ITS mutation (plan-142 gate: every writer
+    # calls the seam); the mapping decision journals separately below.
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "retag",
+        actor_ref={"run_id": str(run_id)} if run_id is not None else None,
+        operation={"auto_map_threshold": AUTO_MAP_THRESHOLD},
+        before=before,
+        after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
+    )
 
-    if not skills:
+    await decide_catalog(db, posting, set(skills), run_id=run_id)
+
+
+async def semantic_catalog_candidates(
+    db: AsyncSession, posting: JobPosting, k: int = SEMANTIC_CANDIDATES_K
+) -> list[tuple[Job, float]]:
+    """Semantic candidates for the catalog join (plan 185): the posting's
+    ``KIND_POSTING`` vector — lazily ensured/re-embedded through the
+    caller's transaction when missing or hash-stale (≤1 gateway embed) —
+    cosined against every ``KIND_JOB`` vector of matching dim, hard-filtered
+    to published jobs UPSTREAM of the ranking (the public catalog only
+    answers for published rows). Every failure mode (unconfigured
+    embeddings, gateway error, dim mismatch) degrades to ``[]`` — the
+    overlap signal alone decides, per the signal-not-gate law."""
+    from app.models.embedding_model import AIEmbedding
+    from app.services.embedding_service import (
+        KIND_JOB,
+        KIND_POSTING,
+        EmbeddingService,
+        compose_posting_text,
+        cosine,
+    )
+
+    try:
+        text = compose_posting_text(posting)
+        if not text.strip():
+            return []
+        row, _did = await EmbeddingService(db).upsert_embedding(
+            KIND_POSTING, posting.id, text, commit=False
+        )
+        rows = (
+            await db.execute(
+                select(Job, AIEmbedding)
+                .join(
+                    AIEmbedding,
+                    (AIEmbedding.entity_id == Job.id) & (AIEmbedding.entity_kind == KIND_JOB),
+                )
+                .where(Job.status == "published", AIEmbedding.dim == row.dim)
+            )
+        ).all()
+    except Exception:
+        logger.info(
+            "semantic catalog candidates unavailable for posting %s — overlap-only decision",
+            posting.id,
+            exc_info=True,
+        )
+        return []
+    scored = [(job, cosine(row.vector, emb.vector)) for job, emb in rows]
+    scored.sort(key=lambda pair: -pair[1])
+    return scored[:k]
+
+
+async def decide_catalog(
+    db: AsyncSession,
+    posting: JobPosting,
+    skill_ids: set[UUID],
+    *,
+    run_id=None,
+) -> MappingMethod | None:
+    """The catalog decision seam (plan 185): a JOIN of two signals over the
+    posting's resolved skills — the deterministic weighted overlap first
+    (today's path, bit-identical when it clears), else the semantic cosine
+    rescue (threshold + ≥1 shared resolved skill). Writes the mapping
+    fields + status, journals one ``retag`` row (unchanged shape) and
+    merges both raw scores + runner-ups into
+    ``posting_facts["mapping_signals"]`` (in place — ``apply_extract`` owns
+    other keys in the same dict).
+
+    NEVER touches ``PostingSkill`` rows: only ``map_posting``'s skill
+    writing path rewrites them, so the post-extract re-decision (S3)
+    leaves levels/priority intact.
+    """
+    from sqlalchemy.orm.attributes import flag_modified
+
+    from app.services.postings.change_journal import (
+        RETAG_FIELDS,
+        PostingChangeJournal,
+        skills_state,
+        snapshot,
+    )
+
+    before = {
+        **snapshot(posting, RETAG_FIELDS),
+        "skills": await skills_state(db, posting.id),
+    }
+
+    overlap_score: float | None = None
+    runner_up: float | None = None
+    overlap_job: Job | None = None
+    top_job: Job | None = None
+    top_score = 0.0
+    semantic_tried = False
+    semantic_candidates: list[dict] = []
+    if skill_ids:
+        best_job, best_score, best_runner_up = await _best_catalog_job(db, skill_ids)
+        if best_job is not None:
+            overlap_job = best_job
+            overlap_score = best_score
+            runner_up = best_runner_up
+        if best_job is None or best_score < AUTO_MAP_THRESHOLD:
+            from app.services.postings.catalog_settings import semantic_rescue_enabled
+
+            if await semantic_rescue_enabled(db):
+                semantic_tried = True
+                ranked = await semantic_catalog_candidates(db, posting)
+                for cand_job, cand_score in ranked:
+                    semantic_candidates.append(
+                        {
+                            "job_id": str(cand_job.id),
+                            "code": cand_job.code,
+                            "score": round(cand_score, 4),
+                        }
+                    )
+                if ranked:
+                    top_job, top_score = ranked[0]
+
+    if not skill_ids:
+        mapped: MappingMethod | None = None
+        posting.catalog_job_id = None
         posting.mapping_method = None
         posting.mapping_confidence = None
         posting.mapping_reason = "no taxonomy skills recognised"
         posting.status = "new" if posting.status == "mapped" else posting.status
+    elif (
+        overlap_score is not None
+        and overlap_job is not None
+        and overlap_score >= AUTO_MAP_THRESHOLD
+    ):
+        mapped = MappingMethod.SKILL_OVERLAP
+        posting.catalog_job_id = overlap_job.id
+        posting.mapping_method = MappingMethod.SKILL_OVERLAP.value
+        posting.mapping_confidence = round(overlap_score, 3)
+        posting.mapping_reason = (
+            f"{len(skill_ids)} skills intersect; overlap {overlap_score:.2f} "
+            f"(runner-up {runner_up:.2f})"
+        )
+        posting.status = "mapped"
+    elif (
+        top_job is not None
+        and top_score >= SEMANTIC_MAP_THRESHOLD
+        and await _shared_skill_count(db, top_job.id, skill_ids) >= SEMANTIC_MIN_SHARED_SKILLS
+    ):
+        mapped = MappingMethod.SEMANTIC
+        posting.catalog_job_id = top_job.id
+        posting.mapping_method = MappingMethod.SEMANTIC.value
+        posting.mapping_confidence = round(top_score, 3)
+        posting.mapping_reason = (
+            f"semantic match {top_score:.2f} above {SEMANTIC_MAP_THRESHOLD} "
+            f"(overlap {overlap_score if overlap_score is not None else 0:.2f} below "
+            f"{AUTO_MAP_THRESHOLD})"
+        )
+        posting.status = "mapped"
     else:
-        best_job, best_score, runner_up = await _best_catalog_job(db, set(skills))
-        if best_job is not None and best_score >= AUTO_MAP_THRESHOLD:
-            posting.catalog_job_id = best_job.id
-            posting.mapping_method = MappingMethod.SKILL_OVERLAP.value
-            posting.mapping_confidence = round(best_score, 3)
-            posting.mapping_reason = f"{len(skills)} skills intersect; overlap {best_score:.2f} (runner-up {runner_up:.2f})"
-            posting.status = "mapped"
-        else:
-            posting.catalog_job_id = None
-            posting.mapping_method = None
-            posting.mapping_confidence = round(best_score, 3) if best_job else None
+        mapped = None
+        posting.catalog_job_id = None
+        posting.mapping_method = None
+        posting.mapping_confidence = round(overlap_score, 3) if overlap_score is not None else None
+        if semantic_tried and semantic_candidates and top_score >= SEMANTIC_MAP_THRESHOLD:
             posting.mapping_reason = (
-                f"best overlap {best_score:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
+                f"best overlap {overlap_score:.2f} below {AUTO_MAP_THRESHOLD}; "
+                f"semantic top {top_score:.2f} shares no resolved skill — moderation"
             )
-            posting.status = "new" if posting.status == "mapped" else posting.status
+        elif semantic_tried and semantic_candidates:
+            posting.mapping_reason = (
+                f"best overlap {overlap_score:.2f} below {AUTO_MAP_THRESHOLD}; "
+                f"semantic top {top_score:.2f} below {SEMANTIC_MAP_THRESHOLD} — moderation"
+            )
+        else:
+            posting.mapping_reason = (
+                f"best overlap {overlap_score if overlap_score is not None else 0:.2f} "
+                f"below {AUTO_MAP_THRESHOLD} — moderation"
+            )
+        posting.status = "new" if posting.status == "mapped" else posting.status
+
+    signals_payload: dict[str, dict[str, Any]] = {
+        "overlap": {
+            "score": round(overlap_score, 4) if overlap_score is not None else None,
+            "runner_up": round(runner_up, 4) if runner_up is not None else None,
+        },
+        "semantic": {
+            "top": round(top_score, 4) if semantic_tried and top_job is not None else None,
+            "threshold": SEMANTIC_MAP_THRESHOLD,
+            "candidates": semantic_candidates,
+        },
+    }
+    facts = {**(posting.posting_facts or {})}
+    facts["mapping_signals"] = signals_payload
+    posting.posting_facts = facts
+    flag_modified(posting, "posting_facts")
 
     actor_ref = {"run_id": str(run_id)} if run_id is not None else None
     PostingChangeJournal.record(
@@ -734,10 +922,33 @@ async def map_posting(
         posting.id,
         "retag",
         actor_ref=actor_ref,
-        operation={"auto_map_threshold": AUTO_MAP_THRESHOLD},
+        operation={
+            "auto_map_threshold": AUTO_MAP_THRESHOLD,
+            "method": mapped.value if mapped is not None else None,
+            "overlap_score": signals_payload["overlap"]["score"],
+            "semantic_top": signals_payload["semantic"]["top"],
+            "mapping_signals": signals_payload,
+        },
         before=before,
         after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
     )
+    return mapped
+
+
+async def _shared_skill_count(db: AsyncSession, job_id: UUID, skill_ids: set[UUID]) -> int:
+    """Resolved skills linked to BOTH the posting and the catalog job —
+    the deterministic evidence gate under the semantic rescue (fit scoring
+    runs on job_skills↔posting_skills links; a zero-link map scores
+    blind)."""
+    rows = await db.execute(
+        select(func.count())
+        .select_from(JobSkill)
+        .where(
+            JobSkill.job_id == job_id,
+            JobSkill.skill_id.in_(skill_ids),
+        )
+    )
+    return int(rows.scalar() or 0)
 
 
 def _posting_skill_tokens(posting: JobPosting) -> list[str]:

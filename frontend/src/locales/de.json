@@ -1607,7 +1607,44 @@
       "discardTitle": "Diesen Vorschlag verwerfen?",
       "discardBody": "Der KI-Vorschlag wird gelöscht und kann nicht wiederhergestellt werden."
     },
-    "draft": "Entwurf"
+    "jobProposals": {
+      "sectionTitle": "Stellenvorschläge",
+      "empty": "Stellenanzeigen, die der Katalog nicht zuordnen konnte, erscheinen nach der Tiefenextraktion hier als Stellenvorschläge.",
+      "apply": "Übernehmen",
+      "dismiss": "Verwerfen",
+      "applyTitle": "Katalogjob anlegen",
+      "applyHint": "Der Job wird veröffentlicht angelegt, die Stellenanzeige manuell zugeordnet und der neue Job eingebettet — alles in einem Schritt.",
+      "family": "Jobfamilie",
+      "jobTitle": "Titel",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "automatisch aus dem Titel",
+      "applyConfirm": "Job anlegen",
+      "appliedNote": "Katalogjob {{code}} angelegt, die Anzeige zugeordnet.",
+      "dismissedNote": "Vorschlag verworfen.",
+      "applyFailed": "Die Übernahme des Vorschlags ist fehlgeschlagen.",
+      "dismissFailed": "Das Verwerfen des Vorschlags ist fehlgeschlagen.",
+      "dismissTitle": "Diesen Vorschlag verwerfen?",
+      "dismissMessage": "Der Vorschlag für „{{title}}“ wird gelöscht. Eine spätere Neuextraktion kann ihn erneut vorschlagen.",
+      "signalsLabel": "Nächste Katalogjobs",
+      "remap": "Neu entscheiden",
+      "remapTitle": "Katalog-Join erneut ausführen, ohne die Extraktion erneut zu berechnen",
+      "remapNote": "Der Katalog-Join wurde für diese Anzeige neu ausgeführt.",
+      "remapFailed": "Die neue Zuordnungsentscheidung ist fehlgeschlagen."
+    },
+    "draft": "Entwurf",
+    "embeddings": {
+      "sectionTitle": "Embeddings & Zuordnung",
+      "empty": "Noch keine Embeddings gespeichert.",
+      "bucket": "Dim {{dim}} · {{count}} Vektoren",
+      "recomputePosting": "Anzeigen neu einbetten",
+      "recomputeJob": "Katalogjobs neu einbetten",
+      "recomputeDone": "{{kind}}-Recompute hat {{count}} Zeilen eingebettet.",
+      "semanticRescue": "Semantische Rettung",
+      "semanticRescueHint": "Ordnet per Kosinus nur dort, wo die Skill-Überschneidung versagt hat (≥ 0,6 + gemeinsamer Skill)",
+      "jobProposalsSwitch": "Stellenvorschläge",
+      "jobProposalsHint": "Nicht zugeordnete Anzeigen schlagen eine Katalogposition zur Prüfung vor",
+      "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
@@ -5367,7 +5404,11 @@
       "postingRef": "Angebot {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "Kein Diff aufgezeichnet",
-      "empty": "Keine Änderungen in diesem Zeitraum"
+      "empty": "Keine Änderungen in diesem Zeitraum",
+      "remap": "Neu entscheiden",
+      "remapHint": "führt den Katalog-Join ohne die Extraktion erneut aus",
+      "remapDone": "Der Katalog-Join wurde neu ausgeführt.",
+      "remapFailed": "Neu entscheiden fehlgeschlagen (manuelle Zuordnungen werden abgelehnt)."
     },
     "usage": {
       "models": "Modellnutzung",

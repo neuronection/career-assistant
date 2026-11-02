@@ -23,6 +23,7 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import (
     BackgroundJobStatus,
     BackgroundJobType,
+    MappingMethod,
     PostingEvidence,
 )
 from app.models.posting_model import JobPosting, PostingSkill
@@ -488,9 +489,33 @@ async def extract_posting_now(
         actor_ref["ai_generation_id"] = str(audit["id"])
     duration_ms = int((perf_counter() - started) * 1000)
     await apply_extract(db, posting, result, actor_ref=actor_ref, duration_ms=duration_ms)
+    # Plan 185 — the post-extract join: levels/priority are now on the
+    # rows and the extract may have resolved MORE skills than the ingest
+    # keyword pass, so the catalog decision re-runs before the commit.
+    # A MANUAL mapping stands (a human decision). decide_catalog never
+    # touches the skill rows — the join sees whichever skills were active
+    # after apply_extract (the corroboration auto-promote's mid-flow
+    # commit, plan 147, is a pre-existing seam it rides after).
+    if posting.mapping_method != MappingMethod.MANUAL.value:
+        skill_ids = set(
+            (
+                await db.execute(
+                    select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        from app.services.postings.job_proposal_service import store_job_proposal
+        from app.services.postings.postings_service import decide_catalog
+
+        await decide_catalog(db, posting, skill_ids, run_id=job_id)
+        # Plan 185 S4.1 — the unmapped-and-rich residue proposes (HITL).
+        await store_job_proposal(db, posting, actor_ref=actor_ref)
     await db.commit()
     return {
         "extracted": True,
         "skills": len(result.skills),
         "needs_review": posting.needs_review,
+        "catalog_method": posting.mapping_method,
     }

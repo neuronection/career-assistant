@@ -44,7 +44,7 @@ from app.extensions.registry import (
     validate_manifest,
 )
 from app.models.ai_model import AIGeneration
-from app.models.enums import AITaskType
+from app.models.enums import AITaskType, SourceQueryMode
 from app.models.posting_model import JobPosting, JobSource, SourceRun
 from app.services.postings.postings_service import sync_source
 
@@ -88,7 +88,16 @@ def fake_server(mcp_connector, monkeypatch):
 
 
 async def _make_source(db, *, key: str, config: dict) -> JobSource:
-    source = JobSource(key=key, connector_key="mcp", config=config, enabled=True)
+    # query_mode defaults to "radar" since 2dccf4f0; these tests exercise the
+    # stdio connector + sync machinery, not radar rotation (which has its own
+    # tests) — a fresh radar-mode source would politely skip with no radars.
+    source = JobSource(
+        key=key,
+        connector_key="mcp",
+        config=config,
+        enabled=True,
+        query_mode=SourceQueryMode.STATIC.value,
+    )
     db.add(source)
     await db.commit()
     await db.refresh(source)

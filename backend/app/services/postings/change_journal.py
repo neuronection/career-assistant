@@ -200,8 +200,13 @@ def extract_snapshot_fields(posting: JobPosting) -> dict:
 
 
 def facts_summary(posting: JobPosting) -> dict:
-    """Compact stand-in for the posting_facts JSONB: per-key sizes."""
-    return {key: len(value) for key, value in sorted((posting.posting_facts or {}).items())}
+    """Compact stand-in for the posting_facts JSONB: per-key sizes.
+    Null-valued keys (an explicit JSON null — the dismissal marker, plan
+    185) count as 0."""
+    return {
+        key: len(value) if value is not None else 0
+        for key, value in sorted((posting.posting_facts or {}).items())
+    }
 
 
 async def skills_state(db: AsyncSession, posting_id) -> list[dict]:

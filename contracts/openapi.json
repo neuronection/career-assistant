@@ -2566,6 +2566,34 @@
         "title": "CareerStage",
         "type": "string"
       },
+      "CatalogMappingSettingsIn": {
+        "properties": {
+          "job_proposals": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Proposals"
+          },
+          "semantic_rescue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rescue"
+          }
+        },
+        "title": "CatalogMappingSettingsIn",
+        "type": "object"
+      },
       "CatalogPresetIn": {
         "additionalProperties": false,
         "description": "One tenant preset \u2014 the existing JobSourcePreset shape (no logo).",
@@ -11710,6 +11738,52 @@
           "created_at"
         ],
         "title": "JobOut",
+        "type": "object"
+      },
+      "JobProposalApplyIn": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "short_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Description"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "family_key"
+        ],
+        "title": "JobProposalApplyIn",
         "type": "object"
       },
       "JobRequeueRequest": {
@@ -25863,6 +25937,71 @@
         ]
       }
     },
+    "/api/v1/admin/catalog-mapping/settings": {
+      "get": {
+        "description": "The mapping run controls (plan 185 S6.3): the two admin switches,\nread per decision \u2014 effective on the next decision, no restart.",
+        "operationId": "catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "put_catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogMappingSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{key}": {
       "put": {
         "description": "Write the reviewed company facts (omit a field = clear to unknown).",
@@ -28624,6 +28763,57 @@
         ]
       }
     },
+    "/api/v1/admin/postings/job-proposals": {
+      "get": {
+        "description": "Postings whose catalog join ended unmapped with a rich extract \u2014\nthe HITL \"create the job\" queue (plan 185), enrichment-queue shaped:\nthe proposal plus the join's signals trace (the admin's \"apply or\nwrite a better job\" context).",
+        "operationId": "job_proposal_queue_api_v1_admin_postings_job_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Job Proposal Queue Api V1 Admin Postings Job Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job Proposal Queue",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/reextract": {
       "post": {
         "description": "Re-run deep extraction for the given postings (admin, bulk \u2014 the\n/postings multi-select). Same rules as the per-source bulk: only\npostings WITH a description queue; already-queued ones are skipped;\nunknown ids are reported as missing.",
@@ -29167,6 +29357,108 @@
         ]
       }
     },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/apply": {
+      "post": {
+        "description": "Create the published catalog job from the proposal's extract, map\nthe posting MANUAL, clear the proposal and embed the new job \u2014 one\ntransaction (a mid-apply failure leaves no job row).",
+        "operationId": "apply_job_proposal_api_v1_admin_postings__posting_id__job_proposal_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobProposalApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Job Proposal",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/dismiss": {
+      "post": {
+        "description": "Discard the proposal: explicit JSON null + the audit timestamp.",
+        "operationId": "dismiss_job_proposal_api_v1_admin_postings__posting_id__job_proposal_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dismiss Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Dismiss Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Job Proposal",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/{posting_id}/map": {
       "post": {
         "description": "Moderation fallback: human mapping wins (method=manual, never re-mapped).",
@@ -29220,6 +29512,52 @@
           }
         },
         "summary": "Manual Map Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/remap": {
+      "post": {
+        "description": "Re-run the catalog join WITHOUT re-paying the extract LLM call\n(plan 185 S6.4 \u2014 \"a new job got published / embeddings recomputed,\njudge me again\"). A MANUAL mapping stands (the manual-map endpoint\nstays the human override); the re-decision journals its own retag row.",
+        "operationId": "remap_posting_api_v1_admin_postings__posting_id__remap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remap Posting Api V1 Admin Postings  Posting Id  Remap Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remap Posting",
         "tags": [
           "admin"
         ]
@@ -30423,7 +30761,7 @@
     },
     "/api/v1/ai/embeddings/recompute": {
       "post": {
-        "description": "Embed stale/un-embedded entities of one served kind.\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel. An unconfigured\nembed provider degrades the skill kind to a no-op result, never an\nerror.",
+        "description": "Embed stale/un-embedded entities of one served kind \u2014 postings, or,\nwith ``kind=job`` / ``kind=skill``, published catalog jobs (plan 185:\nthe semantic candidate substrate) and skill labels (plan 153).\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel. An unconfigured embed\nprovider degrades the skill kind to a no-op result, never an error.",
         "operationId": "recompute_embeddings_api_v1_ai_embeddings_recompute_post",
         "parameters": [
           {
