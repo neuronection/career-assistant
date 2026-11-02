@@ -8,12 +8,13 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Query, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.services import audit
 from app.services.deps import require_admin
+from app.services.job_reprocess_service import JobReprocessService
 
 router = APIRouter(
     prefix="/admin/audit",
@@ -202,6 +203,62 @@ async def audit_job_facets(
 ) -> dict:
     """job_type counts for the jobs filter dropdown (plan 152)."""
     return {"rows": await audit.job_facets(db, window=window, date_from=date_from, date_to=date_to)}
+
+
+@router.get("/jobs/failures")
+async def audit_job_failures(
+    job_type: str | None = Query(default=None),
+    user_id: uuid.UUID | None = Query(default=None),
+    window: str = WINDOW_QUERY,
+    date_from: datetime | None = Query(default=None, alias="from"),
+    date_to: datetime | None = Query(default=None, alias="to"),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Failed-job groups for the Failures tab (plan 184): type by error
+    family with the dedupe/cap estimates a requeue would apply."""
+    return await JobReprocessService(db).preview(
+        job_type=job_type,
+        user_id=user_id,
+        window=window,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+
+class JobRequeueRequest(BaseModel):
+    """Body of the bulk-requeue action: filters or explicit ids + confirm."""
+
+    job_type: str | None = None
+    user_id: uuid.UUID | None = None
+    window: str | None = Field(default="24h", pattern="^(24h|7d|30d)$")
+    date_from: datetime | None = Field(default=None, alias="from")
+    date_to: datetime | None = Field(default=None, alias="to")
+    job_ids: list[uuid.UUID] | None = None
+    confirm: bool = False
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post("/jobs/requeue")
+async def audit_job_requeue(
+    payload: JobRequeueRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Bulk-requeue terminally failed background jobs as fresh rows
+    (plan 184). Without ``confirm`` this returns the preview only and
+    mutates nothing."""
+    kwargs: dict[str, object] = {
+        "job_type": payload.job_type,
+        "user_id": payload.user_id,
+        "window": payload.window,
+        "date_from": payload.date_from,
+        "date_to": payload.date_to,
+        "job_ids": payload.job_ids,
+    }
+    service = JobReprocessService(db)
+    if not payload.confirm:
+        return await service.preview(**kwargs)  # type: ignore[arg-type]
+    return await service.requeue(**kwargs)  # type: ignore[arg-type]
 
 
 @router.get("/source-runs")

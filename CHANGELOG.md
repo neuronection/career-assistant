@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (bulk AI-job reprocessing, 2026-11-02)
+- The admin audit console can now **reprocess failed AI jobs in bulk**: a
+  new Failures preview (`GET /admin/audit/jobs/failures`) groups terminally
+  failed background jobs by type × error family with dedupe/cap estimates,
+  and a confirmed action (`POST /admin/audit/jobs/requeue`) requeues them
+  as fresh queue rows (`requeue_of` markers in both directions) — dedupe
+  against queued/running twins, 200-job cap per action, one bulk action at
+  a time. The UI lands in the next change.
+
 ### Added (preset freshness + tile parity, 2026-11-02)
 - Preset cards now carry **freshness signals**: a live-verified openings
   count and the verification date per tenant (all 17 ATS tenants

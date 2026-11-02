@@ -146,6 +146,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/audit/jobs/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Audit Job Failures
+         * @description Failed-job groups for the Failures tab (plan 184): type by error
+         *     family with the dedupe/cap estimates a requeue would apply.
+         */
+        get: operations["audit_job_failures_api_v1_admin_audit_jobs_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/audit/jobs/requeue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Audit Job Requeue
+         * @description Bulk-requeue terminally failed background jobs as fresh rows
+         *     (plan 184). Without ``confirm`` this returns the preview only and
+         *     mutates nothing.
+         */
+        post: operations["audit_job_requeue_api_v1_admin_audit_jobs_requeue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit/overview": {
         parameters: {
             query?: never;
@@ -13499,6 +13542,32 @@ export interface components {
             title: string;
         };
         /**
+         * JobRequeueRequest
+         * @description Body of the bulk-requeue action: filters or explicit ids + confirm.
+         */
+        JobRequeueRequest: {
+            /**
+             * Confirm
+             * @default false
+             */
+            confirm: boolean;
+            /** From */
+            from?: string | null;
+            /** Job Ids */
+            job_ids?: string[] | null;
+            /** Job Type */
+            job_type?: string | null;
+            /** To */
+            to?: string | null;
+            /** User Id */
+            user_id?: string | null;
+            /**
+             * Window
+             * @default 24h
+             */
+            window: string | null;
+        };
+        /**
          * JobSkillImportance
          * @enum {string}
          */
@@ -18596,6 +18665,78 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_failures_api_v1_admin_audit_jobs_failures_get: {
+        parameters: {
+            query?: {
+                job_type?: string | null;
+                user_id?: string | null;
+                window?: string;
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_job_requeue_api_v1_admin_audit_jobs_requeue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobRequeueRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

@@ -39,6 +39,7 @@ class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)
     cancel_requested: Mapped[bool] = mapped_column(default=False, nullable=False)
+    requeue_of: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
     claimed_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     heartbeat_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)

@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0084"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0085"], (
         "revision chain stays linear on one head"
     )
 
@@ -2284,6 +2284,24 @@ def test_0084_smart_digest_schedule_roundtrip():
     checks = _schedules_checks()
     assert "user_smart_digest" in checks["kind_allowed"]
     assert "smart_digest" in checks["task_allowed"]
+
+
+def test_0085_job_requeue_of_roundtrip():
+    """Plan 184: the requeue marker column + its index exist at head and
+    die on the downgrade (marker data is auxiliary audit data — its loss
+    is documented in the migration)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "requeue_of"), "requeue marker exists at head"
+    assert _index_present("background_jobs", "ix_background_jobs_requeue_of")
+
+    command.downgrade(config, "0084")
+    assert not _column_present("background_jobs", "requeue_of"), "downgrade drops the marker"
+    assert not _index_present("background_jobs", "ix_background_jobs_requeue_of")
+
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "requeue_of"), "re-upgrade restores the marker"
+    assert _index_present("background_jobs", "ix_background_jobs_requeue_of")
 
 
 def _job_sources_shape() -> tuple[set[str], dict[str, str]]:
