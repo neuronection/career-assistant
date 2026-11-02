@@ -173,6 +173,7 @@ files = [
     "app/models",
     "app/schemas",
     "app/seeds",
+    "app/services",
     "app/shell.py",
 ]
 exclude = ["app/extensions/contract.py"]
@@ -185,7 +186,8 @@ follow_imports = "silent"
 # errors requires lowering the peg in the same commit
 # (`uv run python ../scripts/check-mypy-ratchet.py --update`); adding any
 # error fails CI. Clean packages move to `[tool.mypy] files` instead.
-packages = { "app/services" = 157 }
+# The wall is empty: app/services joined `files` clean (209 -> 0).
+packages = {}
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
