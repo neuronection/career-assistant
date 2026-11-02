@@ -17,6 +17,7 @@ import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 interface FamilyOption {
   key: string;
   label: string;
+  depth: number;
 }
 
 /** One signal candidate from the join trace (plan 185 S6.2): the admin's
@@ -74,7 +75,9 @@ export function TaxonomyJobProposalCards({
 
   const openApply = (row: JobProposalRow) => {
     setApplying(row);
-    setFamilyKey(families[0]?.key ?? "");
+    // The backend's skill-affinity suggestion preselects; empty means the
+    // picker starts honest instead of guessing the first family.
+    setFamilyKey(row.suggested_family_key ?? "");
     setTitle(row.proposal?.title_norm ?? row.title);
     setCode("");
     setError("");
@@ -234,9 +237,14 @@ export function TaxonomyJobProposalCards({
               className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)]"
               data-testid="proposal-family-picker"
             >
+              {!familyKey && (
+                <option value="" disabled>
+                  {t("taxonomy.jobProposals.familyPlaceholder")}
+                </option>
+              )}
               {families.map((family) => (
                 <option key={family.key} value={family.key}>
-                  {family.label}
+                  {`${"\u00a0".repeat(family.depth * 3)}${family.label}`}
                 </option>
               ))}
             </select>
@@ -264,20 +272,20 @@ export function TaxonomyJobProposalCards({
               data-testid="proposal-code-input"
             />
           </label>
+          <ModalFooter className="mt-4 flex items-center justify-end gap-2 border-t border-[var(--as-border)] pt-3">
+            <Button variant="outline" size="sm" onClick={() => setApplying(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void submitApply()}
+              disabled={busy || !familyKey}
+              data-testid="proposal-apply-confirm"
+            >
+              {busy ? <Spinner size="sm" /> : t("taxonomy.jobProposals.applyConfirm")}
+            </Button>
+          </ModalFooter>
         </ModalContent>
-        <ModalFooter className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => setApplying(null)}>
-            {t("common.cancel")}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => void submitApply()}
-            disabled={busy || !familyKey}
-            data-testid="proposal-apply-confirm"
-          >
-            {busy ? <Spinner size="sm" /> : t("taxonomy.jobProposals.applyConfirm")}
-          </Button>
-        </ModalFooter>
       </Modal>
 
       <ConfirmationModal

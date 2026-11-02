@@ -3,8 +3,9 @@ squeezes the raw text into auditable data — skills with required level
 1-10 + priority + mandatory evidence quote, seniority, salary,
 responsibilities with time splits. Every field is optional-with-confidence
 (`field_confidence`); the caller suppresses low-confidence fields instead
-of storing guesses. Unresolvable skills come back as `unresolved` rows
-with the raw label — never dropped, never label-matched."""
+of storing guesses. Pass 1 is taxonomy-blind (plan 153): skills come back
+as verbatim `raw_label` rows — no resolution, no key anchoring; the
+deterministic matcher + pass-2 resolver own resolution."""
 
 from typing import Literal
 
@@ -17,23 +18,15 @@ from app.models.enums import AITaskType
 
 
 class ExtractSkill(BaseModel):
-    """One skill requirement. `skill_key` resolvable against the provided
-    taxonomy; otherwise `unresolved` with `raw_label`."""
+    """One skill requirement, verbatim. Pass 1 is taxonomy-blind:
+    `raw_label` copies the posting's own wording; resolution happens in
+    pass 2 (plan 153) — the model never answers keys."""
 
-    skill_key: str | None = None
-    raw_label: str | None = None
-    unresolved: bool = False
+    raw_label: str = Field(min_length=1, max_length=200)
     required_level: int = Field(ge=1, le=10)
     priority: Literal["must_have", "nice_to_have", "bonus"]
     evidence_quote: str = Field(min_length=3, max_length=400)
     confidence: float = Field(ge=0.0, le=1.0)
-
-    @field_validator("raw_label")
-    @classmethod
-    def _label_when_unresolved(cls, value, info):
-        if info.data.get("unresolved") and not value:
-            raise ValueError("unresolved skills need a raw_label")
-        return value
 
 
 class ExtractResponsibility(BaseModel):
@@ -224,8 +217,15 @@ class PostingExtract(BaseModel):
     # The role description with board chrome removed (premium upsells,
     # applicant counts, recruiter/company blocks, job alerts) — what the
     # user reads as "About this role". None when the text is too noisy
-    # to distill confidently.
+    # to distill confidently. Native to the posting's language (the
+    # student surface reads it).
     description_clean: str | None = Field(default=None, max_length=8000)
+    # The role distilled to 2-3 self-contained sentences in the catalog's
+    # canonical language (the instance default locale) — the standardized
+    # surface the catalog job proposal shows. Optional: older extracts and
+    # too-noisy texts leave it out; consumers fall back to
+    # description_clean.
+    catalog_summary: str | None = Field(default=None, max_length=1200)
     seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
     employment_type: (
         Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
@@ -290,13 +290,12 @@ def _quote_around(text: str, needle: str) -> str:
 
 
 def _mock_extract(schema: type, user_prompt: str) -> dict:
-    """Deterministic deep extract from the prompt context: taxonomy keys
-    found verbatim become resolved skills (level from seniority hints,
-    priority by order); `skills_raw` entries outside the taxonomy come
-    back unresolved. Other fields stay unset — the caller sees honestly
-    what the mock can know."""
+    """Deterministic deep extract from the prompt context: every
+    `skills_raw` mention present in the text becomes a verbatim
+    `raw_label` row (pass 1 is taxonomy-blind — no keys are echoed).
+    Level comes from seniority hints, priority by order; other fields
+    stay unset — the caller sees honestly what the mock can know."""
     ctx = parse_context(user_prompt)
-    taxonomy = [str(k) for k in (ctx.get("skill_taxonomy") or [])]
     text = str(ctx.get("posting_text") or "")
     lowered = text.lower()
     title = str(ctx.get("title") or "").lower()
@@ -309,37 +308,27 @@ def _mock_extract(schema: type, user_prompt: str) -> dict:
         level = 4
 
     skills: list[dict] = []
-    for pos, key in enumerate([k for k in taxonomy if k.lower() in lowered]):
+    for raw_label in ctx.get("skills_raw") or []:
+        label = str(raw_label)
+        normalized = label.lower()
+        if (
+            not normalized
+            or normalized not in lowered
+            or any(str(s.get("raw_label", "")).lower() == normalized for s in skills)
+        ):
+            continue
         priority = (
             "must_have" if len(skills) < 2 else "nice_to_have" if len(skills) < 4 else "bonus"
         )
         skills.append(
             {
-                "skill_key": key,
-                "unresolved": False,
-                "required_level": min(10, level + (1 if pos >= 4 else 0)),
+                "raw_label": label,
+                "required_level": min(10, level + (1 if len(skills) >= 4 else 0)),
                 "priority": priority,
-                "evidence_quote": _quote_around(text, key),
+                "evidence_quote": _quote_around(text, label),
                 "confidence": 0.9,
             }
         )
-    for raw_label in ctx.get("skills_raw") or []:
-        label = str(raw_label)
-        if (
-            label.lower() in lowered
-            and not any(label.lower() == str(s.get("skill_key", "")).lower() for s in skills)
-            and not any(str(s.get("raw_label", "")).lower() == label.lower() for s in skills)
-        ):
-            skills.append(
-                {
-                    "raw_label": label,
-                    "unresolved": True,
-                    "required_level": 3,
-                    "priority": "nice_to_have",
-                    "evidence_quote": _quote_around(text, label),
-                    "confidence": 0.8,
-                }
-            )
     return {
         "title_norm": (ctx.get("title") or None),
         "description_clean": text[:2000] if text.strip() else None,
@@ -482,41 +471,63 @@ async def extract_posting(
     title: str,
     description: str,
     skills_raw: list[str],
-    skill_taxonomy_keys: list[str],
     *,
     run: "RunRef | None" = None,
 ) -> "tuple[PostingExtract, dict]":
     """Validated deep extract for one posting (caller applies + audits).
 
-    The per-feature brief is GENERATED from the feature map (39.3) —
-    schema and prompt cannot drift apart. ``run`` (a gateway ``RunRef``)
-    pins the audit row to the background job the call served
-    (``ai_generations.run_id``, the amendment-5 identity); the audit
-    summary comes back alongside the result so the journal (plan 142)
-    can link the generation id."""
+    Pass 1 of the two-pass pipeline (plan 153): the context carries NO
+    taxonomy — labels are extracted verbatim and resolved later by the
+    deterministic matcher + pass-2 resolver, so the call's token spend
+    never scales with the active catalog. The per-feature brief is
+    GENERATED from the feature map (39.3) — schema and prompt cannot
+    drift apart. ``run`` (a gateway ``RunRef``) pins the audit row to the
+    background job the call served (``ai_generations.run_id``, the
+    amendment-5 identity); the audit summary comes back alongside the
+    result so the journal (plan 142) can link the generation id."""
     from app.services.feature_map import generated_feature_instructions
+    from app.services.locale_service import instance_default_locale
+
+    # The catalog-side summary standardizes into the instance's canonical
+    # language (the admin's default-locale setting; English when unset).
+    locale = await instance_default_locale(db)
+    language_name = {"en": "English", "de": "German", "el": "Greek"}.get(locale, "English")
 
     return await ainvoke_structured(
         db,
         AITaskType.POSTING_EXTRACT,
         PostingExtract,
         system=(
-            "You extract structured facts from job postings. Resolve every "
-            "skill mention onto the provided taxonomy keys — when no key "
-            "fits, return the skill as unresolved with its raw label. Facts "
-            "that carry an evidence contract (skills, prerequisites, "
-            "contract, hours, schedule, travel, onsite) need a verbatim "
-            "evidence_quote from the text. Never guess: fields you cannot "
-            "support get a field_confidence below 0.6 so the caller drops "
-            "them.\n\n"
+            "You extract structured facts from job postings verbatim. For "
+            "skills, extract what the posting says: copy every skill "
+            "mention into `raw_label` EXACTLY as written (case, spelling, "
+            "punctuation) — never map, expand or translate labels onto "
+            "any taxonomy, and never answer with a key or id; a later "
+            "pass resolves the labels. Facts that carry an evidence "
+            "contract (skills, prerequisites, contract, hours, schedule, "
+            "travel, onsite) need a verbatim evidence_quote from the "
+            "text. Never guess: fields you cannot support get a "
+            "field_confidence below 0.6 so the caller drops them.\n\n"
+            '`title_norm` is the BARE role title: no "Job Title:" chrome, '
+            "no seniority or level qualifiers (those belong in "
+            "`seniority`), no location, no company name.\n\n"
             "Also write `description_clean`: the role description with all "
             "job-board chrome removed — premium upsells, applicant counts, "
             "recruiter contact blocks, company marketing, job alerts, "
-            '"see how you compare" — keep ONLY what describes the role '
-            "itself (position, responsibilities, requirements, stack, "
-            "benefits). Preserve the text's original language and its "
-            "structure as plain paragraphs and bullets. Leave it null when "
-            "the text is too noisy to distill confidently."
+            '"see how you compare" — and no section scaffolding ("Job '
+            'Title:", "Job Location:", "Job Description:", "Main '
+            'Responsibilities:", location/visa/apply blocks). Keep ONLY '
+            "what describes the role itself (position, responsibilities, "
+            "requirements, stack, benefits). Preserve the text's original "
+            "language and its structure as plain paragraphs and bullets. "
+            "Leave it null when the text is too noisy to distill "
+            "confidently.\n\n"
+            "Also write `catalog_summary`: the role distilled to 2-3 "
+            "self-contained sentences of plain prose — the same content "
+            f"as description_clean, written in {language_name}, with no "
+            "headers, lists or formatting. It standardizes the "
+            "catalog-side surface across postings of any language. Leave "
+            "it null when you cannot distill confidently."
         ),
         user=(
             generated_feature_instructions()
@@ -526,7 +537,6 @@ async def extract_posting(
                     "title": title,
                     "posting_text": description[:24000],
                     "skills_raw": skills_raw[:60],
-                    "skill_taxonomy": skill_taxonomy_keys,
                 }
             )
         ),

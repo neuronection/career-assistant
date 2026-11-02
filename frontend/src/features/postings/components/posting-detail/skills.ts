@@ -34,7 +34,7 @@ const PRIORITY_RANK: Record<string, number> = {
 export function normalizeSkills(skills: PostingDetailSkill[]): NormalizedSkill[] {
   const byKey = new Map<string, NormalizedSkill>();
   for (const skill of skills) {
-    const unmapped = Boolean(skill.unresolved) || !skill.skill_key;
+    const unmapped = !skill.skill_key;
     const rawLabel = (skill.raw_label ?? "").trim();
     const key = unmapped ? `raw:${rawLabel.toLowerCase()}` : `key:${skill.skill_key}`;
     const label = unmapped ? rawLabel : (skill.skill_key ?? "").trim();

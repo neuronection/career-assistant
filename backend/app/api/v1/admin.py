@@ -36,11 +36,24 @@ from app.schemas.scheduler import (
     ScheduleToggleOut,
 )
 from app.schemas.sources_catalog import MAX_CATALOG_BYTES, CatalogUpsertIn
-from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut, TaxonomyStatsOut
+from app.schemas.taxonomy import (
+    ResolutionStatsOut,
+    ResolutionThresholdsIn,
+    ResolutionThresholdsOut,
+    SkillBulkIn,
+    SkillBulkOut,
+    TaxonomyStatsOut,
+)
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.catalog.taxonomy_stats import collect_taxonomy_stats
 from app.services.deps import get_current_user, require_admin
+from app.services.postings.extract_service import (
+    ResolveThresholds,
+    load_thresholds,
+    save_thresholds,
+)
+from app.services.postings.resolution_stats import resolution_stats
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +128,54 @@ async def promote_skill(
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
+
+
+@router.get("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def get_resolution_thresholds(
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Effective resolution thresholds (constant fallbacks included)."""
+    thresholds = await load_thresholds(db)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.put("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def put_resolution_thresholds(
+    data: ResolutionThresholdsIn,
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Admin overrides for the resolve pipeline (clamped server-side;
+    effective on the next run)."""
+    thresholds = ResolveThresholds(**data.model_dump())
+    await save_thresholds(db, thresholds)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.get("/taxonomy/resolution/stats", response_model=ResolutionStatsOut)
+async def get_resolution_stats(
+    window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionStatsOut:
+    """Last-run summary + rolling resolution rates from the
+    POSTING_EXTRACT job results (plan 153 slice 4)."""
+    stats = await resolution_stats(db, window=window)
+    return ResolutionStatsOut.model_validate(stats)
 
 
 @router.post("/skills/{skill_id}/merge")
@@ -1471,7 +1532,9 @@ async def job_proposal_queue(
     write a better job" context)."""
     from app.services.postings.job_proposal_service import JobProposalService
 
-    rows = await JobProposalService(db).pending(limit=limit)
+    service = JobProposalService(db)
+    rows = await service.pending(limit=limit)
+    suggestions = await service.family_suggestions(rows)
     return [
         {
             "id": str(p.id),
@@ -1482,6 +1545,7 @@ async def job_proposal_queue(
             "proposed_at": (p.posting_facts or {}).get("job_proposal", {}).get("proposed_at")
             if isinstance((p.posting_facts or {}).get("job_proposal"), dict)
             else None,
+            "suggested_family_key": suggestions.get(p.id),
             "mapping_signals": (p.posting_facts or {}).get("mapping_signals"),
             "extract_version": p.extract_version,
         }
@@ -1715,18 +1779,81 @@ async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(ge
     }
 
 
-@router.post("/postings/{posting_id}/extract")
-async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
-    """Re-run the deep extraction for one posting now (admin)."""
+@router.post("/postings/replay")
+async def replay_postings_by_ids(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Bulk replay wave (plan 153 slice 4 — the /postings multi-select):
+    enqueue `mode: "resolve"` jobs for the given postings — candidate
+    match + pass 2 over the stored raw labels, no pass-1 spend. Only
+    postings on the current extract version queue (older rows carry no
+    replayable labels — they re-extract on demand); already-queued ones
+    are skipped; unknown ids are reported as missing."""
+    ids = [str(item) for item in (payload.get("posting_ids") or [])][:200]
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "posting_ids is required")
     from app.models.posting_model import JobPosting
-    from app.services.postings.extract_service import extract_posting_now
+    from app.services.postings.extract_service import (
+        EXTRACT_VERSION,
+        queue_posting_replay,
+    )
+
+    queued = skipped = 0
+    missing: list[str] = []
+    for raw_id in ids:
+        try:
+            lookup_id = uuid.UUID(str(raw_id))
+        except ValueError:
+            missing.append(raw_id)
+            continue
+        posting = (
+            (await db.execute(select(JobPosting).where(JobPosting.id == lookup_id)))
+            .scalars()
+            .first()
+        )
+        if posting is None or posting.status not in ("new", "mapped"):
+            missing.append(raw_id)
+            continue
+        if posting.extract_version != EXTRACT_VERSION:
+            skipped += 1
+            continue
+        if await queue_posting_replay(db, posting):
+            queued += 1
+        else:
+            skipped += 1
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "missing": missing[:50],
+        "requested": len(ids),
+    }
+
+
+@router.post("/postings/{posting_id}/extract")
+async def reextract_posting(
+    posting_id: uuid.UUID, payload: dict | None = None, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Re-run the deep extraction for one posting now (admin).
+
+    ``{"mode": "resolve"}`` is the plan-153 replay variant: the stored
+    raw labels re-run through candidate matching + the pass-2 resolver
+    only — no pass-1 spend. Without a mode the full extraction runs."""
+    from app.models.posting_model import JobPosting
+    from app.services.postings.extract_service import (
+        extract_posting_now,
+        replay_posting_resolution,
+    )
 
     posting = (
         (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    mode = (payload or {}).get("mode")
+    if mode not in (None, "resolve"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode must be 'resolve'")
     try:
+        if mode == "resolve":
+            return await replay_posting_resolution(db, posting)
         return await extract_posting_now(db, posting)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

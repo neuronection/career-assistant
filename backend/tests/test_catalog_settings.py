@@ -248,7 +248,7 @@ async def test_remap_mapped_posting_leaves_the_proposal_queue(
             external_id="remap-proposal",
             title="Observability Engineer",
             url="https://syn.example/remap-proposal",
-            skills_raw=["sql"],
+            skills_raw=["sql", "programming", "problem-solving"],
             raw={"description": "We need sql, programming and problem-solving."},
         ),
     )

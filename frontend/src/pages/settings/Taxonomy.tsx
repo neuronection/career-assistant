@@ -45,7 +45,6 @@ import {
 import {
   TaxonomyJobProposalCards,
 } from "@/components/settings/TaxonomyJobProposalCards";
-import { TaxonomyEmbeddingsCard } from "@/components/settings/TaxonomyEmbeddingsCard";
 import {
   fetchJobProposals,
   type JobProposalRow,
@@ -148,7 +147,9 @@ export function Taxonomy() {
   const [paths, setPaths] = useState<PathRow[]>([]);
   const [enrichment, setEnrichment] = useState<EnrichmentRow[]>([]);
   const [jobProposals, setJobProposals] = useState<JobProposalRow[]>([]);
-  const [familyOptions, setFamilyOptions] = useState<Array<{ key: string; label: string }>>([]);
+  const [familyOptions, setFamilyOptions] = useState<
+    Array<{ key: string; label: string; depth: number }>
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
@@ -205,9 +206,23 @@ export function Taxonomy() {
         setJobProposals(await fetchJobProposals());
         try {
           const tree = await fetchFamilyTree();
-          setFamilyOptions(
-            tree.map((family) => ({ key: family.key, label: family.label })),
-          );
+          // The picker offers the WHOLE family tree: catalog jobs live in
+          // child families (IT jobs sit under "Technology & IT › IT
+          // Operations & Security"), and the affinity suggestion names the
+          // exact family — a top-level-only list would silently fall back
+          // to the first option.
+          const flatten: Array<{ key: string; label: string; depth: number }> = [];
+          const walk = (nodes: typeof tree, parentLabel: string, depth: number) => {
+            for (const node of nodes) {
+              const label = parentLabel ? `${parentLabel} › ${node.label}` : node.label;
+              flatten.push({ key: node.key, label, depth });
+              if (node.children?.length) {
+                walk(node.children, label, depth + 1);
+              }
+            }
+          };
+          walk(tree, "", 0);
+          setFamilyOptions(flatten);
         } catch {
           setFamilyOptions([]);
         }
@@ -388,7 +403,7 @@ export function Taxonomy() {
   const queueCount = (tab: TaxonomyTab): number => {
     if (!stats) return 0;
     if (tab === "relations") return stats.queue.relations;
-    if (tab === "enrichment") return stats.queue.enrichment;
+    if (tab === "enrichment") return stats.queue.enrichment + jobProposals.length;
     if (tab === "paths") return stats.queue.paths;
     if (tab === "translations") return stats.queue.translations;
     return 0;
@@ -626,7 +641,6 @@ export function Taxonomy() {
                 onDone={reloadAfterModeration}
               />
             )}
-            <TaxonomyEmbeddingsCard />
           </section>
         </div>
       ) : kind === "paths" ? (

@@ -116,7 +116,7 @@ describe("taxonomy work-queue stats", () => {
     await waitFor(() =>
       expect(screen.getByRole("tab", { name: "Relations · 12" })).toBeInTheDocument(),
     );
-    expect(screen.getByRole("tab", { name: "Enrichment · 3" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Proposals · 3" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Translations · 8" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Paths · 2" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Skills" })).toBeInTheDocument();

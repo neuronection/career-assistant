@@ -66,8 +66,8 @@
     "headless": true,
     "viewports": {
       "desktop": {
-        "width": 1440,
-        "height": 1200,
+        "width": 1280,
+        "height": 960,
         "deviceScaleFactor": 1
       },
       "mobile": {
@@ -76,17 +76,16 @@
         "deviceScaleFactor": 2
       },
       "desktop2x": {
-        "width": 1440,
-        "height": 900,
+        "width": 1280,
+        "height": 960,
         "deviceScaleFactor": 2
       },
       "desktop4x": {
-        "width": 1440,
-        "height": 900,
+        "width": 1280,
+        "height": 960,
         "deviceScaleFactor": 4
       }
-    },
-    "zoom": 1.25
+    }
   },
   "gallery": {
     "title": "Career Assistant \u2014 Visual Tour",

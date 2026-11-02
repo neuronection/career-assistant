@@ -120,9 +120,10 @@ def _check_universities(extraction: UniversityExtraction) -> None:
 
 def _check_posting_extract(extract: PostingExtract) -> None:
     assert extract.title_norm == "Backend Developer"
-    assert extract.skills
+    assert [s.raw_label for s in extract.skills] == ["programming", "sql"], (
+        "verbatim pass-1 labels — docker is never mentioned in the text"
+    )
     for skill in extract.skills:
-        assert skill.skill_key or skill.raw_label
         assert 1 <= skill.required_level <= 10
         assert skill.evidence_quote
 
@@ -491,8 +492,7 @@ def _build_cases() -> list[GoldenCase]:
             user=(
                 'CONTEXT_JSON: {"title": "Backend Developer", '
                 '"posting_text": "We need programming and sql daily", '
-                '"skill_taxonomy": ["programming", "sql"], '
-                '"skills_raw": ["docker"]}'
+                '"skills_raw": ["programming", "sql", "docker"]}'
             ),
             prompt_version=_blessed(AITaskType.POSTING_EXTRACT.value),
             check=_check_posting_extract,
