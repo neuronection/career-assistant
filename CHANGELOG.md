@@ -18,7 +18,8 @@ All notable changes to **Career Assistant** are documented here.
   title + at least three kept skills), the posting lands in the new
   "Job proposals" queue on the Taxonomy settings page. Applying creates
   the catalog job published (slug deduped, skills from the extract with
-  must-have→core priority mapping), maps the posting manual and embeds
+  must-have→core priority mapping, capped at the catalog's 15-link
+  contract — must-have first), maps the posting manual and embeds
   the new job — one transaction; dismissal clears the proposal with an
   explicit audit trail. Applying preselects the job family by skill
   affinity with the published catalog — only on decisive evidence (at

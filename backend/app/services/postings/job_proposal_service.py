@@ -39,6 +39,10 @@ MIN_PROPOSAL_SKILLS = 3
 #: The proposal's short description cap (the extract's description_clean).
 DESCRIPTION_CAP = 500
 
+#: The catalog job contract's skill-link cap (`JobCreate.skills`
+#: max_length=15) — an apply keeps the best 15, must-have first.
+MAX_JOB_SKILLS = 15
+
 #: Extract priority → catalog importance (pinned in tests): the
 #: must-have end of the extract maps onto the catalog's core tier.
 PRIORITY_TO_IMPORTANCE = {
@@ -317,7 +321,7 @@ class JobProposalService:
             self.db,
             posting.id,
             "manual",
-            actor_ref={"user_id": str(user.id)},
+            actor_ref={"user_id": str(user.id)} if user is not None else None,
             operation={"job_proposal": "dismissed"},
             before=before,
             after={"facts_summary": facts_summary(posting)},
@@ -382,6 +386,24 @@ class JobProposalService:
                 select(Skill).where(Skill.key.in_(skill_keys), Skill.status == "active")
             )
             resolved = {skill.key: skill for skill in rows.scalars().all()}
+        # The catalog contract caps a job at 15 skill links (JobCreate) —
+        # keep the BEST 15: must-have first, then the strongest level, then
+        # the key for determinism.
+        priority_rank = {"must_have": 0, "nice_to_have": 1, "bonus": 2}
+        proposed = [
+            skill
+            for skill in proposal.get("skills") or []
+            if isinstance(skill, dict)
+            and skill.get("skill_key")
+            and str(skill["skill_key"]) in resolved
+        ]
+        proposed.sort(
+            key=lambda skill: (
+                priority_rank.get(str(skill.get("priority") or ""), 3),
+                -int(skill.get("required_level") or 0),
+                str(skill["skill_key"]),
+            )
+        )
         job_skills = [
             JobSkillIn(
                 skill_key=str(skill["skill_key"]),
@@ -390,10 +412,7 @@ class JobProposalService:
                     str(skill.get("priority") or ""), JobSkillImportance.IMPORTANT
                 ),
             )
-            for skill in proposal.get("skills") or []
-            if isinstance(skill, dict)
-            and skill.get("skill_key")
-            and str(skill["skill_key"]) in resolved
+            for skill in proposed[:MAX_JOB_SKILLS]
         ]
 
         job = await JobService(self.db).create(
@@ -428,7 +447,7 @@ class JobProposalService:
             self.db,
             posting.id,
             "manual",
-            actor_ref={"user_id": str(user.id)},
+            actor_ref={"user_id": str(user.id)} if user is not None else None,
             operation={"job_proposal": "applied", "catalog_job_code": job.code},
             before=before_map,
             after=snapshot(posting, RETAG_FIELDS),

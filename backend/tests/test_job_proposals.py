@@ -6,6 +6,7 @@ The pending filter is the JSON-TYPE test, never presence."""
 
 import pytest
 from sqlalchemy import select
+from sqlalchemy.orm import joinedload
 
 from app.extensions.sdk import RawPosting
 from app.models.embedding_model import AIEmbedding
@@ -538,6 +539,99 @@ async def test_generic_only_overlap_never_guesses(db, client, auth_headers, kind
     queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
     row = next(entry for entry in queue if entry["id"] == str(posting.id))
     assert row["suggested_family_key"] is None, "generic-only overlap is not evidence — no guess"
+
+
+async def test_apply_caps_the_skill_links_at_the_catalog_contract(
+    db, client, auth_headers, kinds, source, monkeypatch
+):
+    """The catalog contract caps a job at 15 skill links (JobCreate); a
+    21-resolvable proposal applies cleanly with the best 15 — must-have
+    first, never a 500."""
+    from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
+    from app.services.postings.extract_service import extract_posting_now
+
+    await _seed_world(db)
+    extra = []
+    for index in range(18):
+        skill = Skill(key=f"cap-skill-{index:02d}", label=f"Cap {index}", category="test")
+        db.add(skill)
+        extra.append(skill)
+    await db.commit()
+
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="cap-apply",
+            title="Cap Test Engineer",
+            url="https://syn.example/cap-apply",
+            skills_raw=["sql"],
+            raw={"description": RICH_DESCRIPTION},
+        ),
+    )
+    await db.commit()
+
+    async def scripted_extract(*_args, **_kw):
+        extract = PostingExtract(
+            title_norm="Cap Test Engineer",
+            catalog_summary="A role with many skills.",
+            skills=[
+                ExtractSkill(
+                    skill_key="sql",
+                    required_level=6,
+                    priority="must_have",
+                    evidence_quote="we need sql",
+                    confidence=0.9,
+                ),
+                *[
+                    ExtractSkill(
+                        skill_key=skill.key,
+                        required_level=5,
+                        priority="must_have" if index < 3 else "nice_to_have",
+                        evidence_quote="skills",
+                        confidence=0.9,
+                    )
+                    for index, skill in enumerate(extra)
+                ],
+            ],
+        )
+        return extract, {"id": None}
+
+    monkeypatch.setattr("app.ai.agents.posting_extractor.extract_posting", scripted_extract)
+    await extract_posting_now(db, posting)
+    await db.refresh(posting)
+    assert len(_proposal_of(posting)["skills"]) == 19
+
+    applied = await client.post(
+        f"/api/v1/admin/postings/{posting.id}/job-proposal/apply",
+        json={"family_key": "proposal-family"},
+        headers=auth_headers,
+    )
+    assert applied.status_code == 200, applied.text
+    job = (
+        (await db.execute(select(Job).where(Job.code == applied.json()["job_code"])))
+        .scalars()
+        .one()
+    )
+    links = (
+        (
+            await db.execute(
+                select(JobSkill)
+                .options(joinedload(JobSkill.skill))
+                .where(JobSkill.job_id == job.id)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    assert len(links) == 15, "the catalog contract's cap, not a 500"
+    keys = {link.skill.key for link in links}
+    assert "sql" in keys
+    assert {"cap-skill-00", "cap-skill-01", "cap-skill-02"} <= keys, (
+        "must-have skills win the 15 slots"
+    )
+    assert {link.importance for link in links if link.skill.key == "sql"} == {"core"}
 
 
 async def test_apply_slug_dedupes_and_overrides(db, client, auth_headers, kinds, source):
