@@ -803,10 +803,10 @@ describe("audit page tabs", () => {
     );
   });
 
-  it("links the AI activity tab into the failures view", async () => {
+  it("links the AI activity tab into the failures view pre-filtered by the badge window", async () => {
     renderPage("/settings/audit?tab=ai");
     const link = await screen.findByTestId("audit-ai-failed-link");
-    expect(link.getAttribute("href")).toBe("/settings/audit?tab=failures");
+    expect(link.getAttribute("href")).toBe("/settings/audit?tab=failures&window=24h");
     expect(link.textContent).toContain("failed AI call");
   });
 

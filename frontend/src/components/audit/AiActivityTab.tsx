@@ -302,7 +302,7 @@ export function AiActivityTab() {
       <div className="flex flex-wrap items-center gap-2">
         {failedCalls > 0 && (
           <Link
-            to={`/settings/audit?tab=failures`}
+            to={`/settings/audit?${new URLSearchParams({ tab: "failures", window: "24h" }).toString()}`}
             className="inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
             data-testid="audit-ai-failed-link"
           >
