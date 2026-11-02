@@ -79,6 +79,7 @@ export interface JobProposalRow {
     proposed_at?: string;
   } | null;
   proposed_at: string | null;
+  suggested_family_key: string | null;
   mapping_signals: Record<string, unknown> | null;
   extract_version: number | null;
 }

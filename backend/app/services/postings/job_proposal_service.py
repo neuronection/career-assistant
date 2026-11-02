@@ -13,16 +13,18 @@ family-tree node with fit scoring, demand stats and a public /catalog page
 — creation is admin-gated (ADR-0015 is not engaged; this is the admin
 moderation surface, not a chat proposal card)."""
 
+import re
+import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select, text
+from sqlalchemy import case, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.errors import NotFoundError
 from app.models.enums import JobSkillImportance, JobSource
-from app.models.job_model import Job, JobSkill
-from app.models.posting_model import JobPosting
+from app.models.job_model import Job, JobFamily, JobSkill
+from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
 from app.services.postings.change_journal import (
     RETAG_FIELDS,
@@ -66,13 +68,34 @@ def pending_predicate(dialect_name: str):
     return text("json_type(posting_facts, '$.job_proposal') = 'object'")
 
 
+# The archetype title is LEVEL-GENERIC: seniority is a posting-level fact
+# (the extract carries it separately; fit/demand stats attach to the
+# archetype), so seniority qualifiers are stripped from the proposed
+# catalog job's default title — "Senior Data Engineer" proposes
+# "Data Engineer". The closed extract vocabulary + the common
+# abbreviations; prefix-only, hyphenated compounds ("Mid-Level") survive.
+_SENIORITY_TITLE_PREFIX = re.compile(
+    r"^(?:(?:senior|junior|lead|principal|intern|mid|sr|jr)\.?\s+)+",
+    re.IGNORECASE,
+)
+
+
+def generic_archetype_title(title: str) -> str:
+    """Strip leading seniority qualifiers; keep the original when the
+    remainder would be empty or trivially short."""
+    stripped = _SENIORITY_TITLE_PREFIX.sub("", title).strip()
+    if len(stripped) >= 3:
+        return stripped
+    return title
+
+
 async def store_job_proposal(
     db: AsyncSession, posting: JobPosting, *, actor_ref: dict | None = None
 ) -> bool:
     """S4.1 — the proposal writer, called from the extract flow AFTER the
     catalog re-decision: only an unmapped posting with a rich enough
-    extract proposes (``title_norm`` kept + ≥ ``MIN_PROPOSAL_SKILLS`` kept
-    skills). Fresh postings without an extract never reach this (the
+    extract proposes (a level-generic ``title_norm`` + ≥ ``MIN_PROPOSAL_SKILLS``
+    kept skills). Fresh postings without an extract never reach this (the
     caller is the extract flow); a live proposal stands — a re-extract
     with a still-unmapped verdict does not clobber the pending item an
     admin may be reading. Returns whether a proposal was stored."""
@@ -98,7 +121,8 @@ async def store_job_proposal(
 
     before = {"facts_summary": facts_summary(posting)}
     facts["job_proposal"] = {
-        "title_norm": title[:200],
+        "title_norm": generic_archetype_title(title)[:200],
+        "posting_title": title[:200],
         "short_description": str(extract.get("description_clean") or "")[:DESCRIPTION_CAP],
         "skills": [
             {
@@ -148,6 +172,51 @@ class JobProposalService:
             .limit(limit)
         )
         return list(rows.scalars().all())
+
+    async def family_suggestions(self, postings: list[JobPosting]) -> dict[uuid.UUID, str | None]:
+        """Deterministic family preselect per proposal (the apply dialog's
+        default, never an autonomous write): importance-weighted overlap
+        between the posting's resolved skills and each family's published
+        jobs' skill links. ``None`` when nothing covers the posting — the
+        picker then starts empty instead of guessing."""
+        if not postings:
+            return {}
+        skill_rows = await self.db.execute(
+            select(PostingSkill.posting_id, PostingSkill.skill_id).where(
+                PostingSkill.posting_id.in_([p.id for p in postings])
+            )
+        )
+        skills_by_posting: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for posting_id, skill_id in skill_rows:
+            skills_by_posting.setdefault(posting_id, set()).add(skill_id)
+        all_skills = {sid for ids in skills_by_posting.values() for sid in ids}
+        family_scores: dict[str, dict[uuid.UUID, float]] = {}
+        if all_skills:
+            weight = case(
+                (JobSkill.importance == JobSkillImportance.CORE.value, 3.0),
+                (JobSkill.importance == JobSkillImportance.IMPORTANT.value, 2.0),
+                else_=1.0,
+            ).label("weight")
+            covered = await self.db.execute(
+                select(JobFamily.key, JobSkill.skill_id, weight)
+                .join(Job, Job.id == JobSkill.job_id)
+                .join(JobFamily, JobFamily.id == Job.family_id)
+                .where(Job.status == "published", JobSkill.skill_id.in_(all_skills))
+            )
+            for family_key, skill_id, w in covered:
+                by_skill = family_scores.setdefault(family_key, {})
+                by_skill[skill_id] = max(float(w), by_skill.get(skill_id, 0.0))
+        suggestions: dict[uuid.UUID, str | None] = {}
+        for posting in postings:
+            ids = skills_by_posting.get(posting.id) or set()
+            best_key: str | None = None
+            best_score = 0.0
+            for family_key, by_skill in sorted(family_scores.items()):
+                score = sum(w for sid, w in by_skill.items() if sid in ids)
+                if score > best_score:
+                    best_key, best_score = family_key, score
+            suggestions[posting.id] = best_key
+        return suggestions
 
     async def require_pending_posting(self, posting_id) -> JobPosting:
         posting = (

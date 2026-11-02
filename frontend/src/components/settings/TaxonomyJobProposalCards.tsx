@@ -74,7 +74,9 @@ export function TaxonomyJobProposalCards({
 
   const openApply = (row: JobProposalRow) => {
     setApplying(row);
-    setFamilyKey(families[0]?.key ?? "");
+    // The backend's skill-affinity suggestion preselects; empty means the
+    // picker starts honest instead of guessing the first family.
+    setFamilyKey(row.suggested_family_key ?? "");
     setTitle(row.proposal?.title_norm ?? row.title);
     setCode("");
     setError("");
@@ -234,6 +236,11 @@ export function TaxonomyJobProposalCards({
               className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)]"
               data-testid="proposal-family-picker"
             >
+              {!familyKey && (
+                <option value="" disabled>
+                  {t("taxonomy.jobProposals.familyPlaceholder")}
+                </option>
+              )}
               {families.map((family) => (
                 <option key={family.key} value={family.key}>
                   {family.label}

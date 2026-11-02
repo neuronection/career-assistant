@@ -1421,7 +1421,9 @@ async def job_proposal_queue(
     write a better job" context)."""
     from app.services.postings.job_proposal_service import JobProposalService
 
-    rows = await JobProposalService(db).pending(limit=limit)
+    service = JobProposalService(db)
+    rows = await service.pending(limit=limit)
+    suggestions = await service.family_suggestions(rows)
     return [
         {
             "id": str(p.id),
@@ -1432,6 +1434,7 @@ async def job_proposal_queue(
             "proposed_at": (p.posting_facts or {}).get("job_proposal", {}).get("proposed_at")
             if isinstance((p.posting_facts or {}).get("job_proposal"), dict)
             else None,
+            "suggested_family_key": suggestions.get(p.id),
             "mapping_signals": (p.posting_facts or {}).get("mapping_signals"),
             "extract_version": p.extract_version,
         }

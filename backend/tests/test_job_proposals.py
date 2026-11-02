@@ -89,7 +89,6 @@ async def test_rich_unmapped_extract_stores_the_proposal(db, client, auth_header
     assert proposal["extract_version"] == 4
     assert proposal["proposed_at"]
     assert len(proposal["short_description"]) <= 500
-
     stored_rows = (
         (
             await db.execute(
@@ -104,6 +103,48 @@ async def test_rich_unmapped_extract_stores_the_proposal(db, client, auth_header
     )
     assert any((row.operation or {}).get("job_proposal") == "stored" for row in stored_rows), (
         "the writer journals its mutation in the extract transaction"
+    )
+
+
+def test_generic_archetype_title_strips_seniority_prefixes():
+    """The catalog job is an ARCHETYPE: seniority is a posting-level fact,
+    so the proposed default title is level-generic ("Senior Data Engineer"
+    proposes "Data Engineer"); the posting keeps its own title/seniority."""
+    from app.services.postings.job_proposal_service import generic_archetype_title
+
+    assert generic_archetype_title("Senior Data Engineer") == "Data Engineer"
+    assert generic_archetype_title("Sr. Data Engineer") == "Data Engineer"
+    assert generic_archetype_title("Lead Platform Engineer") == "Platform Engineer"
+    assert generic_archetype_title("JUNIOR Analyst") == "Analyst"
+    assert generic_archetype_title("Data Engineer") == "Data Engineer"
+    assert generic_archetype_title("Mid-Level Data Engineer") == "Mid-Level Data Engineer", (
+        "hyphenated compounds are one token — not a qualifier"
+    )
+    assert generic_archetype_title("Principal") == "Principal", "the remainder must stay meaningful"
+
+
+async def test_senior_posting_proposes_the_generic_title(db, client, auth_headers, kinds, source):
+    await _seed_world(db)
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="proposal-senior",
+            title="Senior Data Engineer",
+            url="https://syn.example/proposal-senior",
+            skills_raw=["sql"],
+            raw={"description": RICH_DESCRIPTION},
+        ),
+    )
+    await db.commit()
+    await extract_posting_now(db, posting)
+    await db.refresh(posting)
+
+    proposal = _proposal_of(posting)
+    assert proposal["title_norm"] == "Data Engineer", "level-generic archetype title"
+    assert proposal["posting_title"] == "Senior Data Engineer", "the posting keeps its own"
+    assert proposal["seniority"] == (posting.extract or {}).get("seniority"), (
+        "seniority passes through as a posting-level attribute"
     )
 
 
@@ -265,6 +306,74 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
         .all()
     )
     assert journal.operation["job_proposal"] == "dismissed"
+
+
+async def test_queue_suggests_the_skill_affinity_family(db, client, auth_headers, kinds, source):
+    """The apply dialog's default: importance-weighted overlap between the
+    posting's resolved skills and each family's published jobs — a
+    suggestion, never an autonomous choice; uncovered postings start the
+    picker empty. Each covering job stays individually BELOW the auto-map
+    threshold (diluted with heavy filler links) so the posting stays
+    unmapped — the family-level aggregate is what suggests."""
+    family = await _seed_world(db)
+    other = JobFamily(key="other-family", label="Other", path="other-family")
+    db.add(other)
+    await db.flush()
+    sql_row = (await db.execute(select(Skill).where(Skill.key == "sql"))).scalars().first()
+    programming = (
+        (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
+    )
+    problem = (
+        (await db.execute(select(Skill).where(Skill.key == "problem-solving"))).scalars().first()
+    )
+    filler = Skill(key="suggest-filler", label="Suggest Filler", category="test")
+    db.add(filler)
+    await db.flush()
+    for covered_skill in (sql_row, programming, problem):
+        diluted = Job(
+            code=f"suggestion-diluted-{covered_skill.key}",
+            title="Diluted",
+            family_id=family.id,
+            status="published",
+        )
+        db.add(diluted)
+        await db.flush()
+        db.add(
+            JobSkill(
+                job_id=diluted.id,
+                skill_id=covered_skill.id,
+                required_level=1,
+                importance="core",
+            )
+        )
+        db.add(
+            JobSkill(
+                job_id=diluted.id,
+                skill_id=filler.id,
+                required_level=10,
+                importance="core",
+            )
+        )
+    unrelated = Job(code="suggestion-other", title="Other", family_id=other.id, status="published")
+    db.add(unrelated)
+    await db.flush()
+    db.add(JobSkill(job_id=unrelated.id, skill_id=filler.id, required_level=10, importance="core"))
+    await db.commit()
+
+    posting = await _rich_unmapped_posting(db, source, external_id="suggest-1")
+    assert posting.mapping_method is None, "each diluted job stays below the threshold"
+    uncovered = await _rich_unmapped_posting(
+        db,
+        source,
+        external_id="suggest-2",
+        description="We need welding, plumbing and scaffolding.",
+        skills_raw=["welding"],
+    )
+
+    queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
+    by_id = {row["id"]: row for row in queue}
+    assert by_id[str(posting.id)]["suggested_family_key"] == "proposal-family"
+    assert by_id[str(uncovered.id)]["suggested_family_key"] is None
 
 
 async def test_apply_slug_dedupes_and_overrides(db, client, auth_headers, kinds, source):

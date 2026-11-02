@@ -20,7 +20,11 @@ All notable changes to **Career Assistant** are documented here.
   the catalog job published (slug deduped, skills from the extract with
   must-have→core priority mapping), maps the posting manual and embeds
   the new job — one transaction; dismissal clears the proposal with an
-  explicit audit trail. A posting the join has since mapped (the
+  explicit audit trail. Applying preselects the job family by skill
+  affinity with the published catalog, and the proposed archetype title is
+  level-generic — seniority qualifiers ("Senior …") are stripped, the
+  posting keeps its own title and seniority attribute. A posting the join
+  has since mapped (the
   "Re-decide" action) leaves the queue, and an unmapped verdict's reason
   names the signal that actually blocked it. New admin endpoints:
   `GET /admin/postings/job-proposals`,

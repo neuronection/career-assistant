@@ -47,6 +47,7 @@ const row: JobProposalRow = {
     proposed_at: "2026-11-02T10:00:00Z",
   },
   proposed_at: "2026-11-02T10:00:00Z",
+  suggested_family_key: "tech",
   mapping_signals: {
     overlap: { score: 0.05, runner_up: null },
     semantic: { top: null, threshold: 0.6, candidates: [] },
@@ -81,8 +82,10 @@ describe("TaxonomyJobProposalCards", () => {
       <TaxonomyJobProposalCards rows={[row]} families={families} onDone={onDone} />,
     );
     await user.click(screen.getByTestId("proposal-apply-p-1"));
-    const picker = screen.getByTestId("proposal-family-picker");
+    const picker = screen.getByTestId("proposal-family-picker") as HTMLSelectElement;
     expect(picker).toBeTruthy();
+    // the skill-affinity suggestion preselects the family
+    expect(picker.value).toBe("tech");
     const titleInput = screen.getByTestId("proposal-title-input") as HTMLInputElement;
     expect(titleInput.value).toBe("Observability Engineer");
     // jsdom keeps the library dialog's overlay inert; drive the confirm
@@ -94,6 +97,23 @@ describe("TaxonomyJobProposalCards", () => {
       { family_key: "tech", title: "Observability Engineer", code: undefined },
     ]);
     await waitFor(() => expect(onDone).toHaveBeenCalled());
+  });
+
+  it("no suggestion means the picker starts empty until a family is chosen", async () => {
+    const user = userEvent.setup();
+    render(
+      <TaxonomyJobProposalCards
+        rows={[{ ...row, suggested_family_key: null }]}
+        families={families}
+        onDone={() => {}}
+      />,
+    );
+    await user.click(screen.getByTestId("proposal-apply-p-1"));
+    const picker = screen.getByTestId("proposal-family-picker") as HTMLSelectElement;
+    expect(picker.value).toBe("");
+    expect(
+      (screen.getByTestId("proposal-apply-confirm") as HTMLButtonElement).disabled,
+    ).toBe(true), "apply stays disabled until a family is picked";
   });
 
   it("dismiss requires the confirm step and calls through", async () => {
