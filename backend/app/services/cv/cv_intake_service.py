@@ -438,10 +438,10 @@ class CvIntakeService:
 
         if self._selected(selections, "education"):
             for index in self._indices(selections, "education", len(extract.education)):
-                item = extract.education[index]
+                education_item = extract.education[index]
                 created = await self._create_education(
                     user_id,
-                    item.model_dump(),
+                    education_item.model_dump(),
                     status=("draft" if _is_draft("education", index) else "active"),
                 )
                 if created is not None:
@@ -452,16 +452,16 @@ class CvIntakeService:
 
         if self._selected(selections, "experience"):
             for index in self._indices(selections, "experience", len(extract.experience)):
-                item = extract.experience[index]
-                created = await self._create_experience(
+                experience_item = extract.experience[index]
+                experience_created = await self._create_experience(
                     user_id,
                     document_id_str,
-                    item.model_dump(),
+                    experience_item.model_dump(),
                     report,
                     status=("draft" if _is_draft("experience", index) else "active"),
                 )
-                if created is not None:
-                    self._note(user_id, document_id, "experience_items", created.id)
+                if experience_created is not None:
+                    self._note(user_id, document_id, "experience_items", experience_created.id)
                     report["created"]["experience_items"] = (
                         report["created"].get("experience_items", 0) + 1
                     )
@@ -483,9 +483,9 @@ class CvIntakeService:
 
         if self._selected(selections, "certifications"):
             for index in self._indices(selections, "certifications", len(extract.certifications)):
-                item = extract.certifications[index]
-                name = str(item.name or "").strip()
-                issuer = str(item.issuer or "").strip()
+                certification_item = extract.certifications[index]
+                name = str(certification_item.name or "").strip()
+                issuer = str(certification_item.issuer or "").strip()
                 dup_condition = [
                     Certification.user_id == user_id,
                     func.lower(Certification.name) == name.lower(),
@@ -502,10 +502,10 @@ class CvIntakeService:
                     continue
                 certification = Certification(
                     user_id=user_id,
-                    name=item.name,
-                    issuer=item.issuer,
-                    issued=_parse_date(item.issued),
-                    credential_id=item.credential_id,
+                    name=certification_item.name,
+                    issuer=certification_item.issuer,
+                    issued=_parse_date(certification_item.issued),
+                    credential_id=certification_item.credential_id,
                     source=ExperienceItemSource.CV_PARSE.value,
                     status="draft" if _is_draft("certifications") else "active",
                 )
@@ -516,13 +516,13 @@ class CvIntakeService:
 
         if self._selected(selections, "awards"):
             for index in self._indices(selections, "awards", len(extract.awards)):
-                item = extract.awards[index]
+                award_item = extract.awards[index]
                 achievement = ProfileAchievement(
                     user_id=user_id,
-                    kind=item.kind,
-                    title=item.title,
-                    issuer=item.issuer,
-                    date=_parse_date(item.date),
+                    kind=award_item.kind,
+                    title=award_item.title,
+                    issuer=award_item.issuer,
+                    date=_parse_date(award_item.date),
                     source=ExperienceItemSource.CV_PARSE.value,
                     status="draft" if _is_draft("awards") else "active",
                 )

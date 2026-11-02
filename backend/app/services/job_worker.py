@@ -112,7 +112,7 @@ class JobWorker:
             )
         )
         await self.db.commit()
-        if result.rowcount == 0:
+        if result.rowcount == 0:  # type: ignore[attr-defined]
             return None
         await self.db.refresh(job)
         return job

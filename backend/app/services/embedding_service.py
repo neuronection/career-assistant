@@ -9,7 +9,7 @@ provider synthesizes deterministic vectors for tests/dev).
 
 import hashlib
 import uuid
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -316,7 +316,7 @@ class EmbeddingService:
             if kind is not None:
                 skipped = skipped.where(AIEmbedding.entity_kind == kind)
             stats["skipped_dim_rows"] = int((await self.db.execute(skipped)).scalar() or 0)
-        scored = [
+        scored: list[dict[str, Any]] = [
             {
                 "entity_kind": row.entity_kind,
                 "entity_id": str(row.entity_id),

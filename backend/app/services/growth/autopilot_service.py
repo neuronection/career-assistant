@@ -811,7 +811,7 @@ class AutopilotService:
 
         run = await self._stale_running_run(goal.id)
         resume = run is not None
-        if not resume:
+        if run is None:
             run = AutopilotRun(goal_id=goal.id, status=AutopilotRunStatus.RUNNING.value)
             self.db.add(run)
         await self.db.commit()

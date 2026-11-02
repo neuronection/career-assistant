@@ -10,6 +10,7 @@ from __future__ import annotations
 import random
 from datetime import UTC, datetime, timedelta
 from importlib import metadata
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
@@ -251,7 +252,7 @@ class BootStaleTrigger:
         return now + timedelta(minutes=parsed.older_than_minutes)
 
 
-TRIGGERS: dict[str, type] = {
+TRIGGERS: dict[str, Any] = {
     IntervalTrigger.key: IntervalTrigger,
     DailyAtTrigger.key: DailyAtTrigger,
     WeeklyTrigger.key: WeeklyTrigger,

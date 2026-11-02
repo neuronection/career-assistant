@@ -156,7 +156,7 @@ class AIScenarios(Phase):
         active_keys = set(skill_keys)
         created: list[AssessmentQuestion] = []
         for index, item in enumerate(items[:10]):
-            options = []
+            options: list[dict[str, Any]] = []
             for option in item.get("options") or []:
                 scores = option.get("scores") or {}
                 clean_scores: dict = {

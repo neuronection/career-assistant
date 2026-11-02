@@ -6,6 +6,7 @@ WHAT/HOW — a tick never runs business logic itself."""
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import select
@@ -65,7 +66,7 @@ class SchedulerService:
     async def ensure_system_schedules(self) -> None:
         """Idempotent boot provisioning for the system schedule slots."""
         now = _utcnow()
-        defaults = [
+        defaults: list[tuple[ScheduleKind, str, dict, dict, str]] = [
             (
                 ScheduleKind.SYSTEM_SOURCE_SYNC,
                 BackgroundJobType.POSTING_SYNC.value,
@@ -470,14 +471,14 @@ class SchedulerService:
             # concurrent tick would re-claim, the loop never overlaps itself.
             claimed = (
                 await self.db.execute(
-                    Schedule.__table__.update()
+                    Schedule.__table__.update()  # type: ignore[attr-defined]
                     .where(
                         Schedule.id == schedule_id,
                         Schedule.next_run_at <= now,
                     )
                     .values(last_status=ScheduleStatus.CLAIMED.value)
                 )
-            ).rowcount
+            ).rowcount  # type: ignore[attr-defined]
             if not claimed:
                 continue
             await self.db.commit()
@@ -566,7 +567,7 @@ class SchedulerService:
             payload.setdefault("user_id", str(schedule.owner_user_id))
         job = await enqueue(
             self.db,
-            schedule.task,
+            cast(str, schedule.task),
             payload,
             user_id=schedule.owner_user_id,
             max_attempts=2,

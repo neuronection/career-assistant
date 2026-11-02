@@ -8,6 +8,7 @@ NULL/empty = follow every instance source.
 """
 
 import uuid
+from decimal import Decimal
 
 from sqlalchemy import (
     Boolean,
@@ -62,7 +63,7 @@ class JobRadar(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     locations: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     seniority: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     onsite_policy: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    salary_min_annual: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    salary_min_annual: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     salary_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     source_keys: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     cadence: Mapped[str] = mapped_column(String(20), nullable=False, default=RadarCadence.OFF.value)
