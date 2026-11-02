@@ -1986,7 +1986,12 @@
         "syncSelected": "Sync now",
         "bulkPauseDone": "Paused {{count}} sources.",
         "bulkResumeDone": "Resumed {{count}} sources.",
-        "bulkSyncDone": "Queued {{count}} syncs."
+        "bulkSyncDone": "Queued {{count}} syncs.",
+        "countryFilterAria": "Filter sources by country",
+        "countryAll": "All sources",
+        "countryCustom": "Custom",
+        "worldwide": "Worldwide",
+        "problemsOnly": "Problems only"
       },
       "presets": {
         "title": "Add a job source",

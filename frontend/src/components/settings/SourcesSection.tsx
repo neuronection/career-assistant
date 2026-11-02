@@ -21,8 +21,10 @@ import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesS
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
 import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
 import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
+import { countryDisplayName, findCountry } from "@neuronection/assistant-ui/countries";
 import {
   JOB_SOURCE_PRESETS,
+  WORLDWIDE_KEY,
   type JobSourcePreset,
 } from "@/config/jobSourcePresets";
 import * as sourcesApi from "@/api/sources";
@@ -43,6 +45,13 @@ function sourceStatus(source: PostingSource) {
   if (source.last_status === "degraded") return "degraded" as const;
   if (source.error) return "failing" as const;
   return "ok" as const;
+}
+
+/** Country lens bucket: preset-added sources carry the preset's country
+ * (ISO code or WORLDWIDE_KEY); everything else is the custom bucket. */
+function sourceCountryKey(source: PostingSource): string {
+  const preset = JOB_SOURCE_PRESETS.find((entry) => entry.slug === source.key);
+  return preset ? (preset.country ?? WORLDWIDE_KEY) : "custom";
 }
 
 export function SourcesSection() {
@@ -105,7 +114,8 @@ function JobSourceCard({
   selected?: boolean;
   onSelect?: (next: boolean) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const paused = Boolean(source.paused_at);
   const active = source.enabled && !paused;
   const tone = STATUS_TONE[sourceStatus(source)] ?? STATUS_TONE.ok;
@@ -246,6 +256,20 @@ function JobSourceCard({
             <span className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]">
               T1
             </span>
+            {(() => {
+              const lens = sourceCountryKey(source);
+              if (lens === "custom") return null;
+              const flag = lens === WORLDWIDE_KEY ? "🌍" : findCountry(lens)?.flag;
+              return flag ? (
+                <span
+                  className="rounded-full bg-[var(--as-muted)] px-2 py-0.5 text-[var(--as-muted-fg)]"
+                  title={lens === WORLDWIDE_KEY ? undefined : countryDisplayName(lens, language)}
+                  data-testid={`source-country-${source.key}`}
+                >
+                  {flag}
+                </span>
+              ) : null;
+            })()}
             {needsSecret ? (
               <span
                 className="rounded-full bg-[color-mix(in_srgb,var(--as-warning)_18%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
@@ -306,7 +330,8 @@ function JobSourceCard({
 }
 
 function JobSourceConnectors() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const navigate = useNavigate();
   const location = useLocation();
   const [sources, setSources] = useState<PostingSource[]>([]);
@@ -314,6 +339,8 @@ function JobSourceConnectors() {
   const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
   const [presetOpen, setPresetOpen] = useState(false);
   const [sourceQuery, setSourceQuery] = useState("");
+  const [countries, setCountries] = useState<Set<string> | null>(null);
+  const [problemsOnly, setProblemsOnly] = useState(false);
   const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
@@ -483,14 +510,54 @@ function JobSourceConnectors() {
 
   const kindOrder = ["posting", "market", "university", "search", "webhook_in"] as const;
   const query = sourceQuery.trim().toLowerCase();
+  const countryLens = (source: PostingSource) => sourceCountryKey(source);
+  const hasProblem = (source: PostingSource) => {
+    if (sourceStatus(source) !== "ok") return true;
+    if (source.paused_at) return true;
+    const entry = catalogByKey[source.connector_key];
+    if (entry?.capabilities?.requires_credentials !== true) return false;
+    return Object.entries(source.secret_hints).some(
+      ([slot, hint]) => entry.secret_fields.includes(slot) && !hint.set,
+    );
+  };
   const visibleSources = sources.filter(
     (source) =>
-      !query ||
-      [source.key, source.connector_key, source.title ?? "", source.error ?? ""]
-        .join(" ")
-        .toLowerCase()
-        .includes(query),
+      !(countries && countries.size > 0 && !countries.has(countryLens(source))) &&
+      !(problemsOnly && !hasProblem(source)) &&
+      (!query ||
+        [source.key, source.connector_key, source.title ?? "", source.error ?? ""]
+          .join(" ")
+          .toLowerCase()
+          .includes(query)),
   );
+  const problemCount = useMemo(() => sources.filter(hasProblem).length, [sources, catalogByKey]);
+  const countryLenses = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const source of sources) {
+      const key = sourceCountryKey(source);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([key, count]) => ({ key, count }))
+      .sort((a, b) => {
+        if (a.key === "custom") return 1;
+        if (b.key === "custom") return -1;
+        if (a.key === WORLDWIDE_KEY) return 1;
+        if (b.key === WORLDWIDE_KEY) return -1;
+        return countryDisplayName(a.key, language).localeCompare(countryDisplayName(b.key, language));
+      });
+  }, [sources, language]);
+  const lensLabel = (key: string) =>
+    key === "custom"
+      ? t("toolsSettings.connectors.sources.countryCustom")
+      : key === WORLDWIDE_KEY
+        ? t("toolsSettings.connectors.sources.worldwide")
+        : countryDisplayName(key, language);
+  const lensFlag = (key: string) => {
+    if (key === "custom") return "⚙️";
+    if (key === WORLDWIDE_KEY) return "🌍";
+    return findCountry(key)?.flag ?? "";
+  };
   const groups = useMemo(
     () =>
       kindOrder
@@ -647,6 +714,77 @@ function JobSourceConnectors() {
                 ariaLabel={t("toolsSettings.connectors.sources.searchPlaceholder")}
                 clearLabel={t("common.clear")}
               />
+            </div>
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              role="group"
+              aria-label={t("toolsSettings.connectors.sources.countryFilterAria")}
+              data-testid="job-sources-country-filter"
+            >
+              <button
+                type="button"
+                aria-pressed={!countries || countries.size === 0}
+                onClick={() => setCountries(null)}
+                data-testid="job-sources-country-all"
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                  !countries || countries.size === 0
+                    ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))] font-medium text-[var(--as-accent)]"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)]"
+                }`}
+              >
+                {t("toolsSettings.connectors.sources.countryAll")}
+              </button>
+              {countryLenses.map((lens) => {
+                const active = countries?.has(lens.key) ?? false;
+                return (
+                  <button
+                    key={lens.key}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => {
+                      setCountries((current) => {
+                        const base = current ?? new Set<string>();
+                        const next = new Set(base);
+                        if (next.has(lens.key)) {
+                          next.delete(lens.key);
+                        } else {
+                          next.add(lens.key);
+                        }
+                        return next.size > 0 ? next : null;
+                      });
+                    }}
+                    data-testid={`job-sources-country-${lens.key}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                      active
+                        ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))] font-medium text-[var(--as-accent)]"
+                        : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-fg)] hover:border-[var(--as-accent)]"
+                    }`}
+                  >
+                    {lensFlag(lens.key)} {lensLabel(lens.key)}
+                    <span
+                      className={active ? "ml-1 opacity-80" : "ml-1 text-[var(--as-muted-fg)]"}
+                    >
+                      {lens.count}
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                aria-pressed={problemsOnly}
+                onClick={() => setProblemsOnly((value) => !value)}
+                data-testid="job-sources-problems"
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                  problemsOnly
+                    ? "border-[var(--as-danger)] bg-[color-mix(in_srgb,var(--as-danger)_8%,var(--as-surface))] font-medium text-[var(--as-danger)]"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] hover:border-[var(--as-danger)]"
+                }`}
+              >
+                ⚠ {t("toolsSettings.connectors.sources.problemsOnly")}
+                {problemCount > 0 ? (
+                  <span className="ml-1 opacity-80">{problemCount}</span>
+                ) : null}
+              </button>
             </div>
             <BulkBar
               count={selectedSources.size}
