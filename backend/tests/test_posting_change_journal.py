@@ -266,8 +266,13 @@ async def test_retag_writer_journals_skills_set_diff(db, source, seeded_catalog)
     assert rewrite.operation == {"auto_map_threshold": 0.34}
     decision = [row for row in retag if "skills" not in (row.diff or {})]
     assert len(decision) == 1
-    assert decision[0].operation == {"auto_map_threshold": 0.34}
     assert "mapping_reason" in decision[0].diff, "the decision row carries the field diff"
+    # plan 185 S6.1: the operation payload carries the join summary
+    assert decision[0].operation["auto_map_threshold"] == 0.34
+    assert decision[0].operation["method"] == decision[0].diff["mapping_method"]["to"]
+    assert "overlap_score" in decision[0].operation
+    assert "semantic_top" in decision[0].operation
+    assert set(decision[0].operation["mapping_signals"]) == {"overlap", "semantic"}
 
 
 async def test_expiry_writer_journals_status(db, source, seeded_catalog):

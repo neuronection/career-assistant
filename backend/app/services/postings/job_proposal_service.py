@@ -66,7 +66,7 @@ def pending_predicate(dialect_name: str):
     return text("json_type(posting_facts, '$.job_proposal') = 'object'")
 
 
-def store_job_proposal(
+async def store_job_proposal(
     db: AsyncSession, posting: JobPosting, *, actor_ref: dict | None = None
 ) -> bool:
     """S4.1 — the proposal writer, called from the extract flow AFTER the
@@ -77,6 +77,10 @@ def store_job_proposal(
     with a still-unmapped verdict does not clobber the pending item an
     admin may be reading. Returns whether a proposal was stored."""
     if posting.mapping_method is not None:
+        return False
+    from app.services.postings.catalog_settings import job_proposals_enabled
+
+    if not await job_proposals_enabled(db):
         return False
     facts = {**(posting.posting_facts or {})}
     if isinstance(facts.get("job_proposal"), dict):

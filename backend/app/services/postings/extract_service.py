@@ -511,7 +511,7 @@ async def extract_posting_now(
 
         await decide_catalog(db, posting, skill_ids, run_id=job_id)
         # Plan 185 S4.1 — the unmapped-and-rich residue proposes (HITL).
-        store_job_proposal(db, posting, actor_ref=actor_ref)
+        await store_job_proposal(db, posting, actor_ref=actor_ref)
     await db.commit()
     return {
         "extracted": True,

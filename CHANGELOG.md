@@ -24,6 +24,16 @@ All notable changes to **Career Assistant** are documented here.
   `GET /admin/postings/job-proposals`,
   `POST /admin/postings/{id}/job-proposal/apply`,
   `POST /admin/postings/{id}/job-proposal/dismiss`.
+- **The join is observable and steerable from Settings.** Every catalog
+  decision journals its signals (method, overlap score, semantic top and
+  the closest candidates) into the `retag` row the audit console already
+  renders; the Taxonomy settings page gains an "Embeddings & mapping"
+  card with the per-kind embedding buckets, admin recompute passes for
+  postings and catalog jobs, a per-proposal "Re-decide" action
+  (`POST /admin/postings/{id}/remap` — re-runs the join without re-paying
+  the extract, manual mappings refused), and two run switches (semantic
+  rescue, job proposals) that are read per decision — effective on the
+  next decision, no restart.
 - **The deep extract re-decides the catalog mapping.** After the extract
   fills skill levels on the resolved rows, the two-signal join
   runs again before the extract commits — a job published (or embedded)

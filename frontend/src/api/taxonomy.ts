@@ -88,6 +88,48 @@ export async function fetchJobProposals(): Promise<JobProposalRow[]> {
   return data;
 }
 
+/** Re-run the catalog join for one posting without paying the extract
+ * again (plan 185 S6.4). MANUAL postings are refused server-side. */
+export async function remapPosting(id: string): Promise<{ mapping_method: string | null }> {
+  const { data } = await api.post(`/admin/postings/${id}/remap`);
+  return data;
+}
+
+export interface EmbeddingBucket {
+  entity_kind: string;
+  dim: number;
+  count: number;
+}
+
+export async function fetchEmbeddingStatus(): Promise<EmbeddingBucket[]> {
+  const { data } = await api.get<EmbeddingBucket[]>("/ai/embeddings/status");
+  return data;
+}
+
+export async function recomputeEmbeddings(
+  kind: "posting" | "job",
+): Promise<{ candidates: number; embedded: number; kind: string }> {
+  const { data } = await api.post("/ai/embeddings/recompute", null, { params: { kind } });
+  return data;
+}
+
+export interface CatalogMappingSettings {
+  semantic_rescue: boolean;
+  job_proposals: boolean;
+}
+
+export async function fetchCatalogMappingSettings(): Promise<CatalogMappingSettings> {
+  const { data } = await api.get<CatalogMappingSettings>("/admin/catalog-mapping/settings");
+  return data;
+}
+
+export async function putCatalogMappingSettings(
+  patch: Partial<CatalogMappingSettings>,
+): Promise<CatalogMappingSettings> {
+  const { data } = await api.put<CatalogMappingSettings>("/admin/catalog-mapping/settings", patch);
+  return data;
+}
+
 export async function applyJobProposal(
   id: string,
   payload: { family_key: string; code?: string; title?: string; short_description?: string },

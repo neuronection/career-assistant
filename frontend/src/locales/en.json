@@ -1625,9 +1625,26 @@
       "dismissFailed": "Dismissing the proposal failed.",
       "dismissTitle": "Dismiss this proposal?",
       "dismissMessage": "The proposal for “{{title}}” is cleared. A later re-extract can propose again.",
-      "signalsLabel": "Closest catalog jobs"
+      "signalsLabel": "Closest catalog jobs",
+      "remap": "Re-decide",
+      "remapTitle": "Re-run the catalog join without re-paying the extract",
+      "remapNote": "The catalog join re-ran for this posting.",
+      "remapFailed": "Re-deciding the mapping failed."
     },
-    "draft": "Draft"
+    "draft": "Draft",
+    "embeddings": {
+      "sectionTitle": "Embeddings & mapping",
+      "empty": "No embeddings stored yet.",
+      "bucket": "dim {{dim}} · {{count}} vectors",
+      "recomputePosting": "Recompute postings",
+      "recomputeJob": "Recompute catalog jobs",
+      "recomputeDone": "{{kind}} recompute embedded {{count}} rows.",
+      "semanticRescue": "Semantic rescue",
+      "semanticRescueHint": "Maps with cosine only where the skill overlap missed (≥ 0.6 + a shared skill)",
+      "jobProposalsSwitch": "Job proposals",
+      "jobProposalsHint": "Unmatched postings propose a catalog job for review",
+      "switchNote": "Saved — effective on the next decision."
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -5347,7 +5364,11 @@
       "postingRef": "posting {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "No recorded diff",
-      "empty": "No changes in this window"
+      "empty": "No changes in this window",
+      "remap": "Re-decide",
+      "remapHint": "re-runs the catalog join without the extract",
+      "remapDone": "The catalog join re-ran.",
+      "remapFailed": "Re-deciding failed (manual mappings are refused)."
     },
     "usage": {
       "models": "Model usage",

@@ -820,18 +820,21 @@ async def decide_catalog(
             overlap_score = best_score
             runner_up = best_runner_up
         if best_job is None or best_score < AUTO_MAP_THRESHOLD:
-            semantic_tried = True
-            ranked = await semantic_catalog_candidates(db, posting)
-            for cand_job, cand_score in ranked:
-                semantic_candidates.append(
-                    {
-                        "job_id": str(cand_job.id),
-                        "code": cand_job.code,
-                        "score": round(cand_score, 4),
-                    }
-                )
-            if ranked:
-                top_job, top_score = ranked[0]
+            from app.services.postings.catalog_settings import semantic_rescue_enabled
+
+            if await semantic_rescue_enabled(db):
+                semantic_tried = True
+                ranked = await semantic_catalog_candidates(db, posting)
+                for cand_job, cand_score in ranked:
+                    semantic_candidates.append(
+                        {
+                            "job_id": str(cand_job.id),
+                            "code": cand_job.code,
+                            "score": round(cand_score, 4),
+                        }
+                    )
+                if ranked:
+                    top_job, top_score = ranked[0]
 
     if not skill_ids:
         mapped: MappingMethod | None = None
@@ -886,7 +889,7 @@ async def decide_catalog(
             )
         posting.status = "new" if posting.status == "mapped" else posting.status
 
-    signals_payload = {
+    signals_payload: dict[str, dict[str, Any]] = {
         "overlap": {
             "score": round(overlap_score, 4) if overlap_score is not None else None,
             "runner_up": round(runner_up, 4) if runner_up is not None else None,
@@ -908,7 +911,13 @@ async def decide_catalog(
         posting.id,
         "retag",
         actor_ref=actor_ref,
-        operation={"auto_map_threshold": AUTO_MAP_THRESHOLD},
+        operation={
+            "auto_map_threshold": AUTO_MAP_THRESHOLD,
+            "method": mapped.value if mapped is not None else None,
+            "overlap_score": signals_payload["overlap"]["score"],
+            "semantic_top": signals_payload["semantic"]["top"],
+            "mapping_signals": signals_payload,
+        },
         before=before,
         after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
     )

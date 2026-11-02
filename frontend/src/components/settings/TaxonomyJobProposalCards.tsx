@@ -10,7 +10,7 @@ import {
   ModalFooter,
   Spinner,
 } from "@/components/ui";
-import { applyJobProposal, dismissJobProposal } from "@/api/taxonomy";
+import { applyJobProposal, dismissJobProposal, remapPosting } from "@/api/taxonomy";
 import type { JobProposalRow } from "@/api/taxonomy";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 
@@ -69,6 +69,7 @@ export function TaxonomyJobProposalCards({
   const [title, setTitle] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [remapping, setRemapping] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const openApply = (row: JobProposalRow) => {
@@ -113,6 +114,19 @@ export function TaxonomyJobProposalCards({
     }
   };
 
+  const redecide = async (id: string) => {
+    setRemapping(id);
+    setError("");
+    try {
+      await remapPosting(id);
+      onDone(t("taxonomy.jobProposals.remapNote"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("taxonomy.jobProposals.remapFailed"));
+    } finally {
+      setRemapping(null);
+    }
+  };
+
   return (
     <div className="space-y-3" data-testid="job-proposal-queue">
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -146,6 +160,16 @@ export function TaxonomyJobProposalCards({
               <div className="flex shrink-0 gap-2">
                 <Button size="sm" onClick={() => openApply(row)} data-testid={`proposal-apply-${row.id}`}>
                   {t("taxonomy.jobProposals.apply")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={remapping === row.id}
+                  onClick={() => void redecide(row.id)}
+                  title={t("taxonomy.jobProposals.remapTitle")}
+                  data-testid={`proposal-remap-${row.id}`}
+                >
+                  {remapping === row.id ? <Spinner size="sm" /> : t("taxonomy.jobProposals.remap")}
                 </Button>
                 <Button
                   size="sm"

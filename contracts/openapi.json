@@ -2566,6 +2566,34 @@
         "title": "CareerStage",
         "type": "string"
       },
+      "CatalogMappingSettingsIn": {
+        "properties": {
+          "job_proposals": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Proposals"
+          },
+          "semantic_rescue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rescue"
+          }
+        },
+        "title": "CatalogMappingSettingsIn",
+        "type": "object"
+      },
       "CatalogTravel": {
         "properties": {
           "days_per_month": {
@@ -25622,6 +25650,71 @@
         ]
       }
     },
+    "/api/v1/admin/catalog-mapping/settings": {
+      "get": {
+        "description": "The mapping run controls (plan 185 S6.3): the two admin switches,\nread per decision \u2014 effective on the next decision, no restart.",
+        "operationId": "catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "put_catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogMappingSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{key}": {
       "put": {
         "description": "Write the reviewed company facts (omit a field = clear to unknown).",
@@ -29007,6 +29100,52 @@
           }
         },
         "summary": "Manual Map Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/remap": {
+      "post": {
+        "description": "Re-run the catalog join WITHOUT re-paying the extract LLM call\n(plan 185 S6.4 \u2014 \"a new job got published / embeddings recomputed,\njudge me again\"). A MANUAL mapping stands (the manual-map endpoint\nstays the human override); the re-decision journals its own retag row.",
+        "operationId": "remap_posting_api_v1_admin_postings__posting_id__remap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remap Posting Api V1 Admin Postings  Posting Id  Remap Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remap Posting",
         "tags": [
           "admin"
         ]

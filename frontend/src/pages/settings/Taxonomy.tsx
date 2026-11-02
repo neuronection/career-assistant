@@ -45,6 +45,7 @@ import {
 import {
   TaxonomyJobProposalCards,
 } from "@/components/settings/TaxonomyJobProposalCards";
+import { TaxonomyEmbeddingsCard } from "@/components/settings/TaxonomyEmbeddingsCard";
 import {
   fetchJobProposals,
   type JobProposalRow,
@@ -625,6 +626,7 @@ export function Taxonomy() {
                 onDone={reloadAfterModeration}
               />
             )}
+            <TaxonomyEmbeddingsCard />
           </section>
         </div>
       ) : kind === "paths" ? (

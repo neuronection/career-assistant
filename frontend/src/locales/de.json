@@ -1625,9 +1625,26 @@
       "dismissFailed": "Das Verwerfen des Vorschlags ist fehlgeschlagen.",
       "dismissTitle": "Diesen Vorschlag verwerfen?",
       "dismissMessage": "Der Vorschlag für „{{title}}“ wird gelöscht. Eine spätere Neuextraktion kann ihn erneut vorschlagen.",
-      "signalsLabel": "Nächste Katalogjobs"
+      "signalsLabel": "Nächste Katalogjobs",
+      "remap": "Neu entscheiden",
+      "remapTitle": "Katalog-Join erneut ausführen, ohne die Extraktion erneut zu berechnen",
+      "remapNote": "Der Katalog-Join wurde für diese Anzeige neu ausgeführt.",
+      "remapFailed": "Die neue Zuordnungsentscheidung ist fehlgeschlagen."
     },
-    "draft": "Entwurf"
+    "draft": "Entwurf",
+    "embeddings": {
+      "sectionTitle": "Embeddings & Zuordnung",
+      "empty": "Noch keine Embeddings gespeichert.",
+      "bucket": "Dim {{dim}} · {{count}} Vektoren",
+      "recomputePosting": "Anzeigen neu einbetten",
+      "recomputeJob": "Katalogjobs neu einbetten",
+      "recomputeDone": "{{kind}}-Recompute hat {{count}} Zeilen eingebettet.",
+      "semanticRescue": "Semantische Rettung",
+      "semanticRescueHint": "Ordnet per Kosinus nur dort, wo die Skill-Überschneidung versagt hat (≥ 0,6 + gemeinsamer Skill)",
+      "jobProposalsSwitch": "Stellenvorschläge",
+      "jobProposalsHint": "Nicht zugeordnete Anzeigen schlagen eine Katalogposition zur Prüfung vor",
+      "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
@@ -5346,7 +5363,11 @@
       "postingRef": "Angebot {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "Kein Diff aufgezeichnet",
-      "empty": "Keine Änderungen in diesem Zeitraum"
+      "empty": "Keine Änderungen in diesem Zeitraum",
+      "remap": "Neu entscheiden",
+      "remapHint": "führt den Katalog-Join ohne die Extraktion erneut aus",
+      "remapDone": "Der Katalog-Join wurde neu ausgeführt.",
+      "remapFailed": "Neu entscheiden fehlgeschlagen (manuelle Zuordnungen werden abgelehnt)."
     },
     "usage": {
       "models": "Modellnutzung",
