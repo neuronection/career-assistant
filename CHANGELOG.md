@@ -13,6 +13,13 @@ All notable changes to **Career Assistant** are documented here.
   any embedding failure degrades to the overlap-only decision. Both raw
   scores and runner-ups land in the posting's `mapping_signals` facts and
   the `retag` audit row.
+- **The deep extract re-decides the catalog mapping.** After the extract
+  fills skill levels on the resolved rows, the two-signal join
+  runs again before the extract commits — a job published (or embedded)
+  while the posting waited in the queue is picked up there. A manual
+  mapping always stands, and the re-decision never touches the extracted
+  skill rows. Requeued `posting_extract` jobs (plan 184 bulk reprocess)
+  re-run the join through the same handler.
 - **Catalog jobs are now embedded.** The admin embeddings pass gained a
   kind: `POST /admin/embeddings/recompute?kind=job` embeds every
   published catalog job (title, short description and its skill

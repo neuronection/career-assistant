@@ -101,7 +101,9 @@ def posting_vector(monkeypatch):
     monkeypatch.setattr("app.ai.gateway.embed_texts", fake_embed_texts)
 
 
-async def _make_posting(db, source, external_id: str, skills: list[str]) -> JobPosting:
+async def _make_posting(
+    db, source, external_id: str, skills: list[str], description: str = ""
+) -> JobPosting:
     posting = await upsert_posting(
         db,
         source,
@@ -110,7 +112,7 @@ async def _make_posting(db, source, external_id: str, skills: list[str]) -> JobP
             title=f"Role {external_id}",
             url=f"https://syn.example/{external_id}",
             skills_raw=skills,
-            raw={},
+            raw={"description": description} if description else {},
         ),
     )
     await db.flush()
@@ -393,3 +395,236 @@ async def test_decide_catalog_never_touches_skill_rows(db, source, posting_vecto
 
     assert row.required_level == 9
     assert row.priority == "must_have"
+
+
+# ------------------------------------------------- the post-extract join
+
+
+async def _extract_world(db):
+    """Skills + a weak job for the extract tests: the posting resolves only
+    sql; the job's sql link carries almost no weight against two heavy
+    level-10 links — overlap ≈ 0.05 < AUTO_MAP_THRESHOLD at ingest."""
+    from sqlalchemy import select as sa_select
+
+    for key in ("sql", "programming", "problem-solving"):
+        existing = (await db.execute(sa_select(Skill).where(Skill.key == key))).scalars().first()
+        if existing is None:
+            db.add(Skill(key=key, label=key.upper(), category="test"))
+    family = JobFamily(key="join-extract", label="JoinExtract", path="join-extract")
+    db.add(family)
+    await db.flush()
+    sql = (await db.execute(sa_select(Skill).where(Skill.key == "sql"))).scalars().first()
+    prog = (await db.execute(sa_select(Skill).where(Skill.key == "programming"))).scalars().first()
+    prob = (
+        (await db.execute(sa_select(Skill).where(Skill.key == "problem-solving"))).scalars().first()
+    )
+    return sql, await _job(
+        db,
+        "extract-weak-role",
+        family,
+        [(sql, 1, "core"), (prog, 10, "core"), (prob, 10, "core")],
+    )
+
+
+async def test_extract_redecide_upgrades_after_a_job_publishes(
+    db, client, auth_headers, kinds, source, posting_vector
+):
+    """The join at extract time: below threshold at ingest with NO job
+    vectors, the semantic signal cannot fire; the job's vector lands while
+    the posting waits in the queue, and the post-extract re-decision maps
+    SEMANTIC (the S6.4 remap story, riding the extract the same way)."""
+    from app.services.postings.extract_service import extract_posting_now
+
+    _sql, job = await _extract_world(db)
+    posting = await _make_posting(
+        db,
+        source,
+        "join-extract-up",
+        ["sql"],
+        description="We need sql. Nothing else.",
+    )
+    assert posting.status == "new", "no job vector at ingest — no semantic rescue"
+
+    await _embed_job(db, job, _cos_vector(0.95))
+
+    result = await extract_posting_now(db, posting)
+    assert result["extracted"] is True
+    assert posting.mapping_method == "semantic"
+    assert posting.catalog_job_id == job.id
+    assert posting.status == "mapped"
+    signals = posting.posting_facts["mapping_signals"]
+    assert signals["semantic"]["top"] == 0.95
+
+    rows = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == posting.id,
+                    PostingChange.actor_kind == "retag",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert rows, "the re-decision journals its own retag row beside extract_llm"
+
+
+async def test_extract_redecide_keeps_levels_and_strong_maps(
+    db, client, auth_headers, kinds, source, posting_vector
+):
+    """The decisive regression guard: the re-decision NEVER touches
+    PostingSkill rows — the extract's required_level/priority survive, and
+    a keyword-strong map stays SKILL_OVERLAP (bit-identical)."""
+    from app.services.postings.extract_service import extract_posting_now
+
+    sql, job = await _extract_world(db)
+    # Make the overlap clear: swap the weak sql link for two strong links
+    # matching the posting's full set (sql + programming, both in the text).
+    from sqlalchemy import delete as sa_delete
+
+    await db.execute(sa_delete(JobSkill).where(JobSkill.job_id == job.id))
+    prog = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
+    db.add(JobSkill(job_id=job.id, skill_id=sql.id, required_level=8, importance="core"))
+    db.add(JobSkill(job_id=job.id, skill_id=prog.id, required_level=7, importance="core"))
+    await db.flush()
+
+    posting = await _make_posting(
+        db,
+        source,
+        "join-extract-strong",
+        ["sql", "programming"],
+        description="We need sql and programming. Nothing else.",
+    )
+    assert posting.mapping_method == "skill_overlap"
+
+    result = await extract_posting_now(db, posting)
+    assert result["extracted"] is True
+    assert posting.mapping_method == "skill_overlap"
+    assert posting.catalog_job_id == job.id
+
+    rows = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 2, "the re-decision neither added nor removed skill rows"
+    assert {row.required_level for row in rows} == {4}, "extract's levels survive intact"
+    assert all(row.priority == "must_have" for row in rows)
+
+
+async def test_extract_redecide_skips_manual(db, client, auth_headers, kinds, source):
+    """A human mapping stands: the extract re-decision never runs for a
+    MANUAL posting — no new retag decision row, mapping fields untouched."""
+    from app.models.enums import MappingMethod
+    from app.services.postings.extract_service import extract_posting_now
+
+    _sql, job = await _extract_world(db)
+    posting = await _make_posting(
+        db,
+        source,
+        "join-extract-manual",
+        ["sql"],
+        description="We need sql. Nothing else.",
+    )
+    posting.catalog_job_id = job.id
+    posting.mapping_method = MappingMethod.MANUAL.value
+    posting.mapping_confidence = 1.0
+    posting.mapping_reason = "manually mapped by a moderator"
+    posting.status = "mapped"
+    await db.flush()
+    before_rows = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == posting.id,
+                    PostingChange.actor_kind == "retag",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    await extract_posting_now(db, posting)
+
+    assert posting.mapping_method == MappingMethod.MANUAL.value
+    after_rows = (
+        (
+            await db.execute(
+                select(PostingChange).where(
+                    PostingChange.posting_id == posting.id,
+                    PostingChange.actor_kind == "retag",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(after_rows) == len(before_rows), "the re-decision never ran"
+
+
+async def test_extract_suppress_cascade_flags_without_demoting(
+    db, client, auth_headers, kinds, source, monkeypatch
+):
+    """Low-confidence extract fields are suppressed (needs_review) and the
+    skill rows survive untouched — the re-decision sees the same set and
+    never demotes an ingest map (extract's update-in-place semantics: the
+    set can only grow, nothing is deleted)."""
+    from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
+    from app.services.postings.extract_service import extract_posting_now
+
+    sql, job = await _extract_world(db)
+    posting = await _make_posting(
+        db,
+        source,
+        "join-extract-suppress",
+        ["sql"],
+        description="We need sql and programming. Nothing else.",
+    )
+    prog = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
+    assert posting.mapping_method == "skill_overlap", (
+        "sql + programming clear the threshold against the weak-weighted job"
+    )
+    before = {
+        row.skill_id: (row.required_level, row.priority)
+        for row in (
+            (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+            .scalars()
+            .all()
+        )
+    }
+
+    async def low_confidence_extract(*_args, **_kw):
+        extract = PostingExtract(
+            skills=[
+                ExtractSkill(
+                    skill_key="sql",
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="we need sql",
+                    confidence=0.3,
+                )
+            ],
+            field_confidence={"title_norm": 0.1, "skills": 0.3, "salary": 0.2},
+        )
+        return extract, {"id": None}
+
+    monkeypatch.setattr("app.ai.agents.posting_extractor.extract_posting", low_confidence_extract)
+
+    result = await extract_posting_now(db, posting)
+    assert result["extracted"] is True
+    assert posting.needs_review is True, "the suppress cascade flags the posting"
+    assert posting.mapping_method == "skill_overlap", "no demote: the rows never shrank"
+    assert posting.status == "mapped"
+    after = {
+        row.skill_id: (row.required_level, row.priority)
+        for row in (
+            (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+            .scalars()
+            .all()
+        )
+    }
+    assert set(after) == {sql.id, prog.id}, "rows survive suppression untouched"
+    assert after == before, "the re-decision left the rows byte-identical"
+    assert job.id == posting.catalog_job_id
