@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import UTC, date, datetime
-from typing import Any
+from typing import Any, overload
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +13,7 @@ from app.models.enums import ProposalAction, ProposalKind, ProposalStatus
 from app.models.experience_model import ExperienceItem, ExperienceSkill
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import Profile, UserSkill
-from app.schemas.cv import CvContextSelection
+from app.schemas.cv import CvContextRef, CvContextSelection
 from app.schemas.profile import ProfileSectionUpdate
 from app.schemas.profile_entities import (
     CertificationIn,
@@ -36,6 +36,14 @@ from app.services.proposals.kinds import (
     KIND_SPECS,
     SECTION_NAMES,
 )
+
+
+@overload
+def _ts(value: datetime) -> str: ...
+
+
+@overload
+def _ts(value: datetime | None) -> str | None: ...
 
 
 def _ts(value: datetime | None) -> str | None:
@@ -290,62 +298,62 @@ class ApplyMixin(DiffMixin):
         if kind == ProposalKind.CV_SET_BULLETS.value:
             return await self._apply_cv_set_bullets(payload, user_id)
         if kind == ProposalKind.EXPERIENCE_ITEM.value:
-            service = ExperienceService(self.db)
+            experience_service = ExperienceService(self.db)
             if action == ProposalAction.CREATE.value:
-                entity = await service.create_item(user_id, dict(payload))
+                entity = await experience_service.create_item(user_id, dict(payload))
             elif action == ProposalAction.UPDATE.value:
                 assert entity_id is not None
-                entity = await service.update_item(user_id, entity_id, dict(payload))
+                entity = await experience_service.update_item(user_id, entity_id, dict(payload))
             else:
                 assert entity_id is not None
-                await service.delete_item(user_id, entity_id)
+                await experience_service.delete_item(user_id, entity_id)
         elif kind == ProposalKind.EDUCATION_ITEM.value:
-            service = ProfileEntitiesService(self.db)
+            entities_service = ProfileEntitiesService(self.db)
             if action == ProposalAction.CREATE.value:
-                entity = await service.create_education(
+                entity = await entities_service.create_education(
                     user_id, EducationItemIn.model_validate(payload)
                 )
             elif action == ProposalAction.UPDATE.value:
                 assert entity_id is not None
-                entity = await service.update_education(
+                entity = await entities_service.update_education(
                     entity_id, user_id, EducationItemPatch.model_validate(payload)
                 )
             else:
                 assert entity_id is not None
-                await service.delete_education(entity_id, user_id)
+                await entities_service.delete_education(entity_id, user_id)
         elif kind == ProposalKind.CERTIFICATION.value:
-            service = ProfileEntitiesService(self.db)
+            entities_service = ProfileEntitiesService(self.db)
             if action == ProposalAction.CREATE.value:
-                entity = await service.create_certification(
+                entity = await entities_service.create_certification(
                     user_id, CertificationIn.model_validate(payload)
                 )
             elif action == ProposalAction.UPDATE.value:
                 assert entity_id is not None
-                entity = await service.update_certification(
+                entity = await entities_service.update_certification(
                     entity_id, user_id, CertificationPatch.model_validate(payload)
                 )
             else:
                 assert entity_id is not None
-                await service.delete_certification(entity_id, user_id)
+                await entities_service.delete_certification(entity_id, user_id)
         elif kind == ProposalKind.PROFILE_ACHIEVEMENT.value:
-            service = ProfileEntitiesService(self.db)
+            entities_service = ProfileEntitiesService(self.db)
             if action == ProposalAction.CREATE.value:
-                entity = await service.create_achievement(
+                entity = await entities_service.create_achievement(
                     user_id, ProfileAchievementIn.model_validate(payload)
                 )
             elif action == ProposalAction.UPDATE.value:
                 assert entity_id is not None
-                entity = await service.update_achievement(
+                entity = await entities_service.update_achievement(
                     entity_id, user_id, ProfileAchievementPatch.model_validate(payload)
                 )
             else:
                 assert entity_id is not None
-                await service.delete_achievement(entity_id, user_id)
+                await entities_service.delete_achievement(entity_id, user_id)
         elif kind == ProposalKind.USER_SKILL.value:
-            service = SkillService(self.db)
+            skill_service = SkillService(self.db)
             if action == ProposalAction.CREATE.value:
                 add = UserSkillAddIn.model_validate(payload)
-                row = await service.upsert_user_skill(
+                row = await skill_service.upsert_user_skill(
                     user_id, add.skill_key, add.level, add.confidence
                 )
                 return {
@@ -367,13 +375,12 @@ class ApplyMixin(DiffMixin):
             else:
                 assert entity_id is not None
                 row = await self._owned_user_skill(user_id, entity_id)
-                await service.delete_user_skill(user_id, row.skill_id)
+                await skill_service.delete_user_skill(user_id, row.skill_id)
         elif kind == ProposalKind.PROFILE_SECTION.value:
-            patch = ProfileSectionPatchIn.model_validate(payload)
-            service = ProfileService(self.db)
-            entity = await service.update(
-                user_id, ProfileSectionUpdate(**{patch.section: patch.value})
-            )
+            section_patch = ProfileSectionPatchIn.model_validate(payload)
+            profile_service = ProfileService(self.db)
+            section_kwargs: dict[str, Any] = {section_patch.section: section_patch.value}
+            entity = await profile_service.update(user_id, ProfileSectionUpdate(**section_kwargs))
         else:
             raise ValidationError(f"Unknown proposal kind: {kind}")
 
@@ -436,7 +443,7 @@ class ApplyMixin(DiffMixin):
                 row = await service.create_manual(
                     user_id,
                     CvSynthItemCreate(
-                        refs=[{"source_key": source_key, "item_id": item_id}],
+                        refs=[CvContextRef(source_key=source_key, item_id=item_id)],
                         scope="bullets",
                         payload=bullets_payload,
                         voice=CvSynthVoice(language=str(cv.language or "en")),
@@ -511,7 +518,7 @@ class ApplyMixin(DiffMixin):
         kind: str,
         user_id: uuid.UUID,
         entity_id: uuid.UUID | None,
-    ) -> tuple[Any, datetime | None]:
+    ) -> tuple[Any, datetime]:
         if kind == ProposalKind.USER_SKILL.value:
             if entity_id is None:
                 raise NotFoundError("Target skill row not found")
@@ -526,7 +533,7 @@ class ApplyMixin(DiffMixin):
             assert entity_id is not None
             cv = await CvService(self.db).get_owned(entity_id, user_id)
             return cv, cv.updated_at
-        model = KIND_SPECS[kind].model
+        model: Any = KIND_SPECS[kind].model
         assert model is not None
         query = select(model).where(model.id == entity_id, model.user_id == user_id)
         if model is ExperienceItem:

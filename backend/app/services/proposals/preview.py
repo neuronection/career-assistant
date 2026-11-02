@@ -138,10 +138,12 @@ class PreviewMixin(ApplyMixin):
                     "snapshot": None,
                 }
                 if spec is not None and spec.model is not None:
+                    parsed: uuid.UUID | None
                     try:
                         parsed = uuid.UUID(item_id)
                         entity, _ = await self._load_entity(kind, user_id, parsed)
                     except (NotFoundError, ValueError):
+                        parsed = None
                         entity = None
                     if entity is not None:
                         entry["snapshot"] = _full_snapshot(kind, entity)
