@@ -147,13 +147,13 @@ async def overview(
             .limit(FAILURES_LIMIT)
         )
     ).scalars()
-    for row in ai_failures:
+    for ai_row in ai_failures:
         failures.append(
             {
                 "stream": "ai",
-                "title": row.task_type,
-                "detail": (row.error or "")[:200],
-                "occurred_at": row.created_at,
+                "title": ai_row.task_type,
+                "detail": (ai_row.error or "")[:200],
+                "occurred_at": ai_row.created_at,
             }
         )
 
@@ -165,13 +165,13 @@ async def overview(
             .limit(FAILURES_LIMIT)
         )
     ).scalars()
-    for row in job_failures:
+    for job_row in job_failures:
         failures.append(
             {
                 "stream": "job",
-                "title": row.job_type,
-                "detail": (row.error or "")[:200],
-                "occurred_at": row.created_at,
+                "title": job_row.job_type,
+                "detail": (job_row.error or "")[:200],
+                "occurred_at": job_row.created_at,
             }
         )
 
@@ -183,13 +183,13 @@ async def overview(
             .limit(FAILURES_LIMIT)
         )
     ).scalars()
-    for row in auth_failures:
+    for auth_row in auth_failures:
         failures.append(
             {
                 "stream": "auth",
-                "title": row.action,
-                "detail": row.resource[:200],
-                "occurred_at": row.created_at,
+                "title": auth_row.action,
+                "detail": auth_row.resource[:200],
+                "occurred_at": auth_row.created_at,
             }
         )
 
@@ -293,11 +293,11 @@ async def breakdown(
     if dimension == "model":
         provider = AIGeneration.provider
         model = AIGeneration.model
-        column = func.concat(provider, "/", model)
+        model_column = func.concat(provider, "/", model)
         rows = (
             await db.execute(
                 select(
-                    column,
+                    model_column,
                     func.count(AIGeneration.id),
                     func.sum(case((AIGeneration.status == "error", 1), else_=0)),
                     func.coalesce(func.sum(AIGeneration.tokens_in), 0),
@@ -769,7 +769,7 @@ async def changes(
         total = (
             await db.execute(select(func.count(SkillChange.id)).where(*conditions))
         ).scalar() or 0
-        rows = (
+        skill_rows = (
             await db.execute(
                 select(SkillChange)
                 .where(*conditions)
@@ -790,7 +790,7 @@ async def changes(
                 "actor_ref": row.actor_ref,
                 "detail": row.detail,
             }
-            for row in rows
+            for row in skill_rows
         ]
     return int(total), items
 
@@ -913,7 +913,7 @@ async def export_csv(
             )
     elif stream == "events":
         window = window or "7d"
-        _, rows = await events(
+        _, event_rows = await events(
             db,
             window=window,
             group=group,
@@ -923,20 +923,20 @@ async def export_csv(
             date_to=date_to,
             limit=EXPORT_LIMIT,
         )
-        truncated = len(rows) >= EXPORT_LIMIT
-        for row in rows:
+        truncated = len(event_rows) >= EXPORT_LIMIT
+        for event_row in event_rows:
             writer.writerow(
                 [
-                    _csv_safe(row["created_at"].isoformat()),
-                    _csv_safe(row["action"]),
-                    _csv_safe(row["actor"]),
-                    _csv_safe(row["actor_email"] or ""),
-                    _csv_safe(row["outcome"]),
-                    _csv_safe(row["resource"]),
+                    _csv_safe(event_row["created_at"].isoformat()),
+                    _csv_safe(event_row["action"]),
+                    _csv_safe(event_row["actor"]),
+                    _csv_safe(event_row["actor_email"] or ""),
+                    _csv_safe(event_row["outcome"]),
+                    _csv_safe(event_row["resource"]),
                 ]
             )
     elif stream == "jobs":
-        _, rows = await jobs(
+        _, job_rows = await jobs(
             db,
             status=status,
             job_type=job_type,
@@ -945,22 +945,22 @@ async def export_csv(
             date_to=date_to,
             limit=EXPORT_LIMIT,
         )
-        truncated = len(rows) >= EXPORT_LIMIT
-        for row in rows:
+        truncated = len(job_rows) >= EXPORT_LIMIT
+        for job_row in job_rows:
             writer.writerow(
                 [
-                    _csv_safe(row["created_at"].isoformat()),
-                    _csv_safe(row["job_type"]),
-                    _csv_safe(row["status"]),
-                    _csv_safe(row["user_email"] or ""),
-                    row["attempts"],
-                    _csv_safe(row["stage"] or ""),
-                    _csv_safe(row["finished_at"].isoformat() if row["finished_at"] else ""),
-                    _csv_safe(row["error"]),
+                    _csv_safe(job_row["created_at"].isoformat()),
+                    _csv_safe(job_row["job_type"]),
+                    _csv_safe(job_row["status"]),
+                    _csv_safe(job_row["user_email"] or ""),
+                    job_row["attempts"],
+                    _csv_safe(job_row["stage"] or ""),
+                    _csv_safe(job_row["finished_at"].isoformat() if job_row["finished_at"] else ""),
+                    _csv_safe(job_row["error"]),
                 ]
             )
     elif stream == "source_runs":
-        _, rows = await source_runs(
+        _, run_rows = await source_runs(
             db,
             status=status,
             trigger=trigger,
@@ -969,21 +969,21 @@ async def export_csv(
             date_to=date_to,
             limit=EXPORT_LIMIT,
         )
-        truncated = len(rows) >= EXPORT_LIMIT
-        for row in rows:
+        truncated = len(run_rows) >= EXPORT_LIMIT
+        for run_row in run_rows:
             writer.writerow(
                 [
-                    _csv_safe(row["started_at"].isoformat() if row["started_at"] else ""),
-                    _csv_safe(row["source_key"] or ""),
-                    _csv_safe(row["trigger"]),
-                    _csv_safe(row["status"]),
-                    row["duration_ms"],
-                    row["items_synced"],
-                    _csv_safe(row["error"]),
+                    _csv_safe(run_row["started_at"].isoformat() if run_row["started_at"] else ""),
+                    _csv_safe(run_row["source_key"] or ""),
+                    _csv_safe(run_row["trigger"]),
+                    _csv_safe(run_row["status"]),
+                    run_row["duration_ms"],
+                    run_row["items_synced"],
+                    _csv_safe(run_row["error"]),
                 ]
             )
     elif stream == "changes":
-        _, rows = await changes(
+        _, change_rows = await changes(
             db,
             entity=entity,
             actor_kind=status,
@@ -994,26 +994,28 @@ async def export_csv(
             date_to=date_to,
             limit=EXPORT_LIMIT,
         )
-        truncated = len(rows) >= EXPORT_LIMIT
-        for row in rows:
+        truncated = len(change_rows) >= EXPORT_LIMIT
+        for change_row in change_rows:
             if entity == "postings":
                 writer.writerow(
                     [
-                        row["occurred_at"].isoformat(),
-                        _csv_safe(row["actor_kind"]),
-                        _csv_safe(row.get("outcome") or ""),
-                        _csv_safe(str(row.get("posting_id") or "")),
-                        row.get("duration_ms") if row.get("duration_ms") is not None else "",
+                        change_row["occurred_at"].isoformat(),
+                        _csv_safe(change_row["actor_kind"]),
+                        _csv_safe(change_row.get("outcome") or ""),
+                        _csv_safe(str(change_row.get("posting_id") or "")),
+                        change_row.get("duration_ms")
+                        if change_row.get("duration_ms") is not None
+                        else "",
                     ]
                 )
             else:
                 writer.writerow(
                     [
-                        row["occurred_at"].isoformat(),
-                        _csv_safe(row.get("event") or ""),
-                        _csv_safe(row["actor_kind"]),
-                        _csv_safe(row.get("skill_key") or ""),
-                        _csv_safe(row.get("skill_label") or ""),
+                        change_row["occurred_at"].isoformat(),
+                        _csv_safe(change_row.get("event") or ""),
+                        _csv_safe(change_row["actor_kind"]),
+                        _csv_safe(change_row.get("skill_key") or ""),
+                        _csv_safe(change_row.get("skill_label") or ""),
                     ]
                 )
     return buffer.getvalue(), truncated
