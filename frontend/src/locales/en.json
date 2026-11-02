@@ -1389,7 +1389,7 @@
       "interests": "Interests",
       "skills": "Skills",
       "paths": "Paths",
-      "enrichment": "Enrichment",
+      "enrichment": "Proposals",
       "translations": "Translations",
       "relations": "Relations"
     },
@@ -1666,7 +1666,45 @@
       "discardTitle": "Discard this proposal?",
       "discardBody": "The AI proposal is deleted and cannot be restored."
     },
-    "draft": "Draft"
+    "draft": "Draft",
+    "embeddings": {
+      "sectionTitle": "Embeddings & mapping",
+      "empty": "No embeddings stored yet.",
+      "bucket": "dim {{dim}} · {{count}} vectors",
+      "recomputePosting": "Recompute postings",
+      "recomputeJob": "Recompute catalog jobs",
+      "recomputeDone": "{{kind}} recompute embedded {{count}} rows.",
+      "semanticRescue": "Semantic rescue",
+      "semanticRescueHint": "Maps with cosine only where the skill overlap missed (≥ 0.6 + a shared skill)",
+      "jobProposalsSwitch": "Job proposals",
+      "jobProposalsHint": "Unmatched postings propose a catalog job for review",
+      "switchNote": "Saved — effective on the next decision."
+    },
+    "jobProposals": {
+      "sectionTitle": "Job proposals",
+      "empty": "Postings the catalog could not match land here as job proposals after their deep extract.",
+      "apply": "Apply",
+      "dismiss": "Dismiss",
+      "applyTitle": "Create the catalog job",
+      "applyHint": "The job is created published, the posting maps as manual and the new job is embedded — all in one step.",
+      "family": "Job family",
+      "jobTitle": "Title",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "auto from the title",
+      "applyConfirm": "Create job",
+      "appliedNote": "Catalog job {{code}} created and the posting mapped.",
+      "dismissedNote": "Proposal dismissed.",
+      "applyFailed": "Applying the proposal failed.",
+      "dismissFailed": "Dismissing the proposal failed.",
+      "dismissTitle": "Dismiss this proposal?",
+      "dismissMessage": "The proposal for “{{title}}” is cleared. A later re-extract can propose again.",
+      "signalsLabel": "Closest catalog jobs",
+      "remap": "Re-decide",
+      "remapTitle": "Re-run the catalog join without re-paying the extract",
+      "remapNote": "The catalog join re-ran for this posting.",
+      "remapFailed": "Re-deciding the mapping failed.",
+      "familyPlaceholder": "Choose a job family…"
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",

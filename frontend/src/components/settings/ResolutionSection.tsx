@@ -14,6 +14,7 @@ import { Link } from "react-router-dom";
 import { AlertTriangle, History, RefreshCw, Repeat } from "lucide-react";
 
 import { apiDetail } from "@/api/client";
+import { TaxonomyEmbeddingsCard } from "@/components/settings/TaxonomyEmbeddingsCard";
 import {
   fetchResolutionStats,
   fetchResolutionThresholds,
@@ -363,6 +364,7 @@ export function ResolutionSection() {
                 </p>
               )}
             </div>
+            <TaxonomyEmbeddingsCard />
           </section>
         </>
       )}
