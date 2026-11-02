@@ -271,7 +271,7 @@ export const scenes = [
   {
     name: "job-catalog",
     group: "Discovery",
-    caption: "Typed relation graph — similar_to, leads_to, specialises_into.",
+    caption: "The typed relation graph — roles as nodes, relations as typed edges.",
     path: "/catalog",
     interactions: [
       { action: "fill", selector: "input[placeholder*='earch']", value: "data" },
@@ -281,10 +281,10 @@ export const scenes = [
     ],
     tour: false,
     capture: "element",
-    selector: '[data-testid="relation-graph"]',
+    selector: '[data-testid="catalog"]',
     outDir: "components",
     viewports: ["desktop"],
-    waitForSelector: '[data-testid="relation-graph"]',
+    waitForSelector: '[data-testid="catalog"]',
   },
   {
     name: "cv-studio-panel",
@@ -319,6 +319,19 @@ export const scenes = [
     outDir: "components",
     viewports: ["desktop"],
     waitForSelector: "[data-as='chat-composer'] textarea",
+  },
+  {
+    name: "profile-matching",
+    group: "Discovery",
+    caption: "Matched rankings — fit score, AI score and your own, side by side.",
+    path: "/rankings",
+    interactions: [{ action: "wait", ms: 3000 }],
+    tour: false,
+    capture: "element",
+    selector: ':nth-match([data-testid^="ranked-job-"], 1)',
+    outDir: "components",
+    viewports: ["desktop2x"],
+    waitForSelector: '[data-testid^="ranked-job-"]',
   },
 ];
 
