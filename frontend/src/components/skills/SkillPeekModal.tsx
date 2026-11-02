@@ -196,38 +196,43 @@ export function SkillPeekModal({
   }
 
   return (
-    <PanelModal
-      open={open}
-      onOpenChange={(next) => {
-        if (!next) onClose();
-      }}
-      onCloseAutoFocus={(event) => {
-        // deterministic focus return to the chip (no trigger context)
-        event.preventDefault();
-        returnFocusRef?.current?.focus();
-      }}
-      title={activeKey ?? ""}
-      size="md"
-      data-testid="skill-peek"
-      data-key={open ? activeKey : undefined}
-      footer={
-        <div className="flex justify-end">
-          <Link
-            to={`/skills/${activeKey ?? ""}`}
-            className={buttonVariants({ variant: "outline", size: "sm" })}
-            data-testid="skill-peek-open-page"
-            onClick={onClose}
-          >
-            {t("skillPage.peek.openPage")}
-            <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-      }
+    <span
+      onClick={(event) => event.stopPropagation()}
+      onContextMenu={(event) => event.stopPropagation()}
     >
-      <div className="space-y-4" data-testid="skill-peek-body">
-        {body}
-      </div>
-    </PanelModal>
+      <PanelModal
+        open={open}
+        onOpenChange={(next) => {
+          if (!next) onClose();
+        }}
+        onCloseAutoFocus={(event) => {
+          // deterministic focus return to the chip (no trigger context)
+          event.preventDefault();
+          returnFocusRef?.current?.focus();
+        }}
+        title={activeKey ?? ""}
+        size="md"
+        data-testid="skill-peek"
+        data-key={open ? activeKey : undefined}
+        footer={
+          <div className="flex justify-end">
+            <Link
+              to={`/skills/${activeKey ?? ""}`}
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              data-testid="skill-peek-open-page"
+              onClick={onClose}
+            >
+              {t("skillPage.peek.openPage")}
+              <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
+        }
+      >
+        <div className="space-y-4" data-testid="skill-peek-body">
+          {body}
+        </div>
+      </PanelModal>
+    </span>
   );
 }
 

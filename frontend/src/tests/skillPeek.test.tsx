@@ -163,6 +163,21 @@ describe("SkillPeekModal", () => {
     expect(screen.getByTestId("posting-card")).toBeInTheDocument();
   });
 
+  it("closing the peek never opens the posting — modal clicks stay contained (plan 188)", async () => {
+    const onOpen = vi.fn();
+    renderCard(posting(), onOpen);
+
+    fireEvent.click(screen.getAllByTestId("skill-tag")[0]);
+    expect(await screen.findByTestId("skill-peek")).toBeInTheDocument();
+
+    // the peek footer's open-page link closes the peek AND navigates to the
+    // skill page — its click must not bubble into the card's root onOpen
+    fireEvent.click(screen.getByTestId("skill-peek-open-page"));
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("skill-peek")).not.toBeInTheDocument();
+    expect(screen.getByTestId("posting-card")).toBeInTheDocument();
+  });
+
   it("opens from a detail chip under the bare taxonomy slug", async () => {
     render(<DetailHarness skill={detailSkill()} />);
 
