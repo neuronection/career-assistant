@@ -134,10 +134,16 @@ class JobProposalService:
         self.db = db
 
     async def pending(self, limit: int = 50) -> list[JobPosting]:
-        """Postings with a live proposal, oldest first, bounded."""
+        """Postings with a live proposal that the join still could not
+        answer — a posting the re-decision has since mapped (e.g. via the
+        remap action) leaves the queue; applying there would fork the
+        catalog and stomp the fresh map."""
         rows = await self.db.execute(
             select(JobPosting)
-            .where(pending_predicate(self.db.get_bind().dialect.name))
+            .where(
+                pending_predicate(self.db.get_bind().dialect.name),
+                JobPosting.mapping_method.is_(None),
+            )
             .order_by(JobPosting.created_at, JobPosting.id)
             .limit(limit)
         )
@@ -149,8 +155,10 @@ class JobProposalService:
             .scalars()
             .first()
         )
-        if posting is None or not isinstance(
-            (posting.posting_facts or {}).get("job_proposal"), dict
+        if (
+            posting is None
+            or posting.mapping_method is not None
+            or not isinstance((posting.posting_facts or {}).get("job_proposal"), dict)
         ):
             raise NotFoundError("No job proposal pending for this posting")
         return posting

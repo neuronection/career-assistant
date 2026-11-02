@@ -877,7 +877,12 @@ async def decide_catalog(
         posting.catalog_job_id = None
         posting.mapping_method = None
         posting.mapping_confidence = round(overlap_score, 3) if overlap_score is not None else None
-        if semantic_tried and semantic_candidates:
+        if semantic_tried and semantic_candidates and top_score >= SEMANTIC_MAP_THRESHOLD:
+            posting.mapping_reason = (
+                f"best overlap {overlap_score:.2f} below {AUTO_MAP_THRESHOLD}; "
+                f"semantic top {top_score:.2f} shares no resolved skill — moderation"
+            )
+        elif semantic_tried and semantic_candidates:
             posting.mapping_reason = (
                 f"best overlap {overlap_score:.2f} below {AUTO_MAP_THRESHOLD}; "
                 f"semantic top {top_score:.2f} below {SEMANTIC_MAP_THRESHOLD} — moderation"

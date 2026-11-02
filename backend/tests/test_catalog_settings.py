@@ -223,6 +223,72 @@ async def test_remap_refuses_manual(db, client, auth_headers, seeded_catalog, so
     assert posting.mapping_method == "manual"
 
 
+async def test_remap_mapped_posting_leaves_the_proposal_queue(
+    db, client, auth_headers, kinds, source, posting_vector
+):
+    """A remap that maps the posting takes it OFF the proposal queue —
+    applying a stale proposal would fork the catalog and stomp the fresh
+    map (implementation-review minor 2)."""
+    from sqlalchemy import select as sa_select
+
+    from app.services.embedding_service import KIND_JOB, EmbeddingService
+    from app.services.postings.extract_service import extract_posting_now
+
+    _skill, family = await _seed(db)
+    for key in ("programming", "problem-solving"):
+        existing = (await db.execute(sa_select(Skill).where(Skill.key == key))).scalars().first()
+        if existing is None:
+            db.add(Skill(key=key, label=key.upper(), category="test"))
+    await db.commit()
+
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="remap-proposal",
+            title="Observability Engineer",
+            url="https://syn.example/remap-proposal",
+            skills_raw=["sql"],
+            raw={"description": "We need sql, programming and problem-solving."},
+        ),
+    )
+    await db.commit()
+    await extract_posting_now(db, posting)
+    await db.refresh(posting)
+    assert isinstance((posting.posting_facts or {}).get("job_proposal"), dict)
+
+    queue = await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
+    assert any(row["id"] == str(posting.id) for row in queue.json())
+
+    # The join finds an answer: a published, embedded job covering the set.
+    sql_row = (await db.execute(sa_select(Skill).where(Skill.key == "sql"))).scalars().first()
+    filler = Skill(key="remap-q-filler", label="Remap Q Filler", category="test")
+    db.add(filler)
+    await db.flush()
+    job = Job(code="remap-q-role", title="Remap Q Role", family_id=family.id, status="published")
+    db.add(job)
+    await db.flush()
+    db.add(JobSkill(job_id=job.id, skill_id=sql_row.id, required_level=1, importance="core"))
+    db.add(JobSkill(job_id=job.id, skill_id=filler.id, required_level=10, importance="core"))
+    await db.commit()
+    await EmbeddingService(db).upsert_embedding(
+        KIND_JOB, job.id, "vector fixture", vector=COSINE, commit=False
+    )
+
+    remapped = await client.post(f"/api/v1/admin/postings/{posting.id}/remap", headers=auth_headers)
+    assert remapped.status_code == 200
+    assert remapped.json()["mapping_method"] == "semantic"
+
+    queue_after = await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
+    assert queue_after.json() == [], "a mapped posting is no longer applicable"
+    stale = await client.post(
+        f"/api/v1/admin/postings/{posting.id}/job-proposal/apply",
+        json={"family_key": "switch-family"},
+        headers=auth_headers,
+    )
+    assert stale.status_code == 404, "applying a stale proposal refuses"
+
+
 async def test_remap_unknown_posting_404(db, client, auth_headers, seeded_catalog):
     missing = await client.post(
         "/api/v1/admin/postings/00000000-0000-0000-0000-000000000000/remap",

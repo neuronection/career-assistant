@@ -223,6 +223,10 @@ async def test_zero_shared_skills_never_maps_semantically(db, source, posting_ve
     assert posting.mapping_method is None
     assert posting.catalog_job_id is None
     assert posting.status == "new"
+    assert (
+        posting.mapping_reason
+        == "best overlap 0.00 below 0.34; semantic top 1.00 shares no resolved skill — moderation"
+    ), "the reason names the gate that actually blocked the map"
     signals = posting.posting_facts["mapping_signals"]
     assert signals["semantic"]["top"] == 1.0, "the candidate ranked but never mapped"
 
