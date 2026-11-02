@@ -1451,7 +1451,8 @@
         "editor": "Alle Relationen",
         "thresholds": "Schwellenwerte",
         "runs": "Läufe",
-        "graph": "Graph"
+        "graph": "Graph",
+        "resolution": "Auflösung"
       },
       "relation": {
         "is_a": "ist ein",
@@ -1535,7 +1536,65 @@
         "degree_one": "{{count}} Relation",
         "degree_other": "{{count}} Relationen"
       },
-      "promotionHint": "Die vorgeschlagene Seite ist eine neue Fertigkeit, die noch befördert werden muss — das Akzeptieren dieser Kante aktiviert sie nicht."
+      "promotionHint": "Die vorgeschlagene Seite ist eine neue Fertigkeit, die noch befördert werden muss — das Akzeptieren dieser Kante aktiviert sie nicht.",
+      "resolution": {
+        "intro": "Wie die Tiefe-Extraktion rohe Skill-Labels auf die Taxonomie abbildet: KPIs der Zweipass-Auflösung, Schwellenwerte und Wellen.",
+        "stats": {
+          "heading": "Auflösungs-KPIs",
+          "windowsAria": "Rollierendes Zeitfenster",
+          "window": {
+            "24h": "24 Std.",
+            "7d": "7 Tage",
+            "30d": "30 Tage"
+          },
+          "lastRunGroup": "Letzter Lauf",
+          "rollingGroup": "Rollierend",
+          "labels": "Labels",
+          "exact": "Exakte Treffer",
+          "pass2": "Pass-2-Treffer",
+          "new": "Neue Vorschläge",
+          "blocks": "Gate-Blockierungen",
+          "matchRate": "Trefferquote",
+          "newRate": "Neu-Quote",
+          "blockRate": "Blockierquote",
+          "replayRate": "Replay-Quote",
+          "degradeRate": "Degradierungsquote",
+          "runsHint_one": "{{count}} Lauf im Zeitfenster",
+          "runsHint_other": "{{count}} Läufe im Zeitfenster",
+          "extractHint": "volle Extraktion",
+          "replayHint": "Replay",
+          "empty": "Noch keine Extraktionsläufe",
+          "emptyBody": "Läufe der Tiefe-Extraktion melden hier ihr Auflösungsergebnis.",
+          "failingSchedules_one": "{{count}} Zeitplan schlägt fehl",
+          "failingSchedules_other": "{{count}} Zeitpläne schlagen fehl",
+          "openAutomations": "Automatisierungen öffnen"
+        },
+        "thresholds": {
+          "heading": "Schwellenwerte",
+          "intro": "Stellschrauben der Zweipass-Auflösung — wirksam ab dem nächsten Extraktionslauf.",
+          "field": {
+            "candidate_trigram_floor": "Trigramm-Kandidatenuntergrenze",
+            "candidate_cosine_floor": "Kosinus-Kandidatenuntergrenze",
+            "candidate_top_k": "Kandidaten pro Label (max. 5)",
+            "dedup_trigram_bar": "Dedup-Gate Trigramm-Grenze",
+            "dedup_cosine_bar": "Dedup-Gate Kosinus-Grenze",
+            "corroboration_min_postings": "Postings bis zur Auto-Promotion",
+            "corroboration_cap": "Limit der Korroborationsliste"
+          },
+          "save": "Schwellenwerte speichern",
+          "saved": "Gespeichert."
+        },
+        "controls": {
+          "heading": "Wellen",
+          "replayLabel": "Posting-IDs zum Replay",
+          "replayPlaceholder": "Eine Posting-ID pro Zeile (oder kommagetrennt)",
+          "replayRun": "Auflösung wiederholen",
+          "replayReport": "Eingereiht {{queued}} · übersprungen {{skipped}} · fehlend {{missing}}",
+          "reconcile": "Skill-Embeddings abgleichen",
+          "reconcileReport": "{{embedded}} von {{candidates}} Skills eingebettet",
+          "reconcileDegraded": "Embed-Anbieter nicht konfiguriert — Abgleich übersprungen"
+        }
+      }
     },
     "bulk": {
       "select": "Auswählen",

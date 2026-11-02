@@ -468,7 +468,7 @@ async def test_auto_promote_runs_after_the_extract_journal(
     journal_of: dict = {}
     seen: list[bool] = []
 
-    async def _spy(db, skill, count):
+    async def _spy(db, skill, count, _thresholds):
         rows = await db.execute(
             select(PostingChange).where(
                 PostingChange.posting_id == journal_of["posting_id"],
@@ -476,7 +476,7 @@ async def test_auto_promote_runs_after_the_extract_journal(
             )
         )
         seen.append(rows.scalars().first() is not None)
-        await real_promote(db, skill, count)
+        await real_promote(db, skill, count, _thresholds)
 
     monkeypatch.setattr(extract_service, "_auto_promote", _spy)
 

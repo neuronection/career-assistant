@@ -18720,6 +18720,302 @@
         "title": "RemoveBlockOp",
         "type": "object"
       },
+      "ResolutionLastRunOut": {
+        "description": "The newest succeeded POSTING_EXTRACT result summary (missing or\nmistyped counters on an old run read as defaults).",
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "degraded": {
+            "default": false,
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "exact_hits": {
+            "default": 0,
+            "title": "Exact Hits",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "gate_blocks": {
+            "default": 0,
+            "title": "Gate Blocks",
+            "type": "integer"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "labels": {
+            "default": 0,
+            "title": "Labels",
+            "type": "integer"
+          },
+          "new_proposals": {
+            "default": 0,
+            "title": "New Proposals",
+            "type": "integer"
+          },
+          "pass2_matches": {
+            "default": 0,
+            "title": "Pass2 Matches",
+            "type": "integer"
+          },
+          "replay": {
+            "default": false,
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "ResolutionLastRunOut",
+        "type": "object"
+      },
+      "ResolutionRollingOut": {
+        "description": "Rolling sums + derived rates over the window's extract jobs.",
+        "properties": {
+          "block_rate": {
+            "title": "Block Rate",
+            "type": "number"
+          },
+          "degrade_rate": {
+            "title": "Degrade Rate",
+            "type": "number"
+          },
+          "degraded_runs": {
+            "title": "Degraded Runs",
+            "type": "integer"
+          },
+          "exact_hits": {
+            "title": "Exact Hits",
+            "type": "integer"
+          },
+          "gate_blocks": {
+            "title": "Gate Blocks",
+            "type": "integer"
+          },
+          "labels": {
+            "title": "Labels",
+            "type": "integer"
+          },
+          "match_rate": {
+            "title": "Match Rate",
+            "type": "number"
+          },
+          "new_proposals": {
+            "title": "New Proposals",
+            "type": "integer"
+          },
+          "new_rate": {
+            "title": "New Rate",
+            "type": "number"
+          },
+          "pass2_matches": {
+            "title": "Pass2 Matches",
+            "type": "integer"
+          },
+          "replay_rate": {
+            "title": "Replay Rate",
+            "type": "number"
+          },
+          "replay_runs": {
+            "title": "Replay Runs",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window",
+          "runs",
+          "replay_runs",
+          "degraded_runs",
+          "labels",
+          "exact_hits",
+          "pass2_matches",
+          "new_proposals",
+          "gate_blocks",
+          "match_rate",
+          "new_rate",
+          "block_rate",
+          "replay_rate",
+          "degrade_rate"
+        ],
+        "title": "ResolutionRollingOut",
+        "type": "object"
+      },
+      "ResolutionStatsOut": {
+        "description": "The Resolution section's KPI payload (plan 153 slice 4).",
+        "properties": {
+          "failing_schedules": {
+            "title": "Failing Schedules",
+            "type": "integer"
+          },
+          "last_run": {
+            "$ref": "#/components/schemas/ResolutionLastRunOut"
+          },
+          "rolling": {
+            "$ref": "#/components/schemas/ResolutionRollingOut"
+          }
+        },
+        "required": [
+          "last_run",
+          "rolling",
+          "failing_schedules"
+        ],
+        "title": "ResolutionStatsOut",
+        "type": "object"
+      },
+      "ResolutionThresholdsIn": {
+        "additionalProperties": false,
+        "description": "Admin overrides for `posting_resolve.thresholds` (clamped).",
+        "properties": {
+          "candidate_cosine_floor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Candidate Cosine Floor",
+            "type": "number"
+          },
+          "candidate_top_k": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Candidate Top K",
+            "type": "integer"
+          },
+          "candidate_trigram_floor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Candidate Trigram Floor",
+            "type": "number"
+          },
+          "corroboration_cap": {
+            "minimum": 1.0,
+            "title": "Corroboration Cap",
+            "type": "integer"
+          },
+          "corroboration_min_postings": {
+            "minimum": 1.0,
+            "title": "Corroboration Min Postings",
+            "type": "integer"
+          },
+          "dedup_cosine_bar": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dedup Cosine Bar",
+            "type": "number"
+          },
+          "dedup_trigram_bar": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dedup Trigram Bar",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidate_trigram_floor",
+          "candidate_cosine_floor",
+          "candidate_top_k",
+          "dedup_trigram_bar",
+          "dedup_cosine_bar",
+          "corroboration_min_postings",
+          "corroboration_cap"
+        ],
+        "title": "ResolutionThresholdsIn",
+        "type": "object"
+      },
+      "ResolutionThresholdsOut": {
+        "description": "Effective resolution thresholds (constant fallbacks included).",
+        "properties": {
+          "candidate_cosine_floor": {
+            "title": "Candidate Cosine Floor",
+            "type": "number"
+          },
+          "candidate_top_k": {
+            "title": "Candidate Top K",
+            "type": "integer"
+          },
+          "candidate_trigram_floor": {
+            "title": "Candidate Trigram Floor",
+            "type": "number"
+          },
+          "corroboration_cap": {
+            "title": "Corroboration Cap",
+            "type": "integer"
+          },
+          "corroboration_min_postings": {
+            "title": "Corroboration Min Postings",
+            "type": "integer"
+          },
+          "dedup_cosine_bar": {
+            "title": "Dedup Cosine Bar",
+            "type": "number"
+          },
+          "dedup_trigram_bar": {
+            "title": "Dedup Trigram Bar",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidate_trigram_floor",
+          "candidate_cosine_floor",
+          "candidate_top_k",
+          "dedup_trigram_bar",
+          "dedup_cosine_bar",
+          "corroboration_min_postings",
+          "corroboration_cap"
+        ],
+        "title": "ResolutionThresholdsOut",
+        "type": "object"
+      },
       "ResolveFamilyOut": {
         "properties": {
           "key": {
@@ -28373,6 +28669,52 @@
         ]
       }
     },
+    "/api/v1/admin/postings/replay": {
+      "post": {
+        "description": "Bulk replay wave (plan 153 slice 4 \u2014 the /postings multi-select):\nenqueue `mode: \"resolve\"` jobs for the given postings \u2014 candidate\nmatch + pass 2 over the stored raw labels, no pass-1 spend. Only\npostings on the current extract version queue (older rows carry no\nreplayable labels \u2014 they re-extract on demand); already-queued ones\nare skipped; unknown ids are reported as missing.",
+        "operationId": "replay_postings_by_ids_api_v1_admin_postings_replay_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Replay Postings By Ids Api V1 Admin Postings Replay Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replay Postings By Ids",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/sources": {
       "get": {
         "description": "Posting sources with their sync health (secret-safe views).",
@@ -29562,6 +29904,113 @@
           }
         },
         "summary": "Promote Skill",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/taxonomy/resolution/stats": {
+      "get": {
+        "description": "Last-run summary + rolling resolution rates from the\nPOSTING_EXTRACT job results (plan 153 slice 4).",
+        "operationId": "get_resolution_stats_api_v1_admin_taxonomy_resolution_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "7d",
+              "pattern": "^(24h|7d|30d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Resolution Stats",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/taxonomy/resolution/thresholds": {
+      "get": {
+        "description": "Effective resolution thresholds (constant fallbacks included).",
+        "operationId": "get_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Resolution Thresholds",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Admin overrides for the resolve pipeline (clamped server-side;\neffective on the next run).",
+        "operationId": "put_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolutionThresholdsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Resolution Thresholds",
         "tags": [
           "admin"
         ]

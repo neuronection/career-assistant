@@ -34,6 +34,53 @@ vi.mock("@/api/skillRelations", () => ({
   bulkSkillRelationAction: vi.fn(),
 }));
 
+vi.mock("@/api/postingResolution", () => ({
+  fetchResolutionThresholds: vi.fn().mockResolvedValue({
+    candidate_trigram_floor: 0,
+    candidate_cosine_floor: 0,
+    candidate_top_k: 5,
+    dedup_trigram_bar: 0.75,
+    dedup_cosine_bar: 0.9,
+    corroboration_min_postings: 2,
+    corroboration_cap: 20,
+  }),
+  saveResolutionThresholds: vi.fn(),
+  fetchResolutionStats: vi.fn().mockResolvedValue({
+    last_run: {
+      job_id: "job-1",
+      status: "succeeded",
+      created_at: "2026-11-02T00:00:00Z",
+      finished_at: "2026-11-02T00:00:01Z",
+      labels: 3,
+      exact_hits: 2,
+      pass2_matches: 1,
+      new_proposals: 0,
+      gate_blocks: 0,
+      degraded: false,
+      replay: false,
+    },
+    rolling: {
+      window: "7d",
+      runs: 4,
+      replay_runs: 1,
+      degraded_runs: 0,
+      labels: 9,
+      exact_hits: 5,
+      pass2_matches: 3,
+      new_proposals: 1,
+      gate_blocks: 0,
+      match_rate: 0.8889,
+      new_rate: 0.1111,
+      block_rate: 0,
+      replay_rate: 0.25,
+      degrade_rate: 0,
+    },
+    failing_schedules: 1,
+  }),
+  replayPostingResolution: vi.fn(),
+  reconcileSkillEmbeddings: vi.fn(),
+}));
+
 vi.mock("@/api/i18n", () => ({
   fetchOverlayQueue: vi.fn().mockResolvedValue([]),
   draftOverlays: vi.fn(),
@@ -99,12 +146,20 @@ describe("taxonomy tab params (pure helpers)", () => {
   });
 
   it("RELATION_TABS covers every relations subtab", () => {
-    expect([...RELATION_TABS]).toEqual(["queue", "editor", "graph", "thresholds", "runs"]);
+    expect([...RELATION_TABS]).toEqual([
+      "queue",
+      "editor",
+      "graph",
+      "thresholds",
+      "runs",
+      "resolution",
+    ]);
   });
 
   it("parseRelationSection falls back to queue on missing or unknown values", () => {
     expect(parseRelationSection(null)).toBe("queue");
     expect(parseRelationSection("graph")).toBe("graph");
+    expect(parseRelationSection("resolution")).toBe("resolution");
     expect(parseRelationSection("bogus")).toBe("queue");
   });
 });
@@ -175,6 +230,22 @@ describe("taxonomy tabs (URL-synced)", () => {
       "true",
     );
     expect(probe()).toBe("/settings/taxonomy?tab=relations&section=graph");
+  });
+
+  it("lands ?tab=relations&section=resolution on the resolution section", async () => {
+    renderPage("/settings/taxonomy?tab=relations&section=resolution");
+    await waitFor(() =>
+      expect(screen.getByRole("tab", { name: "Resolution" })).toHaveAttribute(
+        "aria-selected",
+        "true",
+      ),
+    );
+    expect(screen.getByTestId("resolution-section")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("resolution-stats")).toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("resolution-thresholds")).toBeInTheDocument();
+    expect(probe()).toBe("/settings/taxonomy?tab=relations&section=resolution");
   });
 
   it("canonicalizes the default subtab away", async () => {

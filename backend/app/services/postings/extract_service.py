@@ -21,6 +21,7 @@ near-duplicate dedup gate. `mode: "resolve"` replay re-runs only the
 resolution over the stored raw labels — no pass-1 spend."""
 
 import logging
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -38,6 +39,7 @@ from app.models.enums import (
     SkillOrigin,
 )
 from app.models.posting_model import JobPosting, PostingSkill
+from app.models.settings_model import AppSetting
 from app.models.taxonomy_model import Skill
 from app.services.postings.salary import BASIS_VALUES, annualized
 
@@ -62,6 +64,92 @@ CORROBORATION_CAP = 20
 # ever adds blocks (semantic is a ranking signal, never a filter).
 DEDUP_TRIGRAM_BAR = 0.75
 DEDUP_COSINE_BAR = 0.90
+
+# Bounded resolution provenance (plan 153 slice 4): a stored entry's
+# `resolution` stamp never carries more candidates than pass 2 saw.
+RESOLVE_SETTINGS_KEY = "posting_resolve.thresholds"
+MAX_CANDIDATE_TOP_K = 5
+
+
+@dataclass(frozen=True)
+class ResolveThresholds:
+    """Resolution knobs; admin-overridable via one ``AppSetting`` JSON row
+    (the `load_thresholds` pattern — the constants above stay as fallback
+    defaults, and a save is effective on the next run)."""
+
+    candidate_trigram_floor: float = 0.0
+    candidate_cosine_floor: float = 0.0
+    candidate_top_k: int = MAX_CANDIDATE_TOP_K
+    dedup_trigram_bar: float = DEDUP_TRIGRAM_BAR
+    dedup_cosine_bar: float = DEDUP_COSINE_BAR
+    corroboration_min_postings: int = CORROBORATION_MIN_POSTINGS
+    corroboration_cap: int = CORROBORATION_CAP
+
+
+async def load_thresholds(db: AsyncSession) -> ResolveThresholds:
+    """Thresholds from ``app_settings`` (constant fallbacks, invalid
+    ignored, read-side clamps — the pass-2 offering never exceeds the
+    provenance bound)."""
+    row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == RESOLVE_SETTINGS_KEY)))
+        .scalars()
+        .first()
+    )
+    raw = row.value if row is not None and isinstance(row.value, dict) else {}
+    defaults = ResolveThresholds()
+    parsed: dict[str, int | float] = {}
+    for name, cast in (
+        ("candidate_trigram_floor", float),
+        ("candidate_cosine_floor", float),
+        ("candidate_top_k", int),
+        ("dedup_trigram_bar", float),
+        ("dedup_cosine_bar", float),
+        ("corroboration_min_postings", int),
+        ("corroboration_cap", int),
+    ):
+        value = raw.get(name)
+        try:
+            parsed[name] = getattr(defaults, name) if value is None else cast(value)
+        except (TypeError, ValueError):
+            parsed[name] = getattr(defaults, name)
+    return ResolveThresholds(
+        candidate_trigram_floor=max(0.0, min(float(parsed["candidate_trigram_floor"]), 1.0)),
+        candidate_cosine_floor=max(0.0, min(float(parsed["candidate_cosine_floor"]), 1.0)),
+        candidate_top_k=max(1, min(int(parsed["candidate_top_k"]), MAX_CANDIDATE_TOP_K)),
+        dedup_trigram_bar=max(0.0, min(float(parsed["dedup_trigram_bar"]), 1.0)),
+        dedup_cosine_bar=max(0.0, min(float(parsed["dedup_cosine_bar"]), 1.0)),
+        corroboration_min_postings=max(1, int(parsed["corroboration_min_postings"])),
+        corroboration_cap=max(1, int(parsed["corroboration_cap"])),
+    )
+
+
+async def save_thresholds(db: AsyncSession, thresholds: ResolveThresholds) -> None:
+    """Persist the admin overrides (validated upstream; the loader's
+    clamps stay as read defense)."""
+    row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == RESOLVE_SETTINGS_KEY)))
+        .scalars()
+        .first()
+    )
+    value = {
+        "candidate_trigram_floor": thresholds.candidate_trigram_floor,
+        "candidate_cosine_floor": thresholds.candidate_cosine_floor,
+        "candidate_top_k": thresholds.candidate_top_k,
+        "dedup_trigram_bar": thresholds.dedup_trigram_bar,
+        "dedup_cosine_bar": thresholds.dedup_cosine_bar,
+        "corroboration_min_postings": thresholds.corroboration_min_postings,
+        "corroboration_cap": thresholds.corroboration_cap,
+    }
+    if row is None:
+        db.add(
+            AppSetting(
+                key=RESOLVE_SETTINGS_KEY, value=value, description="Posting resolve thresholds"
+            )
+        )
+    else:
+        row.value = value
+    await db.commit()
+
 
 FIELD_NAMES = (
     "title_norm",
@@ -130,6 +218,24 @@ async def queue_posting_extract(
     return True
 
 
+async def queue_posting_replay(db: AsyncSession, posting: JobPosting) -> bool:
+    """Enqueue one `mode: "resolve"` replay job unless one is already
+    queued/running for the posting (the bulk replay wave's enqueue loop —
+    plan 153 slice 4; the handler branch, journal and RunRef identity
+    are slice 3's)."""
+    from app.services.job_worker import enqueue
+
+    if await has_pending_extract(db, posting.id):
+        return False
+    await enqueue(
+        db,
+        BackgroundJobType.POSTING_EXTRACT.value,
+        {"posting_id": str(posting.id), "mode": "resolve"},
+        max_attempts=2,
+    )
+    return True
+
+
 async def plan_extractions(
     db: AsyncSession, fresh: list[tuple[JobPosting, bool]], backlog: bool = False
 ) -> int:
@@ -177,7 +283,8 @@ async def apply_extract(
     actor_ref: dict | None = None,
     duration_ms: int | None = None,
     run: "RunRef | None" = None,
-) -> tuple[JobPosting, list[tuple[Skill, int]]]:
+    thresholds: ResolveThresholds | None = None,
+) -> tuple[JobPosting, list[tuple[Skill, int]], dict]:
     """Store a validated PostingExtract: suppress low-confidence fields
     (needs_review), normalize typed columns, fill posting_skills levels.
     Journals as `extract_llm` (same transaction; `description_clean` is a
@@ -186,7 +293,8 @@ async def apply_extract(
     Returns the posting plus the corroborated ``(skill, postings_count)``
     pairs the caller must auto-promote AFTER its own commit — promotion
     never rides this transaction (``TaxonomyService.promote`` commits on
-    its own terms; plan 153 slice 3's commit-boundary fix)."""
+    its own terms; plan 153 slice 3's commit-boundary fix) — and the
+    resolution counts the job result summarizes (plan 153 slice 4)."""
     from app.ai.agents.posting_extractor import PostingExtract
     from app.services.postings.change_journal import (
         EXTRACT_FIELDS,
@@ -274,8 +382,8 @@ async def apply_extract(
     posting.posting_facts = facts
 
     await db.flush()
-    promotions = await _apply_extract_skills(
-        db, posting, data["skills"], actor_ref=actor_ref, run=run
+    promotions, counts = await _apply_extract_skills(
+        db, posting, data["skills"], actor_ref=actor_ref, run=run, thresholds=thresholds
     )
     posting.extract = data
     outcome = "partial" if posting.needs_review else "ok"
@@ -293,7 +401,38 @@ async def apply_extract(
         after=_snap(),
         outcome=outcome,
     )
-    return posting, promotions
+    return posting, promotions, counts
+
+
+def _resolution_stamp(via: str, candidates: list, confidence: float | None) -> dict:
+    """The bounded provenance one stored entry carries (plan 153 slice
+    4): how the label resolved, the candidates it was judged over (keys,
+    scores, signals — never rationale text, that lives in the audit
+    row) and the pass-2 verdict's confidence (``None`` off the LLM)."""
+    return {
+        "via": via,
+        "candidates": [
+            {"key": candidate.key, "score": candidate.score, "signal": candidate.signal}
+            for candidate in candidates[:MAX_CANDIDATE_TOP_K]
+        ],
+        "verdict_confidence": confidence,
+    }
+
+
+def _above_floors(candidates: list, thresholds: ResolveThresholds) -> list:
+    """Candidates clearing the admin floors — exact always passes; a
+    scored candidate must clear its signal's floor (defaults 0.0 keep
+    every candidate; a label left with nothing proposes without a
+    pass-2 slot)."""
+    floors = {
+        "trigram": thresholds.candidate_trigram_floor,
+        "embedding": thresholds.candidate_cosine_floor,
+    }
+    return [
+        candidate
+        for candidate in candidates
+        if candidate.signal == "exact" or candidate.score >= floors.get(candidate.signal, 0.0)
+    ]
 
 
 async def _apply_extract_skills(
@@ -303,9 +442,10 @@ async def _apply_extract_skills(
     *,
     actor_ref: dict | None = None,
     run: "RunRef | None" = None,
+    thresholds: ResolveThresholds | None = None,
     operation: dict | None = None,
     journal: bool = True,
-) -> list[tuple[Skill, int]]:
+) -> tuple[list[tuple[Skill, int]], dict]:
     """Resolve verbatim raw labels and apply (plan 153 v5): alias-index
     exact hits resolve deterministically (active rows first, deprecated
     exact keys fall back for unmatched tokens — the matcher precedence
@@ -320,18 +460,24 @@ async def _apply_extract_skills(
     `skill_key` (null when new) — the replay substrate. Unmatched
     labels become proposals (never dropped, never label-matched).
 
+    Every entry also carries its bounded `resolution` provenance stamp
+    (plan 153 slice 4) — the mutable entry dicts are stamped in place,
+    so the stamps land before any caller assigns the envelope (the
+    late-assignment rule that keeps them off the autoflush path).
+
     Journals the skills set-diff as `extract_llm` (same transaction;
     ``journal=False`` hands the row to the caller — the replay writer
     carries its own ``{replay: true}`` operation row). Returns the
     corroborated ``(skill, postings_count)`` pairs for the caller's
     post-commit promotion loop — this function never promotes and never
-    commits.
+    commits — plus the resolution counts the job result summarizes.
     """
     from app.services.catalog.skills_service import SkillService
     from app.services.postings.change_journal import PostingChangeJournal, skills_state
     from app.services.postings.postings_service import _norm
-    from app.services.postings.skill_candidates import Candidate, candidate_skills
+    from app.services.postings.skill_candidates import candidate_skills
 
+    thresholds = thresholds or await load_thresholds(db)
     before = await skills_state(db, posting.id)
     groups: dict[str, list[dict]] = {}
     for entry in skills:
@@ -339,18 +485,33 @@ async def _apply_extract_skills(
         if label:
             groups.setdefault(_norm(label), []).append(entry)
 
+    counts = {
+        "labels": sum(len(entries) for entries in groups.values()),
+        "exact_hits": 0,
+        "pass2_matches": 0,
+        "new_proposals": 0,
+        "degraded": False,
+    }
     resolved: dict[UUID, dict] = {}
     new_labels: list[dict] = []
-    pending: list[tuple[dict, list[Candidate]]] = []
+    pending: list[tuple[dict, list]] = []
     winners: dict[str, dict] = {}
     for norm, entries in groups.items():
         entry = entries[0]
-        candidates = await candidate_skills(db, str(entry["raw_label"]))
+        candidates = _above_floors(
+            await candidate_skills(db, str(entry["raw_label"]), k=thresholds.candidate_top_k),
+            thresholds,
+        )
         if candidates and candidates[0].signal == "exact":
             resolved[candidates[0].skill_id] = entry
             entry["skill_key"] = candidates[0].key
-        else:
+            entry["resolution"] = _resolution_stamp("exact", candidates, None)
+        elif candidates:
             pending.append((entry, candidates))
+        else:
+            entry["skill_key"] = None
+            entry["resolution"] = _resolution_stamp("new", [], None)
+            new_labels.append(entry)
         winners[norm] = entry
 
     if pending:
@@ -374,10 +535,14 @@ async def _apply_extract_skills(
             }
             for ref, (entry, candidates) in enumerate(pending)
         ]
-        verdicts = await _pass2_verdict_keys(db, offered, run=run)
+        verdicts, degraded = await _pass2_verdicts(db, offered, run=run)
+        counts["degraded"] = degraded
         for ref, (entry, candidates) in enumerate(pending):
-            match_key = verdicts.get(str(ref), "")
+            match_key, confidence = verdicts.get(str(ref), ("", None))
             match = next((c for c in candidates if c.key == match_key), None)
+            entry["resolution"] = _resolution_stamp(
+                "pass2" if match is not None else "new", candidates, confidence
+            )
             if match is None:
                 entry["skill_key"] = None
                 new_labels.append(entry)
@@ -386,9 +551,20 @@ async def _apply_extract_skills(
             entry["skill_key"] = match.key
 
     for norm, entries in groups.items():
-        winner = winners[norm].get("skill_key")
+        winner = winners[norm]
         for twin in entries[1:]:
-            twin["skill_key"] = winner
+            twin["skill_key"] = winner.get("skill_key")
+            twin["resolution"] = winner.get("resolution")
+
+    for entries in groups.values():
+        for entry in entries:
+            via = (entry.get("resolution") or {}).get("via")
+            if via == "exact":
+                counts["exact_hits"] += 1
+            elif via == "pass2":
+                counts["pass2_matches"] += 1
+            elif via == "new":
+                counts["new_proposals"] += 1
 
     resolved_skills: dict[UUID, Skill] = {}
     if resolved:
@@ -421,10 +597,10 @@ async def _apply_extract_skills(
     corroborated: list[tuple[Skill, int]] = []
     for skill_id in resolved:
         skill = resolved_skills[skill_id]
-        count = _record_corroboration(skill, posting)
+        count = _record_corroboration(skill, posting, cap=thresholds.corroboration_cap)
         if count:
             await db.flush()
-        if count >= CORROBORATION_MIN_POSTINGS:
+        if count >= thresholds.corroboration_min_postings:
             corroborated.append((skill, count))
 
     if new_labels:
@@ -449,10 +625,10 @@ async def _apply_extract_skills(
             if created:
                 await db.flush()
                 continue
-            count = _record_corroboration(skill, posting)
+            count = _record_corroboration(skill, posting, cap=thresholds.corroboration_cap)
             if count:
                 await db.flush()
-            if count >= CORROBORATION_MIN_POSTINGS:
+            if count >= thresholds.corroboration_min_postings:
                 corroborated.append((skill, count))
 
     if journal:
@@ -465,7 +641,7 @@ async def _apply_extract_skills(
             before={"skills": before},
             after={"skills": await skills_state(db, posting.id)},
         )
-    return corroborated
+    return corroborated, counts
 
 
 async def _candidate_skill_rows(
@@ -480,30 +656,39 @@ async def _candidate_skill_rows(
     return {skill.id: skill for skill in rows.scalars().all()}
 
 
-async def _pass2_verdict_keys(
+async def _pass2_verdicts(
     db: AsyncSession, offered: list[dict], *, run: "RunRef | None" = None
-) -> dict[str, str]:
-    """One batched pass-2 call → ``{label_ref: match_key}`` (``""`` when
-    the label answers new). The reply is the adjudicated resolution
-    (§8) — applied directly, never re-validated; an unconfigured or
-    failing provider degrades every label to a deterministic `new`."""
+) -> tuple[dict[str, tuple[str, float | None]], bool]:
+    """One batched pass-2 call → ``{label_ref: (match_key, confidence)}``
+    (``""`` when the label answers new) plus the degraded flag. The
+    reply is the adjudicated resolution (§8) — applied directly, never
+    re-validated; an unconfigured or failing provider degrades every
+    label to a deterministic `new`."""
     from app.ai.agents.skill_resolver import resolve_skills
 
     if not offered:
-        return {}
+        return {}, False
     try:
         resolution = await resolve_skills(db, offered, run=run)
     except AINotConfiguredError:
         resolution = None
     if resolution is None:
-        return {label["label_ref"]: "" for label in offered}
-    return {
-        verdict.label_ref: ("" if verdict.new else verdict.match_key)
-        for verdict in resolution.verdicts
-    }
+        return {label["label_ref"]: ("", None) for label in offered}, True
+    return (
+        {
+            verdict.label_ref: (
+                "" if verdict.new else verdict.match_key,
+                float(verdict.confidence),
+            )
+            for verdict in resolution.verdicts
+        },
+        bool(resolution.bounded),
+    )
 
 
-def _record_corroboration(skill: Skill, posting: JobPosting) -> int:
+def _record_corroboration(
+    skill: Skill, posting: JobPosting, *, cap: int = CORROBORATION_CAP
+) -> int:
     """Count the distinct postings behind a proposed extraction label
     (origin posting + `corroborated_postings`), accumulating this posting
     when new. 0 for everything the gate does not apply to (not ai-origin,
@@ -520,29 +705,37 @@ def _record_corroboration(skill: Skill, posting: JobPosting) -> int:
     seen = list(provenance.get("corroborated_postings") or [])
     if pid not in seen:
         seen.append(pid)
-        provenance["corroborated_postings"] = seen[:CORROBORATION_CAP]
+        provenance["corroborated_postings"] = seen[:cap]
         skill.provenance = provenance
         flag_modified(skill, "provenance")
     distinct = len({origin_pid, *seen}) if origin_pid else len(seen)
     return distinct
 
 
-async def _run_promotions(db: AsyncSession, promotions: list[tuple[Skill, int]]) -> None:
+async def _run_promotions(
+    db: AsyncSession, promotions: list[tuple[Skill, int]], thresholds: ResolveThresholds
+) -> int:
     """The corroborated auto-promote loop — run AFTER the caller's apply
     commit (plan 153 slice 3's commit-boundary fix): the extract journal
     and data land in one transaction, `TaxonomyService.promote` then
     commits on its own terms, and a crash between the two commits
     self-heals (the count is already ≥ 2; the next posting re-trips the
-    gate)."""
+    gate). Returns the dedup-gate block count (the job result's
+    ``gate_blocks``)."""
+    blocked = 0
     for skill, postings_count in promotions:
-        await _auto_promote(db, skill, postings_count)
+        if await _auto_promote(db, skill, postings_count, thresholds):
+            blocked += 1
+    return blocked
 
 
-async def _dedup_gate_block(db: AsyncSession, skill: Skill) -> tuple[dict, dict] | None:
+async def _dedup_gate_block(
+    db: AsyncSession, skill: Skill, thresholds: ResolveThresholds
+) -> tuple[dict, dict] | None:
     """The plan-153 dedup gate: the first ACTIVE skill near the promoted
-    label above the bars — exact (a claimed token IS a duplicate),
-    trigram ≥ 0.75 or cosine ≥ 0.90. Candidate matching runs against
-    active rows only, so a proposed twin never shadows an active
+    label above the configured bars — exact (a claimed token IS a
+    duplicate), trigram ≥ bar or cosine ≥ bar. Candidate matching runs
+    against active rows only, so a proposed twin never shadows an active
     near-duplicate. The lexical decision reads the trigram layer's own
     alias-aware score; the key/label re-derivation is the alias-free
     lower bound that still catches an embedding-decided candidate above
@@ -560,8 +753,8 @@ async def _dedup_gate_block(db: AsyncSession, skill: Skill) -> tuple[dict, dict]
             trigram = max(trigram, candidate.score)
         blocked = (
             candidate.signal == "exact"
-            or trigram >= DEDUP_TRIGRAM_BAR
-            or (candidate.signal == "embedding" and candidate.score >= DEDUP_COSINE_BAR)
+            or trigram >= thresholds.dedup_trigram_bar
+            or (candidate.signal == "embedding" and candidate.score >= thresholds.dedup_cosine_bar)
         )
         if blocked:
             return (
@@ -579,15 +772,18 @@ async def _dedup_gate_block(db: AsyncSession, skill: Skill) -> tuple[dict, dict]
     return None
 
 
-async def _auto_promote(db: AsyncSession, skill: Skill, postings_count: int) -> None:
+async def _auto_promote(
+    db: AsyncSession, skill: Skill, postings_count: int, thresholds: ResolveThresholds
+) -> bool:
     """plan 147 — the corroboration gate tripped: promote the label to the
     active catalog (the orgs decision-8 pattern; promotion still rides the
     `promote()` seam) and stamp the decision into provenance for audit.
     The plan-153 dedup gate runs first: a near-duplicate ACTIVE skill
-    keeps the row proposed and stamps `auto_promote_blocked` instead."""
+    keeps the row proposed and stamps `auto_promote_blocked` instead.
+    True when the gate blocked (the caller counts it)."""
     from app.services.catalog.taxonomy_service import TaxonomyService
 
-    blocked = await _dedup_gate_block(db, skill)
+    blocked = await _dedup_gate_block(db, skill, thresholds)
     if blocked is not None:
         near, scores = blocked
         skill.provenance = {
@@ -607,14 +803,14 @@ async def _auto_promote(db: AsyncSession, skill: Skill, postings_count: int) -> 
             scores["signal"],
             scores["score"],
         )
-        return
+        return True
     try:
         promoted = await TaxonomyService(db).promote(
             skill.id, auto=True, detail={"postings": postings_count}
         )
     except ValidationError:
         logger.warning("corroboration promotion skipped for %s (status moved)", skill.key)
-        return
+        return False
     provenance = {
         **(promoted.provenance or {}),
         "auto_promoted": {
@@ -630,6 +826,7 @@ async def _auto_promote(db: AsyncSession, skill: Skill, postings_count: int) -> 
         promoted.key,
         postings_count,
     )
+    return False
 
 
 # -------------------------------------------------------------------- run
@@ -697,15 +894,29 @@ async def extract_posting_now(
     if audit.get("id") is not None:
         actor_ref["ai_generation_id"] = str(audit["id"])
     duration_ms = int((perf_counter() - started) * 1000)
-    _posting, promotions = await apply_extract(
-        db, posting, result, actor_ref=actor_ref, duration_ms=duration_ms, run=resolve_ref
+    thresholds = await load_thresholds(db)
+    _posting, promotions, counts = await apply_extract(
+        db,
+        posting,
+        result,
+        actor_ref=actor_ref,
+        duration_ms=duration_ms,
+        run=resolve_ref,
+        thresholds=thresholds,
     )
     await db.commit()
-    await _run_promotions(db, promotions)
+    gate_blocks = await _run_promotions(db, promotions, thresholds)
     return {
         "extracted": True,
         "skills": len(result.skills),
         "needs_review": posting.needs_review,
+        "labels": counts["labels"],
+        "exact_hits": counts["exact_hits"],
+        "pass2_matches": counts["pass2_matches"],
+        "new_proposals": counts["new_proposals"],
+        "gate_blocks": gate_blocks,
+        "degraded": counts["degraded"],
+        "replay": False,
     }
 
 
@@ -735,13 +946,15 @@ async def replay_posting_resolution(
     from app.services.postings.change_journal import PostingChangeJournal, skills_state
 
     run_ref = RunRef(id=job_id, stage="posting_extract.resolve") if job_id is not None else None
+    thresholds = await load_thresholds(db)
     before_skills = await skills_state(db, posting.id)
-    promotions = await _apply_extract_skills(
+    promotions, counts = await _apply_extract_skills(
         db,
         posting,
         entries,
         actor_ref=actor_ref,
         run=run_ref,
+        thresholds=thresholds,
         journal=False,
     )
     posting.extract = {**(posting.extract or {}), "skills": entries}
@@ -757,9 +970,16 @@ async def replay_posting_resolution(
         after={"skills": await skills_state(db, posting.id)},
     )
     await db.commit()
-    await _run_promotions(db, promotions)
+    gate_blocks = await _run_promotions(db, promotions, thresholds)
     return {
         "replayed": True,
         "skills": len(entries),
         "needs_review": posting.needs_review,
+        "labels": counts["labels"],
+        "exact_hits": counts["exact_hits"],
+        "pass2_matches": counts["pass2_matches"],
+        "new_proposals": counts["new_proposals"],
+        "gate_blocks": gate_blocks,
+        "degraded": counts["degraded"],
+        "replay": True,
     }

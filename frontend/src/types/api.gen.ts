@@ -1361,6 +1361,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/postings/replay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replay Postings By Ids
+         * @description Bulk replay wave (plan 153 slice 4 — the /postings multi-select):
+         *     enqueue `mode: "resolve"` jobs for the given postings — candidate
+         *     match + pass 2 over the stored raw labels, no pass-1 spend. Only
+         *     postings on the current extract version queue (older rows carry no
+         *     replayable labels — they re-extract on demand); already-queued ones
+         *     are skipped; unknown ids are reported as missing.
+         */
+        post: operations["replay_postings_by_ids_api_v1_admin_postings_replay_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/sources": {
         parameters: {
             query?: never;
@@ -1852,6 +1877,52 @@ export interface paths {
          * @description proposed → active; the vocabulary stays clean via admin review.
          */
         post: operations["promote_skill_api_v1_admin_skills__skill_id__promote_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/taxonomy/resolution/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Resolution Stats
+         * @description Last-run summary + rolling resolution rates from the
+         *     POSTING_EXTRACT job results (plan 153 slice 4).
+         */
+        get: operations["get_resolution_stats_api_v1_admin_taxonomy_resolution_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/taxonomy/resolution/thresholds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Resolution Thresholds
+         * @description Effective resolution thresholds (constant fallbacks included).
+         */
+        get: operations["get_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_get"];
+        /**
+         * Put Resolution Thresholds
+         * @description Admin overrides for the resolve pipeline (clamped server-side;
+         *     effective on the next run).
+         */
+        put: operations["put_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -16202,6 +16273,140 @@ export interface components {
              */
             op: "remove_block";
         };
+        /**
+         * ResolutionLastRunOut
+         * @description The newest succeeded POSTING_EXTRACT result summary (missing or
+         *     mistyped counters on an old run read as defaults).
+         */
+        ResolutionLastRunOut: {
+            /** Created At */
+            created_at: string | null;
+            /**
+             * Degraded
+             * @default false
+             */
+            degraded: boolean;
+            /**
+             * Exact Hits
+             * @default 0
+             */
+            exact_hits: number;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Gate Blocks
+             * @default 0
+             */
+            gate_blocks: number;
+            /** Job Id */
+            job_id: string | null;
+            /**
+             * Labels
+             * @default 0
+             */
+            labels: number;
+            /**
+             * New Proposals
+             * @default 0
+             */
+            new_proposals: number;
+            /**
+             * Pass2 Matches
+             * @default 0
+             */
+            pass2_matches: number;
+            /**
+             * Replay
+             * @default false
+             */
+            replay: boolean;
+            /** Status */
+            status: string | null;
+        };
+        /**
+         * ResolutionRollingOut
+         * @description Rolling sums + derived rates over the window's extract jobs.
+         */
+        ResolutionRollingOut: {
+            /** Block Rate */
+            block_rate: number;
+            /** Degrade Rate */
+            degrade_rate: number;
+            /** Degraded Runs */
+            degraded_runs: number;
+            /** Exact Hits */
+            exact_hits: number;
+            /** Gate Blocks */
+            gate_blocks: number;
+            /** Labels */
+            labels: number;
+            /** Match Rate */
+            match_rate: number;
+            /** New Proposals */
+            new_proposals: number;
+            /** New Rate */
+            new_rate: number;
+            /** Pass2 Matches */
+            pass2_matches: number;
+            /** Replay Rate */
+            replay_rate: number;
+            /** Replay Runs */
+            replay_runs: number;
+            /** Runs */
+            runs: number;
+            /** Window */
+            window: string;
+        };
+        /**
+         * ResolutionStatsOut
+         * @description The Resolution section's KPI payload (plan 153 slice 4).
+         */
+        ResolutionStatsOut: {
+            /** Failing Schedules */
+            failing_schedules: number;
+            last_run: components["schemas"]["ResolutionLastRunOut"];
+            rolling: components["schemas"]["ResolutionRollingOut"];
+        };
+        /**
+         * ResolutionThresholdsIn
+         * @description Admin overrides for `posting_resolve.thresholds` (clamped).
+         */
+        ResolutionThresholdsIn: {
+            /** Candidate Cosine Floor */
+            candidate_cosine_floor: number;
+            /** Candidate Top K */
+            candidate_top_k: number;
+            /** Candidate Trigram Floor */
+            candidate_trigram_floor: number;
+            /** Corroboration Cap */
+            corroboration_cap: number;
+            /** Corroboration Min Postings */
+            corroboration_min_postings: number;
+            /** Dedup Cosine Bar */
+            dedup_cosine_bar: number;
+            /** Dedup Trigram Bar */
+            dedup_trigram_bar: number;
+        };
+        /**
+         * ResolutionThresholdsOut
+         * @description Effective resolution thresholds (constant fallbacks included).
+         */
+        ResolutionThresholdsOut: {
+            /** Candidate Cosine Floor */
+            candidate_cosine_floor: number;
+            /** Candidate Top K */
+            candidate_top_k: number;
+            /** Candidate Trigram Floor */
+            candidate_trigram_floor: number;
+            /** Corroboration Cap */
+            corroboration_cap: number;
+            /** Corroboration Min Postings */
+            corroboration_min_postings: number;
+            /** Dedup Cosine Bar */
+            dedup_cosine_bar: number;
+            /** Dedup Trigram Bar */
+            dedup_trigram_bar: number;
+        };
         /** ResolveFamilyOut */
         ResolveFamilyOut: {
             /** Key */
@@ -20837,6 +21042,43 @@ export interface operations {
             };
         };
     };
+    replay_postings_by_ids_api_v1_admin_postings_replay_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     posting_sources_api_v1_admin_postings_sources_get: {
         parameters: {
             query?: never;
@@ -21654,6 +21896,90 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_resolution_stats_api_v1_admin_taxonomy_resolution_stats_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionThresholdsOut"];
+                };
+            };
+        };
+    };
+    put_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolutionThresholdsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolutionThresholdsOut"];
                 };
             };
             /** @description Validation Error */
