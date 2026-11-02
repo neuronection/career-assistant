@@ -17,7 +17,7 @@ import re
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import case, select, text
+from sqlalchemy import case, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -219,10 +219,13 @@ class JobProposalService:
 
     async def family_suggestions(self, postings: list[JobPosting]) -> dict[uuid.UUID, str | None]:
         """Deterministic family preselect per proposal (the apply dialog's
-        default, never an autonomous write): importance-weighted overlap
-        between the posting's resolved skills and each family's published
-        jobs' skill links. ``None`` when nothing covers the posting — the
-        picker then starts empty instead of guessing."""
+        default, never an autonomous write): the posting's resolved skills
+        against each family's published jobs' skill links, weighted by the
+        link's importance AND inverse family-frequency — generic soft
+        skills (writing, teamwork, problem-solving) are linked by nearly
+        every family and must not outvote the discriminative ones (jira,
+        incident management, sql). ``None`` when nothing covers the
+        posting — the picker then starts empty instead of guessing."""
         if not postings:
             return {}
         skill_rows = await self.db.execute(
@@ -235,6 +238,7 @@ class JobProposalService:
             skills_by_posting.setdefault(posting_id, set()).add(skill_id)
         all_skills = {sid for ids in skills_by_posting.values() for sid in ids}
         family_scores: dict[str, dict[uuid.UUID, float]] = {}
+        family_frequency: dict[uuid.UUID, int] = {}
         if all_skills:
             weight = case(
                 (JobSkill.importance == JobSkillImportance.CORE.value, 3.0),
@@ -250,16 +254,37 @@ class JobProposalService:
             for family_key, skill_id, w in covered:
                 by_skill = family_scores.setdefault(family_key, {})
                 by_skill[skill_id] = max(float(w), by_skill.get(skill_id, 0.0))
+            frequency = await self.db.execute(
+                select(JobSkill.skill_id, func.count(func.distinct(Job.family_id)))
+                .join(Job, Job.id == JobSkill.job_id)
+                .where(Job.status == "published", JobSkill.skill_id.in_(all_skills))
+                .group_by(JobSkill.skill_id)
+            )
+            family_frequency = {skill_id: int(count) for skill_id, count in frequency}
         suggestions: dict[uuid.UUID, str | None] = {}
         for posting in postings:
             ids = skills_by_posting.get(posting.id) or set()
-            best_key: str | None = None
-            best_score = 0.0
-            for family_key, by_skill in sorted(family_scores.items()):
-                score = sum(w for sid, w in by_skill.items() if sid in ids)
-                if score > best_score:
-                    best_key, best_score = family_key, score
-            suggestions[posting.id] = best_key
+            ranked: list[tuple[str, float, int]] = []
+            for family_key in sorted(family_scores):
+                shared = [(sid, w) for sid, w in family_scores[family_key].items() if sid in ids]
+                if not shared:
+                    continue
+                score = sum(w / max(family_frequency.get(sid, 1), 1) for sid, w in shared)
+                ranked.append((family_key, score, len(shared)))
+            ranked.sort(key=lambda entry: (-entry[1], entry[0]))
+            best: str | None = None
+            if ranked:
+                best_key, best_score, shared_count = ranked[0]
+                runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+                # Only suggest on decisive evidence: at least TWO shared
+                # skills (one coincidental match is noise in a sparse
+                # catalog), a score floor, and a clear margin over the
+                # runner-up. Generic-only overlap that ties across
+                # families (writing/teamwork) stays silent — the picker
+                # starts empty and the admin decides.
+                if shared_count >= 2 and best_score >= 1.0 and best_score >= 1.5 * runner_up:
+                    best = best_key
+            suggestions[posting.id] = best
         return suggestions
 
     async def require_pending_posting(self, posting_id) -> JobPosting:

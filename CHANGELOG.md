@@ -21,9 +21,11 @@ All notable changes to **Career Assistant** are documented here.
   must-have→core priority mapping), maps the posting manual and embeds
   the new job — one transaction; dismissal clears the proposal with an
   explicit audit trail. Applying preselects the job family by skill
-  affinity with the published catalog (the picker offers the full family
-  tree — child families included, e.g. "Technology & IT › IT Operations
-  & Security"), and the proposed archetype title is
+  affinity with the published catalog — only on decisive evidence (at
+  least two shared skills and a clear margin over the runner-up; generic
+  overlap ties leave the picker empty), and the picker offers the full
+  family tree (child families included, e.g. "Technology & IT › IT
+  Operations & Security"). The proposed archetype title is
   level-generic — seniority qualifiers ("Senior …") are stripped, the
   posting keeps its own title and seniority attribute, and the proposal's
   description standardizes too: the deep extract now also writes a

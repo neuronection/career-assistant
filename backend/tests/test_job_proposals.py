@@ -482,6 +482,64 @@ async def test_queue_suggests_the_skill_affinity_family(db, client, auth_headers
     assert by_id[str(uncovered.id)]["suggested_family_key"] is None
 
 
+async def test_generic_only_overlap_never_guesses(db, client, auth_headers, kinds, source):
+    """A posting whose only shared skills are generic (linked by several
+    families, none exclusive) gets NO suggestion — the picker starts empty
+    rather than guessing an alphabetically-first family."""
+    family = await _seed_world(db)
+    other = JobFamily(key="aaa-generic", label="AAA Generic", path="aaa-generic")
+    db.add(other)
+    await db.flush()
+    generic_skills = []
+    for index in range(3):
+        skill = Skill(key=f"generic-skill-{index}", label=f"Generic {index}", category="test")
+        db.add(skill)
+        generic_skills.append(skill)
+    filler = Skill(key="generic-filler", label="Generic Filler", category="test")
+    db.add(filler)
+    await db.flush()
+    for family_id in (family.id, other.id):
+        generic_job = Job(
+            code=f"generic-{family_id.hex[:6]}",
+            title="Generic",
+            family_id=family_id,
+            status="published",
+        )
+        db.add(generic_job)
+        await db.flush()
+        for skill in generic_skills:
+            db.add(
+                JobSkill(
+                    job_id=generic_job.id,
+                    skill_id=skill.id,
+                    required_level=1,
+                    importance="core",
+                )
+            )
+        # Heavy filler keeps each job individually below the auto-map
+        # threshold, so the posting stays unmapped and proposes.
+        db.add(
+            JobSkill(
+                job_id=generic_job.id,
+                skill_id=filler.id,
+                required_level=10,
+                importance="core",
+            )
+        )
+    await db.commit()
+
+    posting = await _rich_unmapped_posting(
+        db,
+        source,
+        external_id="generic-only",
+        description="We need generic-skill-0, generic-skill-1 and generic-skill-2.",
+        skills_raw=["generic-skill-0"],
+    )
+    queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
+    row = next(entry for entry in queue if entry["id"] == str(posting.id))
+    assert row["suggested_family_key"] is None, "generic-only overlap is not evidence — no guess"
+
+
 async def test_apply_slug_dedupes_and_overrides(db, client, auth_headers, kinds, source):
     family = await _seed_world(db)
     db.add(

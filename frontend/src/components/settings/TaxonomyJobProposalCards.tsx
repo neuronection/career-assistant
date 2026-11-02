@@ -272,20 +272,20 @@ export function TaxonomyJobProposalCards({
               data-testid="proposal-code-input"
             />
           </label>
+          <ModalFooter className="mt-4 flex items-center justify-end gap-2 border-t border-[var(--as-border)] pt-3">
+            <Button variant="outline" size="sm" onClick={() => setApplying(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void submitApply()}
+              disabled={busy || !familyKey}
+              data-testid="proposal-apply-confirm"
+            >
+              {busy ? <Spinner size="sm" /> : t("taxonomy.jobProposals.applyConfirm")}
+            </Button>
+          </ModalFooter>
         </ModalContent>
-        <ModalFooter className="flex justify-end gap-2">
-          <Button variant="outline" size="sm" onClick={() => setApplying(null)}>
-            {t("common.cancel")}
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => void submitApply()}
-            disabled={busy || !familyKey}
-            data-testid="proposal-apply-confirm"
-          >
-            {busy ? <Spinner size="sm" /> : t("taxonomy.jobProposals.applyConfirm")}
-          </Button>
-        </ModalFooter>
       </Modal>
 
       <ConfirmationModal
