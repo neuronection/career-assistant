@@ -32,7 +32,7 @@ export function RunDetailsDialog({
             {t("sourceDetail.runDetailsTitle", { time: new Date(run.started_at ?? "").toLocaleString() })}
           </ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-6" data-testid="run-details">
+        <div className="space-y-4" data-testid="run-details">
           <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-xs font-medium text-[var(--as-muted-fg)]">

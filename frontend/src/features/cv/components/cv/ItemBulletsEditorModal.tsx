@@ -171,6 +171,7 @@ export function ItemBulletsEditorModal({
     <Modal open onOpenChange={(open) => !open && requestClose()}>
       <ModalContent
         size="xl"
+        padding="none"
         aria-describedby={undefined}
         aria-label={t("cvBuilder.bulletsTitle")}
         data-testid="bullets-editor-modal"
