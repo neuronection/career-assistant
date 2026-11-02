@@ -353,7 +353,7 @@ export function VariantEditor({
   const currentText = variantTextOf(onCvRow?.payload ?? ({} as CvSynthPayload));
   return (
     <Modal open={open} onOpenChange={(next) => !next && onClose()}>
-      <ModalContent size="xl" className="gap-0 p-0">
+      <ModalContent size="xl" padding="none">
         <ModalHeader className="border-b border-[var(--as-border)]">
           <ModalTitle>
             {editing ? t("cvSynth.editor.editTitle") : t("cvSynth.editor.addTitle")}

@@ -2023,7 +2023,12 @@
         "syncSelected": "Συγχρονισμός τώρα",
         "bulkPauseDone": "Παύση {{count}} πηγών.",
         "bulkResumeDone": "Συνέχεια {{count}} πηγών.",
-        "bulkSyncDone": "Προγραμματίστηκαν {{count}} συγχρονισμοί."
+        "bulkSyncDone": "Προγραμματίστηκαν {{count}} συγχρονισμοί.",
+        "countryFilterAria": "Φίλτρο πηγών ανά χώρα",
+        "countryAll": "Όλες οι πηγές",
+        "countryCustom": "Προσαρμοσμένες",
+        "worldwide": "Παγκόσμιες",
+        "problemsOnly": "Μόνο προβλήματα"
       },
       "presets": {
         "title": "Προσθήκη πηγής θέσεων",

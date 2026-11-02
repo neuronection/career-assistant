@@ -49,7 +49,26 @@ All notable changes to **Career Assistant** are documented here.
   requirements, content-hash deduped — postings stay the default kind).
   Draft jobs never embed; the `/admin/embeddings/status` buckets show
   the new `job` kind alongside the existing ones. This is the substrate
-  for the semantic catalog mapping that lands with the next slices.
+  for the semantic catalog mapping above.
+### Added (sources list country lens, 2026-11-02)
+- **Your integrations, organized by country.** The job-sources list
+  gained the same country lens as the preset gallery: multi-select chips
+  derived from where each source came from (preset-added sources carry
+  their preset's country; everything else groups under ⚙️ Custom), with
+  counts and a flag badge on every preset row. A **Problems only**
+  toggle isolates failing, paused and needs-secret sources in one click
+  — the fastest path from "something's wrong" to the exact source.
+  No schema change: countries derive from the preset catalog.
+
+### Fixed (hide now curates /postings, 2026-11-02)
+- **Hiding a posting finally removes it from the list.** The card's
+  **hide** action wrote the curation marker correctly, but the explore
+  query only excluded hidden postings behind an opt-in filter nothing
+  sent — so the card silently stayed in place (reported on the hide
+  button). Explore now excludes hidden postings **by default** — the same
+  rule every other posting list already had — with `hidden_include=true`
+  as the explicit opt-back-in. Autopilot drops its now-redundant
+  `hidden_exclude` default.
 
 ### Added (job-source presets, 2026-11-02)
 - **Find your country's sources at a glance.** The preset gallery gained

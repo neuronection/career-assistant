@@ -362,7 +362,7 @@ function GoalModal({
             {goal ? t("autopilot.modal.editTitle") : t("autopilot.modal.newTitle")}
           </ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-2">
+        <div className="space-y-4">
           <TextareaField
             label={t("autopilot.goalLabel")}
             value={draft.goal_text}

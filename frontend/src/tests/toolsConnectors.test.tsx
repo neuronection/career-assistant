@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { SourcesSection } from "@/components/settings/SourcesSection";
+import { JOB_SOURCE_PRESETS } from "@/config/jobSourcePresets";
 import * as aiApi from "@/api/ai";
 import * as sourcesApi from "@/api/sources";
 
@@ -67,6 +68,11 @@ vi.mock("react-i18next", () => ({
         "toolsSettings.connectors.sources.needsConfig": "needs config",
         "toolsSettings.connectors.sources.edit": "Edit",
         "toolsSettings.connectors.presets.addSelected": "Add {{count}} selected",
+        "toolsSettings.connectors.sources.countryFilterAria": "Filter sources by country",
+        "toolsSettings.connectors.sources.countryAll": "All sources",
+        "toolsSettings.connectors.sources.countryCustom": "Custom",
+        "toolsSettings.connectors.sources.worldwide": "Worldwide",
+        "toolsSettings.connectors.sources.problemsOnly": "Problems only",
       };
       let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
@@ -565,5 +571,127 @@ describe("SourcesSection job sources", () => {
     await userEvent.click(await screen.findByTestId("job-source-toggle-acme-board"));
     await waitFor(() => expect(sourcesApi.updateSource).toHaveBeenCalled());
     expect(screen.queryByTestId("source-manage-page")).toBeNull();
+  });
+});
+
+describe("SourcesSection country lens + problems-only", () => {
+  const grPreset = JOB_SOURCE_PRESETS.find((entry) => entry.country === "GR")!;
+  const wwPreset = JOB_SOURCE_PRESETS.find((entry) => !entry.country)!;
+  const lensSources = [
+    {
+      id: "src-gr",
+      key: grPreset.slug,
+      connector_key: grPreset.connectorKey,
+      config: grPreset.config,
+      secret_hints: {},
+      enabled: true,
+      last_run_at: null,
+      sync_state: {},
+      error: "",
+    },
+    {
+      id: "src-ww",
+      key: wwPreset.slug,
+      connector_key: wwPreset.connectorKey,
+      config: wwPreset.config,
+      secret_hints: {},
+      enabled: true,
+      last_run_at: null,
+      sync_state: {},
+      error: "",
+    },
+    {
+      id: "src-custom",
+      key: "acme-board",
+      connector_key: "ats_api",
+      config: { provider: "greenhouse", org: "acme" },
+      secret_hints: { api_token: { set: true, hint: "…9876" } },
+      enabled: true,
+      last_run_at: null,
+      sync_state: {},
+      error: "",
+    },
+    {
+      id: "src-broken",
+      key: "broken-board",
+      connector_key: "ats_api",
+      config: { provider: "greenhouse", org: "beta" },
+      secret_hints: { api_token: { set: true, hint: "…1234" } },
+      enabled: true,
+      last_run_at: null,
+      sync_state: {},
+      error: "net-denied: robots.txt disallows the path",
+    },
+  ];
+
+  function renderLens() {
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue(lensSources as never);
+    vi.mocked(sourcesApi.fetchConnectorCatalog).mockResolvedValue(catalog as never);
+    render(
+      <MemoryRouter>
+        <SourcesSection />
+      </MemoryRouter>,
+    );
+  }
+
+  it("derives country chips with counts from the preset catalog", async () => {
+    renderLens();
+    const greece = await screen.findByTestId("job-sources-country-GR");
+    expect(greece.getAttribute("aria-pressed")).toBe("false");
+    expect(greece.textContent).toContain("1");
+    expect(screen.getByTestId("job-sources-country-WW").textContent).toContain("1");
+    expect(screen.getByTestId("job-sources-country-custom").textContent).toContain("2");
+    expect(screen.getByTestId("job-sources-country-all").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("flags preset rows with their country", async () => {
+    renderLens();
+    expect(
+      (await screen.findByTestId(`source-country-${grPreset.slug}`)).textContent,
+    ).toContain("🇬🇷");
+    expect(screen.queryByTestId("source-country-acme-board")).toBeNull();
+  });
+
+  it("filters by a country chip and restores with all", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    renderLens();
+    await screen.findByTestId("job-sources-country-GR");
+    await userEvent.click(screen.getByTestId("job-sources-country-GR"));
+    expect(screen.getByTestId("integration-instance-src-gr")).toBeTruthy();
+    expect(screen.queryByTestId("integration-instance-src-ww")).toBeNull();
+    expect(screen.queryByTestId("integration-instance-src-custom")).toBeNull();
+    await userEvent.click(screen.getByTestId("job-sources-country-all"));
+    expect(screen.getByTestId("integration-instance-src-ww")).toBeTruthy();
+  });
+
+  it("problems-only keeps failing and paused sources", async () => {
+    const { userEvent } = await import("@testing-library/user-event");
+    vi.mocked(sourcesApi.fetchAdminSources).mockResolvedValue([
+      ...lensSources,
+      {
+        id: "src-paused",
+        key: "paused-board",
+        connector_key: "ats_api",
+        config: { provider: "greenhouse", org: "gamma" },
+        secret_hints: { api_token: { set: true, hint: "…5555" } },
+        enabled: true,
+        paused_at: "2026-11-02T10:00:00Z",
+        last_run_at: null,
+        sync_state: {},
+        error: "",
+      },
+    ] as never);
+    render(
+      <MemoryRouter>
+        <SourcesSection />
+      </MemoryRouter>,
+    );
+    await screen.findByTestId("integration-instance-src-gr");
+    expect(screen.getByTestId("job-sources-problems").textContent).toContain("2");
+    await userEvent.click(screen.getByTestId("job-sources-problems"));
+    expect(screen.getByTestId("integration-instance-src-broken")).toBeTruthy();
+    expect(screen.getByTestId("integration-instance-src-paused")).toBeTruthy();
+    expect(screen.queryByTestId("integration-instance-src-gr")).toBeNull();
+    expect(screen.getByTestId("job-sources-problems").getAttribute("aria-pressed")).toBe("true");
   });
 });

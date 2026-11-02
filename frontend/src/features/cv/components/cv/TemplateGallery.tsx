@@ -355,7 +355,7 @@ export function TemplateGallery({
             </ModalTitle>
           </div>
         </ModalHeader>
-        <div className="max-h-[82vh] space-y-4 overflow-y-auto p-4 pt-0">
+        <div className="max-h-[82vh] space-y-4 overflow-y-auto">
           <div className="flex flex-wrap gap-1.5" data-testid="gallery-filters">
             {FILTERS.map((item) => (
               <button

@@ -2023,7 +2023,12 @@
         "syncSelected": "Jetzt synchronisieren",
         "bulkPauseDone": "{{count}} Quellen pausiert.",
         "bulkResumeDone": "{{count}} Quellen fortgesetzt.",
-        "bulkSyncDone": "{{count}} Synchronisierungen eingeplant."
+        "bulkSyncDone": "{{count}} Synchronisierungen eingeplant.",
+        "countryFilterAria": "Quellen nach Land filtern",
+        "countryAll": "Alle Quellen",
+        "countryCustom": "Benutzerdefiniert",
+        "worldwide": "Weltweit",
+        "problemsOnly": "Nur Probleme"
       },
       "presets": {
         "title": "Job-Quelle hinzufügen",

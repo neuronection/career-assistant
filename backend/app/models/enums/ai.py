@@ -17,6 +17,7 @@ class AITaskType(StrEnum):
     PATH_SUGGEST = "path_suggest"
     POSTING_MAP = "posting_map"
     POSTING_EXTRACT = "posting_extract"
+    POSTING_SKILL_RESOLVE = "posting_skill_resolve"
     DETAIL_TRIAGE = "detail_triage"
     COMPANY_TRIAGE = "company_triage"
     TARGET_RESOLVE = "target_resolve"

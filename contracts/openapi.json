@@ -30349,7 +30349,7 @@
     },
     "/api/v1/ai/embeddings/recompute": {
       "post": {
-        "description": "Embed stale/un-embedded postings \u2014 or, with ``kind=job``, published\ncatalog jobs (plan 185: the semantic candidate substrate).\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel.",
+        "description": "Embed stale/un-embedded entities of one served kind \u2014 postings, or,\nwith ``kind=job`` / ``kind=skill``, published catalog jobs (plan 185:\nthe semantic candidate substrate) and skill labels (plan 153).\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel. An unconfigured embed\nprovider degrades the skill kind to a no-op result, never an error.",
         "operationId": "recompute_embeddings_api_v1_ai_embeddings_recompute_post",
         "parameters": [
           {

@@ -169,7 +169,7 @@ function AddDepartmentModal({
         <ModalHeader>
           <ModalTitle>{t("universityDetail.addDepartment")}</ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-6">
+        <div className="space-y-4">
           <label className="block text-sm">
             {t("universityDetail.name")}
             <input
