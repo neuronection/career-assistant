@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (hybrid catalog mapping, 2026-11-02)
+- **Catalog jobs are now embedded.** The admin embeddings pass gained a
+  kind: `POST /admin/embeddings/recompute?kind=job` embeds every
+  published catalog job (title, short description and its skill
+  requirements, content-hash deduped — postings stay the default kind).
+  Draft jobs never embed; the `/admin/embeddings/status` buckets show
+  the new `job` kind alongside the existing ones. This is the substrate
+  for the semantic catalog mapping that lands with the next slices.
+
 ### Added (job-source presets, 2026-11-02)
 - **Find your country's sources at a glance.** The preset gallery gained
   a country lens: multi-select chips (🇬🇷 Greece · 🌍 Worldwide — counts

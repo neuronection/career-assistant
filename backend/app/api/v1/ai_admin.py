@@ -742,17 +742,25 @@ async def test_search_provider(
 @router.post("/embeddings/recompute")
 async def recompute_embeddings(
     limit: int = 50,
+    kind: str = "posting",
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Embed stale/un-embedded postings.
+    """Embed stale/un-embedded postings — or, with ``kind=job``, published
+    catalog jobs (plan 185: the semantic candidate substrate).
 
     Admin-triggered batch pass; the gateway ``embed`` task carries the
     provider config (DB-only) and the audit funnel."""
-    from app.services.embedding_service import EmbeddingService
+    from app.services.embedding_service import KIND_JOB, KIND_POSTING, EmbeddingService
 
-    result = await EmbeddingService(db).recompute_postings(limit=max(1, min(limit, 200)))
-    return result
+    if kind not in (KIND_POSTING, KIND_JOB):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unknown embedding kind: {kind}")
+    service = EmbeddingService(db)
+    if kind == KIND_JOB:
+        result = await service.recompute_jobs(limit=max(1, min(limit, 200)))
+    else:
+        result = await service.recompute_postings(limit=max(1, min(limit, 200)))
+    return {**result, "kind": kind}
 
 
 @router.get("/embeddings/status")

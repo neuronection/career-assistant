@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 # Which entity kinds embed; the store is open but the seed/recompute
 # surfaces only serve these.
 KIND_POSTING = "posting"
+KIND_JOB = "job"
 KIND_FAMILY = "family"
 KIND_TEMPLATE = "template"
 KIND_CHAT_SUMMARY = "chat_summary"
@@ -66,6 +67,32 @@ def compose_posting_text(posting) -> str:
         if text:
             share = f" ({resp['time_pct']}%)" if resp.get("time_pct") else ""
             parts.append(f"responsibility: {text}{share}")
+    return "\n".join(part for part in parts if part)
+
+
+def compose_job_text(job, skill_links) -> str:
+    """The embedded surface of a catalog job (plan 185): title, short
+    description and one ``skill: <label> <importance> <level>`` line per
+    JobSkill link — the same projection shape as the posting surface, so
+    posting/job vectors stay comparable to one embedding model. Core
+    (must-have) links order first, ties by label for determinism.
+
+    ``skill_links`` are JobSkill rows whose ``skill`` relationship the
+    CALLER loaded (joined select — no lazy IO in async)."""
+    parts: list[str] = [job.title, job.short_description or ""]
+    importance_order = {value: index for index, value in enumerate(("core", "important", "bonus"))}
+    links = sorted(
+        skill_links,
+        key=lambda link: (
+            importance_order.get(link.importance, len(importance_order)),
+            -int(link.required_level or 0),
+            link.skill.label if link.skill is not None else "",
+        ),
+    )
+    for link in links:
+        label = link.skill.label if link.skill is not None else ""
+        if label:
+            parts.append(f"skill: {label} {link.importance} {link.required_level}")
     return "\n".join(part for part in parts if part)
 
 
@@ -279,6 +306,51 @@ class EmbeddingService:
             if not text.strip():
                 continue
             _, did = await self.upsert_embedding(KIND_POSTING, posting.id, text)
+            embedded += 1 if did else 0
+        return {"candidates": len(rows), "embedded": embedded}
+
+    async def recompute_jobs(self, limit: int = 50) -> dict:
+        """Embed stale/un-embedded published jobs (title + description +
+        skill links) — the semantic candidate substrate for the catalog
+        join (plan 185). Draft jobs never embed: the catalog only answers
+        for published rows, and the semantic candidate filter matches."""
+        from sqlalchemy.orm import joinedload
+
+        from app.models.job_model import Job, JobSkill
+
+        rows = (
+            (
+                await self.db.execute(
+                    select(Job)
+                    .outerjoin(
+                        AIEmbedding,
+                        (AIEmbedding.entity_id == Job.id) & (AIEmbedding.entity_kind == KIND_JOB),
+                    )
+                    .where(AIEmbedding.id.is_(None), Job.status == "published")
+                    .limit(limit)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        embedded = 0
+        for job in rows:
+            links = (
+                (
+                    await self.db.execute(
+                        select(JobSkill)
+                        .options(joinedload(JobSkill.skill))
+                        .where(JobSkill.job_id == job.id)
+                    )
+                )
+                .scalars()
+                .unique()
+                .all()
+            )
+            text = compose_job_text(job, links)
+            if not text.strip():
+                continue
+            _, did = await self.upsert_embedding(KIND_JOB, job.id, text)
             embedded += 1 if did else 0
         return {"candidates": len(rows), "embedded": embedded}
 
