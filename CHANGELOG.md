@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job-source presets, 2026-11-02)
+- **Find your country's sources at a glance.** The preset gallery gained
+  a country lens: multi-select chips (🇬🇷 Greece · 🌍 Worldwide — counts
+  per chip) derived from the preset catalog, so new countries appear
+  automatically as presets land. The app language preselects the chip
+  when that country has presets (Greek opens on Greece); "All sources"
+  clears the lens. Chips only filter the curated presets — the global
+  bring-your-own-tenant connectors stay one click away under Custom
+  source, and the chip row combines with search and the ATS/Remote tabs.
+
 ### Added (bulk AI-job reprocessing, 2026-11-02)
 - The admin audit console can now **reprocess failed AI jobs in bulk**: a
   new Failures preview (`GET /admin/audit/jobs/failures`) groups terminally

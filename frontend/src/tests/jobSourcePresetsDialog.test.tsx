@@ -12,6 +12,8 @@ vi.mock("react-i18next", () => ({
         "toolsSettings.connectors.presets.openings": "{{count}} openings",
         "toolsSettings.connectors.presets.verified": "Verified {{date}}",
         "toolsSettings.connectors.presets.worldwide": "Worldwide",
+        "toolsSettings.connectors.presets.countryFilterAria": "Filter by country",
+        "toolsSettings.connectors.presets.countryAll": "All sources",
       };
       let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
@@ -19,9 +21,11 @@ vi.mock("react-i18next", () => ({
       }
       return out;
     },
-    i18n: { language: "en" },
+    i18n: { get language() { return mockLanguage; } },
   }),
 }));
+
+let mockLanguage = "en";
 
 function renderDialog(
   overrides: Partial<Parameters<typeof JobSourcePresetDialog>[0]> = {},
@@ -42,6 +46,10 @@ function renderDialog(
 }
 
 describe("JobSourcePresetDialog", () => {
+  afterEach(() => {
+    mockLanguage = "en";
+  });
+
   it("renders every preset grouped by provider", async () => {
     renderDialog();
     expect(await screen.findByTestId("job-source-presets")).toBeTruthy();
@@ -143,5 +151,66 @@ describe("JobSourcePresetDialog", () => {
     const { onCustom } = renderDialog();
     await user.click(screen.getByTestId("preset-custom"));
     expect(onCustom).toHaveBeenCalled();
+  });
+
+  it("renders country lenses with counts, all-chip active by default", async () => {
+    renderDialog();
+    const greece = await screen.findByTestId("preset-country-GR");
+    expect(greece.getAttribute("aria-pressed")).toBe("false");
+    expect(greece.textContent).toContain("17");
+    const worldwide = screen.getByTestId("preset-country-WW");
+    expect(worldwide.getAttribute("aria-pressed")).toBe("false");
+    expect(worldwide.textContent).toContain("3");
+    expect(screen.getByTestId("preset-country-all").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("filters cards by a country chip and multi-selects countries", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByTestId("preset-country-GR"));
+    expect(screen.getByTestId("preset-country-GR").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("preset-ballysintralotsa")).toBeTruthy();
+    expect(screen.queryByTestId("preset-jobicy")).toBeNull();
+    await user.click(screen.getByTestId("preset-country-WW"));
+    expect(screen.getByTestId("preset-jobicy")).toBeTruthy();
+    expect(screen.getByTestId("preset-ballysintralotsa")).toBeTruthy();
+  });
+
+  it("clears the country lens with the all chip", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByTestId("preset-country-GR"));
+    expect(screen.queryByTestId("preset-jobicy")).toBeNull();
+    await user.click(screen.getByTestId("preset-country-all"));
+    expect(screen.getByTestId("preset-jobicy")).toBeTruthy();
+    expect(screen.getByTestId("preset-country-all").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("combines the country lens with the category tab", async () => {
+    const user = userEvent.setup();
+    renderDialog();
+    await user.click(screen.getByTestId("preset-country-WW"));
+    await user.click(screen.getByRole("tab", { name: "toolsSettings.connectors.presets.filterRemote" }));
+    expect(screen.getByTestId("preset-jobicy")).toBeTruthy();
+    await user.click(screen.getByTestId("preset-country-WW"));
+    await user.click(screen.getByTestId("preset-country-GR"));
+    expect(screen.getByText("toolsSettings.connectors.presets.noMatches")).toBeTruthy();
+  });
+
+  it("preselects the locale's country when the catalog has it", async () => {
+    mockLanguage = "el";
+    renderDialog();
+    await screen.findByTestId("job-source-presets");
+    expect(screen.getByTestId("preset-country-GR").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByTestId("preset-jobicy")).toBeNull();
+    expect(screen.getByTestId("preset-ballysintralotsa")).toBeTruthy();
+  });
+
+  it("does not preselect when the locale's country has no presets", async () => {
+    mockLanguage = "fr";
+    renderDialog();
+    await screen.findByTestId("job-source-presets");
+    expect(screen.getByTestId("preset-country-all").getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByTestId("preset-jobicy")).toBeTruthy();
   });
 });

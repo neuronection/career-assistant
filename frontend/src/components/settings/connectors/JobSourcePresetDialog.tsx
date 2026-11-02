@@ -17,6 +17,9 @@ import {
 import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
 import {
   JOB_SOURCE_PRESETS,
+  WORLDWIDE_KEY,
+  preselectCountries,
+  presetCountryLenses,
   presetGroups,
   type JobSourcePreset,
   type JobSourcePresetCategory,
@@ -60,6 +63,7 @@ export function JobSourcePresetDialog({
   const language = (i18n as { language?: string } | undefined)?.language ?? "en";
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+  const [countries, setCountries] = useState<Set<string> | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
   const [report, setReport] = useState<PresetAddOutcome[] | null>(null);
@@ -68,16 +72,27 @@ export function JobSourcePresetDialog({
     if (open) {
       setSelected(new Set());
       setReport(null);
+      const preselect = preselectCountries(language);
+      setCountries(preselect.length > 0 ? new Set(preselect) : null);
     }
-  }, [open]);
+  }, [open, language]);
 
   const countryName = (code?: string) =>
     code ? countryDisplayName(code, language) : t("toolsSettings.connectors.presets.worldwide");
+
+  const lenses = useMemo(
+    () => presetCountryLenses(JOB_SOURCE_PRESETS, (key) => countryName(key === WORLDWIDE_KEY ? undefined : key)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [language, t],
+  );
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return JOB_SOURCE_PRESETS.filter((preset) => {
       if (filter !== "all" && preset.category !== filter) return false;
+      if (countries && countries.size > 0 && !countries.has(preset.country ?? WORLDWIDE_KEY)) {
+        return false;
+      }
       if (!needle) return true;
       const haystack = [preset.name, preset.provider, countryName(preset.country)]
         .join(" ")
@@ -85,7 +100,20 @@ export function JobSourcePresetDialog({
       return haystack.includes(needle);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, filter, language, t]);
+  }, [query, filter, countries, language, t]);
+
+  const toggleCountry = (key: string) => {
+    setCountries((current) => {
+      const base = current ?? new Set<string>();
+      const next = new Set(base);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next.size > 0 ? next : null;
+    });
+  };
 
   const groups = useMemo(() => presetGroups(visible), [visible]);
   const selectedPresets = JOB_SOURCE_PRESETS.filter((preset) => selected.has(preset.slug));
@@ -143,6 +171,51 @@ export function JobSourcePresetDialog({
             value={filter}
             onValueChange={(next) => setFilter(next as Filter)}
           />
+        </div>
+
+        <div
+          className="mt-2 flex flex-wrap items-center gap-1.5"
+          role="group"
+          aria-label={t("toolsSettings.connectors.presets.countryFilterAria")}
+          data-testid="preset-country-filter"
+        >
+          <button
+            type="button"
+            aria-pressed={!countries || countries.size === 0}
+            onClick={() => setCountries(null)}
+            data-testid="preset-country-all"
+            className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+              !countries || countries.size === 0
+                ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))] font-medium text-[var(--as-accent)]"
+                : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] hover:border-[var(--as-accent)]"
+            }`}
+          >
+            {t("toolsSettings.connectors.presets.countryAll")}
+          </button>
+          {lenses.map((lens) => {
+            const active = countries?.has(lens.key) ?? false;
+            const country = lens.key === WORLDWIDE_KEY ? null : findCountry(lens.key);
+            return (
+              <button
+                key={lens.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => toggleCountry(lens.key)}
+                data-testid={`preset-country-${lens.key}`}
+                className={`rounded-full border px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-focus-ring)] ${
+                  active
+                    ? "border-[var(--as-accent)] bg-[color-mix(in_srgb,var(--as-accent)_8%,var(--as-surface))] font-medium text-[var(--as-accent)]"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-fg)] hover:border-[var(--as-accent)]"
+                }`}
+              >
+                {country ? `${country.flag} ` : "🌍 "}
+                {lens.label}
+                <span className={active ? "ml-1 opacity-80" : "ml-1 text-[var(--as-muted-fg)]"}>
+                  {lens.count}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="mt-4 max-h-[60vh] space-y-5 overflow-y-auto pr-1">

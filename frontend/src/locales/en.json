@@ -2004,7 +2004,9 @@
         "addedNotice": "Added {{count}} of {{total}} presets.",
         "custom": "Custom source",
         "openings": "{{count}} openings",
-        "verified": "Verified {{date}}"
+        "verified": "Verified {{date}}",
+        "countryFilterAria": "Filter by country",
+        "countryAll": "All sources"
       },
       "extSources": {
         "title": "Extension sources (git import)",

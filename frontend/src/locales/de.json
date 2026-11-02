@@ -2004,7 +2004,9 @@
         "addedNotice": "{{count}} von {{total}} Vorlagen hinzugefügt.",
         "custom": "Eigene Quelle",
         "openings": "{{count}} offene Stellen",
-        "verified": "Verifiziert {{date}}"
+        "verified": "Verifiziert {{date}}",
+        "countryFilterAria": "Nach Land filtern",
+        "countryAll": "Alle Quellen"
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
