@@ -180,10 +180,11 @@ def test_calendar_token_lifecycle(page) -> None:
     assert page.request.get(f"{API}/me/calendar.ics?token={token}").status == 404
 
 
-def test_settings_surfaces_the_new_channels(page) -> None:
+def test_settings_surfaces_the_channels(page) -> None:
     page.goto(f"{BASE_URL}/settings/notifications")
-    page.get_by_test_id("email-settings").wait_for(state="visible", timeout=20_000)
-    page.get_by_test_id("webhook-settings").wait_for(state="visible", timeout=20_000)
-    page.get_by_test_id("feed-tokens").wait_for(state="visible", timeout=20_000)
+    page.get_by_test_id("email-address").wait_for(state="visible", timeout=20_000)
+    page.get_by_test_id("webhook-url").wait_for(state="visible", timeout=20_000)
     page.get_by_test_id("mint-ics").wait_for(state="visible", timeout=20_000)
-    page.get_by_test_id("kind-followup_due-email").wait_for(state="visible", timeout=20_000)
+    page.get_by_test_id("notifications-active-channels").wait_for(
+        state="visible", timeout=20_000
+    )
