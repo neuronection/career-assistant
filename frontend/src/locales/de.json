@@ -5154,6 +5154,13 @@
         "skipped_dup_other": "{{count}} übersprungen (Duplikate warten)",
         "skipped_cap_one": "{{count}} übersprungen (Limit)",
         "skipped_cap_other": "{{count}} übersprungen (Limit)"
+      },
+      "maintenance": {
+        "title": "Verwandte Wartung",
+        "embeddings": "Embeddings neu berechnen",
+        "embeddingsHint": "Posting-Embeddings über die KI-Konfiguration neu aufbauen — bei Fehlerwellen hinter dem Embedding-Slot.",
+        "sweeps": "Geplante Aufräumjobs",
+        "sweepsHint": "Fit-Sweep und Curator-Aufbau sind eigene Queue-Jobs (fit_refit, query_curator) — hier neu einreihen oder in Automatisierungen ausführen."
       }
     },
     "stream": {

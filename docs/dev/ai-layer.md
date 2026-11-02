@@ -534,6 +534,58 @@ Multi-step flows opt each gateway call into the audit ledger with a `RunRef`
 run). `GET /cv/{id}/runs` assembles per-CV runs from job rows and their
 run-linked audit rows. Budgets live in `app/ai/budgets.py` / `ai_budgets`.
 
+## Bulk reprocessing of failed jobs (plan 184)
+
+When a connection/credit outage fails a window of AI jobs terminally
+(`status='failed'`, attempts exhausted), the admin audit console's
+**Failures tab** requeues them in bulk. `JobReprocessService`
+(`app/services/job_reprocess_service.py`) is the only writer:
+
+- **A requeue is a FRESH `background_jobs` row** — same type/payload/user,
+  fresh attempts budget — carrying `requeue_of` (nullable indexed UUID, no
+  FK) back to the failed row, which itself keeps `failed` and gains
+  `result.requeued_as`. Both directions of the chain stay queryable; a
+  failed row's status is NEVER mutated back into the queue. Stamp-old +
+  insert-new share one transaction (`enqueue` commits internally and cannot
+  carry the marker, so the service builds rows directly).
+- **Guards:** the preview scan is bounded (`ORDER BY created_at DESC LIMIT
+  1000`, overflow reported as `truncated`); grouping happens in Python by
+  `(job_type, error family)` where the family is the whitespace-collapsed
+  first error line (≤80 chars); the dedupe guard compares payloads
+  structurally (`dict ==` — never SQL payload equality: `StructuredJSON` is
+  JSONB on Postgres but JSON-over-TEXT on SQLite) against bounded
+  queued/running twins of the same type; the cap is 200 requeues per
+  confirmed action (`skipped_cap` reports the overflow); one bulk action at
+  a time via an `app_settings` guard row flipped by conditional UPDATE
+  (rowcount arbitrates — the queue's own claim pattern, dialect-safe).
+- **Type-class policy:** payload-driven types (posting_extract,
+  detail_enrichment, cv_*, autopilot_run, radars/digests) requeue per job —
+  the preview labels `autopilot_run` and the digest family as FULL re-runs
+  (fresh budgets, possible duplicate notifications — the 175 feed dedupes).
+  Payload-ignoring global sweeps (`query_curator`, `proposal_sweep`,
+  `followup_sweep`, `checkpoint_prune`, `market_history_capture`) collapse
+  to ONE requeue per window. Non-queue maintenance (embeddings recompute)
+  keeps its existing admin surface and is linked, not rebuilt.
+- **Endpoints** live on the admin audit router: `GET
+  /admin/audit/jobs/failures` (the grouped preview) and `POST
+  /admin/audit/jobs/requeue` (without `confirm` → preview only, mutates
+  nothing).
+
+```mermaid
+flowchart LR
+    subgraph Console["Audit console (admin)"]
+        FT["Failures tab<br/>groups: type × window × error family"]
+        JT["Jobs tab"] -->|failure badge| FT
+        AI["AI activity + drawer"]
+    end
+    FT -- "preview (GET)" --> SV["JobReprocessService<br/>dedupe guard · cap 200 · singleton"]
+    FT -- "requeue (POST, confirm)" --> SV
+    SV -- "enqueue fresh row<br/>requeue_of marker" --> Q[("background_jobs")]
+    Q --> W["worker pool · HANDLERS<br/>fresh attempts"]
+    W --> L[("ai_generations<br/>new attempt rows, same run_id/stage")]
+    AI -.drawer link.-> L
+```
+
 ## MCP
 
 - **Server:** `app/ai/mcp_server.py` exposes the registry's **read-scope tools

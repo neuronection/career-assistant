@@ -16,7 +16,8 @@ All notable changes to **Career Assistant** are documented here.
   failure cards with the top error, window selector, an explicit confirm
   step showing counts/cap/dedupe before requeueing, an outcome summary
   (`requeued / skipped_dup / skipped_cap`), per-row requeue with a detail
-  drawer, and failure badges on the AI activity + Jobs tabs linking into
+  drawer, related-maintenance links (embeddings recompute, scheduled
+  sweeps), and failure badges on the AI activity + Jobs tabs linking into
   Failures pre-filtered.
 
 ### Added (preset freshness + tile parity, 2026-11-02)

@@ -5154,6 +5154,13 @@
         "skipped_dup_other": "{{count}} παραλείφθηκαν (διπλότυπα σε ουρά)",
         "skipped_cap_one": "{{count}} παραλείφθηκε (όριο)",
         "skipped_cap_other": "{{count}} παραλείφθηκαν (όριο)"
+      },
+      "maintenance": {
+        "title": "Σχετική συντήρηση",
+        "embeddings": "Επανυπολογισμός embeddings",
+        "embeddingsHint": "ξαναχτίστε τα embeddings των posting από τη διαμόρφωση AI — για κύματα αποτυχιών πίσω από το embedding slot.",
+        "sweeps": "Προγραμματισμένες εργασίες συντήρησης",
+        "sweepsHint": "το fit sweep και το curator rebuild είναι δικές τους εργασίες ουράς (fit_refit, query_curator) — επανεισάγετέ τες εδώ ή εκτελέστε τες από τα Automations."
       }
     },
     "stream": {

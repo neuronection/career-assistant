@@ -185,9 +185,9 @@ they are saved. See
 ## Audit & monitoring (`/settings/audit`)
 
 The observability surface for administrators — on desktop the owner is
-their instance's admin, so the page is always reachable there. Six
-tabs over the system's audit streams; the overview and security views
-share a 24h/7d/30d or custom range:
+their instance's admin, so the page is always reachable there. Seven
+tabs over the system's audit streams; the overview, security and
+failures views share a 24h/7d/30d or custom range:
 
 - **Overview** — the health snapshot: AI calls (with the change vs the
   previous window), error rate, token usage, average latency, failed
@@ -215,6 +215,16 @@ share a 24h/7d/30d or custom range:
   attempts, expandable payload/result) with status/type filters, the
   cross-source ingestion ledger with deep links into each source, and a
   failing-schedules strip that deep-links to Automations for management.
+- **Failures** — failed AI jobs grouped by job type and error family,
+  with the count per window, the top error and an estimate of what a
+  requeue would do (after deduplication against jobs that are already
+  queued or running, and the 200-job cap per action). A confirmed
+  action requeues them as fresh jobs — the failed history stays
+  untouched and each new job links back to the failure it replaces.
+  Full re-runs (autopilot, digests) are labeled as such; global sweeps
+  collapse into one requeue; each failure row opens a detail drawer
+  with per-row requeue, and related maintenance (embeddings recompute,
+  scheduled sweeps) is linked.
 - **Data changes** — the append-only journals in one cross-entity view:
   posting mutations (sync runs, extractions, re-tags, manual edits) and
   skill lifecycle events (created, promoted, deprecated, merged, deleted)

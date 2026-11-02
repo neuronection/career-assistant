@@ -5155,6 +5155,13 @@
         "skipped_dup_other": "{{count}} skipped (duplicates queued)",
         "skipped_cap_one": "{{count}} skipped (cap)",
         "skipped_cap_other": "{{count}} skipped (cap)"
+      },
+      "maintenance": {
+        "title": "Related maintenance",
+        "embeddings": "Embeddings recompute",
+        "embeddingsHint": "rebuild posting embeddings from the AI configuration surface — for failure waves behind the embedding slot.",
+        "sweeps": "Scheduled sweeps",
+        "sweepsHint": "the fit sweep and curator rebuilds are queue jobs of their own (fit_refit, query_curator) — requeue them here or run them from Automations."
       }
     },
     "stream": {

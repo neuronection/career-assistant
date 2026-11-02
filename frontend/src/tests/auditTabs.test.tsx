@@ -667,6 +667,12 @@ describe("audit page tabs", () => {
     expect(screen.getAllByTestId("audit-failure-count").length).toBe(3);
     expect(screen.getByTestId("audit-failure-full-rerun")).toBeTruthy();
     expect(screen.getByTestId("audit-failure-sweep")).toBeTruthy();
+    const maintenance = screen.getByTestId("audit-failures-maintenance");
+    expect(maintenance.getAttribute("href")).toBeNull();
+    expect(screen.getByText("Embeddings recompute").getAttribute("href")).toBe("/settings/ai");
+    expect(screen.getByText("Scheduled sweeps").getAttribute("href")).toBe(
+      "/settings/automations",
+    );
   });
 
   it("lands the ?job_type= pre-filter with a live group and keeps it", async () => {

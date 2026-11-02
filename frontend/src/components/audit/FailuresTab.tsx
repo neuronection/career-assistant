@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import {
   fetchAuditFailures,
   fetchAuditJobs,
@@ -477,6 +477,35 @@ export function FailuresTab({ range }: { range: RangeValue }) {
         onRequeue={(job) => void requeueRow(job)}
         requeueBusy={acting}
       />
+
+      <div
+        className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4"
+        data-testid="audit-failures-maintenance"
+      >
+        <h3 className="mb-2 text-sm font-semibold text-[var(--as-fg)]">
+          {t("audit.failures.maintenance.title")}
+        </h3>
+        <ul className="space-y-1.5 text-xs text-[var(--as-muted-fg)]">
+          <li>
+            <Link
+              to="/settings/ai"
+              className="font-medium text-[var(--as-fg)] underline-offset-2 hover:underline"
+            >
+              {t("audit.failures.maintenance.embeddings")}
+            </Link>{" "}
+            — {t("audit.failures.maintenance.embeddingsHint")}
+          </li>
+          <li>
+            <Link
+              to="/settings/automations"
+              className="font-medium text-[var(--as-fg)] underline-offset-2 hover:underline"
+            >
+              {t("audit.failures.maintenance.sweeps")}
+            </Link>{" "}
+            — {t("audit.failures.maintenance.sweepsHint")}
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
