@@ -49,7 +49,9 @@ async def _rich_unmapped_posting(
     skills_raw: list[str] | None = None,
 ) -> JobPosting:
     """An extract-rich posting the catalog cannot answer: no jobs link the
-    skills, so the join ends unmapped and the extract proposes."""
+    skills, so the join ends unmapped and the extract proposes. The default
+    skill trio matches what the v5 mock resolves from RICH_DESCRIPTION —
+    the same three keys the v4 mock found in the text."""
     posting = await upsert_posting(
         db,
         source,
@@ -57,7 +59,7 @@ async def _rich_unmapped_posting(
             external_id=external_id,
             title="Observability Engineer",
             url=f"https://syn.example/{external_id}",
-            skills_raw=skills_raw or ["sql"],
+            skills_raw=skills_raw or ["sql", "programming", "problem-solving"],
             raw={"description": description},
         ),
     )
@@ -87,7 +89,7 @@ async def test_rich_unmapped_extract_stores_the_proposal(db, client, auth_header
         "programming",
         "problem-solving",
     }
-    assert proposal["extract_version"] == 4
+    assert proposal["extract_version"] == 5
     assert proposal["proposed_at"]
     assert len(proposal["short_description"]) <= 500
     stored_rows = (
@@ -133,7 +135,7 @@ async def test_senior_posting_proposes_the_generic_title(db, client, auth_header
             external_id="proposal-senior",
             title="Senior Data Engineer",
             url="https://syn.example/proposal-senior",
-            skills_raw=["sql"],
+            skills_raw=["sql", "programming", "problem-solving"],
             raw={"description": RICH_DESCRIPTION},
         ),
     )
@@ -201,7 +203,7 @@ async def test_catalog_summary_preferred_and_standardizes_the_surface(
             external_id="proposal-summary",
             title="Τεχνολόγος Ακτινολόγος",
             url="https://syn.example/proposal-summary",
-            skills_raw=["sql"],
+            skills_raw=["sql", "programming", "problem-solving"],
             raw={"description": RICH_DESCRIPTION},
         ),
     )
@@ -217,21 +219,21 @@ async def test_catalog_summary_preferred_and_standardizes_the_surface(
             ),
             skills=[
                 ExtractSkill(
-                    skill_key="sql",
+                    raw_label="sql",
                     required_level=4,
                     priority="must_have",
                     evidence_quote="we need sql",
                     confidence=0.9,
                 ),
                 ExtractSkill(
-                    skill_key="programming",
+                    raw_label="programming",
                     required_level=4,
                     priority="must_have",
                     evidence_quote="and programming",
                     confidence=0.9,
                 ),
                 ExtractSkill(
-                    skill_key="problem-solving",
+                    raw_label="problem-solving",
                     required_level=4,
                     priority="must_have",
                     evidence_quote="and problem-solving",
@@ -384,7 +386,7 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
         source,
         external_id="proposal-2",
         description=RICH_DESCRIPTION_2,
-        skills_raw=["welding"],
+        skills_raw=["welding", "plumbing", "scaffolding"],
     )
     dismissed = await client.post(
         f"/api/v1/admin/postings/{posting2.id}/job-proposal/dismiss",
@@ -474,7 +476,7 @@ async def test_queue_suggests_the_skill_affinity_family(db, client, auth_headers
         source,
         external_id="suggest-2",
         description="We need welding, plumbing and scaffolding.",
-        skills_raw=["welding"],
+        skills_raw=["welding", "plumbing", "scaffolding"],
     )
 
     queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
@@ -534,7 +536,7 @@ async def test_generic_only_overlap_never_guesses(db, client, auth_headers, kind
         source,
         external_id="generic-only",
         description="We need generic-skill-0, generic-skill-1 and generic-skill-2.",
-        skills_raw=["generic-skill-0"],
+        skills_raw=["generic-skill-0", "generic-skill-1", "generic-skill-2"],
     )
     queue = (await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)).json()
     row = next(entry for entry in queue if entry["id"] == str(posting.id))
@@ -565,7 +567,7 @@ async def test_apply_caps_the_skill_links_at_the_catalog_contract(
             external_id="cap-apply",
             title="Cap Test Engineer",
             url="https://syn.example/cap-apply",
-            skills_raw=["sql"],
+            skills_raw=["sql", "programming", "problem-solving"],
             raw={"description": RICH_DESCRIPTION},
         ),
     )
@@ -577,7 +579,7 @@ async def test_apply_caps_the_skill_links_at_the_catalog_contract(
             catalog_summary="A role with many skills.",
             skills=[
                 ExtractSkill(
-                    skill_key="sql",
+                    raw_label="sql",
                     required_level=6,
                     priority="must_have",
                     evidence_quote="we need sql",
@@ -585,7 +587,7 @@ async def test_apply_caps_the_skill_links_at_the_catalog_contract(
                 ),
                 *[
                     ExtractSkill(
-                        skill_key=skill.key,
+                        raw_label=skill.key,
                         required_level=5,
                         priority="must_have" if index < 3 else "nice_to_have",
                         evidence_quote="skills",
@@ -659,7 +661,7 @@ async def test_apply_dedupes_repeated_skill_keys_never_500s(
             external_id="dup-apply",
             title="Dup Test Engineer",
             url="https://syn.example/dup-apply",
-            skills_raw=["sql"],
+            skills_raw=["sql", "programming", "problem-solving"],
             raw={"description": RICH_DESCRIPTION},
         ),
     )
@@ -671,14 +673,14 @@ async def test_apply_dedupes_repeated_skill_keys_never_500s(
             catalog_summary="A role with repeated mentions of one skill.",
             skills=[
                 ExtractSkill(
-                    skill_key="sql",
+                    raw_label="sql",
                     required_level=8,
                     priority="must_have",
                     evidence_quote="deep sql expertise",
                     confidence=0.9,
                 ),
                 ExtractSkill(
-                    skill_key="sql",
+                    raw_label="sql",
                     required_level=4,
                     priority="nice_to_have",
                     evidence_quote="some sql",
@@ -686,7 +688,7 @@ async def test_apply_dedupes_repeated_skill_keys_never_500s(
                 ),
                 *[
                     ExtractSkill(
-                        skill_key=skill.key,
+                        raw_label=skill.key,
                         required_level=5,
                         priority="must_have",
                         evidence_quote="skills",

@@ -498,7 +498,6 @@ async def extract_posting(
         AITaskType.POSTING_EXTRACT,
         PostingExtract,
         system=(
-        system=(
             "You extract structured facts from job postings verbatim. For "
             "skills, extract what the posting says: copy every skill "
             "mention into `raw_label` EXACTLY as written (case, spelling, "

@@ -603,7 +603,7 @@ async def test_extract_suppress_cascade_flags_without_demoting(
         extract = PostingExtract(
             skills=[
                 ExtractSkill(
-                    skill_key="sql",
+                    raw_label="sql",
                     required_level=4,
                     priority="must_have",
                     evidence_quote="we need sql",
