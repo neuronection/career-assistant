@@ -404,9 +404,9 @@
       "category": "privacy",
       "status": "shipped",
       "proofs": [
-        "Every AI call is gateway-audited: task, model, tokens, latency, status, run lineage",
-        "Per-model usage view (calls, tokens, latency by provider/model) plus token trends",
+        "Every AI call is gateway-audited (task, model, tokens, latency, status, run lineage); per-model usage and token trends",
         "Production throughput: postings ingested, skill lifecycle events, companies, catalog jobs by origin",
+        "Identity audit trail read surface; custom date ranges and CSV export on every view",
         "Failed AI jobs group by type and error family; one confirmed action bulk-requeues them as fresh rows (requeue_of markers)",
         "Open any autopilot run and see each step's arguments and outputs, its AI calls and its findings"
       ],
