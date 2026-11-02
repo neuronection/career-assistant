@@ -16,9 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_index(
-        "ix_ai_generations_created_at", "ai_generations", ["created_at"]
-    )
+    op.create_index("ix_ai_generations_created_at", "ai_generations", ["created_at"])
 
 
 def downgrade() -> None:

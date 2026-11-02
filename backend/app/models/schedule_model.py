@@ -47,7 +47,7 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'system_catalog_enrich', 'system_followups', "
             "'system_market_history', 'system_proposal_sweep', "
             "'system_checkpoint_prune', 'system_extension_reconcile', "
-            "'system_skill_relation_learn', "
+            "'system_skill_relation_learn', 'system_embeddings_reconcile', "
             "'user_saved_search', 'user_radar_digest', 'user_checkin', "
             "'user_autopilot')",
             name="kind_allowed",
@@ -62,7 +62,8 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'catalog_enrich', 'autopilot_run', 'followup_sweep', "
             "'market_history_capture', 'proposal_sweep', "
             "'checkpoint_prune', 'extension_reconcile', "
-            "'demand_import', 'skill_relation_learn')",
+            "'demand_import', 'skill_relation_learn', "
+            "'embeddings_reconcile')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),

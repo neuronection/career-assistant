@@ -53,9 +53,7 @@ class ScheduleEnabledIn(BaseModel):
     enabled: bool
 
 
-async def _owned_schedule(
-    schedule_id: UUID, user_id: UUID, db: AsyncSession
-) -> Schedule:
+async def _owned_schedule(schedule_id: UUID, user_id: UUID, db: AsyncSession) -> Schedule:
     rows = await db.execute(
         select(Schedule).where(
             Schedule.id == schedule_id,

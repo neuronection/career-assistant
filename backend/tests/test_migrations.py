@@ -127,7 +127,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0074"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0075"], (
         "revision chain stays linear on one head"
     )
 
@@ -3275,3 +3275,24 @@ def test_0073_skill_changes_roundtrip():
 
     command.upgrade(config, "head")
     assert asyncio.run(_shape())[0] == columns, "re-upgrade restores the same shape"
+
+
+def test_0075_embeddings_reconcile_task_roundtrip():
+    """Both `schedules` CHECKs admit the reconcile job at head and narrow
+    back on downgrade — the mirrored-vocabulary discipline of 0067/0068."""
+    config = _configured()
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_embeddings_reconcile" in checks["kind_allowed"]
+    assert "embeddings_reconcile" in checks["task_allowed"]
+
+    command.downgrade(config, "0074")
+    checks = _schedules_checks()
+    assert "system_embeddings_reconcile" not in checks["kind_allowed"]
+    assert "embeddings_reconcile" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_embeddings_reconcile" in checks["kind_allowed"], "re-upgrade restores it"
+    assert "embeddings_reconcile" in checks["task_allowed"], "re-upgrade restores it"

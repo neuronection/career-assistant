@@ -8,12 +8,16 @@ provider synthesizes deterministic vectors for tests/dev).
 """
 
 import hashlib
+import logging
 import uuid
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import AINotConfiguredError
 from app.models.embedding_model import AIEmbedding
+
+logger = logging.getLogger(__name__)
 
 # Which entity kinds embed; the store is open but the seed/recompute
 # surfaces only serve these.
@@ -21,6 +25,15 @@ KIND_POSTING = "posting"
 KIND_FAMILY = "family"
 KIND_TEMPLATE = "template"
 KIND_CHAT_SUMMARY = "chat_summary"
+KIND_SKILL = "skill"
+
+SERVED_KINDS = (
+    KIND_POSTING,
+    KIND_FAMILY,
+    KIND_TEMPLATE,
+    KIND_CHAT_SUMMARY,
+    KIND_SKILL,
+)
 
 
 def _text_hash(text: str) -> str:
@@ -61,6 +74,18 @@ def compose_posting_text(posting) -> str:
         if text:
             share = f" ({resp['time_pct']}%)" if resp.get("time_pct") else ""
             parts.append(f"responsibility: {text}{share}")
+    return "\n".join(part for part in parts if part)
+
+
+def compose_skill_text(skill) -> str:
+    """The embedded surface of a skill: key + label + aliases (plan 153).
+
+    Aliases are sorted so a reordered alias list does not change the
+    composed text — the content hash (and the embed spend behind it)
+    tracks real content changes only.
+    """
+    aliases = sorted(str(alias).strip() for alias in (skill.aliases or []) if str(alias).strip())
+    parts = [skill.key, skill.label, *aliases]
     return "\n".join(part for part in parts if part)
 
 
@@ -134,6 +159,60 @@ class EmbeddingService:
             embedded += 1 if did else 0
         return {"candidates": len(rows), "embedded": embedded}
 
+    async def recompute_skills(self, limit: int = 200) -> dict:
+        """Embed missing/stale skills (key + label + aliases; plan 153).
+
+        Staleness is judged in Python via the content hash (compose →
+        hash → compare against the stored row), so an unchanged skill
+        costs nothing. One batched ``embed_texts`` call covers the whole
+        pending set. An unconfigured embed provider degrades to a no-op
+        result — the reconcile must never fail the job (assumption 2).
+        """
+        from app.ai.gateway import embed_texts
+        from app.models.taxonomy_model import Skill
+
+        skills = list(
+            (await self.db.execute(select(Skill).order_by(Skill.created_at, Skill.key)))
+            .scalars()
+            .all()
+        )
+        existing = {
+            row.entity_id: row
+            for row in (
+                await self.db.execute(
+                    select(AIEmbedding).where(AIEmbedding.entity_kind == KIND_SKILL)
+                )
+            )
+            .scalars()
+            .all()
+        }
+        pending: list[tuple[uuid.UUID, str]] = []
+        for skill in skills:
+            text = compose_skill_text(skill)
+            if not text.strip():
+                continue
+            row = existing.get(skill.id)
+            if row is not None and row.content_hash == _text_hash(text):
+                continue
+            pending.append((skill.id, text))
+        pending = pending[: max(0, limit)]
+        if not pending:
+            return {"candidates": 0, "embedded": 0}
+        try:
+            vectors = await embed_texts(self.db, [text for _, text in pending])
+        except AINotConfiguredError:
+            logger.info("skill embedding reconcile skipped: embed provider unconfigured")
+            return {
+                "candidates": len(pending),
+                "embedded": 0,
+                "degraded": "embed provider unconfigured",
+            }
+        embedded = 0
+        for (skill_id, text), vector in zip(pending, vectors, strict=True):
+            _, did = await self.upsert_embedding(KIND_SKILL, skill_id, text, vector=vector)
+            embedded += 1 if did else 0
+        return {"candidates": len(pending), "embedded": embedded}
+
     async def search_similar(
         self,
         query: str,
@@ -176,4 +255,6 @@ class EmbeddingService:
         for kind, dim, _hash in rows.all():
             bucket = buckets.setdefault((kind, dim), {"entity_kind": kind, "dim": dim, "count": 0})
             bucket["count"] += 1
-        return sorted(buckets.values(), key=lambda b: b["entity_kind"])
+        for kind in SERVED_KINDS:
+            buckets.setdefault((kind, 0), {"entity_kind": kind, "dim": 0, "count": 0})
+        return sorted(buckets.values(), key=lambda b: (b["entity_kind"], b["dim"]))

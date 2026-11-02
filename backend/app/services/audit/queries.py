@@ -240,9 +240,7 @@ async def timeseries(db: AsyncSession, window: str) -> dict[str, Any]:
     points: list[dict[str, Any]] = []
     while cursor <= now:
         key = _key_for(cursor, bucket)
-        point = by_key.pop(
-            key, {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0}
-        )
+        point = by_key.pop(key, {"calls": 0, "errors": 0, "tokens_in": 0, "tokens_out": 0})
         points.append({"bucket": key, **point})
         cursor += step
     for key in sorted(by_key):

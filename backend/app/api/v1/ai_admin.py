@@ -14,7 +14,7 @@ from app.ai.tools import list_tools
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import mask_secret
-from app.core.errors import DomainError, PermissionDeniedError
+from app.core.errors import DomainError, PermissionDeniedError, ValidationError
 from app.models.ai_model import AIBudget
 from app.models.ai_provider_model import AIProvider, AITaskAssignment
 from app.models.user_model import User
@@ -742,17 +742,30 @@ async def test_search_provider(
 @router.post("/embeddings/recompute")
 async def recompute_embeddings(
     limit: int = 50,
+    kind: str = "posting",
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Embed stale/un-embedded postings.
+    """Embed stale/un-embedded entities of one served kind.
 
     Admin-triggered batch pass; the gateway ``embed`` task carries the
-    provider config (DB-only) and the audit funnel."""
-    from app.services.embedding_service import EmbeddingService
+    provider config (DB-only) and the audit funnel. An unconfigured
+    embed provider degrades the skill kind to a no-op result, never an
+    error.
+    """
+    from app.services.embedding_service import (
+        KIND_POSTING,
+        KIND_SKILL,
+        EmbeddingService,
+    )
 
-    result = await EmbeddingService(db).recompute_postings(limit=max(1, min(limit, 200)))
-    return result
+    if kind not in {KIND_POSTING, KIND_SKILL}:
+        raise ValidationError(f"Unknown embedding kind: {kind}")
+    service = EmbeddingService(db)
+    bounded = max(1, min(limit, 200))
+    if kind == KIND_SKILL:
+        return await service.recompute_skills(limit=bounded)
+    return await service.recompute_postings(limit=bounded)
 
 
 @router.get("/embeddings/status")

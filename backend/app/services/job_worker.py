@@ -886,6 +886,16 @@ async def _run_skill_relation_learn(
     return await run_skill_relation_learn(db, run_id=job.id, cancelled=cancelled)
 
 
+async def _run_embeddings_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
+    """Skill-embedding reconcile batch (plan 153): missing/stale rows,
+    one batched embed; an unconfigured provider no-ops, never fails."""
+    from app.services.embedding_service import EmbeddingService
+
+    limit = (job.payload or {}).get("limit")
+    limit = 200 if limit is None else int(limit)
+    return await EmbeddingService(db).recompute_skills(limit=max(1, min(limit, 200)))
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -917,6 +927,7 @@ HANDLERS: dict[str, Handler] = {
     "notification_delivery": _run_notification_delivery,
     "demand_import": _run_demand_import,
     "skill_relation_learn": _run_skill_relation_learn,
+    "embeddings_reconcile": _run_embeddings_reconcile,
 }
 
 
