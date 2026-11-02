@@ -224,8 +224,15 @@ class PostingExtract(BaseModel):
     # The role description with board chrome removed (premium upsells,
     # applicant counts, recruiter/company blocks, job alerts) — what the
     # user reads as "About this role". None when the text is too noisy
-    # to distill confidently.
+    # to distill confidently. Native to the posting's language (the
+    # student surface reads it).
     description_clean: str | None = Field(default=None, max_length=8000)
+    # The role distilled to 2-3 self-contained sentences in the catalog's
+    # canonical language (the instance default locale) — the standardized
+    # surface the catalog job proposal shows. Optional: older extracts and
+    # too-noisy texts leave it out; consumers fall back to
+    # description_clean.
+    catalog_summary: str | None = Field(default=None, max_length=1200)
     seniority: Literal["intern", "junior", "mid", "senior", "lead", "principal"] | None = None
     employment_type: (
         Literal["full_time", "part_time", "contract", "temporary", "internship"] | None
@@ -495,6 +502,12 @@ async def extract_posting(
     summary comes back alongside the result so the journal (plan 142)
     can link the generation id."""
     from app.services.feature_map import generated_feature_instructions
+    from app.services.locale_service import instance_default_locale
+
+    # The catalog-side summary standardizes into the instance's canonical
+    # language (the admin's default-locale setting; English when unset).
+    locale = await instance_default_locale(db)
+    language_name = {"en": "English", "de": "German", "el": "Greek"}.get(locale, "English")
 
     return await ainvoke_structured(
         db,
@@ -509,14 +522,26 @@ async def extract_posting(
             "evidence_quote from the text. Never guess: fields you cannot "
             "support get a field_confidence below 0.6 so the caller drops "
             "them.\n\n"
+            '`title_norm` is the BARE role title: no "Job Title:" chrome, '
+            "no seniority or level qualifiers (those belong in "
+            "`seniority`), no location, no company name.\n\n"
             "Also write `description_clean`: the role description with all "
             "job-board chrome removed — premium upsells, applicant counts, "
             "recruiter contact blocks, company marketing, job alerts, "
-            '"see how you compare" — keep ONLY what describes the role '
-            "itself (position, responsibilities, requirements, stack, "
-            "benefits). Preserve the text's original language and its "
-            "structure as plain paragraphs and bullets. Leave it null when "
-            "the text is too noisy to distill confidently."
+            '"see how you compare" — and no section scaffolding ("Job '
+            'Title:", "Job Location:", "Job Description:", "Main '
+            'Responsibilities:", location/visa/apply blocks). Keep ONLY '
+            "what describes the role itself (position, responsibilities, "
+            "requirements, stack, benefits). Preserve the text's original "
+            "language and its structure as plain paragraphs and bullets. "
+            "Leave it null when the text is too noisy to distill "
+            "confidently.\n\n"
+            "Also write `catalog_summary`: the role distilled to 2-3 "
+            "self-contained sentences of plain prose — the same content "
+            f"as description_clean, written in {language_name}, with no "
+            "headers, lists or formatting. It standardizes the "
+            "catalog-side surface across postings of any language. Leave "
+            "it null when you cannot distill confidently."
         ),
         user=(
             generated_feature_instructions()

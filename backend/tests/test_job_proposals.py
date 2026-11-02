@@ -148,6 +148,112 @@ async def test_senior_posting_proposes_the_generic_title(db, client, auth_header
     )
 
 
+def test_proposal_surface_hygiene():
+    """The standardized proposal surface: catalog summary preferred,
+    residual section labels stripped, truncation at a sentence end."""
+    from app.services.postings.job_proposal_service import (
+        _sentence_cap,
+        _strip_label_prefixes,
+        generic_archetype_title,
+    )
+
+    assert _strip_label_prefixes(
+        "Job Title: PR & Communication Specialist: Job Location: Dusseldorf"
+    ) == ("PR & Communication Specialist: Job Location: Dusseldorf")
+    assert (
+        _strip_label_prefixes("Job Description: - Handle claims. - Assess liability.")
+        == "- Handle claims. - Assess liability."
+    )
+    assert (
+        generic_archetype_title(_strip_label_prefixes("Job Title: Senior Data Engineer"))
+        == "Data Engineer"
+    ), "label chrome strips before the seniority strip"
+
+    noisy = (
+        "Job Description: - Διαχείριση αιεκιστικών μηχανημάτων. Ενεπίωφρονας "
+        "ετώσεων με τις διαδικασία. "
+        "Second sentence ends here. "
+        + ("Filler sentence that pads the text well past the cap. " * 12)
+        + "Trailing sentence that would be cut mid-way otherwise"
+    )
+    assert _strip_label_prefixes(noisy).startswith("- Διαχείριση")
+    normalized = " ".join(_strip_label_prefixes(noisy).split())
+    capped = _sentence_cap(normalized)
+    assert len(capped) <= 500
+    assert capped.endswith("cap."), "the cap lands on a sentence end, never mid-word"
+    assert normalized.startswith(capped), "the cap is a prefix cut, at a sentence end"
+
+
+async def test_catalog_summary_preferred_and_standardizes_the_surface(
+    db, client, auth_headers, kinds, source, monkeypatch
+):
+    """When the extract carries the canonical-language summary, the
+    proposal shows THAT — not the raw board text."""
+    from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
+    from app.services.postings.extract_service import extract_posting_now
+
+    await _seed_world(db)
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="proposal-summary",
+            title="Τεχνολόγος Ακτινολόγος",
+            url="https://syn.example/proposal-summary",
+            skills_raw=["sql"],
+            raw={"description": RICH_DESCRIPTION},
+        ),
+    )
+    await db.commit()
+
+    async def scripted_extract(*_args, **_kw):
+        extract = PostingExtract(
+            title_norm="Τεχνολόγος Ακτινολόγος",
+            description_clean="Job Description: - Χειρισμός αικιστικών μηχανημάτων.",
+            catalog_summary=(
+                "Radiographer for the Diavgmatiko Centre of Affidea Alimos. "
+                "Handles radiological machines and patient positioning. Full time."
+            ),
+            skills=[
+                ExtractSkill(
+                    skill_key="sql",
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="we need sql",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    skill_key="programming",
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="and programming",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    skill_key="problem-solving",
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="and problem-solving",
+                    confidence=0.9,
+                ),
+            ],
+        )
+        return extract, {"id": None}
+
+    monkeypatch.setattr("app.ai.agents.posting_extractor.extract_posting", scripted_extract)
+    await extract_posting_now(db, posting)
+    await db.refresh(posting)
+
+    proposal = _proposal_of(posting)
+    assert proposal["title_norm"] == "Τεχνολόγος Ακτινολόγος", (
+        "the extract's title passes through as-is here (no seniority to strip)"
+    )
+    assert proposal["short_description"].startswith("Radiographer for the Diavgmatiko"), (
+        "the canonical-language summary wins over the raw board text"
+    )
+    assert "Job Description:" not in proposal["short_description"]
+
+
 async def test_mapped_or_poor_extracts_never_propose(db, client, auth_headers, kinds, source):
     sql, programming = None, None
     family = await _seed_world(db)

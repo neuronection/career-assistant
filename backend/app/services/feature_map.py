@@ -69,7 +69,11 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "title_norm",
             "Cleaned posting title",
             (),
-            prompt_hint="title_norm: the posting title, cleaned up.",
+            prompt_hint=(
+                'title_norm: the BARE role title — no "Job Title:" chrome, '
+                "no seniority/level qualifiers (those go to `seniority`), no "
+                "location, no company name."
+            ),
         ),
         FeatureRow(
             "description_clean",
@@ -78,8 +82,23 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             prompt_hint=(
                 "description_clean: the role description with all job-board "
                 "chrome removed (premium upsells, applicant counts, recruiter "
-                "blocks, company marketing, job alerts) — only what describes "
-                "the role itself, preserving language and structure."
+                "blocks, company marketing, job alerts) and no section "
+                'scaffolding ("Job Title:" / "Job Location:" / "Main '
+                'Responsibilities:" headers, location/visa/apply blocks) — '
+                "only what describes the role itself, preserving language "
+                "and structure."
+            ),
+        ),
+        FeatureRow(
+            "catalog_summary",
+            "Role summary in the catalog's canonical language",
+            (),
+            prompt_hint=(
+                "catalog_summary: the role distilled to 2-3 self-contained "
+                "sentences of plain prose, written in the target language "
+                "named in the instructions — no headers, lists or "
+                "formatting. Standardizes the catalog-side surface across "
+                "postings of any language."
             ),
         ),
         FeatureRow(

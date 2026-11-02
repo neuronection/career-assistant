@@ -23,8 +23,14 @@ All notable changes to **Career Assistant** are documented here.
   explicit audit trail. Applying preselects the job family by skill
   affinity with the published catalog, and the proposed archetype title is
   level-generic — seniority qualifiers ("Senior …") are stripped, the
-  posting keeps its own title and seniority attribute. A posting the join
-  has since mapped (the
+  posting keeps its own title and seniority attribute, and the proposal's
+  description standardizes too: the deep extract now also writes a
+  2–3-sentence catalog summary in the instance's default language
+  (Settings → default locale; English when unset), free of board
+  scaffolding ("Job Title:" / "Job Location:" headers), and the proposal
+  shows that summary — truncating at a sentence end, never mid-word.
+  Re-extract a posting (its detail page) to normalize an existing
+  proposal. A posting the join has since mapped (the
   "Re-decide" action) leaves the queue, and an unmapped verdict's reason
   names the signal that actually blocked it. New admin endpoints:
   `GET /admin/postings/job-proposals`,

@@ -89,6 +89,41 @@ def generic_archetype_title(title: str) -> str:
     return title
 
 
+#: Residual section labels some boards/extracts leave at the head of a
+#: title or description ("Job Title: Senior Data Engineer"). Stripped at
+#: the START of the string only — the same words mid-text are content.
+_LABEL_PREFIX = re.compile(
+    r"^(?:job\s*title|job\s*description|vacancy|position|role"
+    r"|job\s*location|main\s*responsibilities|about\s+the\s+role)"
+    r"\s*[:\-\u2013\u2014]\s*",
+    re.IGNORECASE,
+)
+
+_SENTENCE_END = (". ", "! ", "? ", ".\n", "!\n", "?\n")
+
+
+def _strip_label_prefixes(text: str) -> str:
+    while True:
+        stripped = _LABEL_PREFIX.sub("", text).strip()
+        if stripped == text or not stripped:
+            return stripped or text
+        text = stripped
+
+
+def _sentence_cap(text: str, cap: int = DESCRIPTION_CAP) -> str:
+    """Truncate at the last sentence end inside the cap (never mid-word);
+    a text with no sentence end inside the cap cuts at the last space."""
+    if len(text) <= cap:
+        return text
+    cut = text[:cap]
+    best = -1
+    for sep in (". ", "! ", "? ", ".\n", "!\n", "?\n"):
+        best = max(best, cut.rfind(sep))
+    if best >= 0:
+        return cut[: best + 1].strip()
+    return cut[: cut.rfind(" ")].strip() if " " in cut else cut
+
+
 async def store_job_proposal(
     db: AsyncSession, posting: JobPosting, *, actor_ref: dict | None = None
 ) -> bool:
@@ -109,7 +144,7 @@ async def store_job_proposal(
     if isinstance(facts.get("job_proposal"), dict):
         return False
     extract = posting.extract or {}
-    title = str(extract.get("title_norm") or "").strip()
+    title = _strip_label_prefixes(str(extract.get("title_norm") or "").strip())
     skills = [
         skill
         for skill in extract.get("skills") or []
@@ -119,11 +154,20 @@ async def store_job_proposal(
         return False
     from app.services.postings.change_journal import facts_summary
 
+    # The catalog-side surface standardizes: the extract's canonical-language
+    # summary when present, else the native description_clean — either way
+    # without residual section labels and never cut mid-sentence.
+    summary_source = str(extract.get("catalog_summary") or "").strip()
+    if not summary_source:
+        summary_source = str(extract.get("description_clean") or "").strip()
+    summary_source = _strip_label_prefixes(summary_source)
+    short_description = _sentence_cap(" ".join(summary_source.split()))
+
     before = {"facts_summary": facts_summary(posting)}
     facts["job_proposal"] = {
         "title_norm": generic_archetype_title(title)[:200],
         "posting_title": title[:200],
-        "short_description": str(extract.get("description_clean") or "")[:DESCRIPTION_CAP],
+        "short_description": short_description,
         "skills": [
             {
                 "skill_key": skill.get("skill_key"),
