@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents import generate_jobs
 from app.core.errors import DomainError
-from app.models.enums import JobSource
+from app.models.enums import JobSkillImportance, JobSource
 from app.models.job_model import JobRelation
 from app.schemas.job import JobCreate, JobOut
 from app.services.catalog.job_service import JobService
@@ -106,7 +106,7 @@ async def run_generation(
                     JobSkillIn(
                         skill_key=s.skill_key,
                         required_level=s.required_level,
-                        importance=s.importance,
+                        importance=JobSkillImportance(s.importance),
                     )
                     for s in draft.skills
                     if s.skill_key in active_skills

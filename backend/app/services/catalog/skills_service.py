@@ -1,5 +1,6 @@
 """Skill ontology: browse, resolve, propose (lifecycle), user skills + gaps."""
 
+from typing import cast
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -236,7 +237,7 @@ class SkillService:
             delete(UserSkill).where(
                 UserSkill.user_id == user_id,
                 UserSkill.source == "self_report",
-                UserSkill.skill_id.not_in(keys) if keys else True,
+                UserSkill.skill_id.not_in(keys) if keys else True,  # type: ignore[arg-type]
             )
         )
         for skill, item in resolved:
@@ -369,7 +370,7 @@ class SkillService:
         )
         hints: dict[UUID, str] = {}
         for step in rows.scalars().all():
-            hints.setdefault(step.skill_id, step.label or step.education_level or "")
+            hints.setdefault(cast(UUID, step.skill_id), step.label or step.education_level or "")
         return hints
 
     @staticmethod

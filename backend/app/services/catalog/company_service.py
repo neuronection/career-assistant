@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFoundError
 from app.models.company_model import CompanyProfile
-from app.models.enums import CompanyProfileSource
+from app.models.enums import CompanyProfileSource, CompanyType
 from app.models.experience_model import Organization
 from app.models.posting_model import JobPosting
 from app.schemas.company import (
@@ -186,7 +186,7 @@ class CompanyService:
                     JobPosting.employment_type,
                     JobPosting.location,
                 ).where(
-                    JobPosting.org_id.in_(org_ids),
+                    JobPosting.org_id.in_(org_ids),  # type: ignore[arg-type]
                     JobPosting.status.in_(OPEN_STATUSES),
                 )
             )
@@ -194,7 +194,7 @@ class CompanyService:
         profiles = (
             await self.db.execute(
                 select(CompanyProfile.organization_id, CompanyProfile.industry_tags).where(
-                    CompanyProfile.organization_id.in_(org_ids)
+                    CompanyProfile.organization_id.in_(org_ids)  # type: ignore[arg-type]
                 )
             )
         ).all()
@@ -363,7 +363,9 @@ class CompanyService:
             name=org.name,
             domain=org.domain,
             status=org.status,
-            company_type=(profile.company_type if profile and profile.company_type else None),
+            company_type=(
+                CompanyType(profile.company_type) if profile and profile.company_type else None
+            ),
             industry_tags=list(profile.industry_tags) if profile else [],
             employees_min=profile.employees_min if profile else None,
             employees_max=profile.employees_max if profile else None,

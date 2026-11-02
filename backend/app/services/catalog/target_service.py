@@ -422,8 +422,8 @@ async def get_nudges(db: AsyncSession, user_id: UUID) -> list[dict]:
             continue
         fired_at = last_fired.get(nudge_type)
         if fired_at:
-            fired = datetime.fromisoformat(fired_at)
-            if now - fired < timedelta(days=NUDGE_COOLDOWN_DAYS):
+            fired_on = datetime.fromisoformat(fired_at)
+            if now - fired_on < timedelta(days=NUDGE_COOLDOWN_DAYS):
                 continue
         nudges.append({"type": nudge_type, "message": message})
     # Record the serve as a firing (global frequency cap per type).

@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, or_, select
@@ -143,7 +144,7 @@ class JobService:
         if min_salary is not None:
 
             def salary_ok(attrs: dict, floor: int = min_salary) -> bool:
-                median = (attrs.get("salary") or {}).get("median")
+                median: Any = (attrs.get("salary") or {}).get("median")
                 try:
                     return len(median) > 1 and int(median[1]) >= floor
                 except (TypeError, ValueError):
@@ -237,7 +238,9 @@ class JobService:
             missing = [k for k in interest_keys if k not in tags]
             if missing:
                 raise ValidationError(f"Unknown interest keys: {', '.join(missing)}")
-            await self.db.execute(JobTag.__table__.delete().where(JobTag.job_id == job_id))
+            await self.db.execute(
+                JobTag.__table__.delete().where(JobTag.job_id == job_id)  # type: ignore[attr-defined]
+            )
             for key in interest_keys:
                 self.db.add(JobTag(job_id=job_id, interest_tag_id=tags[key].id, source=source))
         if skills is not None:
@@ -254,7 +257,9 @@ class JobService:
             missing = [s.skill_key for s in skills if s.skill_key not in skill_rows]
             if missing:
                 raise ValidationError(f"Unknown skill keys: {', '.join(missing)}")
-            await self.db.execute(JobSkill.__table__.delete().where(JobSkill.job_id == job_id))
+            await self.db.execute(
+                JobSkill.__table__.delete().where(JobSkill.job_id == job_id)  # type: ignore[attr-defined]
+            )
             for requirement in skills:
                 self.db.add(
                     JobSkill(
