@@ -1044,7 +1044,6 @@ def make_search_node(deps: GraphDeps):
             if exclude_seen:
                 raw_filters.setdefault("seen_exclude", True)
                 raw_filters.setdefault("applied_exclude", True)
-                raw_filters.setdefault("hidden_exclude", True)
             entry = {
                 "step": "search",
                 "query": variant.get("query") or "",

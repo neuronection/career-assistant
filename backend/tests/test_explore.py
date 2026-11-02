@@ -908,9 +908,10 @@ def test_ranked_window_math_is_pinned():
 async def test_explore_state_axes_exclude_when_false(
     db, client, auth_headers, profile_ready, seeded_catalog, source, kinds
 ):
-    """`seen_exclude`, `applied_exclude`, `hidden_exclude` exclude the
-    marked rows and keep postings with no interaction row at all
-    (plan 158 S4.7, unified with the feed's `seen_exclude` key)."""
+    """Hidden stays out by default (`hidden_include` opts back in — the
+    old feed's semantics; the fix that closed the invisible-hide bug);
+    `seen_exclude`/`applied_exclude` stay opt-in and keep postings with
+    no interaction row at all (plan 158 S4.7)."""
     from app.models.application_model import Application
     from app.models.posting_model import PostingInteraction
 
@@ -935,19 +936,18 @@ async def test_explore_state_axes_exclude_when_false(
         str(clean.id),
         str(untouched.id),
         str(applied.id),
-        str(hidden.id),
     }
     assert await ids(applied_exclude="true") == {
         str(clean.id),
         str(seen.id),
         str(untouched.id),
-        str(hidden.id),
     }
-    assert await ids(hidden_exclude="true") == {
+    assert await ids(hidden_include="true") == {
         str(clean.id),
         str(seen.id),
         str(untouched.id),
         str(applied.id),
+        str(hidden.id),
     }
     assert await ids(seen="true") == {str(seen.id)}
     assert await ids(applied="true") == {str(applied.id)}
@@ -956,8 +956,7 @@ async def test_explore_state_axes_exclude_when_false(
         str(seen.id),
         str(untouched.id),
         str(applied.id),
-        str(hidden.id),
-    }, "absent axis = don't care"
+    }, "hidden stays out by default"
 
 
 # ----------------------------------------------- S6 skill-graph expansion

@@ -74,7 +74,13 @@ _Universities and pathways — funding, deadlines and degree-to-job routes._
 
 _Companies hiring now — reviewed facts, sourced financials, every open posting._
 
-> ⚠️ No desktop screenshot yet for **companies**. Run `./scripts/capture_ui.sh -- --scene companies --viewport desktop`.
+![companies — Companies hiring now — reviewed facts, sourced financials, every open posting.](images/companies-desktop.png)
+
+### market-stats
+
+_Market statistics — postings volume, top skills with trends and salary bands over a chosen window._
+
+![market-stats — Market statistics — postings volume, top skills with trends and salary bands over a chosen window.](images/market-stats-desktop.png)
 
 ## Working life
 
@@ -148,4 +154,4 @@ _Settings — account pane of the settings shell._
 
 _Settings — the job radar: configure your search once, preview matches._
 
-> ⚠️ No desktop screenshot yet for **settings-job-radar**. Run `./scripts/capture_ui.sh -- --scene settings-job-radar --viewport desktop`.
+![settings-job-radar — Settings — the job radar: configure your search once, preview matches.](images/settings-job-radar-desktop.png)

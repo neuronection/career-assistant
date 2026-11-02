@@ -121,7 +121,10 @@ speaks the same language as the feed's:
 - **sources** are include/exclude chips with live counts,
 - **state toggles** sit under the facets: deep-extracted only, saved
   only and **Hide seen** — reviewed postings drop out of the list without
-  touching the other filters.
+  touching the other filters,
+- **hide** on a card curates the feed: hidden postings stay out of
+  **Postings** entirely — the same rule as every other posting list —
+  so a dismissed vacancy never resurfaces in later searches.
 
 ### Sorting results
 

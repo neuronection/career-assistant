@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (explore — handled postings leave the feed, 2026-11-02)
+- **The feed no longer re-shows postings you've already handled.** Seen,
+  applied and hidden postings are excluded from Explore by default — the
+  include-hidden filter brings them back when you want the full history.
+  Autopilot searches follow the same rule, and hiding a card drops it
+  from the list immediately.
+
 ### Added (two-pass skill resolution, 2026-11-02)
 - **Postings now read skill labels verbatim before matching them to your
   catalog.** Deep extraction runs in two passes: the first records each
