@@ -13,10 +13,40 @@ java or python.
 > parent links) and every proposal waits for an admin decision. Nothing
 > changes a filter until a human accepts it.
 
+## How extraction resolves skill labels
+
+Deep extraction never asks a model to pick from the whole skill catalog.
+The catalog keeps growing, and putting every active key in every prompt
+would cost more with each posting while inviting the model to echo a key
+that is not quite right. Instead the work is split into two bounded
+passes:
+
+1. **Read the posting, not the catalog.** Pass 1 records each skill label
+   verbatim — the words the posting actually uses — with its required
+   level, priority and the evidence quote. It cannot force the label onto
+   an existing skill, so a genuinely new skill surfaces honestly.
+2. **Propose candidates, then adjudicate.** A deterministic matcher
+   proposes the existing skills each label might mean (an exact key,
+   label or alias first; then similar wording; then similar meaning from
+   the skill embeddings). One batched AI step then decides, per label,
+   between one of **its own** offered candidates and **new**. It cannot
+   invent a key; a key outside the offered set is treated as new. Labels
+   that already hit an exact key never reach this step.
+
+Matched labels tag the posting with the catalog skill (proposed rows
+count, so a label can corroborate a skill that is still under review).
+New labels become proposed skills and enter the corroboration flow
+below. Every label also stores its resolution trail — which route resolved
+it (exact, AI verdict or new), the candidate shortlist it saw, and the
+verdict's confidence — so the posting itself answers "why is this tagged
+X?" later.
+
 ## The relations admin surface
 
 Open **Settings → Taxonomy**, tab **Relations** (`/settings/taxonomy`;
-admin only). It has four sections.
+admin only). The tab gathers the review queue, the corroboration rules,
+the reviewed graph, the manual relation editor, the discovery thresholds,
+each discovery run's statistics and the extraction resolution controls.
 
 ### Review queue
 
@@ -61,6 +91,15 @@ that **two different postings** extract corroborates itself and promotes
 to the active catalog automatically — the decision is stamped into its
 provenance. Everything else (single-posting labels, user-reported or
 CV-parsed skills) waits for your promotion, as before.
+
+**Near-duplicates never auto-promote.** Before promoting, the app checks
+the corroborated label against the active catalog. If an active skill is
+already a near-duplicate — the same claimed word, close wording, or a very
+close embedding — promotion is **blocked**, the near match and its scores
+are stamped on the proposal (`auto_promote_blocked` in its provenance),
+and the row stays proposed for you to **Merge**. Nothing is auto-merged:
+two labels that mean the same thing must not become two active skills just
+because both were seen twice.
 
 The Skills tab has the same Select mode for the skill list itself —
 **Promote**, **Deprecate**, **Restore**, **Merge** into a chosen active
@@ -146,6 +185,38 @@ edges proposed, negatives, the tree fill counts — and the run's
 watermark. A run that capped out, failed or ran without an AI provider
 shows its watermark as **held**: its unfinished pairs are re-examined
 next run instead of being lost.
+
+### Resolution
+
+The extraction pipeline's own insight and tuning surface, at
+`/settings/taxonomy?tab=relations&section=resolution` (admin only). It
+answers what the two-pass resolver actually did and lets you tune it
+without a deploy:
+
+- **Resolution KPIs.** The last extraction run shows labels, exact hits,
+  pass-2 matches, new proposals and gate blocks (and whether it was a full
+  extraction or a replay). The rolling tiles cover the selected 24-hour,
+  7-day or 30-day window: match rate, new rate, block rate, replay rate
+  and degrade rate. Failing schedules are called out with a link to
+  [Automations](notifications-and-scheduler.md), where the schedule itself
+  lives. The same numbers come from `/admin/taxonomy/resolution/stats`.
+- **Thresholds.** The trigram and cosine candidate floors (raising them
+  cuts resolver spend by sending weak candidates straight to *new*),
+  candidates offered per label (at most 5), the dedup-gate trigram and
+  cosine bars, the number of postings that corroborate a label, and how
+  many corroborating posting ids a row keeps. A save applies to the next
+  run.
+- **Waves.** **Replay resolution** takes up to 200 posting ids and
+  re-resolves their stored verbatim labels against the current taxonomy —
+  matcher plus AI verdict only, no second reading of the posting. This is
+  the action to run **after a merge or alias change**: the surviving
+  skill claims the old label without re-extracting everything. The report
+  counts queued, skipped (already queued or on an older extraction
+  version) and missing ids; the bulk wave posts to
+  `/admin/postings/replay`. **Reconcile skill embeddings** refreshes the
+  vectors the matcher's semantic layer ranks with; without an embed
+  provider it reports that the reconcile was skipped and the matcher
+  falls back to wording.
 
 ## Paths & enrichment review
 

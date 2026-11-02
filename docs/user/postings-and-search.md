@@ -49,10 +49,14 @@ configurable follow-up reminders.
 
 ## Deep extraction
 
-A queued LLM pass turns a posting into auditable data:
+A queued deep-extraction pipeline turns a posting into auditable data:
 
 - **Skills** with a required level 1–10 and a priority, each backed by a
   **verbatim evidence quote**.
+- **Skill labels are read verbatim first**, then resolved onto the catalog
+  in a second step — exact keys, similar wording or meaning, and one
+  batched AI verdict. [Skill taxonomy & relations](skills-taxonomy.md#how-extraction-resolves-skill-labels)
+  explains the two passes and their guardrails.
 - **Salary** (with the stated gross/net basis and an annualized range),
   **responsibilities** with time splits, and **seniority**.
 - **Prerequisites** — the stated gates outside the skill axis (degree

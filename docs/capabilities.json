@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-31",
+  "updated": "2026-11-02",
   "capabilities": [
     {
       "id": "update-checks",
@@ -36,7 +36,7 @@
       "proofs": [
         "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
         "Rich structured attributes per job: skills, salary bands, demand outlook, education",
-        "AI-generated jobs map onto the existing taxonomy — labels two postings corroborate promote themselves, the rest queue for review"
+        "AI-generated jobs map onto the existing taxonomy — two-posting labels auto-promote unless a near-duplicate active skill blocks them"
       ],
       "links": [
         {
@@ -278,7 +278,7 @@
         "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
         "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias, one or many",
         "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",
-        "Settings → Taxonomy curates in bulk; every skill's page (/skills/:key) adds stats, positions, subgraph and lifecycle history"
+        "Settings → Taxonomy curates in bulk and tunes extraction resolution — KPIs, thresholds, replay; /skills/:key has stats and history"
       ],
       "links": [
         {

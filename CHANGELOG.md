@@ -4,6 +4,32 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (two-pass skill resolution, 2026-11-02)
+- **Postings now read skill labels verbatim before matching them to your
+  catalog.** Deep extraction runs in two passes: the first records each
+  skill label exactly as the posting writes it — level, priority and its
+  evidence quote intact, with no skill catalog in view — a deterministic
+  matcher proposes the existing skills the label might mean, and one
+  batched AI step decides per label between an offered match and a
+  genuinely new skill. Exact matches skip the AI step entirely, and every
+  label keeps its resolution trail (which route resolved it, the
+  candidate shortlist, the verdict's confidence), so "why is this posting
+  tagged X?" has an answer on the posting itself.
+- **Auto-promotion gained a near-duplicate guard.** A label two different
+  postings corroborate still promotes itself, but when an active skill is
+  already a near-duplicate — similar wording or meaning — the promotion
+  stops, the block is stamped on the proposal, and the row waits for your
+  merge instead of creating a second active skill.
+- **Resolution has its own admin controls.** Settings → Taxonomy →
+  Relations → Resolution shows last-run and rolling match / new / block /
+  replay / degrade rates, edits the candidate floors, dedup-gate bars and
+  corroboration threshold, replays stored labels across up to 200
+  postings after a merge or alias change, and reconciles skill
+  embeddings — all without paying for the expensive first pass again.
+- **Bulk replay** is exposed as `POST /admin/postings/replay` for the
+  wave after a taxonomy cleanup; postings on an older extraction version
+  are reported as skipped and re-extract when next needed.
+
 ### Added (sources list country lens, 2026-11-02)
 - **Your integrations, organized by country.** The job-sources list
   gained the same country lens as the preset gallery: multi-select chips
