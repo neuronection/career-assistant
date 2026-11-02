@@ -634,6 +634,104 @@ async def test_apply_caps_the_skill_links_at_the_catalog_contract(
     assert {link.importance for link in links if link.skill.key == "sql"} == {"core"}
 
 
+async def test_apply_dedupes_repeated_skill_keys_never_500s(
+    db, client, auth_headers, kinds, source, monkeypatch
+):
+    """Two extract mentions may carry the SAME skill_key (a model repeats a
+    key; under plan-153 v5 two labels resolving to one key is designed
+    behavior) — apply keeps the best entry per key, never trips
+    uq_job_skills_job_skill with a 500."""
+    from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
+    from app.services.postings.extract_service import extract_posting_now
+
+    await _seed_world(db)
+    extra = []
+    for index in range(2):
+        skill = Skill(key=f"dup-skill-{index:02d}", label=f"Dup {index}", category="test")
+        db.add(skill)
+        extra.append(skill)
+    await db.commit()
+
+    posting = await upsert_posting(
+        db,
+        source,
+        RawPosting(
+            external_id="dup-apply",
+            title="Dup Test Engineer",
+            url="https://syn.example/dup-apply",
+            skills_raw=["sql"],
+            raw={"description": RICH_DESCRIPTION},
+        ),
+    )
+    await db.commit()
+
+    async def scripted_extract(*_args, **_kw):
+        extract = PostingExtract(
+            title_norm="Dup Test Engineer",
+            catalog_summary="A role with repeated mentions of one skill.",
+            skills=[
+                ExtractSkill(
+                    skill_key="sql",
+                    required_level=8,
+                    priority="must_have",
+                    evidence_quote="deep sql expertise",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    skill_key="sql",
+                    required_level=4,
+                    priority="nice_to_have",
+                    evidence_quote="some sql",
+                    confidence=0.7,
+                ),
+                *[
+                    ExtractSkill(
+                        skill_key=skill.key,
+                        required_level=5,
+                        priority="must_have",
+                        evidence_quote="skills",
+                        confidence=0.9,
+                    )
+                    for skill in extra
+                ],
+            ],
+        )
+        return extract, {"id": None}
+
+    monkeypatch.setattr("app.ai.agents.posting_extractor.extract_posting", scripted_extract)
+    await extract_posting_now(db, posting)
+    await db.refresh(posting)
+    assert len(_proposal_of(posting)["skills"]) == 4
+
+    applied = await client.post(
+        f"/api/v1/admin/postings/{posting.id}/job-proposal/apply",
+        json={"family_key": "proposal-family"},
+        headers=auth_headers,
+    )
+    assert applied.status_code == 200, applied.text
+    job = (
+        (await db.execute(select(Job).where(Job.code == applied.json()["job_code"])))
+        .scalars()
+        .one()
+    )
+    links = (
+        (
+            await db.execute(
+                select(JobSkill)
+                .options(joinedload(JobSkill.skill))
+                .where(JobSkill.job_id == job.id)
+            )
+        )
+        .scalars()
+        .unique()
+        .all()
+    )
+    assert len(links) == 3, "one link per distinct skill key, not a 500"
+    sql_links = [link for link in links if link.skill.key == "sql"]
+    assert len(sql_links) == 1
+    assert sql_links[0].importance == "core" and sql_links[0].required_level == 8
+
+
 async def test_apply_slug_dedupes_and_overrides(db, client, auth_headers, kinds, source):
     family = await _seed_world(db)
     db.add(

@@ -404,6 +404,9 @@ class JobProposalService:
                 str(skill["skill_key"]),
             )
         )
+        best_per_key: dict[str, dict] = {}
+        for skill in proposed:
+            best_per_key.setdefault(str(skill["skill_key"]), skill)
         job_skills = [
             JobSkillIn(
                 skill_key=str(skill["skill_key"]),
@@ -412,7 +415,7 @@ class JobProposalService:
                     str(skill.get("priority") or ""), JobSkillImportance.IMPORTANT
                 ),
             )
-            for skill in proposed[:MAX_JOB_SKILLS]
+            for skill in list(best_per_key.values())[:MAX_JOB_SKILLS]
         ]
 
         job = await JobService(self.db).create(

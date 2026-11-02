@@ -4,6 +4,12 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (job-proposal apply crashed on repeated skill keys, 2026-11-02)
+- **Applying a job proposal whose extract mentioned the same skill twice
+  (two mentions, one taxonomy key) hit the `job_skills` UNIQUE constraint
+  with a 500.** Apply now keeps the best entry per key (must-have first,
+  then strongest level) — one link per skill, never a 500.
+
 ### Added (hybrid catalog mapping, 2026-11-02)
 - **The catalog decision is now a join of two signals.** A posting still
   maps by weighted skill overlap first (unchanged verdicts), but when the
