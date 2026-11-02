@@ -41,6 +41,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
     ScheduleKind.SYSTEM_EXTENSION_RECONCILE.value: BackgroundJobType.EXTENSION_RECONCILE.value,
     ScheduleKind.SYSTEM_SKILL_RELATION_LEARN.value: (BackgroundJobType.SKILL_RELATION_LEARN.value),
+    ScheduleKind.SYSTEM_EMBEDDINGS_RECONCILE.value: (BackgroundJobType.EMBEDDINGS_RECONCILE.value),
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
     ScheduleKind.USER_SMART_DIGEST.value: BackgroundJobType.SMART_DIGEST.value,
@@ -159,6 +160,16 @@ class SchedulerService:
                     "params": {"time": "03:30", "timezone": "UTC"},
                 },
                 {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_EMBEDDINGS_RECONCILE,
+                BackgroundJobType.EMBEDDINGS_RECONCILE.value,
+                {
+                    "type": "daily_at",
+                    "params": {"time": "04:15", "timezone": "UTC"},
+                },
+                {"limit": 200},
                 MisfirePolicy.SKIP.value,
             ),
         ]

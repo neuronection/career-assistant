@@ -607,8 +607,8 @@ async def upsert_posting(
 # ----------------------------------------------------------------- mapping
 
 
-async def _taxonomy_index(db: AsyncSession) -> dict[str, UUID]:
-    """lower(alias/label/key) + extra aliases → skill_id.
+def _taxonomy_index_rows(rows: list[Skill]) -> dict[str, UUID]:
+    """lower(alias/label/key) + extra aliases → skill_id over loaded rows.
 
     Active rows claim their tokens first; a deprecated row fills only
     tokens no active row claimed (exact key/label — a merged-away row's
@@ -618,7 +618,6 @@ async def _taxonomy_index(db: AsyncSession) -> dict[str, UUID]:
     key/label so a posting tagged to it survives every re-map — the same
     fallback order `SkillService.resolve` answers with.
     """
-    rows = (await db.execute(select(Skill))).scalars().all()
     index: dict[str, UUID] = {}
     for skill in rows:
         if skill.status == "deprecated":
@@ -633,6 +632,13 @@ async def _taxonomy_index(db: AsyncSession) -> dict[str, UUID]:
         index.setdefault(_norm(skill.key), skill.id)
         index.setdefault(_norm(skill.label), skill.id)
     return index
+
+
+async def _taxonomy_index(db: AsyncSession) -> dict[str, UUID]:
+    """The matchable skill index over every skill row (see
+    `_taxonomy_index_rows` for the precedence law)."""
+    rows = (await db.execute(select(Skill))).scalars().all()
+    return _taxonomy_index_rows(list(rows))
 
 
 def _match_keywords(text: str, index: dict[str, UUID]) -> dict[str, UUID]:

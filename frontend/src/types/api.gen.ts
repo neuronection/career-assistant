@@ -2077,10 +2077,12 @@ export interface paths {
         put?: never;
         /**
          * Recompute Embeddings
-         * @description Embed stale/un-embedded postings.
+         * @description Embed stale/un-embedded entities of one served kind.
          *
          *     Admin-triggered batch pass; the gateway ``embed`` task carries the
-         *     provider config (DB-only) and the audit funnel.
+         *     provider config (DB-only) and the audit funnel. An unconfigured
+         *     embed provider degrades the skill kind to a no-op result, never an
+         *     error.
          */
         post: operations["recompute_embeddings_api_v1_ai_embeddings_recompute_post"];
         delete?: never;
@@ -21998,6 +22000,7 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                kind?: string;
             };
             header?: never;
             path?: never;
