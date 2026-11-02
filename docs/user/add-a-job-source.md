@@ -155,6 +155,31 @@ achievement highlight when it has stars or forks) that you review and
 activate in your profile — nothing is ever written as active, and a
 repository already on your profile is skipped.
 
+## Import a preset catalog
+
+The preset gallery grows beyond the bundled presets by layering
+**catalogs** — JSON documents of curated sources (and provider
+connection hints) that anyone can publish:
+
+- **From a URL** — an operator or community catalog (for example a
+  `catalog.json` in a GitHub repository). Fetching happens in your
+  browser, so the catalog host must send CORS headers.
+- **From a file** — upload your own catalog JSON; nothing leaves your
+  machine.
+
+Every catalog is schema-validated and size-capped before it lands, and
+each entry carries a **provenance tier** shown on every preset card:
+`bundled` (ships with the app — always the floor), `operator`
+(published by neuronection), `community` (imported from a shared URL),
+`user` (your own file). If a catalog entry and a bundled preset share a
+slug, the imported one wins.
+
+**Refresh** re-checks a catalog with a conditional request — a 304
+means you already have the latest; otherwise the report tells you
+exactly what changed (`revision 5 → 7, 12 presets changed`). Refreshing
+only updates the gallery; it never creates or removes sources. Provider
+entries open the custom-source wizard with the connector prefilled.
+
 ## Related
 
 - [Import extensions from git](import-extensions-from-git.md) — add

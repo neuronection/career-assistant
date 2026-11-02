@@ -83,7 +83,6 @@ async def test_prompt_is_generated_from_the_map_and_audited(db, auth_headers, se
         title="Engineer",
         description="Build things. Full-time.",
         skills_raw=[],
-        skill_taxonomy_keys=[],
     )
     row = (
         (

@@ -2566,6 +2566,188 @@
         "title": "CareerStage",
         "type": "string"
       },
+      "CatalogMappingSettingsIn": {
+        "properties": {
+          "job_proposals": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Proposals"
+          },
+          "semantic_rescue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rescue"
+          }
+        },
+        "title": "CatalogMappingSettingsIn",
+        "type": "object"
+      },
+      "CatalogPresetIn": {
+        "additionalProperties": false,
+        "description": "One tenant preset \u2014 the existing JobSourcePreset shape (no logo).",
+        "properties": {
+          "category": {
+            "enum": [
+              "ats",
+              "remote"
+            ],
+            "title": "Category",
+            "type": "string"
+          },
+          "config": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Config",
+            "type": "object"
+          },
+          "connectorKey": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Connectorkey",
+            "type": "string"
+          },
+          "country": {
+            "anyOf": [
+              {
+                "maxLength": 2,
+                "minLength": 2,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "openings": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Openings"
+          },
+          "provider": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "slug": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Slug",
+            "type": "string"
+          },
+          "verifiedAt": {
+            "anyOf": [
+              {
+                "maxLength": 40,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verifiedat"
+          }
+        },
+        "required": [
+          "slug",
+          "name",
+          "connectorKey",
+          "provider",
+          "category"
+        ],
+        "title": "CatalogPresetIn",
+        "type": "object"
+      },
+      "CatalogProviderIn": {
+        "additionalProperties": false,
+        "description": "One provider connection hint (connector + URL template + countries).",
+        "properties": {
+          "connectorKey": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Connectorkey",
+            "type": "string"
+          },
+          "countries": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Countries",
+            "type": "array"
+          },
+          "docsUrl": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Docsurl"
+          },
+          "id": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "urlTemplate": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urltemplate"
+          }
+        },
+        "required": [
+          "id",
+          "connectorKey",
+          "label"
+        ],
+        "title": "CatalogProviderIn",
+        "type": "object"
+      },
       "CatalogTravel": {
         "properties": {
           "days_per_month": {
@@ -2595,6 +2777,139 @@
           "level"
         ],
         "title": "CatalogTravel",
+        "type": "object"
+      },
+      "CatalogUpsertIn": {
+        "additionalProperties": false,
+        "description": "PUT body: the catalog envelope + the import metadata.",
+        "properties": {
+          "contentHash": {
+            "maxLength": 80,
+            "minLength": 8,
+            "title": "Contenthash",
+            "type": "string"
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "fetchedAt": {
+            "format": "date-time",
+            "title": "Fetchedat",
+            "type": "string"
+          },
+          "kind": {
+            "const": "career-ats-catalog",
+            "title": "Kind",
+            "type": "string"
+          },
+          "lastModified": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastmodified"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "presets": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogPresetIn"
+            },
+            "maxItems": 300,
+            "title": "Presets",
+            "type": "array"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogProviderIn"
+            },
+            "maxItems": 50,
+            "title": "Providers",
+            "type": "array"
+          },
+          "revision": {
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "title": "Schemaversion",
+            "type": "integer"
+          },
+          "signature": {
+            "title": "Signature",
+            "type": "null"
+          },
+          "tier": {
+            "enum": [
+              "operator",
+              "community",
+              "user"
+            ],
+            "title": "Tier",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          }
+        },
+        "required": [
+          "tier",
+          "fetchedAt",
+          "schemaVersion",
+          "kind",
+          "name",
+          "updatedAt",
+          "revision",
+          "contentHash"
+        ],
+        "title": "CatalogUpsertIn",
         "type": "object"
       },
       "CatalogWorkHours": {
@@ -11425,6 +11740,52 @@
         "title": "JobOut",
         "type": "object"
       },
+      "JobProposalApplyIn": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "family_key": {
+            "title": "Family Key",
+            "type": "string"
+          },
+          "short_description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Description"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "family_key"
+        ],
+        "title": "JobProposalApplyIn",
+        "type": "object"
+      },
       "JobRequeueRequest": {
         "description": "Body of the bulk-requeue action: filters or explicit ids + confirm.",
         "properties": {
@@ -15567,6 +15928,7 @@
         "type": "object"
       },
       "PostingExtractSkillOut": {
+        "description": "One stored extract skill row (v5): the verbatim `raw_label` plus\nthe `skill_key` the resolution stamped (null when the label stayed a\nproposal \u2014 the replay substrate carries both).",
         "properties": {
           "confidence": {
             "title": "Confidence",
@@ -15605,17 +15967,6 @@
               }
             ],
             "title": "Skill Key"
-          },
-          "unresolved": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Unresolved"
           }
         },
         "required": [
@@ -18728,6 +19079,302 @@
           "block_index"
         ],
         "title": "RemoveBlockOp",
+        "type": "object"
+      },
+      "ResolutionLastRunOut": {
+        "description": "The newest succeeded POSTING_EXTRACT result summary (missing or\nmistyped counters on an old run read as defaults).",
+        "properties": {
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "degraded": {
+            "default": false,
+            "title": "Degraded",
+            "type": "boolean"
+          },
+          "exact_hits": {
+            "default": 0,
+            "title": "Exact Hits",
+            "type": "integer"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "gate_blocks": {
+            "default": 0,
+            "title": "Gate Blocks",
+            "type": "integer"
+          },
+          "job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Id"
+          },
+          "labels": {
+            "default": 0,
+            "title": "Labels",
+            "type": "integer"
+          },
+          "new_proposals": {
+            "default": 0,
+            "title": "New Proposals",
+            "type": "integer"
+          },
+          "pass2_matches": {
+            "default": 0,
+            "title": "Pass2 Matches",
+            "type": "integer"
+          },
+          "replay": {
+            "default": false,
+            "title": "Replay",
+            "type": "boolean"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "created_at",
+          "finished_at"
+        ],
+        "title": "ResolutionLastRunOut",
+        "type": "object"
+      },
+      "ResolutionRollingOut": {
+        "description": "Rolling sums + derived rates over the window's extract jobs.",
+        "properties": {
+          "block_rate": {
+            "title": "Block Rate",
+            "type": "number"
+          },
+          "degrade_rate": {
+            "title": "Degrade Rate",
+            "type": "number"
+          },
+          "degraded_runs": {
+            "title": "Degraded Runs",
+            "type": "integer"
+          },
+          "exact_hits": {
+            "title": "Exact Hits",
+            "type": "integer"
+          },
+          "gate_blocks": {
+            "title": "Gate Blocks",
+            "type": "integer"
+          },
+          "labels": {
+            "title": "Labels",
+            "type": "integer"
+          },
+          "match_rate": {
+            "title": "Match Rate",
+            "type": "number"
+          },
+          "new_proposals": {
+            "title": "New Proposals",
+            "type": "integer"
+          },
+          "new_rate": {
+            "title": "New Rate",
+            "type": "number"
+          },
+          "pass2_matches": {
+            "title": "Pass2 Matches",
+            "type": "integer"
+          },
+          "replay_rate": {
+            "title": "Replay Rate",
+            "type": "number"
+          },
+          "replay_runs": {
+            "title": "Replay Runs",
+            "type": "integer"
+          },
+          "runs": {
+            "title": "Runs",
+            "type": "integer"
+          },
+          "window": {
+            "title": "Window",
+            "type": "string"
+          }
+        },
+        "required": [
+          "window",
+          "runs",
+          "replay_runs",
+          "degraded_runs",
+          "labels",
+          "exact_hits",
+          "pass2_matches",
+          "new_proposals",
+          "gate_blocks",
+          "match_rate",
+          "new_rate",
+          "block_rate",
+          "replay_rate",
+          "degrade_rate"
+        ],
+        "title": "ResolutionRollingOut",
+        "type": "object"
+      },
+      "ResolutionStatsOut": {
+        "description": "The Resolution section's KPI payload (plan 153 slice 4).",
+        "properties": {
+          "failing_schedules": {
+            "title": "Failing Schedules",
+            "type": "integer"
+          },
+          "last_run": {
+            "$ref": "#/components/schemas/ResolutionLastRunOut"
+          },
+          "rolling": {
+            "$ref": "#/components/schemas/ResolutionRollingOut"
+          }
+        },
+        "required": [
+          "last_run",
+          "rolling",
+          "failing_schedules"
+        ],
+        "title": "ResolutionStatsOut",
+        "type": "object"
+      },
+      "ResolutionThresholdsIn": {
+        "additionalProperties": false,
+        "description": "Admin overrides for `posting_resolve.thresholds` (clamped).",
+        "properties": {
+          "candidate_cosine_floor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Candidate Cosine Floor",
+            "type": "number"
+          },
+          "candidate_top_k": {
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Candidate Top K",
+            "type": "integer"
+          },
+          "candidate_trigram_floor": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Candidate Trigram Floor",
+            "type": "number"
+          },
+          "corroboration_cap": {
+            "minimum": 1.0,
+            "title": "Corroboration Cap",
+            "type": "integer"
+          },
+          "corroboration_min_postings": {
+            "minimum": 1.0,
+            "title": "Corroboration Min Postings",
+            "type": "integer"
+          },
+          "dedup_cosine_bar": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dedup Cosine Bar",
+            "type": "number"
+          },
+          "dedup_trigram_bar": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Dedup Trigram Bar",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidate_trigram_floor",
+          "candidate_cosine_floor",
+          "candidate_top_k",
+          "dedup_trigram_bar",
+          "dedup_cosine_bar",
+          "corroboration_min_postings",
+          "corroboration_cap"
+        ],
+        "title": "ResolutionThresholdsIn",
+        "type": "object"
+      },
+      "ResolutionThresholdsOut": {
+        "description": "Effective resolution thresholds (constant fallbacks included).",
+        "properties": {
+          "candidate_cosine_floor": {
+            "title": "Candidate Cosine Floor",
+            "type": "number"
+          },
+          "candidate_top_k": {
+            "title": "Candidate Top K",
+            "type": "integer"
+          },
+          "candidate_trigram_floor": {
+            "title": "Candidate Trigram Floor",
+            "type": "number"
+          },
+          "corroboration_cap": {
+            "title": "Corroboration Cap",
+            "type": "integer"
+          },
+          "corroboration_min_postings": {
+            "title": "Corroboration Min Postings",
+            "type": "integer"
+          },
+          "dedup_cosine_bar": {
+            "title": "Dedup Cosine Bar",
+            "type": "number"
+          },
+          "dedup_trigram_bar": {
+            "title": "Dedup Trigram Bar",
+            "type": "number"
+          }
+        },
+        "required": [
+          "candidate_trigram_floor",
+          "candidate_cosine_floor",
+          "candidate_top_k",
+          "dedup_trigram_bar",
+          "dedup_cosine_bar",
+          "corroboration_min_postings",
+          "corroboration_cap"
+        ],
+        "title": "ResolutionThresholdsOut",
         "type": "object"
       },
       "ResolveFamilyOut": {
@@ -25576,6 +26223,71 @@
         ]
       }
     },
+    "/api/v1/admin/catalog-mapping/settings": {
+      "get": {
+        "description": "The mapping run controls (plan 185 S6.3): the two admin switches,\nread per decision \u2014 effective on the next decision, no restart.",
+        "operationId": "catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "operationId": "put_catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogMappingSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Put Catalog Mapping Settings Api V1 Admin Catalog Mapping Settings Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Catalog Mapping Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/companies/{key}": {
       "put": {
         "description": "Write the reviewed company facts (omit a field = clear to unknown).",
@@ -28337,6 +29049,57 @@
         ]
       }
     },
+    "/api/v1/admin/postings/job-proposals": {
+      "get": {
+        "description": "Postings whose catalog join ended unmapped with a rich extract \u2014\nthe HITL \"create the job\" queue (plan 185), enrichment-queue shaped:\nthe proposal plus the join's signals trace (the admin's \"apply or\nwrite a better job\" context).",
+        "operationId": "job_proposal_queue_api_v1_admin_postings_job_proposals_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Job Proposal Queue Api V1 Admin Postings Job Proposals Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job Proposal Queue",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/postings/reextract": {
       "post": {
         "description": "Re-run deep extraction for the given postings (admin, bulk \u2014 the\n/postings multi-select). Same rules as the per-source bulk: only\npostings WITH a description queue; already-queued ones are skipped;\nunknown ids are reported as missing.",
@@ -28378,6 +29141,52 @@
           }
         },
         "summary": "Reextract Postings By Ids",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/replay": {
+      "post": {
+        "description": "Bulk replay wave (plan 153 slice 4 \u2014 the /postings multi-select):\nenqueue `mode: \"resolve\"` jobs for the given postings \u2014 candidate\nmatch + pass 2 over the stored raw labels, no pass-1 spend. Only\npostings on the current extract version queue (older rows carry no\nreplayable labels \u2014 they re-extract on demand); already-queued ones\nare skipped; unknown ids are reported as missing.",
+        "operationId": "replay_postings_by_ids_api_v1_admin_postings_replay_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Payload",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Replay Postings By Ids Api V1 Admin Postings Replay Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Replay Postings By Ids",
         "tags": [
           "admin"
         ]
@@ -28449,6 +29258,131 @@
           }
         },
         "summary": "Create Posting Source",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/sources/catalogs": {
+      "get": {
+        "description": "The stored ATS catalogs (instance-wide, admin-managed).",
+        "operationId": "list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response List Sources Catalogs Api V1 Admin Postings Sources Catalogs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sources Catalogs",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/sources/catalogs/{catalog_id}": {
+      "delete": {
+        "description": "Remove a stored catalog (imported presets leave the gallery;\nsources already added are kept).",
+        "operationId": "delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Delete Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Sources Catalog",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Upsert one validated catalog document (envelope + import metadata).\n\nA known id replaces in place (any tier); a new id counts against the\nmax-catalogs cap. Documents over the byte cap are rejected before\nparsing (413).",
+        "operationId": "upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "catalog_id",
+            "required": true,
+            "schema": {
+              "title": "Catalog Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogUpsertIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upsert Sources Catalog Api V1 Admin Postings Sources Catalogs  Catalog Id  Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upsert Sources Catalog",
         "tags": [
           "admin"
         ]
@@ -28711,7 +29645,7 @@
     },
     "/api/v1/admin/postings/{posting_id}/extract": {
       "post": {
-        "description": "Re-run the deep extraction for one posting now (admin).",
+        "description": "Re-run the deep extraction for one posting now (admin).\n\n``{\"mode\": \"resolve\"}`` is the plan-153 replay variant: the stored\nraw labels re-run through candidate matching + the pass-2 resolver\nonly \u2014 no pass-1 spend. Without a mode the full extraction runs.",
         "operationId": "reextract_posting_api_v1_admin_postings__posting_id__extract_post",
         "parameters": [
           {
@@ -28725,6 +29659,24 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
@@ -28750,6 +29702,108 @@
           }
         },
         "summary": "Reextract Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/apply": {
+      "post": {
+        "description": "Create the published catalog job from the proposal's extract, map\nthe posting MANUAL, clear the proposal and embed the new job \u2014 one\ntransaction (a mid-apply failure leaves no job row).",
+        "operationId": "apply_job_proposal_api_v1_admin_postings__posting_id__job_proposal_apply_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobProposalApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Apply Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Apply Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Job Proposal",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/job-proposal/dismiss": {
+      "post": {
+        "description": "Discard the proposal: explicit JSON null + the audit timestamp.",
+        "operationId": "dismiss_job_proposal_api_v1_admin_postings__posting_id__job_proposal_dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Dismiss Job Proposal Api V1 Admin Postings  Posting Id  Job Proposal Dismiss Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Job Proposal",
         "tags": [
           "admin"
         ]
@@ -28808,6 +29862,52 @@
           }
         },
         "summary": "Manual Map Posting",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/postings/{posting_id}/remap": {
+      "post": {
+        "description": "Re-run the catalog join WITHOUT re-paying the extract LLM call\n(plan 185 S6.4 \u2014 \"a new job got published / embeddings recomputed,\njudge me again\"). A MANUAL mapping stands (the manual-map endpoint\nstays the human override); the re-decision journals its own retag row.",
+        "operationId": "remap_posting_api_v1_admin_postings__posting_id__remap_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "posting_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Posting Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Remap Posting Api V1 Admin Postings  Posting Id  Remap Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remap Posting",
         "tags": [
           "admin"
         ]
@@ -29559,6 +30659,113 @@
         ]
       }
     },
+    "/api/v1/admin/taxonomy/resolution/stats": {
+      "get": {
+        "description": "Last-run summary + rolling resolution rates from the\nPOSTING_EXTRACT job results (plan 153 slice 4).",
+        "operationId": "get_resolution_stats_api_v1_admin_taxonomy_resolution_stats_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "7d",
+              "pattern": "^(24h|7d|30d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionStatsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Resolution Stats",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/taxonomy/resolution/thresholds": {
+      "get": {
+        "description": "Effective resolution thresholds (constant fallbacks included).",
+        "operationId": "get_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Resolution Thresholds",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Admin overrides for the resolve pipeline (clamped server-side;\neffective on the next run).",
+        "operationId": "put_resolution_thresholds_api_v1_admin_taxonomy_resolution_thresholds_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolutionThresholdsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolutionThresholdsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Resolution Thresholds",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/v1/admin/taxonomy/stats": {
       "get": {
         "description": "Backlog counts behind the taxonomy work-queue bar (plan 161).",
@@ -30011,7 +31218,7 @@
     },
     "/api/v1/ai/embeddings/recompute": {
       "post": {
-        "description": "Embed stale/un-embedded postings.\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel.",
+        "description": "Embed stale/un-embedded entities of one served kind \u2014 postings, or,\nwith ``kind=job`` / ``kind=skill``, published catalog jobs (plan 185:\nthe semantic candidate substrate) and skill labels (plan 153).\n\nAdmin-triggered batch pass; the gateway ``embed`` task carries the\nprovider config (DB-only) and the audit funnel. An unconfigured embed\nprovider degrades the skill kind to a no-op result, never an error.",
         "operationId": "recompute_embeddings_api_v1_ai_embeddings_recompute_post",
         "parameters": [
           {
@@ -30022,6 +31229,16 @@
               "default": 50,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "default": "posting",
+              "title": "Kind",
+              "type": "string"
             }
           }
         ],

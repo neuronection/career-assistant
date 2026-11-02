@@ -58,9 +58,9 @@ async def test_deep_extract_schema_resolution_and_evidence(
 
     extract = posting.extract or {}
     skills = extract.get("skills") or []
-    resolved = [s for s in skills if not s.get("unresolved")]
-    assert resolved, "mock should resolve taxonomy keys present in the text"
-    assert all(s["skill_key"] in ("programming", "problem-solving") for s in resolved)
+    assert skills, "mock should resolve taxonomy keys present in the text"
+    assert all(s["skill_key"] in ("programming", "problem-solving") for s in skills)
+    assert all(s["raw_label"] for s in skills), "v5 entries carry the verbatim label too"
     assert all(1 <= s["required_level"] <= 10 for s in skills)
     assert all(s["priority"] in ("must_have", "nice_to_have", "bonus") for s in skills)
     assert all(len(s["evidence_quote"]) >= 3 for s in skills)
@@ -89,7 +89,7 @@ async def test_unresolved_labels_become_moderation_proposals(
     await extract_posting_now(db, posting)
     await db.refresh(posting)
 
-    unresolved = [s for s in (posting.extract or {}).get("skills") or [] if s.get("unresolved")]
+    unresolved = [s for s in (posting.extract or {}).get("skills") or [] if not s.get("skill_key")]
     assert unresolved and unresolved[0]["raw_label"] == "cobol"
     assert unresolved[0]["evidence_quote"]
 
@@ -98,15 +98,16 @@ async def test_unresolved_labels_become_moderation_proposals(
         .scalars()
         .first()
     )
-    assert proposed is not None, "unresolved labels feed the queue"
+    assert proposed is not None, "unmatched labels feed the queue"
     assert proposed.provenance["posting_id"] == str(posting.id)
-    # proposed skills get no posting_skills edge (active-only matching)
     skill_rows = (
         (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
-    assert all(row.skill_id != proposed.id for row in skill_rows)
+    assert all(row.skill_id != proposed.id for row in skill_rows), (
+        "a freshly created proposal gets no posting_skills edge yet"
+    )
 
 
 async def test_low_confidence_fields_suppressed_and_flagged(
@@ -123,14 +124,14 @@ async def test_low_confidence_fields_suppressed_and_flagged(
         salary=ExtractSalary(min=1.0, max=2.0, currency="EUR", period="year"),
         skills=[
             ExtractSkill(
-                skill_key="programming",
+                raw_label="programming",
                 required_level=5,
                 priority="must_have",
                 evidence_quote="we need programming",
                 confidence=0.95,
             ),
             ExtractSkill(
-                skill_key="problem-solving",
+                raw_label="problem-solving",
                 required_level=3,
                 priority="bonus",
                 evidence_quote="and problem-solving",

@@ -8,7 +8,7 @@ import logging
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -35,11 +35,25 @@ from app.schemas.scheduler import (
     ScheduleRunNowOut,
     ScheduleToggleOut,
 )
-from app.schemas.taxonomy import SkillBulkIn, SkillBulkOut, TaxonomyStatsOut
+from app.schemas.sources_catalog import MAX_CATALOG_BYTES, CatalogUpsertIn
+from app.schemas.taxonomy import (
+    ResolutionStatsOut,
+    ResolutionThresholdsIn,
+    ResolutionThresholdsOut,
+    SkillBulkIn,
+    SkillBulkOut,
+    TaxonomyStatsOut,
+)
 from app.services.catalog.job_service import JobService
 from app.services.catalog.taxonomy_service import TaxonomyService
 from app.services.catalog.taxonomy_stats import collect_taxonomy_stats
 from app.services.deps import get_current_user, require_admin
+from app.services.postings.extract_service import (
+    ResolveThresholds,
+    load_thresholds,
+    save_thresholds,
+)
+from app.services.postings.resolution_stats import resolution_stats
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +128,54 @@ async def promote_skill(
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
+
+
+@router.get("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def get_resolution_thresholds(
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Effective resolution thresholds (constant fallbacks included)."""
+    thresholds = await load_thresholds(db)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.put("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def put_resolution_thresholds(
+    data: ResolutionThresholdsIn,
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Admin overrides for the resolve pipeline (clamped server-side;
+    effective on the next run)."""
+    thresholds = ResolveThresholds(**data.model_dump())
+    await save_thresholds(db, thresholds)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.get("/taxonomy/resolution/stats", response_model=ResolutionStatsOut)
+async def get_resolution_stats(
+    window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionStatsOut:
+    """Last-run summary + rolling resolution rates from the
+    POSTING_EXTRACT job results (plan 153 slice 4)."""
+    stats = await resolution_stats(db, window=window)
+    return ResolutionStatsOut.model_validate(stats)
 
 
 @router.post("/skills/{skill_id}/merge")
@@ -948,6 +1010,55 @@ async def sync_posting_source(
     return {"job_id": str(job.id), "status": job.status}
 
 
+# ------------------------------------------------------- ATS catalogs
+# Plan 187: the preset gallery's data becomes layered — bundled presets +
+# imported catalogs (operator/community URLs, user files). The backend
+# validates + stores; it NEVER fetches (the browser fetches — no SSRF).
+
+
+@router.get("/postings/sources/catalogs", response_model=list[dict])
+async def list_sources_catalogs(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """The stored ATS catalogs (instance-wide, admin-managed)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).list_catalogs()
+
+
+@router.put("/postings/sources/catalogs/{catalog_id}")
+async def upsert_sources_catalog(
+    catalog_id: str,
+    payload: CatalogUpsertIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Upsert one validated catalog document (envelope + import metadata).
+
+    A known id replaces in place (any tier); a new id counts against the
+    max-catalogs cap. Documents over the byte cap are rejected before
+    parsing (413)."""
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_CATALOG_BYTES:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            f"catalog document exceeds the {MAX_CATALOG_BYTES}-byte cap",
+        )
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).upsert(catalog_id, payload)
+
+
+@router.delete("/postings/sources/catalogs/{catalog_id}")
+async def delete_sources_catalog(catalog_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a stored catalog (imported presets leave the gallery;
+    sources already added are kept)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    deleted = await SourcesCatalogService(db).delete(catalog_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "catalog not found")
+    return {"id": catalog_id, "deleted": True}
+
+
 @router.get("/postings/sources/{source_id}/runs", response_model=list[dict])
 async def list_source_runs(
     source_id: uuid.UUID,
@@ -1402,6 +1513,192 @@ async def manual_map_posting(
     }
 
 
+class JobProposalApplyIn(BaseModel):
+    family_key: str
+    code: str | None = None
+    title: str | None = None
+    short_description: str | None = None
+
+
+@router.get("/postings/job-proposals")
+async def job_proposal_queue(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> list[dict]:
+    """Postings whose catalog join ended unmapped with a rich extract —
+    the HITL "create the job" queue (plan 185), enrichment-queue shaped:
+    the proposal plus the join's signals trace (the admin's "apply or
+    write a better job" context)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    rows = await service.pending(limit=limit)
+    suggestions = await service.family_suggestions(rows)
+    return [
+        {
+            "id": str(p.id),
+            "ref": p.ref,
+            "title": p.title,
+            "org": p.org,
+            "proposal": (p.posting_facts or {}).get("job_proposal"),
+            "proposed_at": (p.posting_facts or {}).get("job_proposal", {}).get("proposed_at")
+            if isinstance((p.posting_facts or {}).get("job_proposal"), dict)
+            else None,
+            "suggested_family_key": suggestions.get(p.id),
+            "mapping_signals": (p.posting_facts or {}).get("mapping_signals"),
+            "extract_version": p.extract_version,
+        }
+        for p in rows
+    ]
+
+
+@router.post("/postings/{posting_id}/job-proposal/apply")
+async def apply_job_proposal(
+    posting_id: uuid.UUID,
+    payload: JobProposalApplyIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Create the published catalog job from the proposal's extract, map
+    the posting MANUAL, clear the proposal and embed the new job — one
+    transaction (a mid-apply failure leaves no job row)."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        job = await service.apply(
+            posting,
+            family_key=payload.family_key,
+            code=payload.code,
+            title=payload.title,
+            short_description=payload.short_description,
+            user=user,
+        )
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {
+        "id": str(posting.id),
+        "job_id": str(job.id),
+        "job_code": job.code,
+        "mapping_method": posting.mapping_method,
+        "status": posting.status,
+    }
+
+
+@router.post("/postings/{posting_id}/job-proposal/dismiss")
+async def dismiss_job_proposal(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Discard the proposal: explicit JSON null + the audit timestamp."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        await service.dismiss(posting, user=user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(posting.id), "dismissed": True}
+
+
+@router.post("/postings/{posting_id}/remap")
+async def remap_posting(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Re-run the catalog join WITHOUT re-paying the extract LLM call
+    (plan 185 S6.4 — "a new job got published / embeddings recomputed,
+    judge me again"). A MANUAL mapping stands (the manual-map endpoint
+    stays the human override); the re-decision journals its own retag row."""
+    from app.models.enums import MappingMethod
+    from app.models.posting_model import JobPosting, PostingSkill
+    from app.services.postings.change_journal import RETAG_FIELDS, snapshot
+    from app.services.postings.postings_service import decide_catalog
+
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
+    )
+    if posting is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    if posting.mapping_method == MappingMethod.MANUAL.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This posting was mapped manually — use the manual map endpoint to override",
+        )
+    skill_ids = set(
+        (
+            await db.execute(
+                select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    before = snapshot(posting, RETAG_FIELDS)
+    await decide_catalog(db, posting, skill_ids)
+    await db.commit()
+    return {
+        "id": str(posting.id),
+        "status": posting.status,
+        "mapping_method": posting.mapping_method,
+        "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
+        "mapping_reason": posting.mapping_reason,
+        "before": {key: value for key, value in before.items() if key != "skills"},
+    }
+
+
+@router.get("/catalog-mapping/settings")
+async def catalog_mapping_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """The mapping run controls (plan 185 S6.3): the two admin switches,
+    read per decision — effective on the next decision, no restart."""
+    from app.services.postings.catalog_settings import (
+        job_proposals_enabled,
+        semantic_rescue_enabled,
+    )
+
+    return {
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "job_proposals": await job_proposals_enabled(db),
+    }
+
+
+class CatalogMappingSettingsIn(BaseModel):
+    semantic_rescue: bool | None = None
+    job_proposals: bool | None = None
+
+
+@router.put("/catalog-mapping/settings")
+async def put_catalog_mapping_settings(
+    payload: CatalogMappingSettingsIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    from app.services.postings.catalog_settings import (
+        JOB_PROPOSALS_KEY,
+        SEMANTIC_RESCUE_KEY,
+        job_proposals_enabled,
+        semantic_rescue_enabled,
+        set_switch,
+    )
+
+    if payload.semantic_rescue is not None:
+        await set_switch(db, SEMANTIC_RESCUE_KEY, payload.semantic_rescue)
+    if payload.job_proposals is not None:
+        await set_switch(db, JOB_PROPOSALS_KEY, payload.job_proposals)
+    return {
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "job_proposals": await job_proposals_enabled(db),
+    }
+
+
 @router.get("/postings")
 async def admin_list_postings(
     needs_review: bool | None = None,
@@ -1482,18 +1779,81 @@ async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(ge
     }
 
 
-@router.post("/postings/{posting_id}/extract")
-async def reextract_posting(posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
-    """Re-run the deep extraction for one posting now (admin)."""
+@router.post("/postings/replay")
+async def replay_postings_by_ids(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Bulk replay wave (plan 153 slice 4 — the /postings multi-select):
+    enqueue `mode: "resolve"` jobs for the given postings — candidate
+    match + pass 2 over the stored raw labels, no pass-1 spend. Only
+    postings on the current extract version queue (older rows carry no
+    replayable labels — they re-extract on demand); already-queued ones
+    are skipped; unknown ids are reported as missing."""
+    ids = [str(item) for item in (payload.get("posting_ids") or [])][:200]
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "posting_ids is required")
     from app.models.posting_model import JobPosting
-    from app.services.postings.extract_service import extract_posting_now
+    from app.services.postings.extract_service import (
+        EXTRACT_VERSION,
+        queue_posting_replay,
+    )
+
+    queued = skipped = 0
+    missing: list[str] = []
+    for raw_id in ids:
+        try:
+            lookup_id = uuid.UUID(str(raw_id))
+        except ValueError:
+            missing.append(raw_id)
+            continue
+        posting = (
+            (await db.execute(select(JobPosting).where(JobPosting.id == lookup_id)))
+            .scalars()
+            .first()
+        )
+        if posting is None or posting.status not in ("new", "mapped"):
+            missing.append(raw_id)
+            continue
+        if posting.extract_version != EXTRACT_VERSION:
+            skipped += 1
+            continue
+        if await queue_posting_replay(db, posting):
+            queued += 1
+        else:
+            skipped += 1
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "missing": missing[:50],
+        "requested": len(ids),
+    }
+
+
+@router.post("/postings/{posting_id}/extract")
+async def reextract_posting(
+    posting_id: uuid.UUID, payload: dict | None = None, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Re-run the deep extraction for one posting now (admin).
+
+    ``{"mode": "resolve"}`` is the plan-153 replay variant: the stored
+    raw labels re-run through candidate matching + the pass-2 resolver
+    only — no pass-1 spend. Without a mode the full extraction runs."""
+    from app.models.posting_model import JobPosting
+    from app.services.postings.extract_service import (
+        extract_posting_now,
+        replay_posting_resolution,
+    )
 
     posting = (
         (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    mode = (payload or {}).get("mode")
+    if mode not in (None, "resolve"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode must be 'resolve'")
     try:
+        if mode == "resolve":
+            return await replay_posting_resolution(db, posting)
         return await extract_posting_now(db, posting)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc

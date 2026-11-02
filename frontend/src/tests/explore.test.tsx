@@ -1,11 +1,11 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Explore } from "@/features/catalog/pages/Explore";
 import { resetExploreListCache } from "@/features/catalog/exploreListCache";
-import { explorePostings, smartSearch } from "@/api/postings";
+import { explorePostings, hidePosting, smartSearch } from "@/api/postings";
 import { fetchRadar, previewRadar } from "@/api/radar";
 import { recordSearch } from "@/api/engagement";
 import { fetchCompanies } from "@/api/companies";
@@ -18,6 +18,7 @@ vi.mock("@/api/postings", async (importOriginal) => {
     ...mod,
     explorePostings: vi.fn(),
     smartSearch: vi.fn(),
+    hidePosting: vi.fn().mockResolvedValue(undefined),
     fetchPostingSources: vi.fn().mockResolvedValue([
       { key: "synth", connector_key: "synthetic", open_postings: 3 },
     ]),
@@ -476,6 +477,23 @@ describe("Explore page", () => {
       )
     );
     expect(screen.getByTestId("explore-filter-count")).toHaveTextContent("1");
+  });
+
+  it("drops a card from the list once hide refetches without it", async () => {
+    vi.mocked(hidePosting).mockImplementation(async () => {
+      mockExplore.mockResolvedValue(exploreResponse({ items: [], total: 0 }));
+    });
+    render(
+      <MemoryRouter>
+        <Explore />
+      </MemoryRouter>
+    );
+    const card = await screen.findByTestId("posting-card");
+    fireEvent.click(within(card).getByTestId("posting-hide"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("posting-card")).not.toBeInTheDocument()
+    );
+    expect(vi.mocked(hidePosting)).toHaveBeenCalledWith(posting().id, true);
   });
 
   it("maps a natural-language query into the URL filters and echoes the interpretation", async () => {

@@ -259,9 +259,20 @@ async def test_retag_writer_journals_skills_set_diff(db, source, seeded_catalog)
 
     rows = [row for row in await _journal(db, posting.id) if row not in before]
     retag = [row for row in rows if row.actor_kind == "retag"]
-    assert len(retag) == 1
-    assert retag[0].diff["skills"]["added"] == ["problem-solving"]
-    assert retag[0].operation == {"auto_map_threshold": 0.34}
+    # plan 185: the skill rewrite and the mapping decision journal as two
+    # retag rows in the same transaction — each writer carries its own diff.
+    rewrite = next(row for row in retag if "skills" in (row.diff or {}))
+    assert rewrite.diff["skills"]["added"] == ["problem-solving"]
+    assert rewrite.operation == {"auto_map_threshold": 0.34}
+    decision = [row for row in retag if "skills" not in (row.diff or {})]
+    assert len(decision) == 1
+    assert "mapping_reason" in decision[0].diff, "the decision row carries the field diff"
+    # plan 185 S6.1: the operation payload carries the join summary
+    assert decision[0].operation["auto_map_threshold"] == 0.34
+    assert decision[0].operation["method"] == decision[0].diff["mapping_method"]["to"]
+    assert "overlap_score" in decision[0].operation
+    assert "semantic_top" in decision[0].operation
+    assert set(decision[0].operation["mapping_signals"]) == {"overlap", "semantic"}
 
 
 async def test_expiry_writer_journals_status(db, source, seeded_catalog):
@@ -295,7 +306,7 @@ async def test_extract_writer_journals_envelope_and_skills(db, source, seeded_ca
     assert fields_row.actor_ref.get("ai_generation_id"), "the audit row is linked"
     assert fields_row.actor_ref["ai_generation_id"] != ""
     assert fields_row.duration_ms is not None
-    assert fields_row.diff["extract_version"] == {"from": None, "to": 4}
+    assert fields_row.diff["extract_version"] == {"from": None, "to": 5}
     assert "description_clean" in fields_row.diff, "the envelope's cleaned text diffs top-level"
     assert "skills_count" in fields_row.diff
     assert fields_row.outcome in ("ok", "partial")

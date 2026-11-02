@@ -247,16 +247,10 @@ async def test_new_posting_linking_an_existing_org_ingests(db, synthetic_connect
 
     await db.refresh(src)
     posting = (
-        (await db.execute(select(JobPosting).where(JobPosting.source_id == src.id)))
-        .scalars()
-        .one()
+        (await db.execute(select(JobPosting).where(JobPosting.source_id == src.id))).scalars().one()
     )
     assert posting.org_id is not None, "the exact-name org link still ran"
-    row = (
-        (await db.execute(select(SourceRun).where(SourceRun.source_id == src.id)))
-        .scalars()
-        .one()
-    )
+    row = (await db.execute(select(SourceRun).where(SourceRun.source_id == src.id))).scalars().one()
     assert row.status == "ok"
 
 

@@ -92,3 +92,137 @@ async def test_compose_posting_text_covers_extract():
     assert "Backend Engineer" in text and "ACME" in text
     assert "sql" in text and "must_have" in text and "6" in text
     assert "Ship payments (40%)" in text
+
+
+class _FakeJobSkill:
+    def __init__(self, label: str, importance: str, level: int):
+        self.skill = type("S", (), {"label": label})()
+        self.importance = importance
+        self.required_level = level
+
+
+class _FakeJob:
+    title = "Data Engineer"
+    short_description = "Moves data reliably."
+
+
+def test_compose_job_text_orders_must_have_first():
+    from app.services.embedding_service import compose_job_text
+
+    links = [
+        _FakeJobSkill("Spreadsheets", "bonus", 2),
+        _FakeJobSkill("SQL", "core", 8),
+        _FakeJobSkill("Airflow", "core", 6),
+        _FakeJobSkill("Python", "important", 7),
+    ]
+    text = compose_job_text(_FakeJob(), links)
+    lines = text.splitlines()
+    assert lines[0] == "Data Engineer"
+    assert lines[1] == "Moves data reliably."
+    skill_lines = [line for line in lines if line.startswith("skill: ")]
+    assert skill_lines == [
+        "skill: SQL core 8",
+        "skill: Airflow core 6",
+        "skill: Python important 7",
+        "skill: Spreadsheets bonus 2",
+    ], "core (must-have) links order first, ties by label"
+
+
+async def test_recompute_jobs_published_only_limit_and_dedupe(
+    client, auth_headers, profile_ready, seeded_catalog, db
+):
+    from sqlalchemy import select
+
+    from app.models.job_model import Job, JobFamily, JobSkill
+    from app.models.taxonomy_model import Skill
+    from app.services.embedding_service import KIND_JOB, EmbeddingService
+
+    family = JobFamily(key="emb-jobs", label="Embedding Jobs", path="emb-jobs")
+    db.add(family)
+    await db.flush()
+    sql = (await db.execute(select(Skill).where(Skill.key == "data-analysis"))).scalars().first()
+    python = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
+    assert sql is not None and python is not None, "seeded skills present"
+    published = Job(code="emb-published", title="Embed Me", family_id=family.id)
+    draft = Job(code="emb-draft", title="Draft Never Embeds", family_id=family.id, status="draft")
+    db.add_all([published, draft])
+    await db.flush()
+    db.add(JobSkill(job_id=published.id, skill_id=sql.id, required_level=8, importance="core"))
+    db.add(JobSkill(job_id=published.id, skill_id=python.id, required_level=6, importance="bonus"))
+    db.add(JobSkill(job_id=draft.id, skill_id=sql.id, required_level=5, importance="core"))
+    await db.commit()
+
+    service = EmbeddingService(db)
+    limited = await service.recompute_jobs(limit=2)
+    assert limited["candidates"] == 2, "the limit bounds the candidate scan"
+
+    result = await service.recompute_jobs(limit=50)
+    assert result["candidates"] >= 1, "every un-embedded published job is a candidate"
+    assert result["embedded"] >= 1
+
+    text_row = (
+        (
+            await db.execute(
+                select(AIEmbedding).where(
+                    AIEmbedding.entity_kind == KIND_JOB, AIEmbedding.entity_id == published.id
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert text_row is not None
+    draft_row = (
+        (
+            await db.execute(
+                select(AIEmbedding).where(
+                    AIEmbedding.entity_kind == KIND_JOB, AIEmbedding.entity_id == draft.id
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert draft_row is None, "draft jobs never embed"
+
+    again = await service.recompute_jobs(limit=50)
+    assert again["candidates"] == 0, "the hash-deduped rows are not second candidates"
+
+    status = await service.status()
+    job_bucket = next(b for b in status if b["entity_kind"] == "job")
+    assert job_bucket["count"] == limited["embedded"] + result["embedded"]
+
+
+async def test_recompute_endpoint_kind_param(
+    client, auth_headers, profile_ready, seeded_catalog, db
+):
+    from sqlalchemy import select
+
+    from app.models.embedding_model import AIEmbedding
+    from app.models.job_model import Job
+
+    listed = (await db.execute(select(Job).where(Job.status == "published"))).scalars().all()
+    assert listed, "seeded catalog carries published jobs"
+
+    response = await client.post(
+        "/api/v1/ai/embeddings/recompute", params={"kind": "job"}, headers=auth_headers
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["kind"] == "job"
+    assert body["embedded"] >= 1
+    rows = (
+        (await db.execute(select(AIEmbedding).where(AIEmbedding.entity_kind == "job")))
+        .scalars()
+        .all()
+    )
+    assert len(rows) >= 1
+
+    unknown = await client.post(
+        "/api/v1/ai/embeddings/recompute", params={"kind": "family"}, headers=auth_headers
+    )
+    assert unknown.status_code == 400
+
+    default = await client.post("/api/v1/ai/embeddings/recompute", headers=auth_headers)
+    assert default.status_code == 200
+    assert default.json()["kind"] == "posting"

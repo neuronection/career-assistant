@@ -21,15 +21,37 @@ import { ExtensionSourcesSection } from "@/components/settings/ExtensionSourcesS
 import { AddSourceWizard, type SourceWizardDraft } from "@/components/settings/connectors/AddSourceWizard";
 import { JobSourcePresetDialog } from "@/components/settings/connectors/JobSourcePresetDialog";
 import { PresetLogo } from "@/components/settings/connectors/PresetLogo";
+import { SelectField } from "@/features/cv/components/cv/formPrimitives";
 import { countryDisplayName, findCountry } from "@neuronection/assistant-ui/countries";
 import {
   JOB_SOURCE_PRESETS,
   WORLDWIDE_KEY,
   type JobSourcePreset,
 } from "@/config/jobSourcePresets";
+import {
+  compareDocuments,
+  fetchCatalogDocument,
+  mergeCatalogs,
+  validateCatalog,
+  type CatalogFetchOutcome,
+  type CatalogProvenance,
+  type SourcesCatalog,
+} from "@/config/sourcesCatalogs";
 import * as sourcesApi from "@/api/sources";
+import * as catalogsApi from "@/api/sourcesCatalogs";
 import type { ConnectorCatalogEntry, PostingSource, SourceProbe } from "@/api/sources";
 import { apiDetail } from "@/api/client";
+
+const TIER_LABEL_KEY: Record<CatalogProvenance["tier"], string> = {
+  bundled: "toolsSettings.connectors.presets.tierBundled",
+  operator: "toolsSettings.connectors.presets.tierOperator",
+  community: "toolsSettings.connectors.presets.tierCommunity",
+  user: "toolsSettings.connectors.presets.tierUser",
+};
+
+function newCatalogId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `catalog-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
 
 /**
  * Tools → Sources (ADR-0033 domain tools.sources, plan 154): posting-source
@@ -79,6 +101,165 @@ function shortTime(iso: string | null): string | null {
   });
 }
 
+/** Plan 187: the catalog management block — add an operator/community URL,
+ * upload a user JSON file, per-catalog refresh (browser-side conditional
+ * GET) and remove. Refresh NEVER creates sources: it only updates the
+ * gallery data through the admin API. */
+function CatalogsBlock({
+  catalogs,
+  report,
+  busy,
+  onImportUrl,
+  onImportFile,
+  onRefresh,
+  onRemove,
+}: {
+  catalogs: SourcesCatalog[];
+  report: string[];
+  busy: boolean;
+  onImportUrl: (url: string, tier: "operator" | "community") => void;
+  onImportFile: (file: File) => void;
+  onRefresh: (catalog: SourcesCatalog) => void;
+  onRemove: (catalog: SourcesCatalog) => void;
+}) {
+  const { t } = useTranslation();
+  const [url, setUrl] = useState("");
+  const [tier, setTier] = useState<"operator" | "community">("community");
+  return (
+    <div
+      className="rounded-lg border border-[var(--as-border)] bg-[color-mix(in_srgb,var(--as-muted)_35%,transparent)] p-3"
+      data-testid="catalog-block"
+    >
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-0 flex-1 basis-40">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.catalogs.title")}
+          </p>
+          <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">
+            {t("toolsSettings.connectors.catalogs.hint")}
+          </p>
+        </div>
+        <label className="block min-w-0 flex-1 basis-56 text-xs text-[var(--as-muted-fg)]">
+          <span className="sr-only">{t("toolsSettings.connectors.catalogs.urlPlaceholder")}</span>
+          <input
+            className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-2 text-sm text-[var(--as-fg)]"
+            placeholder={t("toolsSettings.connectors.catalogs.urlPlaceholder")}
+            value={url}
+            disabled={busy}
+            onChange={(event) => setUrl(event.target.value)}
+            data-testid="catalog-url-input"
+          />
+        </label>
+        <div className="w-40">
+          <SelectField
+            label={t("toolsSettings.connectors.catalogs.tier")}
+            value={tier}
+            onChange={(next) => setTier(next as "operator" | "community")}
+            options={[
+              { value: "community", label: t("toolsSettings.connectors.catalogs.tierCommunity") },
+              { value: "operator", label: t("toolsSettings.connectors.catalogs.tierOperator") },
+            ]}
+            testId="catalog-tier-select"
+          />
+        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={busy}
+          onClick={() => onImportUrl(url.trim(), tier)}
+          data-testid="catalog-add-url"
+        >
+          <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.catalogs.addUrl")}
+        </Button>
+        <label
+          className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)] transition-colors hover:border-[var(--as-accent)]"
+          data-testid="catalog-upload-label"
+        >
+          {t("toolsSettings.connectors.catalogs.upload")}
+          <input
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            disabled={busy}
+            data-testid="catalog-file-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) onImportFile(file);
+              event.target.value = "";
+            }}
+          />
+        </label>
+      </div>
+
+      {report.length > 0 ? (
+        <div className="mt-2 space-y-1" data-testid="catalog-report">
+          {report.map((line, index) => (
+            <p
+              key={`${index}-${line}`}
+              className="rounded-md bg-[var(--as-muted)] px-2 py-1 text-xs text-[var(--as-fg)]"
+              data-testid={`catalog-report-line-${index}`}
+            >
+              {line}
+            </p>
+          ))}
+        </div>
+      ) : null}
+
+      {catalogs.length === 0 ? (
+        <p className="mt-2 text-xs text-[var(--as-muted-fg)]" data-testid="catalog-empty">
+          {t("toolsSettings.connectors.catalogs.empty")}
+        </p>
+      ) : (
+        <ul className="mt-2 space-y-1.5" data-testid="catalog-list">
+          {catalogs.map((catalog) => (
+            <li
+              key={catalog.id}
+              className="flex flex-wrap items-center gap-2 rounded-md border border-[var(--as-border)] bg-[var(--as-surface)] px-2.5 py-1.5"
+              data-testid={`catalog-row-${catalog.id}`}
+            >
+              <span className="min-w-0 flex-1 truncate text-xs font-medium text-[var(--as-fg)]">
+                {catalog.name}
+              </span>
+              <span
+                className="rounded-full bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--as-muted-fg)]"
+                data-testid={`catalog-tier-${catalog.id}`}
+              >
+                {t(TIER_LABEL_KEY[catalog.tier])}
+              </span>
+              <span className="text-[11px] text-[var(--as-muted-fg)]" data-testid={`catalog-stamp-${catalog.id}`}>
+                {t("toolsSettings.connectors.catalogs.revision", {
+                  revision: catalog.revision,
+                  date: shortTime(catalog.fetchedAt) ?? "",
+                })}
+              </span>
+              {catalog.url ? (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => onRefresh(catalog)}
+                  data-testid={`catalog-refresh-${catalog.id}`}
+                >
+                  <RefreshCw className="h-3 w-3" /> {t("toolsSettings.connectors.catalogs.refresh")}
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={busy}
+                onClick={() => onRemove(catalog)}
+                data-testid={`catalog-remove-${catalog.id}`}
+              >
+                {t("toolsSettings.connectors.catalogs.remove")}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function JobSourceCard({
   source,
   connector,
@@ -96,6 +277,7 @@ function JobSourceCard({
   onRemove,
   selected,
   onSelect,
+  provenance,
 }: {
   source: PostingSource;
   connector?: ConnectorCatalogEntry;
@@ -113,6 +295,7 @@ function JobSourceCard({
   onRemove: () => void;
   selected?: boolean;
   onSelect?: (next: boolean) => void;
+  provenance?: Map<string, CatalogProvenance>;
 }) {
   const { t, i18n } = useTranslation();
   const language = (i18n as { language?: string } | undefined)?.language ?? "en";
@@ -123,6 +306,7 @@ function JobSourceCard({
   const lastSuccess = shortTime(source.last_run_at);
   const Icon = source.kind === "market" ? Globe : Radar;
   const preset = JOB_SOURCE_PRESETS.find((entry) => entry.slug === source.key);
+  const importedTier = provenance?.get(source.key);
 
   return (
     <ItemCardShell
@@ -270,6 +454,14 @@ function JobSourceCard({
                 </span>
               ) : null;
             })()}
+            {importedTier ? (
+              <span
+                className="rounded-full bg-[color-mix(in_srgb,var(--as-accent)_14%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
+                data-testid={`source-provenance-${source.key}`}
+              >
+                {t(TIER_LABEL_KEY[importedTier.tier])}
+              </span>
+            ) : null}
             {needsSecret ? (
               <span
                 className="rounded-full bg-[color-mix(in_srgb,var(--as-warning)_18%,transparent)] px-2 py-0.5 font-medium text-[var(--as-fg)]"
@@ -336,6 +528,10 @@ function JobSourceConnectors() {
   const location = useLocation();
   const [sources, setSources] = useState<PostingSource[]>([]);
   const [catalog, setCatalog] = useState<ConnectorCatalogEntry[]>([]);
+  const [catalogs, setCatalogs] = useState<SourcesCatalog[]>([]);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [catalogReport, setCatalogReport] = useState<string[]>([]);
+  const [removeCatalogTarget, setRemoveCatalogTarget] = useState<SourcesCatalog | null>(null);
   const [draft, setDraft] = useState<SourceWizardDraft | null>(null);
   const [presetOpen, setPresetOpen] = useState(false);
   const [sourceQuery, setSourceQuery] = useState("");
@@ -370,7 +566,221 @@ function JobSourceConnectors() {
   useEffect(() => {
     void refresh();
     sourcesApi.fetchConnectorCatalog().then(setCatalog).catch(() => setCatalog([]));
+    catalogsApi.fetchCatalogs().then(setCatalogs).catch(() => setCatalogs([]));
   }, [refresh]);
+
+  const reloadCatalogs = async () => {
+    try {
+      setCatalogs(await catalogsApi.fetchCatalogs());
+    } catch (err) {
+      setCatalogReport([apiDetail(err)]);
+    }
+  };
+
+  const fetchFailureLine = (outcome: CatalogFetchOutcome): string | null => {
+    switch (outcome.kind) {
+      case "not-modified":
+        return t("toolsSettings.connectors.catalogs.reportAlreadyLatest");
+      case "fetch-failed":
+        return t("toolsSettings.connectors.catalogs.reportFetchFailed");
+      case "mixed-content":
+        return t("toolsSettings.connectors.catalogs.reportMixedContent");
+      case "http-error":
+        return t("toolsSettings.connectors.catalogs.reportHttpError", {
+          status: outcome.status,
+        });
+      case "non-json":
+        return t("toolsSettings.connectors.catalogs.reportNonJson");
+      default:
+        return null;
+    }
+  };
+
+  const importFromUrl = async (url: string, tier: "operator" | "community") => {
+    setCatalogReport([]);
+    if (!url) {
+      setCatalogReport([t("toolsSettings.connectors.catalogs.needUrl")]);
+      return;
+    }
+    setCatalogBusy(true);
+    try {
+      const existing = catalogs.find((entry) => entry.url === url);
+      const outcome = await fetchCatalogDocument(
+        url,
+        existing ? { etag: existing.etag, lastModified: existing.lastModified } : {},
+      );
+      const failure = fetchFailureLine(outcome);
+      if (failure || outcome.kind !== "fetched") {
+        setCatalogReport([failure ?? ""]);
+        return;
+      }
+      const parsed = validateCatalog(outcome.raw);
+      if (!parsed.ok) {
+        setCatalogReport([
+          t("toolsSettings.connectors.catalogs.reportInvalid", { detail: parsed.error }),
+        ]);
+        return;
+      }
+      const change = existing ? compareDocuments(existing, parsed.document) : null;
+      if (existing && change?.kind === "same") {
+        setCatalogReport([
+          t("toolsSettings.connectors.catalogs.reportUpToDate", { revision: existing.revision }),
+        ]);
+        return;
+      }
+      await catalogsApi.putCatalog(existing?.id ?? newCatalogId(), {
+        ...parsed.document,
+        tier,
+        url,
+        fetchedAt: new Date().toISOString(),
+        etag: outcome.etag,
+        lastModified: outcome.lastModified,
+      });
+      await reloadCatalogs();
+      setCatalogReport([
+        change === null
+          ? t("toolsSettings.connectors.catalogs.reportImported", {
+              name: parsed.document.name,
+              count: parsed.document.presets.length,
+              providers: parsed.document.providers.length,
+            })
+          : change.kind === "revision-bump"
+            ? t("toolsSettings.connectors.catalogs.reportRevisionBump", {
+                revision: change.to,
+              })
+            : change.kind === "updated"
+              ? t("toolsSettings.connectors.catalogs.reportUpdated", {
+                  from: change.from,
+                  to: change.to,
+                  count: change.changedPresets,
+                })
+              : t("toolsSettings.connectors.catalogs.reportImported", {
+                  count: parsed.document.presets.length,
+                }),
+      ]);
+    } catch (err) {
+      setCatalogReport([apiDetail(err)]);
+    } finally {
+      setCatalogBusy(false);
+    }
+  };
+
+  const importFromFile = (file: File) => {
+    setCatalogReport([]);
+    setCatalogBusy(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      void (async () => {
+        try {
+          let raw: unknown;
+          try {
+            raw = JSON.parse(String(reader.result ?? ""));
+          } catch {
+            setCatalogReport([t("toolsSettings.connectors.catalogs.reportNonJson")]);
+            return;
+          }
+          const parsed = validateCatalog(raw);
+          if (!parsed.ok) {
+            setCatalogReport([
+              t("toolsSettings.connectors.catalogs.reportInvalid", { detail: parsed.error }),
+            ]);
+            return;
+          }
+          await catalogsApi.putCatalog(newCatalogId(), {
+            ...parsed.document,
+            tier: "user",
+            url: null,
+            fetchedAt: new Date().toISOString(),
+            etag: null,
+            lastModified: null,
+          });
+          await reloadCatalogs();
+          setCatalogReport([
+            t("toolsSettings.connectors.catalogs.reportImported", {
+              name: parsed.document.name,
+              count: parsed.document.presets.length,
+              providers: parsed.document.providers.length,
+            }),
+          ]);
+        } catch (err) {
+          setCatalogReport([apiDetail(err)]);
+        } finally {
+          setCatalogBusy(false);
+        }
+      })();
+    };
+    reader.onerror = () => {
+      setCatalogBusy(false);
+      setCatalogReport([t("toolsSettings.connectors.catalogs.reportFetchFailed")]);
+    };
+    reader.readAsText(file);
+  };
+
+  const refreshCatalog = async (target: SourcesCatalog) => {
+    if (!target.url) return;
+    setCatalogReport([]);
+    setCatalogBusy(true);
+    try {
+      const outcome = await fetchCatalogDocument(target.url, {
+        etag: target.etag,
+        lastModified: target.lastModified,
+      });
+      const failure = fetchFailureLine(outcome);
+      if (failure || outcome.kind !== "fetched") {
+        setCatalogReport([failure ?? ""]);
+        return;
+      }
+      const parsed = validateCatalog(outcome.raw);
+      if (!parsed.ok) {
+        setCatalogReport([
+          t("toolsSettings.connectors.catalogs.reportInvalid", { detail: parsed.error }),
+        ]);
+        return;
+      }
+      const change = compareDocuments(target, parsed.document);
+      if (change.kind === "same") {
+        setCatalogReport([
+          t("toolsSettings.connectors.catalogs.reportUpToDate", { revision: target.revision }),
+        ]);
+        return;
+      }
+      await catalogsApi.putCatalog(target.id, {
+        ...parsed.document,
+        tier: target.tier,
+        url: target.url,
+        fetchedAt: new Date().toISOString(),
+        etag: outcome.etag ?? target.etag,
+        lastModified: outcome.lastModified ?? target.lastModified,
+      });
+      await reloadCatalogs();
+      setCatalogReport([
+        change.kind === "revision-bump"
+          ? t("toolsSettings.connectors.catalogs.reportRevisionBump", { revision: change.to })
+          : t("toolsSettings.connectors.catalogs.reportUpdated", {
+              from: change.from,
+              to: change.to,
+              count: change.changedPresets,
+            }),
+      ]);
+    } catch (err) {
+      setCatalogReport([apiDetail(err)]);
+    } finally {
+      setCatalogBusy(false);
+    }
+  };
+
+  const removeCatalog = async (target: SourcesCatalog) => {
+    setCatalogBusy(true);
+    try {
+      await catalogsApi.deleteCatalog(target.id);
+      setRemoveCatalogTarget(null);
+      await reloadCatalogs();
+    } catch (err) {
+      setCatalogReport([apiDetail(err)]);
+    } finally {
+      setCatalogBusy(false);
+    }
+  };
 
   const catalogByKey = useMemo(
     () => Object.fromEntries(catalog.map((entry) => [entry.key, entry])),
@@ -580,6 +990,7 @@ function JobSourceConnectors() {
   };
 
   const draftEntry = draft ? catalogByKey[draft.connector_key] : undefined;
+  const gallery = useMemo(() => mergeCatalogs(JOB_SOURCE_PRESETS, catalogs), [catalogs]);
   const draftSource = draft?.id ? sources.find((row) => row.id === draft.id) : undefined;
   const managedSchema = draftSource?.managed ? draftSource.tool_config_schema : null;
   const radarCapable =
@@ -702,6 +1113,18 @@ function JobSourceConnectors() {
               <Plus className="h-3.5 w-3.5" /> {t("toolsSettings.connectors.sources.add")}
             </Button>
           </div>
+        </div>
+
+        <div className="mt-3">
+          <CatalogsBlock
+            catalogs={catalogs}
+            report={catalogReport}
+            busy={catalogBusy}
+            onImportUrl={(url, tier) => void importFromUrl(url, tier)}
+            onImportFile={importFromFile}
+            onRefresh={(target) => void refreshCatalog(target)}
+            onRemove={setRemoveCatalogTarget}
+          />
         </div>
 
         {sources.length > 0 ? (
@@ -852,6 +1275,7 @@ function JobSourceConnectors() {
                       busy={busy}
                       needsSecret={needsSecret(source)}
                       selected={selectedSources.has(source.id)}
+                      provenance={gallery.provenance}
                       onSelect={(next) =>
                         setSelectedSources((current) => {
                           const nextSet = new Set(current);
@@ -933,6 +1357,23 @@ function JobSourceConnectors() {
           }}
         />
 
+        <ConfirmationModal
+          open={removeCatalogTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setRemoveCatalogTarget(null);
+          }}
+          title={t("toolsSettings.connectors.catalogs.removeTitle", {
+            name: removeCatalogTarget?.name ?? "",
+          })}
+          description={t("toolsSettings.connectors.catalogs.removeBody")}
+          confirmLabel={t("toolsSettings.connectors.catalogs.removeConfirm")}
+          destructive
+          busy={catalogBusy}
+          onConfirm={() => {
+            if (removeCatalogTarget) void removeCatalog(removeCatalogTarget);
+          }}
+        />
+
         {docsKey !== null ? (
           <ConnectorDocsDialog connectorKey={docsKey} onClose={() => setDocsKey(null)} />
         ) : null}
@@ -969,14 +1410,17 @@ function JobSourceConnectors() {
         onOpenChange={setPresetOpen}
         existingKeys={sources.map((row) => row.key)}
         busy={busy}
+        presets={gallery.presets}
+        provenance={gallery.provenance}
+        providers={gallery.providers}
         onAddPresets={addPresets}
-        onCustom={() => {
+        onCustom={(prefill) => {
           setPresetOpen(false);
           setDraft({
             id: null,
             key: "",
-            connector_key: "",
-            config: {},
+            connector_key: prefill?.connectorKey ?? "",
+            config: prefill?.config ?? {},
             query_mode: "radar",
             query_batch_size: 2,
           });

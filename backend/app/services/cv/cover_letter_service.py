@@ -15,7 +15,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.cover_letter_writer import draft_letter
-from app.ai.agents.posting_extractor import PostingExtract
 from app.core.errors import NotFoundError, ValidationError
 from app.models.cv_model import CvDocument
 from app.models.experience_model import SkillEvidence
@@ -36,6 +35,7 @@ from app.schemas.cover_letter import (
     VerifiedParagraph,
 )
 from app.schemas.cv_suggest import CoverageEntry, TailorCoverage
+from app.schemas.posting import PostingExtractOut
 from app.services.cv.cv_builder_service import CvBuilderService
 from app.services.cv.cv_context_service import resolve
 from app.services.cv.cv_service import CvService
@@ -92,7 +92,7 @@ class CoverLetterService:
         return dict(rows.all())
 
     @staticmethod
-    def _coverage(extract: PostingExtract | None, levels: dict[str, int]):
+    def _coverage(extract: PostingExtractOut | None, levels: dict[str, int]):
         covered: list[CoverageEntry] = []
         missing: list[CoverageEntry] = []
         for skill in extract.skills if extract else []:
@@ -112,7 +112,7 @@ class CoverLetterService:
         posting = await self._posting(posting_id)
         extract = None
         if posting.extract:
-            extract = PostingExtract.model_validate(posting.extract)
+            extract = PostingExtractOut.model_validate(posting.extract)
         levels = await self._levels(user_id)
         fit = BriefFit()
         try:
@@ -221,7 +221,7 @@ class CoverLetterService:
         if payload.length and payload.length not in LETTER_LENGTHS:
             raise ValidationError(f"Unknown length: {payload.length}")
         posting = await self._posting(cv.target_posting_id)
-        extract = PostingExtract.model_validate(posting.extract) if posting.extract else None
+        extract = PostingExtractOut.model_validate(posting.extract) if posting.extract else None
         levels = await self._levels(cv.user_id)
         counts = await self._evidence_counts(cv.user_id)
 

@@ -48,6 +48,7 @@ class BackgroundJobType(StrEnum):
     NOTIFICATION_DELIVERY = "notification_delivery"
     DEMAND_IMPORT = "demand_import"
     SKILL_RELATION_LEARN = "skill_relation_learn"
+    EMBEDDINGS_RECONCILE = "embeddings_reconcile"
 
 
 class ScheduleKind(StrEnum):
@@ -62,6 +63,7 @@ class ScheduleKind(StrEnum):
     SYSTEM_CHECKPOINT_PRUNE = "system_checkpoint_prune"
     SYSTEM_EXTENSION_RECONCILE = "system_extension_reconcile"
     SYSTEM_SKILL_RELATION_LEARN = "system_skill_relation_learn"
+    SYSTEM_EMBEDDINGS_RECONCILE = "system_embeddings_reconcile"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_RADAR_DIGEST = "user_radar_digest"
     USER_SMART_DIGEST = "user_smart_digest"

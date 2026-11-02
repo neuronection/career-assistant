@@ -44,8 +44,15 @@ import {
 } from "@/features/cv/components/cv/formPrimitives";
 import { BulkBar, SelectionToggle } from "@/features/profile/components/profile/BulkTools";
 import { EDGE_COLORS, NODE_COLORS, REVERSED_RELATIONS } from "@/features/skills/graphColors";
+import { ResolutionSection } from "@/components/settings/ResolutionSection";
 
-export type RelationSection = "queue" | "editor" | "graph" | "thresholds" | "runs";
+export type RelationSection =
+  | "queue"
+  | "editor"
+  | "graph"
+  | "thresholds"
+  | "runs"
+  | "resolution";
 
 // Exported for the taxonomy-tabs conformance tests.
 export const RELATION_TABS: readonly RelationSection[] = [
@@ -54,6 +61,7 @@ export const RELATION_TABS: readonly RelationSection[] = [
   "graph",
   "thresholds",
   "runs",
+  "resolution",
 ];
 
 export function parseRelationSection(raw: string | null): RelationSection {
@@ -845,6 +853,8 @@ export function SkillRelationsPanel({
             </div>
           </div>
         )
+      ) : section === "resolution" ? (
+        <ResolutionSection />
       ) : runs.length === 0 ? (
         <EmptyState
           icon={History}

@@ -108,7 +108,7 @@ async def test_apply_extract_v2_lifestyle_facts_and_columns(
     await db.commit()
     await db.refresh(posting)
 
-    assert posting.extract_version == EXTRACT_VERSION == 4
+    assert posting.extract_version == EXTRACT_VERSION == 5
     assert posting.employment_type == "part_time"
     facts = posting.posting_facts
     assert facts["lifestyle"]["contract_type"]["contract_type"] == "contract"
@@ -159,7 +159,7 @@ async def test_extract_skills_re_tags_a_deprecated_no_merge_row(
     extract = PostingExtract(
         skills=[
             {
-                "skill_key": "legacy-x",
+                "raw_label": "Legacy X",
                 "required_level": 4,
                 "priority": "must_have",
                 "evidence_quote": "Legacy X required",
@@ -246,7 +246,6 @@ async def test_mock_extracts_v2_cues(db, auth_headers, seeded_catalog):
             "We offer private health insurance and a learning budget."
         ),
         skills_raw=[],
-        skill_taxonomy_keys=[],
     )
     assert result.contract_type and result.contract_type.contract_type == "contract"
     assert result.work_hours and result.work_hours.pattern == "full_time"

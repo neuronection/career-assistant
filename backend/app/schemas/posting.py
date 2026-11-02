@@ -50,9 +50,12 @@ class PostingLocationOut(BaseModel):
 
 
 class PostingExtractSkillOut(BaseModel):
+    """One stored extract skill row (v5): the verbatim `raw_label` plus
+    the `skill_key` the resolution stamped (null when the label stayed a
+    proposal — the replay substrate carries both)."""
+
     skill_key: str | None = None
     raw_label: str | None = None
-    unresolved: bool | None = None
     required_level: int
     priority: str
     evidence_quote: str

@@ -1389,7 +1389,7 @@
       "interests": "Interests",
       "skills": "Skills",
       "paths": "Paths",
-      "enrichment": "Enrichment",
+      "enrichment": "Proposals",
       "translations": "Translations",
       "relations": "Relations"
     },
@@ -1451,7 +1451,8 @@
         "editor": "All relations",
         "thresholds": "Thresholds",
         "runs": "Runs",
-        "graph": "Graph"
+        "graph": "Graph",
+        "resolution": "Resolution"
       },
       "relation": {
         "is_a": "is a",
@@ -1535,7 +1536,65 @@
         "degree_one": "{{count}} relation",
         "degree_other": "{{count}} relations"
       },
-      "promotionHint": "The proposed side is a new skill awaiting promotion — accepting this edge won't activate it."
+      "promotionHint": "The proposed side is a new skill awaiting promotion — accepting this edge won't activate it.",
+      "resolution": {
+        "intro": "How deep extraction resolves raw skill labels onto the taxonomy: two-pass resolution KPIs, thresholds, and waves.",
+        "stats": {
+          "heading": "Resolution KPIs",
+          "windowsAria": "Rolling window",
+          "window": {
+            "24h": "24h",
+            "7d": "7 days",
+            "30d": "30 days"
+          },
+          "lastRunGroup": "Last run",
+          "rollingGroup": "Rolling",
+          "labels": "Labels",
+          "exact": "Exact hits",
+          "pass2": "Pass-2 matches",
+          "new": "New proposals",
+          "blocks": "Gate blocks",
+          "matchRate": "Match rate",
+          "newRate": "New rate",
+          "blockRate": "Block rate",
+          "replayRate": "Replay rate",
+          "degradeRate": "Degrade rate",
+          "runsHint_one": "{{count}} run in the window",
+          "runsHint_other": "{{count}} runs in the window",
+          "extractHint": "full extraction",
+          "replayHint": "replay",
+          "empty": "No extraction runs yet",
+          "emptyBody": "Deep extraction runs report their resolution outcome here.",
+          "failingSchedules_one": "{{count}} schedule is failing",
+          "failingSchedules_other": "{{count}} schedules are failing",
+          "openAutomations": "Open automations"
+        },
+        "thresholds": {
+          "heading": "Thresholds",
+          "intro": "Tuning knobs for the two-pass resolve pipeline — effective on the next extraction run.",
+          "field": {
+            "candidate_trigram_floor": "Trigram candidate floor",
+            "candidate_cosine_floor": "Cosine candidate floor",
+            "candidate_top_k": "Candidates per label (max 5)",
+            "dedup_trigram_bar": "Dedup gate trigram bar",
+            "dedup_cosine_bar": "Dedup gate cosine bar",
+            "corroboration_min_postings": "Postings to auto-promote",
+            "corroboration_cap": "Corroboration list cap"
+          },
+          "save": "Save thresholds",
+          "saved": "Saved."
+        },
+        "controls": {
+          "heading": "Waves",
+          "replayLabel": "Replay posting ids",
+          "replayPlaceholder": "One posting id per line (or comma-separated)",
+          "replayRun": "Replay resolution",
+          "replayReport": "Queued {{queued}} · skipped {{skipped}} · missing {{missing}}",
+          "reconcile": "Reconcile skill embeddings",
+          "reconcileReport": "Embedded {{embedded}} of {{candidates}} skills",
+          "reconcileDegraded": "Embed provider unconfigured — reconcile skipped"
+        }
+      }
     },
     "bulk": {
       "select": "Select",
@@ -1607,7 +1666,45 @@
       "discardTitle": "Discard this proposal?",
       "discardBody": "The AI proposal is deleted and cannot be restored."
     },
-    "draft": "Draft"
+    "draft": "Draft",
+    "embeddings": {
+      "sectionTitle": "Embeddings & mapping",
+      "empty": "No embeddings stored yet.",
+      "bucket": "dim {{dim}} · {{count}} vectors",
+      "recomputePosting": "Recompute postings",
+      "recomputeJob": "Recompute catalog jobs",
+      "recomputeDone": "{{kind}} recompute embedded {{count}} rows.",
+      "semanticRescue": "Semantic rescue",
+      "semanticRescueHint": "Maps with cosine only where the skill overlap missed (≥ 0.6 + a shared skill)",
+      "jobProposalsSwitch": "Job proposals",
+      "jobProposalsHint": "Unmatched postings propose a catalog job for review",
+      "switchNote": "Saved — effective on the next decision."
+    },
+    "jobProposals": {
+      "sectionTitle": "Job proposals",
+      "empty": "Postings the catalog could not match land here as job proposals after their deep extract.",
+      "apply": "Apply",
+      "dismiss": "Dismiss",
+      "applyTitle": "Create the catalog job",
+      "applyHint": "The job is created published, the posting maps as manual and the new job is embedded — all in one step.",
+      "family": "Job family",
+      "jobTitle": "Title",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "auto from the title",
+      "applyConfirm": "Create job",
+      "appliedNote": "Catalog job {{code}} created and the posting mapped.",
+      "dismissedNote": "Proposal dismissed.",
+      "applyFailed": "Applying the proposal failed.",
+      "dismissFailed": "Dismissing the proposal failed.",
+      "dismissTitle": "Dismiss this proposal?",
+      "dismissMessage": "The proposal for “{{title}}” is cleared. A later re-extract can propose again.",
+      "signalsLabel": "Closest catalog jobs",
+      "remap": "Re-decide",
+      "remapTitle": "Re-run the catalog join without re-paying the extract",
+      "remapNote": "The catalog join re-ran for this posting.",
+      "remapFailed": "Re-deciding the mapping failed.",
+      "familyPlaceholder": "Choose a job family…"
+    }
   },
   "aiSettings": {
     "loading": "Loading AI configuration…",
@@ -1993,6 +2090,34 @@
         "worldwide": "Worldwide",
         "problemsOnly": "Problems only"
       },
+      "catalogs": {
+        "title": "Preset catalogs",
+        "hint": "Layer curated ATS catalogs over the bundled presets — imported entries win by slug. Fetching happens in your browser; catalog hosts must send CORS headers.",
+        "urlPlaceholder": "https://…/catalog.json",
+        "tier": "Trust tier",
+        "tierOperator": "Operator",
+        "tierCommunity": "Community",
+        "addUrl": "Add URL",
+        "upload": "Upload JSON",
+        "empty": "No catalogs imported yet.",
+        "revision": "revision {{revision}} · checked {{date}}",
+        "refresh": "Refresh",
+        "remove": "Remove",
+        "removeTitle": "Remove catalog {{name}}?",
+        "removeBody": "Its presets leave the gallery — sources you already added are kept.",
+        "removeConfirm": "Remove catalog",
+        "reportAlreadyLatest": "Already latest — the server answered: not modified.",
+        "reportUpdated": "Updated revision {{from}} → {{to}} — {{count}} presets changed.",
+        "reportRevisionBump": "Unchanged content, revision bumped to {{revision}}.",
+        "reportUpToDate": "Already at revision {{revision}}.",
+        "reportImported": "Imported {{name}} — {{count}} presets, {{providers}} providers.",
+        "reportHttpError": "Fetch failed: HTTP {{status}}.",
+        "reportNonJson": "The response is not valid JSON.",
+        "reportInvalid": "Catalog rejected: {{detail}}",
+        "reportFetchFailed": "Fetch blocked — network error or missing CORS headers on the catalog host.",
+        "reportMixedContent": "Blocked: an https page cannot fetch an http catalog URL.",
+        "needUrl": "Provide a catalog URL first."
+      },
       "presets": {
         "title": "Add a job source",
         "subtitle": "Verified presets — one click, no configuration needed.",
@@ -2011,7 +2136,15 @@
         "openings": "{{count}} openings",
         "verified": "Verified {{date}}",
         "countryFilterAria": "Filter by country",
-        "countryAll": "All sources"
+        "countryAll": "All sources",
+        "tierAll": "All sources",
+        "tierBundled": "Bundled",
+        "tierOperator": "Operator",
+        "tierCommunity": "Community",
+        "tierUser": "User",
+        "tierFilterAria": "Filter presets by catalog tier",
+        "providersTitle": "Provider connections",
+        "providersHint": "Opens the custom source wizard with the provider's connector prefilled."
       },
       "extSources": {
         "title": "Extension sources (git import)",
@@ -5341,7 +5474,11 @@
       "postingRef": "posting {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "No recorded diff",
-      "empty": "No changes in this window"
+      "empty": "No changes in this window",
+      "remap": "Re-decide",
+      "remapHint": "re-runs the catalog join without the extract",
+      "remapDone": "The catalog join re-ran.",
+      "remapFailed": "Re-deciding failed (manual mappings are refused)."
     },
     "usage": {
       "models": "Model usage",

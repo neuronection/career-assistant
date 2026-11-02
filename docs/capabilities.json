@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-10-31",
+  "updated": "2026-11-02",
   "capabilities": [
     {
       "id": "update-checks",
@@ -36,7 +36,8 @@
       "proofs": [
         "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
         "Rich structured attributes per job: skills, salary bands, demand outlook, education",
-        "AI-generated jobs map onto the existing taxonomy — labels two postings corroborate promote themselves, the rest queue for review"
+        "AI-generated jobs map onto the existing taxonomy — two-posting labels auto-promote unless a near-duplicate active skill blocks them",
+        "Live postings map onto catalog jobs through a two-signal join — skill overlap, then a semantic rescue — each decision audit-journaled"
       ],
       "links": [
         {
@@ -178,7 +179,7 @@
     {
       "id": "live-postings",
       "verb": "Find openings on live job boards that match your profile",
-      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted into auditable data; employer names resolve to one company; card values open a click/right-click filter menu (undo).",
+      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted, employer names resolved; card menus filter with undo; catalogs layer operator/community presets.",
       "category": "integrate",
       "status": "beta",
       "links": [
@@ -278,7 +279,7 @@
         "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
         "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias, one or many",
         "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",
-        "Settings → Taxonomy curates in bulk; every skill's page (/skills/:key) adds stats, positions, subgraph and lifecycle history"
+        "Settings → Taxonomy curates in bulk and tunes extraction resolution — KPIs, thresholds, replay; /skills/:key has stats and history"
       ],
       "links": [
         {

@@ -56,6 +56,93 @@ export interface TaxonomyStats {
   };
 }
 
+/** A posting-sourced catalog-job proposal awaiting moderation (plan 185).
+ * The proposal is the extract-shaped dict the writer stored; the signals
+ * trace carries the join's raw scores for the apply-or-write-better
+ * decision. */
+export interface JobProposalRow {
+  id: string;
+  ref: string;
+  title: string;
+  org: string | null;
+  proposal: {
+    title_norm?: string;
+    short_description?: string;
+    skills?: Array<{
+      skill_key?: string | null;
+      raw_label?: string | null;
+      required_level?: number | null;
+      priority?: string | null;
+    }>;
+    seniority?: string | null;
+    extract_version?: number | null;
+    proposed_at?: string;
+  } | null;
+  proposed_at: string | null;
+  suggested_family_key: string | null;
+  mapping_signals: Record<string, unknown> | null;
+  extract_version: number | null;
+}
+
+export async function fetchJobProposals(): Promise<JobProposalRow[]> {
+  const { data } = await api.get<JobProposalRow[]>("/admin/postings/job-proposals");
+  return data;
+}
+
+/** Re-run the catalog join for one posting without paying the extract
+ * again (plan 185 S6.4). MANUAL postings are refused server-side. */
+export async function remapPosting(id: string): Promise<{ mapping_method: string | null }> {
+  const { data } = await api.post(`/admin/postings/${id}/remap`);
+  return data;
+}
+
+export interface EmbeddingBucket {
+  entity_kind: string;
+  dim: number;
+  count: number;
+}
+
+export async function fetchEmbeddingStatus(): Promise<EmbeddingBucket[]> {
+  const { data } = await api.get<EmbeddingBucket[]>("/ai/embeddings/status");
+  return data;
+}
+
+export async function recomputeEmbeddings(
+  kind: "posting" | "job",
+): Promise<{ candidates: number; embedded: number; kind: string }> {
+  const { data } = await api.post("/ai/embeddings/recompute", null, { params: { kind } });
+  return data;
+}
+
+export interface CatalogMappingSettings {
+  semantic_rescue: boolean;
+  job_proposals: boolean;
+}
+
+export async function fetchCatalogMappingSettings(): Promise<CatalogMappingSettings> {
+  const { data } = await api.get<CatalogMappingSettings>("/admin/catalog-mapping/settings");
+  return data;
+}
+
+export async function putCatalogMappingSettings(
+  patch: Partial<CatalogMappingSettings>,
+): Promise<CatalogMappingSettings> {
+  const { data } = await api.put<CatalogMappingSettings>("/admin/catalog-mapping/settings", patch);
+  return data;
+}
+
+export async function applyJobProposal(
+  id: string,
+  payload: { family_key: string; code?: string; title?: string; short_description?: string },
+): Promise<{ job_code: string }> {
+  const { data } = await api.post(`/admin/postings/${id}/job-proposal/apply`, payload);
+  return data;
+}
+
+export async function dismissJobProposal(id: string): Promise<void> {
+  await api.post(`/admin/postings/${id}/job-proposal/dismiss`);
+}
+
 export async function fetchInterests(includeDeprecated = true): Promise<Tag[]> {
   const { data } = await api.get<Tag[]>("/taxonomy/interests", {
     params: { include_deprecated: includeDeprecated },

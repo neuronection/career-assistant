@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
@@ -125,3 +126,73 @@ class SkillBulkOut(BaseModel):
 
     affected: list[UUID] = Field(default_factory=list)
     failed: list[SkillBulkFailure] = Field(default_factory=list)
+
+
+class ResolutionThresholdsIn(BaseModel):
+    """Admin overrides for `posting_resolve.thresholds` (clamped)."""
+
+    model_config = {"extra": "forbid"}
+
+    candidate_trigram_floor: float = Field(ge=0.0, le=1.0)
+    candidate_cosine_floor: float = Field(ge=0.0, le=1.0)
+    candidate_top_k: int = Field(ge=1, le=5)
+    dedup_trigram_bar: float = Field(ge=0.0, le=1.0)
+    dedup_cosine_bar: float = Field(ge=0.0, le=1.0)
+    corroboration_min_postings: int = Field(ge=1)
+    corroboration_cap: int = Field(ge=1)
+
+
+class ResolutionThresholdsOut(BaseModel):
+    """Effective resolution thresholds (constant fallbacks included)."""
+
+    candidate_trigram_floor: float
+    candidate_cosine_floor: float
+    candidate_top_k: int
+    dedup_trigram_bar: float
+    dedup_cosine_bar: float
+    corroboration_min_postings: int
+    corroboration_cap: int
+
+
+class ResolutionLastRunOut(BaseModel):
+    """The newest succeeded POSTING_EXTRACT result summary (missing or
+    mistyped counters on an old run read as defaults)."""
+
+    job_id: str | None
+    status: str | None
+    created_at: datetime | None
+    finished_at: datetime | None
+    labels: int = 0
+    exact_hits: int = 0
+    pass2_matches: int = 0
+    new_proposals: int = 0
+    gate_blocks: int = 0
+    degraded: bool = False
+    replay: bool = False
+
+
+class ResolutionRollingOut(BaseModel):
+    """Rolling sums + derived rates over the window's extract jobs."""
+
+    window: str
+    runs: int
+    replay_runs: int
+    degraded_runs: int
+    labels: int
+    exact_hits: int
+    pass2_matches: int
+    new_proposals: int
+    gate_blocks: int
+    match_rate: float
+    new_rate: float
+    block_rate: float
+    replay_rate: float
+    degrade_rate: float
+
+
+class ResolutionStatsOut(BaseModel):
+    """The Resolution section's KPI payload (plan 153 slice 4)."""
+
+    last_run: ResolutionLastRunOut
+    rolling: ResolutionRollingOut
+    failing_schedules: int

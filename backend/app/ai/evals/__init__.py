@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from app.ai.agents.posting_extractor import PostingExtract
 from app.ai.agents.skill_relation_suggest import SkillEdgeVerdictSet
+from app.ai.agents.skill_resolver import SkillResolution
 from app.ai.prompt_versions import prompt_version
 from app.ai.schemas import (
     ChatReply,
@@ -119,9 +120,10 @@ def _check_universities(extraction: UniversityExtraction) -> None:
 
 def _check_posting_extract(extract: PostingExtract) -> None:
     assert extract.title_norm == "Backend Developer"
-    assert extract.skills
+    assert [s.raw_label for s in extract.skills] == ["programming", "sql"], (
+        "verbatim pass-1 labels — docker is never mentioned in the text"
+    )
     for skill in extract.skills:
-        assert skill.skill_key or skill.raw_label
         assert 1 <= skill.required_level <= 10
         assert skill.evidence_quote
 
@@ -152,6 +154,15 @@ def _check_skill_edge_verdicts(reply: SkillEdgeVerdictSet) -> None:
     assert all(0.0 <= v.confidence <= 1.0 for v in reply.verdicts)
     assert all(v.rationale for v in reply.verdicts)
     assert "Evidence quote: ML required" in by_ref["p2"].rationale
+
+
+def _check_skill_resolution(reply: SkillResolution) -> None:
+    assert not reply.bounded
+    by_ref = {v.label_ref: v for v in reply.verdicts}
+    assert by_ref["l1"].match_key == "typescript" and not by_ref["l1"].new
+    assert by_ref["l2"].new and by_ref["l2"].match_key == ""
+    assert all(0.0 <= v.confidence <= 1.0 for v in reply.verdicts)
+    assert all(v.rationale for v in reply.verdicts)
 
 
 def _smart_search_prompt(query: str) -> tuple[str, str]:
@@ -338,6 +349,7 @@ def _build_cases() -> list[GoldenCase]:
     from app.ai.agents.posting_extractor import PostingExtract
     from app.ai.agents.prompts import CHATBOT, MATCH_SCORER, PROFILE_ANALYST, UNIVERSITY_PARSER
     from app.ai.agents.skill_relation_suggest import build_pair_prompt
+    from app.ai.agents.skill_resolver import build_labels_prompt
     from app.schemas.cv_extract import CvExtract
 
     cases = [
@@ -480,8 +492,7 @@ def _build_cases() -> list[GoldenCase]:
             user=(
                 'CONTEXT_JSON: {"title": "Backend Developer", '
                 '"posting_text": "We need programming and sql daily", '
-                '"skill_taxonomy": ["programming", "sql"], '
-                '"skills_raw": ["docker"]}'
+                '"skills_raw": ["programming", "sql", "docker"]}'
             ),
             prompt_version=_blessed(AITaskType.POSTING_EXTRACT.value),
             check=_check_posting_extract,
@@ -586,6 +597,47 @@ def _build_cases() -> list[GoldenCase]:
             ),
             prompt_version=_blessed(AITaskType.SKILL_RELATION_SUGGEST.value),
             check=_check_skill_edge_verdicts,
+        ),
+        GoldenCase(
+            task=AITaskType.POSTING_SKILL_RESOLVE.value,
+            schema=SkillResolution,
+            system=(
+                "Judge each raw skill label against its own candidate keys: "
+                "the same skill copies the candidate's key exactly, a "
+                "distinct-but-related or unmatched label answers new."
+            ),
+            user=build_labels_prompt(
+                [
+                    {
+                        "label_ref": "l1",
+                        "raw_label": "typescript",
+                        "candidates": [
+                            {
+                                "key": "typescript",
+                                "label": "TypeScript",
+                                "aliases": ["ts"],
+                                "score": 1.0,
+                                "signal": "exact",
+                            }
+                        ],
+                    },
+                    {
+                        "label_ref": "l2",
+                        "raw_label": "clojure",
+                        "candidates": [
+                            {
+                                "key": "javascript",
+                                "label": "JavaScript",
+                                "aliases": ["js"],
+                                "score": 0.21,
+                                "signal": "trigram",
+                            }
+                        ],
+                    },
+                ]
+            ),
+            prompt_version=_blessed(AITaskType.POSTING_SKILL_RESOLVE.value),
+            check=_check_skill_resolution,
         ),
     ]
     planner_system, planner_user = _autopilot_planner_prompt()

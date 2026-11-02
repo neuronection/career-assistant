@@ -22,6 +22,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 MODULES = {
     "postings_service": "app/services/postings/postings_service.py",
     "extract_service": "app/services/postings/extract_service.py",
+    "job_proposal_service": "app/services/postings/job_proposal_service.py",
     "detail_service": "app/services/postings/detail_service.py",
     "organization_service": "app/services/catalog/organization_service.py",
     "company_triage_service": "app/services/catalog/company_triage_service.py",
@@ -33,11 +34,18 @@ MANIFEST: dict[str, dict[str, str]] = {
     "postings_service": {
         "upsert_posting": "sync_run",
         "map_posting": "retag",
+        "decide_catalog": "retag",
         "expire_stale": "expiry",
     },
     "extract_service": {
         "apply_extract": "extract_llm",
         "_apply_extract_skills": "extract_llm",
+        "replay_posting_resolution": "extract_llm",
+    },
+    "job_proposal_service": {
+        "store_job_proposal": "extract_llm",
+        "dismiss": "manual",
+        "apply": "manual",
     },
     "detail_service": {
         "merge_detail": "detail_fetch",

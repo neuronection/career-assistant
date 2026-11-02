@@ -1,0 +1,478 @@
+"""The HITL job proposal (plan 185): a posting the catalog join cannot
+answer lands as a structured proposal in ``posting_facts["job_proposal"]``
+— an admin applies it (creates the published catalog Job from the extract,
+maps the posting MANUAL, embeds the new job — one transaction) or dismisses
+it. The lifecycle mirrors the archetype enrichment precedent exactly:
+dismissal stores an explicit JSON ``null`` under the key (+ a timestamp
+sibling), so the pending filter is the JSON-TYPE test, never presence —
+``jsonb_typeof`` on PostgreSQL, ``json_type`` on SQLite (presence lies on
+both dialects in opposite directions).
+
+The writer never fires autonomously outside the extract flow: a Job is a
+family-tree node with fit scoring, demand stats and a public /catalog page
+— creation is admin-gated (ADR-0015 is not engaged; this is the admin
+moderation surface, not a chat proposal card)."""
+
+import re
+import uuid
+from datetime import UTC, datetime
+
+from sqlalchemy import case, func, select, text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
+
+from app.core.errors import NotFoundError
+from app.models.enums import JobSkillImportance, JobSource
+from app.models.job_model import Job, JobFamily, JobSkill
+from app.models.posting_model import JobPosting, PostingSkill
+from app.models.taxonomy_model import Skill
+from app.services.postings.change_journal import (
+    RETAG_FIELDS,
+    PostingChangeJournal,
+    snapshot,
+)
+
+#: The extract must be rich enough to seed a catalog page: a kept title
+#: and at least this many kept skills.
+MIN_PROPOSAL_SKILLS = 3
+
+#: The proposal's short description cap (the extract's description_clean).
+DESCRIPTION_CAP = 500
+
+#: The catalog job contract's skill-link cap (`JobCreate.skills`
+#: max_length=15) — an apply keeps the best 15, must-have first.
+MAX_JOB_SKILLS = 15
+
+#: Extract priority → catalog importance (pinned in tests): the
+#: must-have end of the extract maps onto the catalog's core tier.
+PRIORITY_TO_IMPORTANCE = {
+    "must_have": JobSkillImportance.CORE,
+    "nice_to_have": JobSkillImportance.IMPORTANT,
+    "bonus": JobSkillImportance.BONUS,
+}
+
+
+def proposal_of(posting: JobPosting) -> dict | None:
+    value = (posting.posting_facts or {}).get("job_proposal")
+    return value if isinstance(value, dict) else None
+
+
+def pending_predicate(dialect_name: str):
+    """Rows carrying a live job proposal, filtered in the database.
+
+    The key's JSON *type* decides it, not mere presence: dismissal stores
+    an explicit JSON ``null`` under the same key (``job_proposal_rejected_at``
+    / ``job_proposal_applied_at`` keep the audit trail), so a presence test
+    would resurrect discarded proposals on PostgreSQL while SQLite's
+    NULL-extracting accessor hid the divergence. ``object`` is the only
+    live shape — the writer stores validated, non-empty proposals.
+    """
+    if dialect_name == "postgresql":
+        return text("jsonb_typeof(posting_facts -> 'job_proposal') = 'object'")
+    return text("json_type(posting_facts, '$.job_proposal') = 'object'")
+
+
+# The archetype title is LEVEL-GENERIC: seniority is a posting-level fact
+# (the extract carries it separately; fit/demand stats attach to the
+# archetype), so seniority qualifiers are stripped from the proposed
+# catalog job's default title — "Senior Data Engineer" proposes
+# "Data Engineer". The closed extract vocabulary + the common
+# abbreviations; prefix-only, hyphenated compounds ("Mid-Level") survive.
+_SENIORITY_TITLE_PREFIX = re.compile(
+    r"^(?:(?:senior|junior|lead|principal|intern|mid|sr|jr)\.?\s+)+",
+    re.IGNORECASE,
+)
+
+
+def generic_archetype_title(title: str) -> str:
+    """Strip leading seniority qualifiers; keep the original when the
+    remainder would be empty or trivially short."""
+    stripped = _SENIORITY_TITLE_PREFIX.sub("", title).strip()
+    if len(stripped) >= 3:
+        return stripped
+    return title
+
+
+#: Residual section labels some boards/extracts leave at the head of a
+#: title or description ("Job Title: Senior Data Engineer"). Stripped at
+#: the START of the string only — the same words mid-text are content.
+_LABEL_PREFIX = re.compile(
+    r"^(?:job\s*title|job\s*description|vacancy|position|role"
+    r"|job\s*location|main\s*responsibilities|about\s+the\s+role)"
+    r"\s*[:\-\u2013\u2014]\s*",
+    re.IGNORECASE,
+)
+
+_SENTENCE_END = (". ", "! ", "? ", ".\n", "!\n", "?\n")
+
+
+def _strip_label_prefixes(text: str) -> str:
+    while True:
+        stripped = _LABEL_PREFIX.sub("", text).strip()
+        if stripped == text or not stripped:
+            return stripped or text
+        text = stripped
+
+
+def _sentence_cap(text: str, cap: int = DESCRIPTION_CAP) -> str:
+    """Truncate at the last sentence end inside the cap (never mid-word);
+    a text with no sentence end inside the cap cuts at the last space."""
+    if len(text) <= cap:
+        return text
+    cut = text[:cap]
+    best = -1
+    for sep in (". ", "! ", "? ", ".\n", "!\n", "?\n"):
+        best = max(best, cut.rfind(sep))
+    if best >= 0:
+        return cut[: best + 1].strip()
+    return cut[: cut.rfind(" ")].strip() if " " in cut else cut
+
+
+async def store_job_proposal(
+    db: AsyncSession, posting: JobPosting, *, actor_ref: dict | None = None
+) -> bool:
+    """S4.1 — the proposal writer, called from the extract flow AFTER the
+    catalog re-decision: only an unmapped posting with a rich enough
+    extract proposes (a level-generic ``title_norm`` + ≥ ``MIN_PROPOSAL_SKILLS``
+    kept skills). Fresh postings without an extract never reach this (the
+    caller is the extract flow); a live proposal stands — a re-extract
+    with a still-unmapped verdict does not clobber the pending item an
+    admin may be reading. Returns whether a proposal was stored."""
+    if posting.mapping_method is not None:
+        return False
+    from app.services.postings.catalog_settings import job_proposals_enabled
+
+    if not await job_proposals_enabled(db):
+        return False
+    facts = {**(posting.posting_facts or {})}
+    if isinstance(facts.get("job_proposal"), dict):
+        return False
+    extract = posting.extract or {}
+    title = _strip_label_prefixes(str(extract.get("title_norm") or "").strip())
+    skills = [
+        skill
+        for skill in extract.get("skills") or []
+        if isinstance(skill, dict) and (skill.get("skill_key") or skill.get("raw_label"))
+    ]
+    if not title or len(skills) < MIN_PROPOSAL_SKILLS:
+        return False
+    from app.services.postings.change_journal import facts_summary
+
+    # The catalog-side surface standardizes: the extract's canonical-language
+    # summary when present, else the native description_clean — either way
+    # without residual section labels and never cut mid-sentence.
+    summary_source = str(extract.get("catalog_summary") or "").strip()
+    if not summary_source:
+        summary_source = str(extract.get("description_clean") or "").strip()
+    summary_source = _strip_label_prefixes(summary_source)
+    short_description = _sentence_cap(" ".join(summary_source.split()))
+
+    before = {"facts_summary": facts_summary(posting)}
+    facts["job_proposal"] = {
+        "title_norm": generic_archetype_title(title)[:200],
+        "posting_title": title[:200],
+        "short_description": short_description,
+        "skills": [
+            {
+                "skill_key": skill.get("skill_key"),
+                "raw_label": skill.get("raw_label"),
+                "required_level": skill.get("required_level"),
+                "priority": skill.get("priority"),
+            }
+            for skill in skills
+        ],
+        "seniority": extract.get("seniority"),
+        "extract_version": posting.extract_version,
+        "proposed_at": datetime.now(UTC).isoformat(),
+    }
+    posting.posting_facts = facts
+    flag_modified(posting, "posting_facts")
+    PostingChangeJournal.record(
+        db,
+        posting.id,
+        "extract_llm",
+        actor_ref=actor_ref,
+        operation={"job_proposal": "stored"},
+        before=before,
+        after={"facts_summary": facts_summary(posting)},
+    )
+    return True
+
+
+class JobProposalService:
+    """Moderation for posting-sourced catalog job proposals."""
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def pending(self, limit: int = 50) -> list[JobPosting]:
+        """Postings with a live proposal that the join still could not
+        answer — a posting the re-decision has since mapped (e.g. via the
+        remap action) leaves the queue; applying there would fork the
+        catalog and stomp the fresh map."""
+        rows = await self.db.execute(
+            select(JobPosting)
+            .where(
+                pending_predicate(self.db.get_bind().dialect.name),
+                JobPosting.mapping_method.is_(None),
+            )
+            .order_by(JobPosting.created_at, JobPosting.id)
+            .limit(limit)
+        )
+        return list(rows.scalars().all())
+
+    async def family_suggestions(self, postings: list[JobPosting]) -> dict[uuid.UUID, str | None]:
+        """Deterministic family preselect per proposal (the apply dialog's
+        default, never an autonomous write): the posting's resolved skills
+        against each family's published jobs' skill links, weighted by the
+        link's importance AND inverse family-frequency — generic soft
+        skills (writing, teamwork, problem-solving) are linked by nearly
+        every family and must not outvote the discriminative ones (jira,
+        incident management, sql). ``None`` when nothing covers the
+        posting — the picker then starts empty instead of guessing."""
+        if not postings:
+            return {}
+        skill_rows = await self.db.execute(
+            select(PostingSkill.posting_id, PostingSkill.skill_id).where(
+                PostingSkill.posting_id.in_([p.id for p in postings])
+            )
+        )
+        skills_by_posting: dict[uuid.UUID, set[uuid.UUID]] = {}
+        for posting_id, skill_id in skill_rows:
+            skills_by_posting.setdefault(posting_id, set()).add(skill_id)
+        all_skills = {sid for ids in skills_by_posting.values() for sid in ids}
+        family_scores: dict[str, dict[uuid.UUID, float]] = {}
+        family_frequency: dict[uuid.UUID, int] = {}
+        if all_skills:
+            weight = case(
+                (JobSkill.importance == JobSkillImportance.CORE.value, 3.0),
+                (JobSkill.importance == JobSkillImportance.IMPORTANT.value, 2.0),
+                else_=1.0,
+            ).label("weight")
+            covered = await self.db.execute(
+                select(JobFamily.key, JobSkill.skill_id, weight)
+                .join(Job, Job.id == JobSkill.job_id)
+                .join(JobFamily, JobFamily.id == Job.family_id)
+                .where(Job.status == "published", JobSkill.skill_id.in_(all_skills))
+            )
+            for family_key, skill_id, w in covered:
+                by_skill = family_scores.setdefault(family_key, {})
+                by_skill[skill_id] = max(float(w), by_skill.get(skill_id, 0.0))
+            frequency = await self.db.execute(
+                select(JobSkill.skill_id, func.count(func.distinct(Job.family_id)))
+                .join(Job, Job.id == JobSkill.job_id)
+                .where(Job.status == "published", JobSkill.skill_id.in_(all_skills))
+                .group_by(JobSkill.skill_id)
+            )
+            family_frequency = {skill_id: int(count) for skill_id, count in frequency}
+        suggestions: dict[uuid.UUID, str | None] = {}
+        for posting in postings:
+            ids = skills_by_posting.get(posting.id) or set()
+            ranked: list[tuple[str, float, int]] = []
+            for family_key in sorted(family_scores):
+                shared = [(sid, w) for sid, w in family_scores[family_key].items() if sid in ids]
+                if not shared:
+                    continue
+                score = sum(w / max(family_frequency.get(sid, 1), 1) for sid, w in shared)
+                ranked.append((family_key, score, len(shared)))
+            ranked.sort(key=lambda entry: (-entry[1], entry[0]))
+            best: str | None = None
+            if ranked:
+                best_key, best_score, shared_count = ranked[0]
+                runner_up = ranked[1][1] if len(ranked) > 1 else 0.0
+                # Only suggest on decisive evidence: at least TWO shared
+                # skills (one coincidental match is noise in a sparse
+                # catalog), a score floor, and a clear margin over the
+                # runner-up. Generic-only overlap that ties across
+                # families (writing/teamwork) stays silent — the picker
+                # starts empty and the admin decides.
+                if shared_count >= 2 and best_score >= 1.0 and best_score >= 1.5 * runner_up:
+                    best = best_key
+            suggestions[posting.id] = best
+        return suggestions
+
+    async def require_pending_posting(self, posting_id) -> JobPosting:
+        posting = (
+            (await self.db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
+            .scalars()
+            .first()
+        )
+        if (
+            posting is None
+            or posting.mapping_method is not None
+            or not isinstance((posting.posting_facts or {}).get("job_proposal"), dict)
+        ):
+            raise NotFoundError("No job proposal pending for this posting")
+        return posting
+
+    async def dismiss(self, posting: JobPosting, *, user) -> JobPosting:
+        """Discard the proposal: explicit JSON null + the audit timestamp.
+        Journals as ``manual`` (the writer seam) — the diff is the facts
+        projection's proposal size dropping to 0."""
+        from app.services.postings.change_journal import facts_summary
+
+        before = {"facts_summary": facts_summary(posting)}
+        facts = {**(posting.posting_facts or {})}
+        facts["job_proposal"] = None
+        facts["job_proposal_rejected_at"] = datetime.now(UTC).isoformat()
+        posting.posting_facts = facts
+        flag_modified(posting, "posting_facts")
+        PostingChangeJournal.record(
+            self.db,
+            posting.id,
+            "manual",
+            actor_ref={"user_id": str(user.id)} if user is not None else None,
+            operation={"job_proposal": "dismissed"},
+            before=before,
+            after={"facts_summary": facts_summary(posting)},
+        )
+        await self.db.commit()
+        await self.db.refresh(posting)
+        return posting
+
+    async def apply(
+        self,
+        posting: JobPosting,
+        *,
+        family_key: str,
+        code: str | None = None,
+        title: str | None = None,
+        short_description: str | None = None,
+        user,
+    ) -> Job:
+        """Apply the proposal: create the PUBLISHED catalog job from the
+        extract (the admin applying it to the public catalog IS the act of
+        publishing — a draft would be invisible to the recompute, the
+        semantic filter and every /catalog consumer), map the posting
+        MANUAL, clear the proposal and embed the new job — ONE transaction.
+
+        The code is slugified + deduped CALLER-side (``JobService.create``
+        passes it verbatim); skills map onto ``JobSkillIn`` through
+        ``PRIORITY_TO_IMPORTANCE``, resolved keys only.
+        """
+        from sqlalchemy.orm import joinedload
+
+        from app.ai.agents.job_generator import _slugify
+        from app.schemas.job import JobCreate, JobSkillIn
+        from app.services.catalog.job_service import JobService
+        from app.services.embedding_service import (
+            KIND_JOB,
+            EmbeddingService,
+            compose_job_text,
+        )
+
+        proposal = proposal_of(posting)
+        if not proposal:
+            raise NotFoundError("No job proposal pending for this posting")
+
+        base = _slugify(code or str(proposal.get("title_norm") or "")) or "proposed-role"
+        taken = set(
+            (await self.db.execute(select(Job.code).where(Job.code.like(f"{base}%")))).scalars()
+        )
+        final_code = base
+        suffix = 2
+        while final_code in taken:
+            final_code = f"{base}-{suffix}"
+            suffix += 1
+
+        skill_keys = [
+            str(skill["skill_key"])
+            for skill in proposal.get("skills") or []
+            if isinstance(skill, dict) and skill.get("skill_key")
+        ]
+        resolved: dict[str, Skill] = {}
+        if skill_keys:
+            rows = await self.db.execute(
+                select(Skill).where(Skill.key.in_(skill_keys), Skill.status == "active")
+            )
+            resolved = {skill.key: skill for skill in rows.scalars().all()}
+        # The catalog contract caps a job at 15 skill links (JobCreate) —
+        # keep the BEST 15: must-have first, then the strongest level, then
+        # the key for determinism.
+        priority_rank = {"must_have": 0, "nice_to_have": 1, "bonus": 2}
+        proposed = [
+            skill
+            for skill in proposal.get("skills") or []
+            if isinstance(skill, dict)
+            and skill.get("skill_key")
+            and str(skill["skill_key"]) in resolved
+        ]
+        proposed.sort(
+            key=lambda skill: (
+                priority_rank.get(str(skill.get("priority") or ""), 3),
+                -int(skill.get("required_level") or 0),
+                str(skill["skill_key"]),
+            )
+        )
+        best_per_key: dict[str, dict] = {}
+        for skill in proposed:
+            best_per_key.setdefault(str(skill["skill_key"]), skill)
+        job_skills = [
+            JobSkillIn(
+                skill_key=str(skill["skill_key"]),
+                required_level=int(skill.get("required_level") or 5),
+                importance=PRIORITY_TO_IMPORTANCE.get(
+                    str(skill.get("priority") or ""), JobSkillImportance.IMPORTANT
+                ),
+            )
+            for skill in list(best_per_key.values())[:MAX_JOB_SKILLS]
+        ]
+
+        job = await JobService(self.db).create(
+            JobCreate(
+                code=final_code,
+                title=(title or str(proposal.get("title_norm") or "Proposed role"))[:160],
+                family_key=family_key,
+                short_description=(
+                    short_description or str(proposal.get("short_description") or "")
+                )[:2000],
+                skills=job_skills,
+            ),
+            user,
+            source=JobSource.AI.value,
+            status="published",
+            commit=False,
+        )
+
+        facts = {**(posting.posting_facts or {})}
+        facts["job_proposal"] = None
+        facts["job_proposal_applied_at"] = datetime.now(UTC).isoformat()
+        facts["job_proposal_applied_code"] = job.code
+        posting.posting_facts = facts
+        flag_modified(posting, "posting_facts")
+        before_map = snapshot(posting, RETAG_FIELDS)
+        posting.catalog_job_id = job.id
+        posting.mapping_method = "manual"
+        posting.mapping_confidence = 1.0
+        posting.mapping_reason = f"mapped by applying the job proposal ({job.code})"
+        posting.status = "mapped"
+        PostingChangeJournal.record(
+            self.db,
+            posting.id,
+            "manual",
+            actor_ref={"user_id": str(user.id)} if user is not None else None,
+            operation={"job_proposal": "applied", "catalog_job_code": job.code},
+            before=before_map,
+            after=snapshot(posting, RETAG_FIELDS),
+        )
+
+        links = (
+            (
+                await self.db.execute(
+                    select(JobSkill)
+                    .options(joinedload(JobSkill.skill))
+                    .where(JobSkill.job_id == job.id)
+                )
+            )
+            .scalars()
+            .unique()
+            .all()
+        )
+        text_surface = compose_job_text(job, links)
+        if text_surface.strip():
+            await EmbeddingService(self.db).upsert_embedding(
+                KIND_JOB, job.id, text_surface, commit=False
+            )
+        await self.db.commit()
+        await self.db.refresh(posting)
+        return job

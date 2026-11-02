@@ -48,7 +48,7 @@ async def _extracted(db, source, external_id: str, extract_overrides: dict | Non
         ],
         "skills": [
             ExtractSkill(
-                skill_key="programming",
+                raw_label="programming",
                 required_level=8,
                 priority="must_have",
                 evidence_quote="strong programming required",

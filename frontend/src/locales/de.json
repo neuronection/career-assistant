@@ -1389,7 +1389,7 @@
       "interests": "Interessen",
       "skills": "Fähigkeiten",
       "paths": "Pfade",
-      "enrichment": "Ergänzung",
+      "enrichment": "Vorschläge",
       "translations": "Übersetzungen",
       "relations": "Relationen"
     },
@@ -1451,7 +1451,8 @@
         "editor": "Alle Relationen",
         "thresholds": "Schwellenwerte",
         "runs": "Läufe",
-        "graph": "Graph"
+        "graph": "Graph",
+        "resolution": "Auflösung"
       },
       "relation": {
         "is_a": "ist ein",
@@ -1535,7 +1536,65 @@
         "degree_one": "{{count}} Relation",
         "degree_other": "{{count}} Relationen"
       },
-      "promotionHint": "Die vorgeschlagene Seite ist eine neue Fertigkeit, die noch befördert werden muss — das Akzeptieren dieser Kante aktiviert sie nicht."
+      "promotionHint": "Die vorgeschlagene Seite ist eine neue Fertigkeit, die noch befördert werden muss — das Akzeptieren dieser Kante aktiviert sie nicht.",
+      "resolution": {
+        "intro": "Wie die Tiefe-Extraktion rohe Skill-Labels auf die Taxonomie abbildet: KPIs der Zweipass-Auflösung, Schwellenwerte und Wellen.",
+        "stats": {
+          "heading": "Auflösungs-KPIs",
+          "windowsAria": "Rollierendes Zeitfenster",
+          "window": {
+            "24h": "24 Std.",
+            "7d": "7 Tage",
+            "30d": "30 Tage"
+          },
+          "lastRunGroup": "Letzter Lauf",
+          "rollingGroup": "Rollierend",
+          "labels": "Labels",
+          "exact": "Exakte Treffer",
+          "pass2": "Pass-2-Treffer",
+          "new": "Neue Vorschläge",
+          "blocks": "Gate-Blockierungen",
+          "matchRate": "Trefferquote",
+          "newRate": "Neu-Quote",
+          "blockRate": "Blockierquote",
+          "replayRate": "Replay-Quote",
+          "degradeRate": "Degradierungsquote",
+          "runsHint_one": "{{count}} Lauf im Zeitfenster",
+          "runsHint_other": "{{count}} Läufe im Zeitfenster",
+          "extractHint": "volle Extraktion",
+          "replayHint": "Replay",
+          "empty": "Noch keine Extraktionsläufe",
+          "emptyBody": "Läufe der Tiefe-Extraktion melden hier ihr Auflösungsergebnis.",
+          "failingSchedules_one": "{{count}} Zeitplan schlägt fehl",
+          "failingSchedules_other": "{{count}} Zeitpläne schlagen fehl",
+          "openAutomations": "Automatisierungen öffnen"
+        },
+        "thresholds": {
+          "heading": "Schwellenwerte",
+          "intro": "Stellschrauben der Zweipass-Auflösung — wirksam ab dem nächsten Extraktionslauf.",
+          "field": {
+            "candidate_trigram_floor": "Trigramm-Kandidatenuntergrenze",
+            "candidate_cosine_floor": "Kosinus-Kandidatenuntergrenze",
+            "candidate_top_k": "Kandidaten pro Label (max. 5)",
+            "dedup_trigram_bar": "Dedup-Gate Trigramm-Grenze",
+            "dedup_cosine_bar": "Dedup-Gate Kosinus-Grenze",
+            "corroboration_min_postings": "Postings bis zur Auto-Promotion",
+            "corroboration_cap": "Limit der Korroborationsliste"
+          },
+          "save": "Schwellenwerte speichern",
+          "saved": "Gespeichert."
+        },
+        "controls": {
+          "heading": "Wellen",
+          "replayLabel": "Posting-IDs zum Replay",
+          "replayPlaceholder": "Eine Posting-ID pro Zeile (oder kommagetrennt)",
+          "replayRun": "Auflösung wiederholen",
+          "replayReport": "Eingereiht {{queued}} · übersprungen {{skipped}} · fehlend {{missing}}",
+          "reconcile": "Skill-Embeddings abgleichen",
+          "reconcileReport": "{{embedded}} von {{candidates}} Skills eingebettet",
+          "reconcileDegraded": "Embed-Anbieter nicht konfiguriert — Abgleich übersprungen"
+        }
+      }
     },
     "bulk": {
       "select": "Auswählen",
@@ -1607,7 +1666,45 @@
       "discardTitle": "Diesen Vorschlag verwerfen?",
       "discardBody": "Der KI-Vorschlag wird gelöscht und kann nicht wiederhergestellt werden."
     },
-    "draft": "Entwurf"
+    "draft": "Entwurf",
+    "embeddings": {
+      "sectionTitle": "Embeddings & Zuordnung",
+      "empty": "Noch keine Embeddings gespeichert.",
+      "bucket": "Dim {{dim}} · {{count}} Vektoren",
+      "recomputePosting": "Anzeigen neu einbetten",
+      "recomputeJob": "Katalogjobs neu einbetten",
+      "recomputeDone": "{{kind}}-Recompute hat {{count}} Zeilen eingebettet.",
+      "semanticRescue": "Semantische Rettung",
+      "semanticRescueHint": "Ordnet per Kosinus nur dort, wo die Skill-Überschneidung versagt hat (≥ 0,6 + gemeinsamer Skill)",
+      "jobProposalsSwitch": "Stellenvorschläge",
+      "jobProposalsHint": "Nicht zugeordnete Anzeigen schlagen eine Katalogposition zur Prüfung vor",
+      "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."
+    },
+    "jobProposals": {
+      "sectionTitle": "Stellenvorschläge",
+      "empty": "Stellenanzeigen, die der Katalog nicht zuordnen konnte, erscheinen nach der Tiefenextraktion hier als Stellenvorschläge.",
+      "apply": "Übernehmen",
+      "dismiss": "Verwerfen",
+      "applyTitle": "Katalogjob anlegen",
+      "applyHint": "Der Job wird veröffentlicht angelegt, die Stellenanzeige manuell zugeordnet und der neue Job eingebettet — alles in einem Schritt.",
+      "family": "Jobfamilie",
+      "jobTitle": "Titel",
+      "jobCode": "Code (optional)",
+      "jobCodePlaceholder": "automatisch aus dem Titel",
+      "applyConfirm": "Job anlegen",
+      "appliedNote": "Katalogjob {{code}} angelegt, die Anzeige zugeordnet.",
+      "dismissedNote": "Vorschlag verworfen.",
+      "applyFailed": "Die Übernahme des Vorschlags ist fehlgeschlagen.",
+      "dismissFailed": "Das Verwerfen des Vorschlags ist fehlgeschlagen.",
+      "dismissTitle": "Diesen Vorschlag verwerfen?",
+      "dismissMessage": "Der Vorschlag für „{{title}}“ wird gelöscht. Eine spätere Neuextraktion kann ihn erneut vorschlagen.",
+      "signalsLabel": "Nächste Katalogjobs",
+      "remap": "Neu entscheiden",
+      "remapTitle": "Katalog-Join erneut ausführen, ohne die Extraktion erneut zu berechnen",
+      "remapNote": "Der Katalog-Join wurde für diese Anzeige neu ausgeführt.",
+      "remapFailed": "Die neue Zuordnungsentscheidung ist fehlgeschlagen.",
+      "familyPlaceholder": "Jobfamilie wählen…"
+    }
   },
   "aiSettings": {
     "loading": "KI-Konfiguration wird geladen…",
@@ -1993,6 +2090,34 @@
         "worldwide": "Weltweit",
         "problemsOnly": "Nur Probleme"
       },
+      "catalogs": {
+        "title": "Vorlagenkataloge",
+        "hint": "Kuratierte ATS-Kataloge über den mitgelieferten Vorlagen — importierte Einträge gewinnen per Slug. Das Laden erfolgt im Browser; Katalog-Hosts müssen CORS-Header senden.",
+        "urlPlaceholder": "https://…/katalog.json",
+        "tier": "Vertrauensstufe",
+        "tierOperator": "Betreiber",
+        "tierCommunity": "Community",
+        "addUrl": "URL hinzufügen",
+        "upload": "JSON hochladen",
+        "empty": "Noch keine Kataloge importiert.",
+        "revision": "Revision {{revision}} · geprüft {{date}}",
+        "refresh": "Aktualisieren",
+        "remove": "Entfernen",
+        "removeTitle": "Katalog {{name}} entfernen?",
+        "removeBody": "Seine Vorlagen verschwinden aus der Galerie — bereits hinzugefügte Quellen bleiben.",
+        "removeConfirm": "Katalog entfernen",
+        "reportAlreadyLatest": "Bereits aktuell — der Server antwortete: nicht verändert.",
+        "reportUpdated": "Revision {{from}} → {{to}} aktualisiert — {{count}} Vorlagen geändert.",
+        "reportRevisionBump": "Unveränderter Inhalt, Revision auf {{revision}} erhöht.",
+        "reportUpToDate": "Bereits auf Revision {{revision}}.",
+        "reportImported": "{{name}} importiert — {{count}} Vorlagen, {{providers}} Anbieter.",
+        "reportHttpError": "Abruf fehlgeschlagen: HTTP {{status}}.",
+        "reportNonJson": "Die Antwort ist kein gültiges JSON.",
+        "reportInvalid": "Katalog abgelehnt: {{detail}}",
+        "reportFetchFailed": "Abruf blockiert — Netzwerkfehler oder fehlende CORS-Header beim Katalog-Host.",
+        "reportMixedContent": "Blockiert: Eine https-Seite kann keine http-Katalog-URL laden.",
+        "needUrl": "Zuerst eine Katalog-URL angeben."
+      },
       "presets": {
         "title": "Job-Quelle hinzufügen",
         "subtitle": "Verifizierte Vorlagen — ein Klick, keine Konfiguration nötig.",
@@ -2011,7 +2136,15 @@
         "openings": "{{count}} offene Stellen",
         "verified": "Verifiziert {{date}}",
         "countryFilterAria": "Nach Land filtern",
-        "countryAll": "Alle Quellen"
+        "countryAll": "Alle Quellen",
+        "tierAll": "Alle Quellen",
+        "tierBundled": "Enthalten",
+        "tierOperator": "Betreiber",
+        "tierCommunity": "Community",
+        "tierUser": "Nutzer",
+        "tierFilterAria": "Voreinstellungen nach Katalog-Stufe filtern",
+        "providersTitle": "Provider-Anbindungen",
+        "providersHint": "Öffnet den Quell-Assistenten mit vorausgefülltem Connector."
       },
       "extSources": {
         "title": "Erweiterte Quellen (git import)",
@@ -5340,7 +5473,11 @@
       "postingRef": "Angebot {{id}}",
       "operationLabel": "Operation — ",
       "noDiff": "Kein Diff aufgezeichnet",
-      "empty": "Keine Änderungen in diesem Zeitraum"
+      "empty": "Keine Änderungen in diesem Zeitraum",
+      "remap": "Neu entscheiden",
+      "remapHint": "führt den Katalog-Join ohne die Extraktion erneut aus",
+      "remapDone": "Der Katalog-Join wurde neu ausgeführt.",
+      "remapFailed": "Neu entscheiden fehlgeschlagen (manuelle Zuordnungen werden abgelehnt)."
     },
     "usage": {
       "models": "Modellnutzung",

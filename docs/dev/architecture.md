@@ -325,6 +325,55 @@ There is no side door around it.
   registers the email/webhook dispatchers without a schema change.
   SMS is a stated non-goal; nothing reserves a slot for it.
 
+## Deep extraction pipeline (extraction v5)
+
+- **Two speeds, one queue.** The sync path's fast alias/keyword mapping
+  stays as it was; the queued deep pass
+  (`app/services/postings/extract_service.py`, `POSTING_EXTRACT`) is two
+  bounded gateway calls. **Pass 1** is taxonomy-blind: the prompt carries
+  no skill catalog and emits verbatim `raw_label`s with level, priority and
+  evidence — honest
+  new-skill discovery instead of model-echoed keys. **Pass 2**
+  (`POSTING_SKILL_RESOLVE`, fast tier, `app/ai/agents/skill_resolver.py`)
+  is one batched adjudication per posting — `match_key | new` for each
+  label against that label's own candidate list; a returned key outside
+  the offered set degrades to `new`.
+- **Deterministic candidate matcher**
+  (`app/services/postings/skill_candidates.py`). Top-k candidates (at most
+  5) come from the exact `_taxonomy_index` claim first (terminal; the
+  plan-138 precedence law —
+  deprecated rows are unmatched-exact fallbacks, never shadows), then
+  in-repo trigram similarity over key/label/aliases, then skill-embedding
+  cosine as a **ranking signal only** (missing/degraded vectors leave the
+  lexical order intact). Proposed rows are full candidates, so a label can
+  corroborate a still-proposed skill.
+- **Apply, then promote.** Exact hits resolve without an AI call; matched
+  keys tag `posting_skills` (level/priority from pass 1); unmatched labels
+  go through the existing `propose()` seam and plan-147 corroboration. The
+  corroborated auto-promote loop runs **after** the apply transaction
+  commits (`TaxonomyService.promote` commits on its own terms), behind the
+  near-duplicate dedup gate: an active skill at/above the trigram or
+  cosine bar keeps the row proposed and stamps
+  `provenance["auto_promote_blocked"]` — never auto-merged.
+- **Stored shape and replay.** `posting.extract["skills"]` entries keep
+  both `raw_label` and `skill_key` (null when new) plus bounded
+  `resolution` provenance (`via` = exact|pass2|new, ≤5 candidates, verdict
+  confidence); `EXTRACT_VERSION = 5`. A `POSTING_EXTRACT` payload with
+  `mode: "resolve"` re-runs only the matcher + pass 2 over those stored
+  labels, journaled as `extract_llm` with `operation.replay`, so taxonomy
+  merges and promotions replay without pass-1 spend; pre-v5 rows carry no
+  replayable `raw_label` and re-extract on demand.
+- **Observability and tuning.** Job results carry `labels`, `exact_hits`,
+  `pass2_matches`, `new_proposals`, `gate_blocks`, `degraded` and `replay`;
+  `GET /admin/taxonomy/resolution/stats` aggregates the last run and
+  rolling rates from `background_jobs.result` on both dialects. The admin
+  `/settings/taxonomy` **Relations → Resolution** section edits the
+  `posting_resolve.thresholds` `AppSetting` (candidate floors, top-k,
+  dedup bars, corroboration minimum/cap) and enqueues bulk replays
+  (`/admin/postings/replay`). Skill vectors live in the existing
+  `ai_embeddings` store as `entity_kind="skill"` (key+label+aliases;
+  content-hash reconciled in a batch, no pgvector dependency).
+
 ## Postings & Explore read path
 
 - **Filtering and paging happen in SQL** (`app/services/postings/explore_service.py`,

@@ -465,6 +465,45 @@ retrieval (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine
 rankings over the hard-filtered candidate set in Explore's relevance sort —
 **semantic is a ranking signal, never a filter gate**.
 
+## The hybrid catalog mapping (plan 185)
+
+The ingest decision is a **join of two signals** over the posting's
+resolved skills, evaluated at BOTH decision points (ingest sync and after
+the deep extract — the extract's join is `decide_catalog`'s second caller,
+`decide_catalog` never touches `PostingSkill` rows):
+
+1. **Deterministic weighted skill overlap** (`_best_catalog_job` ≥
+   `AUTO_MAP_THRESHOLD` 0.34) — unchanged verdicts; the join is
+   bit-identical where this already cleared.
+2. **Semantic rescue** — only where the overlap missed: the posting's
+   `KIND_POSTING` vector (lazily ensured/re-embedded through the caller's
+   transaction, hash-deduped) cosined against every `KIND_JOB` vector of
+   matching dim, hard-filtered to published jobs UPSTREAM of the ranking.
+   Fires at cosine ≥ `SEMANTIC_MAP_THRESHOLD` (0.6) AND ≥ 1 resolved skill
+   shared with the job (the deterministic evidence gate — fit scoring runs
+   on job_skills↔posting_skills links; a zero-link map would score blind).
+   ADR-0012 §4 note: the cutoff decides within a deterministically
+   hard-filtered candidate set, it never generates writes on its own; the
+   method + `retag` journal make every semantic map auditable and
+   admin-overridable (manual map endpoint, `POST /admin/postings/{id}/remap`
+   re-runs the join without the extract).
+
+Every embedding failure (unconfigured provider, gateway error, dim
+mismatch) degrades to the overlap-only decision — the RRF discipline
+applied to state. Both raw scores, runner-ups and the top-5 semantic
+candidates land in `posting_facts["mapping_signals"]` and in the `retag`
+journal row's operation payload (the audit Changes drawer renders them
+verbatim — that IS the join's trace; there is no LangGraph here to
+stream). The two run switches (`catalog.semantic_rescue`,
+`catalog.job_proposals` in `app_settings`) are read per decision —
+effective on the next decision, no restart.
+
+A posting neither signal can place AND whose extract is rich enough
+(kept title + ≥ 3 kept skills) stores `posting_facts["job_proposal"]` —
+the HITL queue on the Taxonomy settings page; applying it creates the
+PUBLISHED catalog job + maps MANUAL + embeds the job in one transaction
+(`docs/dev/scheduler-and-jobs.md` carries the flow).
+
 ## Smart discovery (plan 179)
 
 Cost-tiered by design — LLM appears exactly once in the whole feature:

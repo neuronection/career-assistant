@@ -658,8 +658,8 @@ class CvSynthService:
 
     async def _posting_brief(self, user_id: uuid.UUID, posting_id: uuid.UUID, action: str) -> dict:
         """The posting digest the prompt sees (tailor pattern)."""
-        from app.ai.agents.posting_extractor import PostingExtract
         from app.models.posting_model import JobPosting
+        from app.schemas.posting import PostingExtractOut
 
         posting = (
             (await self.db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
@@ -673,7 +673,7 @@ class CvSynthService:
                 raise ValidationError(
                     "The posting has no deep extraction yet — run the extract first"
                 )
-            extract = PostingExtract.model_validate(posting.extract)
+            extract = PostingExtractOut.model_validate(posting.extract)
             return {
                 "title": extract.title_norm or posting.title,
                 "must_have_skills": [

@@ -89,7 +89,7 @@ ALLOWED_FILTER_KEYS = frozenset(
         "seen_exclude",
         "applied",
         "applied_exclude",
-        "hidden_exclude",
+        "hidden_include",
         "extracted_only",
         "contract",
         "contract_exclude",
@@ -300,10 +300,10 @@ def parse_explore_filters(params: dict) -> dict:
     if sources_excluded:
         filters["source_exclude"] = sources_excluded[:10]
 
-    for key in ("saved", "seen", "applied", "extracted_only"):
+    for key in ("saved", "seen", "applied", "extracted_only", "hidden_include"):
         if params.get(key) not in (None, "") and _as_bool(params.get(key)):
             filters[key] = True
-    for key in ("seen_exclude", "applied_exclude", "hidden_exclude"):
+    for key in ("seen_exclude", "applied_exclude"):
         if params.get(key) not in (None, "") and _as_bool(params[key]):
             filters[key] = True
     return filters
@@ -637,7 +637,7 @@ def _conditions_for(
                     select(Application.posting_id).where(Application.user_id == user_id)
                 )
             )
-        if filters.get("hidden_exclude"):
+        if not filters.get("hidden_include"):
             conditions.append(
                 JobPosting.id.not_in(
                     select(PostingInteraction.posting_id).where(
