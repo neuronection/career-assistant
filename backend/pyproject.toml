@@ -46,11 +46,12 @@ dynamic = ["version"]
 # degrades to the print-ready HTML view.
 pdf = ["playwright>=1.62"]
 # SQLite profile (desktop/dev databases and the SQLite CI lane).
-sqlite = ["aiosqlite>=0.20"]
+sqlite = ["aiosqlite>=0.20", "sqlite-vec>=0.1.9,<0.2"]
 # Desktop profile (python -m careerassistant). Linux system packages:
 # libgtk-3, libwebkit2gtk-4.1 (docs/deploy.md).
 desktop = [
     "aiosqlite>=0.20",
+    "sqlite-vec>=0.1.9,<0.2",
     "pywebview>=5.3",
     "pystray>=0.19",
     "pygobject>=3.50,<3.51 ; sys_platform == 'linux'",

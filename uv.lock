@@ -554,6 +554,7 @@ desktop = [
     { name = "pygobject", marker = "sys_platform == 'linux'" },
     { name = "pystray" },
     { name = "pywebview" },
+    { name = "sqlite-vec" },
 ]
 otel = [
     { name = "opentelemetry-api" },
@@ -565,6 +566,7 @@ pdf = [
 ]
 sqlite = [
     { name = "aiosqlite" },
+    { name = "sqlite-vec" },
 ]
 
 [package.dev-dependencies]
@@ -619,6 +621,8 @@ requires-dist = [
     { name = "pywebview", marker = "extra == 'desktop'", specifier = ">=5.3" },
     { name = "qrcode", specifier = ">=8.2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
+    { name = "sqlite-vec", marker = "extra == 'desktop'", specifier = ">=0.1.9,<0.2" },
+    { name = "sqlite-vec", marker = "extra == 'sqlite'", specifier = ">=0.1.9,<0.2" },
     { name = "typesafe-sdk", specifier = ">=0.7,<0.8" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.49" },
 ]
