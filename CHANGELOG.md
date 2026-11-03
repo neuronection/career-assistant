@@ -4,6 +4,35 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (job detail — similar jobs and live postings, 2026-11-03)
+- **`/jobs/:code` now shows two read-only rails: similar catalog jobs and
+  live postings for this job.** Each card opens a per-view drawer with the
+  overall score, source and the cosine behind each text view, and links to
+  the full job or posting. Both rails load after the job without blocking
+  its render; an empty or failed rail hides itself instead of breaking the
+  page. When the vector match is unavailable the cards fall back to the
+  deterministic skill-overlap/catalog lists and say so, with the structured
+  reason.
+- **Live posting matches now carry `per_view`,** so their drawer shows the
+  same per-view detail as similar jobs; the catalog fallback reports an
+  empty breakdown.
+
+### Changed (catalog matching — mapping controls and the deferred pass in the UI, 2026-11-03)
+- **Settings → Taxonomy → Relations now exposes all three mapping switches
+  side by side:** job proposals, semantic rescue (default ON) and semantic
+  rerank (default OFF), each read from the API per decision and saved
+  through the existing settings endpoint — no restart.
+- **A job proposal whose semantic stage was deferred shows a pending chip
+  and reason** instead of pretending the decision finished. Re-decide still
+  runs, then says whether it recorded only the deterministic decision or
+  also queued the semantic pass and disables itself to prevent duplicate
+  clicks; **Check again** reloads the list once the worker settles. Manual
+  and terminal 409 messages are shown verbatim.
+- **The frontend dependency `@neuronection/assistant-ui` moved to 0.78.0**
+  (ModalContent padding rhythm, `SwitchRow.hideLabel`), and the posting card
+  menu uses the library's current `ContextMenuItem` API (no local fork, no
+  separator variant).
+
 ### Changed (catalog matching — the semantic pass moves off the request path, 2026-11-03)
 - **Ingest, extract, retag and admin remap now decide deterministically and
   defer the semantic rerank/rescue to one background pass per posting.** The

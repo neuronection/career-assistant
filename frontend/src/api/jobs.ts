@@ -1,5 +1,11 @@
 import { api } from "@/api/client";
-import type { Job, JobGraph, Relation } from "@/types/wire";
+import type {
+  Job,
+  JobGraph,
+  JobPostings,
+  Relation,
+  SimilarJobs,
+} from "@/types/wire";
 import type { JobFamilyNode } from "@/types";
 
 export async function fetchFamilyTree(): Promise<JobFamilyNode[]> {
@@ -19,6 +25,29 @@ export async function fetchJob(ref: string): Promise<Job> {
 
 export async function fetchJobRelations(ref: string): Promise<Relation[]> {
   const { data } = await api.get<Relation[]>(`/jobs/relations/${ref}`);
+  return data;
+}
+
+interface MatchPageParams {
+  limit?: number;
+  offset?: number;
+}
+
+/** Published catalog jobs nearest this job (plan 50 §7.3). */
+export async function fetchSimilarJobs(
+  ref: string,
+  params: MatchPageParams = {},
+): Promise<SimilarJobs> {
+  const { data } = await api.get<SimilarJobs>(`/jobs/${ref}/similar`, { params });
+  return data;
+}
+
+/** Live postings ranked against this catalog job, visibility-filtered. */
+export async function fetchJobLivePostings(
+  ref: string,
+  params: MatchPageParams = {},
+): Promise<JobPostings> {
+  const { data } = await api.get<JobPostings>(`/jobs/${ref}/postings`, { params });
   return data;
 }
 

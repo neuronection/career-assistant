@@ -45,6 +45,21 @@ Every job page shows its structured attributes:
 - **Physical demands and environments.**
 - **Typical positives and negatives** — an honest read on the role.
 
+Below the structured attributes sit two read-only match rails:
+
+- **Similar catalog jobs** — published jobs nearest this one by long-text
+  views (summary, requirements, responsibilities, skills). Each card opens a
+  drawer with the overall score and the per-view cosine behind it, and links
+  to the job.
+- **Live postings for this job** — the live openings nearest this job under
+  the feed's visibility rules, with the same score drawer and a link to the
+  posting.
+
+Both answer from the vector store when it is available and fall back to the
+deterministic list (shared skills, or the postings already mapped to this
+job) otherwise — the fallback is labelled with the reason, never hidden or
+faked.
+
 From the detail page you can score the job (see
 [Matching and rankings](matching-and-rankings.md)), practice an interview
 (see [Interview prep](interviews.md)) and open related jobs.

@@ -16,6 +16,7 @@ import { ScoreBubble } from "@/components/score/ScoreBubble";
 import { MarketTrendStrip } from "@/features/postings/components/MarketTrendStrip";
 import { ScoreBreakdown } from "@/components/score/ScoreBreakdown";
 import { rankedDimensions } from "@/features/catalog/components/RankedJobCard";
+import { JobMatchRails } from "@/features/catalog/components/JobMatchRails";
 import { EmptyState, RangeBar, Table } from "@/components/ui";
 import { useCompareStore } from "@/stores/compareStore";
 import { useTranslation } from "react-i18next";
@@ -610,6 +611,8 @@ export function JobDetail() {
           </button>
         )}
       </section>
+
+      <JobMatchRails jobCode={job.code} />
 
       {detail && detail.university_pathways.length > 0 && (
         <section>
