@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
@@ -64,6 +64,7 @@ export function Audit() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabFromUrl = searchParams.get("tab");
   const activeTab = parseAuditTab(tabFromUrl);
+  const tabsRef = useRef<HTMLDivElement | null>(null);
   const [range, setRange] = useState<RangeValue>({
     window: parseAuditWindow(searchParams.get("window")),
     from: "",
@@ -108,6 +109,22 @@ export function Audit() {
     setSearchParams(next, { replace: true });
   };
 
+  // The eight-tab strip overflows a phone width; keep the selected tab in
+  // view when a deep link lands on a tab that starts off-screen. Scroll the
+  // strip itself — `scrollIntoView` would also move ancestor containers.
+  useEffect(() => {
+    const container = tabsRef.current;
+    const selected = container?.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
+    if (!container || !selected) return;
+    const view = container.getBoundingClientRect();
+    const tab = selected.getBoundingClientRect();
+    if (tab.left >= view.left && tab.right <= view.right) return;
+    container.scrollLeft +=
+      tab.left - view.left - (view.width - tab.width) / 2;
+  }, [activeTab]);
+
   return (
     <SettingsPage
       icon={Activity}
@@ -116,15 +133,18 @@ export function Audit() {
     >
       <section id="s-overview" className="scroll-mt-4">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <SegmentedTabs
-            ariaLabel={t("audit.tabsAria")}
-            items={AUDIT_TABS.map((tab) => ({
-              value: tab,
-              label: t(`audit.tab.${tab}`),
-            }))}
-            value={activeTab}
-            onValueChange={(next) => setActive(next as AuditTab)}
-          />
+          <div ref={tabsRef} className="min-w-0 max-w-full overflow-x-auto">
+            <SegmentedTabs
+              ariaLabel={t("audit.tabsAria")}
+              className="min-w-max max-sm:[&>button]:min-h-9"
+              items={AUDIT_TABS.map((tab) => ({
+                value: tab,
+                label: t(`audit.tab.${tab}`),
+              }))}
+              value={activeTab}
+              onValueChange={(next) => setActive(next as AuditTab)}
+            />
+          </div>
           {(activeTab === "overview" ||
             activeTab === "security" ||
             activeTab === "failures" ||

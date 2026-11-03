@@ -70,7 +70,7 @@ export function KindMatrix({
         </span>
       </div>
       <div className="overflow-x-auto rounded-lg border border-[var(--as-border)]">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full min-w-[32rem] border-collapse text-sm">
           <thead>
             <tr className="border-b border-[var(--as-border)] bg-[var(--as-muted)]">
               <th
@@ -204,7 +204,7 @@ function KindRow({
             data-severity={kind.severity}
             aria-hidden
           />
-          <span className="truncate">{kind.label}</span>
+          <span className="truncate" title={kind.label}>{kind.label}</span>
         </span>
         <span className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--as-muted-fg)]">
           {kind.mutable && kind.overridden ? (
@@ -227,6 +227,7 @@ function KindRow({
               to={kind.manage_url}
               className="rounded px-1 py-0.5 text-[11px] font-medium text-[var(--as-primary)] underline decoration-transparent transition-colors hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--as-focus-ring)]"
               data-testid={`kind-${kind.key}-manage`}
+              aria-label={t("notifications.manageNamed", { name: kind.label })}
             >
               {t("notifications.manage")} →
             </Link>

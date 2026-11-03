@@ -80,7 +80,7 @@ export function RetrievalFailuresSection({
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
             data-testid="retrieval-failures-tools-link"
           >
             {t("audit.retrieval.failures.retryInTools")} →
@@ -268,7 +268,7 @@ function FailureDrawer({
             {group.run_id && (
               <Link
                 to={retrievalRunUrl(group.run_id, window)}
-                className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+                className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
                 data-testid="retrieval-failure-run-link"
               >
                 {t("audit.retrieval.failures.openRun")} →
@@ -277,7 +277,7 @@ function FailureDrawer({
             {group.retryable && (
               <Link
                 to={TOOLS_RETRIEVAL_URL}
-                className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+                className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
                 data-testid="retrieval-failure-retry-link"
               >
                 {t("audit.retrieval.failures.retryInTools")} →

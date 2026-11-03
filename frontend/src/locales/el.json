@@ -1336,7 +1336,8 @@
     },
     "quietHoursStart": "Αρχή ήσυχων ωρών",
     "quietHoursEnd": "Τέλος ήσυχων ωρών",
-    "manage": "Διαχείριση"
+    "manage": "Διαχείριση",
+    "manageNamed": "Διαχείριση {{name}}"
   },
   "users": {
     "tableCaption": "Χρήστες",
@@ -5634,7 +5635,9 @@
         "notFound": "Ο χώρος δεν υπάρχει πλέον.",
         "drawerTitle": "{{name}}",
         "drawerTitleFallback": "Χώρος",
-        "manageInTools": "Διαχείριση στο Tools → Retrieval"
+        "manageInTools": "Διαχείριση στο Tools → Retrieval",
+        "openRow": "Άνοιγμα χώρου {{name}}",
+        "asOf": "Με ισχύ από"
       },
       "runs": {
         "title": "Εκτελέσεις",
@@ -5679,7 +5682,8 @@
         "failedIdsCount": "{{shown}} από {{total}}",
         "truncated": "Περικοπή στο {{limit}}",
         "error": "Σφάλμα εκτέλεσης",
-        "activationGate": "Πύλη ενεργοποίησης"
+        "activationGate": "Πύλη ενεργοποίησης",
+        "openRow": "Άνοιγμα εκτέλεσης {{type}} {{id}}"
       },
       "quality": {
         "title": "Ποιότητα",
@@ -5702,7 +5706,9 @@
         "expected": "Αναμενόμενα IDs εγγράφων",
         "retrieved": "Ανακτημένα IDs εγγράφων",
         "missing": "IDs εγγράφων που λείπουν",
-        "noRawQuery": "Μόνο IDs και βαθμολογίες — το κείμενο του ερωτήματος μένει στο admin fixture."
+        "noRawQuery": "Μόνο IDs και βαθμολογίες — το κείμενο του ερωτήματος μένει στο admin fixture.",
+        "openRow": "Άνοιγμα ερώτησης αναφοράς {{id}}",
+        "noSpace": "Δεν υπάρχει ακόμη διανυσματικός χώρος. Δημιούργησε έναν στα Tools → Retrieval για να αξιολογήσεις ένα golden set."
       },
       "queryHealth": {
         "title": "Υγεία ερωτημάτων",

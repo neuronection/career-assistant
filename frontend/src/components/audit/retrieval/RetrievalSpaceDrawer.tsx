@@ -15,7 +15,6 @@ import { GateBadge } from "@/components/audit/retrieval/RetrievalCommon";
 import {
   formatNumber,
   formatRate,
-  shortId,
   statusVariant,
   TOOLS_RETRIEVAL_URL,
   when,
@@ -158,10 +157,13 @@ export function RetrievalSpaceDrawer({
                 ? t("retrieval.state.never_reconciled")
                 : formatRate(space.coverage)}
             </MetaRow>
-            <MetaRow label={t("audit.retrieval.spaces.staleFailed", {
-              stale: space.stale ?? 0,
-              failed: space.failed ?? 0,
-            })}>
+            <MetaRow label={t("retrieval.active.stale")}>
+              {space.stale ?? 0}
+            </MetaRow>
+            <MetaRow label={t("audit.retrieval.runs.failed")}>
+              {space.failed ?? 0}
+            </MetaRow>
+            <MetaRow label={t("audit.retrieval.spaces.asOf")}>
               {space.as_of ? when(space.as_of) : "—"}
             </MetaRow>
             <MetaRow label={t("audit.retrieval.spaces.created")}>
@@ -220,14 +222,11 @@ export function RetrievalSpaceDrawer({
 
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="inline-flex text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
             data-testid="retrieval-space-tools-link"
           >
             {t("audit.retrieval.spaces.manageInTools")} →
           </Link>
-          <span className="ml-2 font-mono text-[10px] text-[var(--as-muted-fg)]">
-            {shortId(space.space_id)}
-          </span>
         </div>
       ) : null}
     </PanelModal>

@@ -76,7 +76,7 @@ export function RetrievalChangesSection({ window }: { window: RetrievalWindow })
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
           >
             {t("audit.retrieval.openTools")} →
           </Link>
@@ -98,7 +98,12 @@ export function RetrievalChangesSection({ window }: { window: RetrievalWindow })
         </div>
       ) : (
         <>
-          <div className={tableShellClass}>
+          <div
+            className={tableShellClass}
+            tabIndex={0}
+            role="region"
+            aria-label={t("audit.retrieval.changes.title")}
+          >
             <table className={tableClass}>
               <thead>
                 <tr className="border-b border-[var(--as-border)]">

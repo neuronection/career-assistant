@@ -74,7 +74,7 @@ export function RetrievalQueryHealthSection({
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
           >
             {t("audit.retrieval.openTools")} →
           </Link>
@@ -189,9 +189,9 @@ function QueryHealthBody({
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4">
-          <h4 className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+          <h3 className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
             {t("audit.retrieval.queryHealth.perView")}
-          </h4>
+          </h3>
           {viewHits.length === 0 ? (
             <p className="text-xs text-[var(--as-muted-fg)]">
               {t("audit.retrieval.queryHealth.noViewHits")}
@@ -213,9 +213,9 @@ function QueryHealthBody({
           )}
         </div>
         <div className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-4">
-          <h4 className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+          <h3 className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
             {t("audit.retrieval.queryHealth.degradedReasons")}
-          </h4>
+          </h3>
           {degradedReasons.length === 0 ? (
             <p className="text-xs text-[var(--as-muted-fg)]">
               {t("audit.retrieval.queryHealth.noDegraded")}

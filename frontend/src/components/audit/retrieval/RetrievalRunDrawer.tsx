@@ -164,8 +164,8 @@ export function RetrievalRunDrawer({
               </MetaRow>
             )}
             <MetaRow label={t("audit.retrieval.runs.idempotency")}>
-              <span className="font-mono text-[11px]">
-                {run.idempotency_key ? shortId(run.idempotency_key) : "—"}
+              <span className="break-all font-mono text-[11px]">
+                {run.idempotency_key ?? "—"}
               </span>
             </MetaRow>
           </dl>

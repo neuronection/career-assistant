@@ -1336,7 +1336,8 @@
     },
     "quietHoursStart": "Quiet hours start",
     "quietHoursEnd": "Quiet hours end",
-    "manage": "Manage"
+    "manage": "Manage",
+    "manageNamed": "Manage {{name}}"
   },
   "users": {
     "tableCaption": "Users",
@@ -5635,7 +5636,9 @@
         "notFound": "This space no longer exists.",
         "drawerTitle": "{{name}}",
         "drawerTitleFallback": "Space",
-        "manageInTools": "Manage in Tools → Retrieval"
+        "manageInTools": "Manage in Tools → Retrieval",
+        "openRow": "Open space {{name}}",
+        "asOf": "As of"
       },
       "runs": {
         "title": "Runs",
@@ -5680,7 +5683,8 @@
         "failedIdsCount": "{{shown}} of {{total}}",
         "truncated": "Truncated at {{limit}}",
         "error": "Run error",
-        "activationGate": "Activation gate"
+        "activationGate": "Activation gate",
+        "openRow": "Open run {{type}} {{id}}"
       },
       "quality": {
         "title": "Quality",
@@ -5703,7 +5707,9 @@
         "expected": "Expected document ids",
         "retrieved": "Retrieved document ids",
         "missing": "Missing document ids",
-        "noRawQuery": "Ids and scores only — the query text stays in the admin fixture."
+        "noRawQuery": "Ids and scores only — the query text stays in the admin fixture.",
+        "openRow": "Open golden query {{id}}",
+        "noSpace": "No vector space yet. Build one in Tools → Retrieval to score a golden set."
       },
       "queryHealth": {
         "title": "Query health",

@@ -39,7 +39,7 @@ export function RetrievalSectionHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <h3 className="text-sm font-semibold text-[var(--as-fg)]">{title}</h3>
+        <h2 className="text-sm font-semibold text-[var(--as-fg)]">{title}</h2>
         {hint ? (
           <p className="mt-0.5 text-xs text-[var(--as-muted-fg)]">{hint}</p>
         ) : null}
@@ -63,8 +63,10 @@ export function GateBadge({ gate }: { gate: RetrievalGate }) {
 
 function gateClass(gate: RetrievalGate): string {
   const variant = gateVariant(gate);
-  if (variant === "success") return "bg-emerald-100 text-emerald-700";
-  if (variant === "danger") return "bg-rose-100 text-rose-700";
+  if (variant === "success")
+    return "bg-[color-mix(in_srgb,var(--as-success)_16%,var(--as-surface))] text-[var(--as-success)]";
+  if (variant === "danger")
+    return "bg-[color-mix(in_srgb,var(--as-danger)_14%,var(--as-surface))] text-[var(--as-danger)]";
   return "bg-[var(--as-muted)] text-[var(--as-muted-fg)]";
 }
 
@@ -82,4 +84,4 @@ export const thClass =
   "px-3 py-2 text-left text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]";
 export const tdClass = "px-3 py-2 text-xs text-[var(--as-fg)]";
 export const tableShellClass =
-  "overflow-x-auto rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)]";
+  "overflow-x-auto rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-accent)]";

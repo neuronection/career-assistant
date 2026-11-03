@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { Audit } from "@/pages/settings/Audit";
+import { expectNoA11yViolations } from "@/tests/a11y";
 import type {
   RetrievalFailuresResponse,
   RetrievalOverview,
@@ -631,7 +632,7 @@ describe("audit retrieval tab", () => {
   it("renders the quality compare and opens a golden-query drawer without raw text", async () => {
     renderPage("/settings/audit?tab=retrieval&section=quality");
     expect(await screen.findByTestId("retrieval-quality-compare")).toBeTruthy();
-    expect(fetchRetrievalQuality).toHaveBeenCalledWith(undefined, "24h");
+    expect(fetchRetrievalQuality).toHaveBeenCalledWith("space-active", "24h");
     expect(screen.getByText("Baseline space-ac")).toBeTruthy();
     expect(screen.queryByTestId("retrieval-quality-stale")).toBeNull();
 
@@ -652,8 +653,7 @@ describe("audit retrieval tab", () => {
     expect(probe()).toContain("section=quality&detail=gq-1");
   });
 
-  it("renders the no-golden-set and not-sampled quality states", async () => {
-    vi.mocked(fetchRetrievalQuality).mockResolvedValueOnce({
+  it("renders the no-golden-set and not-sampled quality states", async () => {    vi.mocked(fetchRetrievalQuality).mockResolvedValueOnce({
       ...QUALITY,
       state: "no_golden_set",
       sampled: false,
@@ -677,6 +677,68 @@ describe("audit retrieval tab", () => {
     });
     renderPage("/settings/audit?tab=retrieval&section=quality");
     expect(await screen.findByTestId("retrieval-quality-not-sampled")).toBeTruthy();
+  });
+
+  it("shows an honest no-space quality state instead of the API error", async () => {
+    vi.mocked(fetchRetrievalSpaces).mockResolvedValueOnce({
+      state: "empty",
+      count: 0,
+      spaces: [],
+      backend: BACKEND,
+    });
+    renderPage("/settings/audit?tab=retrieval&section=quality");
+    expect(await screen.findByTestId("retrieval-quality-no-space")).toBeTruthy();
+    expect(screen.getByTestId("retrieval-quality-tools-link")).toHaveAttribute(
+      "href",
+      "/settings/tools?section=retrieval",
+    );
+    expect(fetchRetrievalQuality).not.toHaveBeenCalled();
+  });
+
+  it("makes clickable rows keyboard-reachable through a labelled button", async () => {
+    renderPage("/settings/audit?tab=retrieval&section=runs");
+    const openRun = await screen.findByTestId("retrieval-run-open-run-1");
+    expect(openRun).toHaveAccessibleName(/Open run/);
+    openRun.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(await screen.findByTestId("retrieval-run-drawer")).toBeTruthy();
+  });
+
+  it("has no axe violations on the retrieval observation surface", async () => {
+    renderPage("/settings/audit?tab=retrieval&section=overview");
+    await screen.findByTestId("retrieval-overview");
+    await expectNoA11yViolations(screen.getByTestId("audit-retrieval-tab"));
+  });
+
+  it("returns focus to the row trigger after closing a drawer", async () => {
+    renderPage("/settings/audit?tab=retrieval&section=runs");
+    const openRun = await screen.findByTestId("retrieval-run-open-run-1");
+    await userEvent.click(openRun);
+    await screen.findByTestId("retrieval-run-drawer");
+    await expectNoA11yViolations(screen.getByTestId("retrieval-run-drawer"));
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(probe()).toBe("/settings/audit?tab=retrieval&section=runs"),
+    );
+    await waitFor(() => expect(openRun).toHaveFocus());
+  });
+
+  it("focuses the active section when a deep-linked drawer closes", async () => {
+    renderPage(
+      "/settings/audit?tab=retrieval&section=runs&detail=run-1",
+    );
+    await screen.findByTestId("retrieval-run-drawer");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() =>
+      expect(probe()).toBe("/settings/audit?tab=retrieval&section=runs"),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("audit-retrieval-tab")).getByRole("tab", {
+          name: "Runs",
+        }),
+      ).toHaveFocus(),
+    );
   });
 
   it("renders query health and opens a structured reason drawer", async () => {
@@ -780,6 +842,9 @@ describe("audit retrieval tab", () => {
     expect(screen.getByTestId("retrieval-usage-budget").textContent).toContain(
       "1,400 of 5,000 tokens used",
     );
+    const bar = screen.getByTestId("retrieval-usage-budget-bar");
+    expect(bar).toHaveAttribute("role", "progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "28");
     expect(screen.getByTestId("retrieval-usage-tiles").textContent).toContain(
       "Untagged calls",
     );

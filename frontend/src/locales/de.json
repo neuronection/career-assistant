@@ -1336,7 +1336,8 @@
     },
     "quietHoursStart": "Ruhezeiten Beginn",
     "quietHoursEnd": "Ruhezeiten Ende",
-    "manage": "Verwalten"
+    "manage": "Verwalten",
+    "manageNamed": "{{name}} verwalten"
   },
   "users": {
     "tableCaption": "Benutzer",
@@ -5634,7 +5635,9 @@
         "notFound": "Dieser Space existiert nicht mehr.",
         "drawerTitle": "{{name}}",
         "drawerTitleFallback": "Space",
-        "manageInTools": "Unter Tools → Retrieval verwalten"
+        "manageInTools": "Unter Tools → Retrieval verwalten",
+        "openRow": "Space {{name}} öffnen",
+        "asOf": "Stand"
       },
       "runs": {
         "title": "Läufe",
@@ -5679,7 +5682,8 @@
         "failedIdsCount": "{{shown}} von {{total}}",
         "truncated": "Gekürzt bei {{limit}}",
         "error": "Lauffehler",
-        "activationGate": "Aktivierungs-Gate"
+        "activationGate": "Aktivierungs-Gate",
+        "openRow": "Lauf {{type}} {{id}} öffnen"
       },
       "quality": {
         "title": "Qualität",
@@ -5702,7 +5706,9 @@
         "expected": "Erwartete Dokument-IDs",
         "retrieved": "Abgerufene Dokument-IDs",
         "missing": "Fehlende Dokument-IDs",
-        "noRawQuery": "Nur IDs und Werte — der Abfragetext bleibt im Admin-Fixture."
+        "noRawQuery": "Nur IDs und Werte — der Abfragetext bleibt im Admin-Fixture.",
+        "openRow": "Golden-Query {{id}} öffnen",
+        "noSpace": "Noch kein Vektor-Space. Erstelle einen unter Tools → Retrieval, um ein Golden-Set zu bewerten."
       },
       "queryHealth": {
         "title": "Abfragezustand",

@@ -77,7 +77,7 @@ export function RetrievalSpacesSection({
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
             data-testid="retrieval-spaces-tools-link"
           >
             {t("audit.retrieval.openTools")} →
@@ -90,7 +90,12 @@ export function RetrievalSpacesSection({
           <StateNote>{t("audit.retrieval.spaces.empty")}</StateNote>
         </div>
       ) : (
-        <div className={tableShellClass}>
+        <div
+          className={tableShellClass}
+          tabIndex={0}
+          role="region"
+          aria-label={t("audit.retrieval.spaces.title")}
+        >
           <table className={tableClass}>
             <thead>
               <tr className="border-b border-[var(--as-border)]">
@@ -134,18 +139,25 @@ function SpaceRow({
   const cold = space.coverage == null;
   return (
     <tr
-      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
+      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)]"
       onClick={() => onOpen(space.space_id)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(space.space_id);
-        }
-      }}
-      tabIndex={0}
       data-testid={`retrieval-space-row-${space.space_id}`}
     >
-      <td className={`${tdClass} font-medium`}>{space.name}</td>
+      <td className={`${tdClass} font-medium`}>
+        <button
+          type="button"
+          className="max-w-full rounded text-left font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-accent)]"
+          title={space.space_id}
+          aria-label={t("audit.retrieval.spaces.openRow", { name: space.name })}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen(space.space_id);
+          }}
+          data-testid={`retrieval-space-open-${space.space_id}`}
+        >
+          {space.name}
+        </button>
+      </td>
       <td className={tdClass}>
         <Badge variant={statusVariant(space.status)}>
           {t(`retrieval.spaceStatus.${space.status}`)}

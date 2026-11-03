@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { SegmentedTabs } from "@/components/ui";
@@ -38,6 +38,8 @@ export function RetrievalTab({ window }: { window: RetrievalWindow }) {
   const section = parseRetrievalSection(rawSection);
   const detail = searchParams.get("detail");
   const detailSupported = DETAIL_SECTIONS.includes(section);
+  const sectionsRef = useRef<HTMLDivElement | null>(null);
+  const detailTriggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const expectedSection = section === "overview" ? null : section;
@@ -59,6 +61,10 @@ export function RetrievalTab({ window }: { window: RetrievalWindow }) {
   };
 
   const openDetail = (id: string) => {
+    detailTriggerRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     const next = new URLSearchParams(searchParams);
     next.set("detail", id);
     setSearchParams(next);
@@ -68,20 +74,51 @@ export function RetrievalTab({ window }: { window: RetrievalWindow }) {
     const next = new URLSearchParams(searchParams);
     next.delete("detail");
     setSearchParams(next, { replace: true });
+    const trigger = detailTriggerRef.current;
+    detailTriggerRef.current = null;
+    // Let the dialog finish its own close/focus cycle first.
+    setTimeout(() => {
+      if (trigger?.isConnected) {
+        trigger.focus();
+        return;
+      }
+      sectionsRef.current
+        ?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]')
+        ?.focus();
+    }, 50);
   };
+
+  // The section strip overflows a phone width; keep the deep-linked section
+  // visible instead of leaving it off-screen at the end of the strip. Scroll
+  // the strip itself — `scrollIntoView` would also move ancestor containers.
+  useEffect(() => {
+    const container = sectionsRef.current;
+    const selected = container?.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
+    if (!container || !selected) return;
+    const view = container.getBoundingClientRect();
+    const tab = selected.getBoundingClientRect();
+    if (tab.left >= view.left && tab.right <= view.right) return;
+    container.scrollLeft +=
+      tab.left - view.left - (view.width - tab.width) / 2;
+  }, [section]);
 
   return (
     <div className="space-y-3" data-testid="audit-retrieval-tab">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SegmentedTabs
-          ariaLabel={t("audit.retrieval.sectionsAria")}
-          items={RETRIEVAL_SECTIONS.map((item) => ({
-            value: item,
-            label: t(sectionLabelKey(item)),
-          }))}
-          value={section}
-          onValueChange={(next) => setSection(next as RetrievalSection)}
-        />
+        <div ref={sectionsRef} className="min-w-0 max-w-full overflow-x-auto">
+          <SegmentedTabs
+            ariaLabel={t("audit.retrieval.sectionsAria")}
+            className="min-w-max max-sm:[&>button]:min-h-9"
+            items={RETRIEVAL_SECTIONS.map((item) => ({
+              value: item,
+              label: t(sectionLabelKey(item)),
+            }))}
+            value={section}
+            onValueChange={(next) => setSection(next as RetrievalSection)}
+          />
+        </div>
         <span className="text-xs text-[var(--as-muted-fg)]">
           {t("audit.retrieval.readOnly")}{" "}
           <Link

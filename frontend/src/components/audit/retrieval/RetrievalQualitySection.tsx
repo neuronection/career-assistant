@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchRetrievalQuality,
+  fetchRetrievalSpaces,
   type RetrievalQuality,
   type RetrievalQualityQueryResult,
   type RetrievalWindow,
@@ -40,15 +41,32 @@ export function RetrievalQualitySection({
 }) {
   const { t } = useTranslation();
   const [quality, setQuality] = useState<RetrievalQuality | null>(null);
+  const [noSpace, setNoSpace] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     let live = true;
     setLoading(true);
-    fetchRetrievalQuality(undefined, window)
+    fetchRetrievalSpaces()
+      .then((spaces) => {
+        const space =
+          spaces.spaces.find((row) => row.status === "active") ??
+          spaces.spaces[0] ??
+          null;
+        if (!space) {
+          if (live) {
+            setNoSpace(true);
+            setQuality(null);
+            setError("");
+          }
+          return null;
+        }
+        if (live) setNoSpace(false);
+        return fetchRetrievalQuality(space.space_id, window);
+      })
       .then((loaded) => {
-        if (!live) return;
+        if (!live || !loaded) return;
         setQuality(loaded);
         setError("");
       })
@@ -72,6 +90,34 @@ export function RetrievalQualitySection({
 
   if (loading) return <RetrievalLoading />;
   if (error) return <RetrievalError message={error} />;
+
+  const header = (
+    <RetrievalSectionHeader
+      title={t("audit.retrieval.quality.title")}
+      hint={t("audit.retrieval.quality.hint")}
+      actions={
+        <Link
+          to={TOOLS_RETRIEVAL_URL}
+          className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
+          data-testid="retrieval-quality-tools-link"
+        >
+          {t("audit.retrieval.quality.manageInTools")} →
+        </Link>
+      }
+    />
+  );
+
+  if (noSpace) {
+    return (
+      <div className="space-y-3" data-testid="retrieval-quality">
+        {header}
+        <div data-testid="retrieval-quality-no-space">
+          <StateNote>{t("audit.retrieval.quality.noSpace")}</StateNote>
+        </div>
+      </div>
+    );
+  }
+
   if (!quality) return null;
 
   const block = quality.quality;
@@ -82,20 +128,7 @@ export function RetrievalQualitySection({
 
   return (
     <div className="space-y-3" data-testid="retrieval-quality">
-      <RetrievalSectionHeader
-        title={t("audit.retrieval.quality.title")}
-        hint={t("audit.retrieval.quality.hint")}
-        actions={
-          <Link
-            to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
-            data-testid="retrieval-quality-tools-link"
-          >
-            {t("audit.retrieval.quality.manageInTools")} →
-          </Link>
-        }
-      />
-
+      {header}
       {noGolden ? (
         <div data-testid="retrieval-quality-no-golden">
           <StateNote>{t("retrieval.state.no_golden_set")}</StateNote>
@@ -187,7 +220,13 @@ export function RetrievalQualitySection({
           {queries.length === 0 ? (
             <StateNote>{t("audit.retrieval.quality.noQueries")}</StateNote>
           ) : (
-            <div className={tableShellClass} data-testid="retrieval-quality-queries">
+            <div
+              className={tableShellClass}
+              tabIndex={0}
+              role="region"
+              aria-label={t("audit.retrieval.quality.colQuery")}
+              data-testid="retrieval-quality-queries"
+            >
               <table className={tableClass}>
                 <thead>
                   <tr className="border-b border-[var(--as-border)]">
@@ -212,19 +251,25 @@ export function RetrievalQualitySection({
                   {queries.map((query) => (
                     <tr
                       key={query.query_id}
-                      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
+                      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)]"
                       onClick={() => onOpenDetail(query.query_id)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          onOpenDetail(query.query_id);
-                        }
-                      }}
-                      tabIndex={0}
                       data-testid={`retrieval-quality-query-row-${query.query_id}`}
                     >
                       <td className={`${tdClass} font-mono text-[11px]`}>
-                        {query.query_id}
+                        <button
+                          type="button"
+                          className="max-w-full break-all rounded text-left font-mono underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-accent)]"
+                          aria-label={t("audit.retrieval.quality.openRow", {
+                            id: query.query_id,
+                          })}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onOpenDetail(query.query_id);
+                          }}
+                          data-testid={`retrieval-quality-query-open-${query.query_id}`}
+                        >
+                          {query.query_id}
+                        </button>
                       </td>
                       <td className={`${tdClass} tabular-nums`}>
                         {formatRate(query.recall_at_k)}
@@ -368,21 +413,21 @@ function QualityQueryDrawer({
             </div>
           </dl>
           <div>
-            <h4 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+            <h3 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
               {t("audit.retrieval.quality.expected")}
-            </h4>
+            </h3>
             <IdList ids={query.expected_document_ids} testId="retrieval-quality-expected" />
           </div>
           <div>
-            <h4 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+            <h3 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
               {t("audit.retrieval.quality.retrieved")}
-            </h4>
+            </h3>
             <IdList ids={query.retrieved_document_ids} testId="retrieval-quality-retrieved" />
           </div>
           <div>
-            <h4 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+            <h3 className="mb-1 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
               {t("audit.retrieval.quality.missing")}
-            </h4>
+            </h3>
             <IdList ids={query.missing_document_ids} testId="retrieval-quality-missing" />
           </div>
           <p className="text-[11px] text-[var(--as-muted-fg)]">

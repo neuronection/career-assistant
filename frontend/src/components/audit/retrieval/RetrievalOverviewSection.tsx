@@ -178,7 +178,7 @@ export function RetrievalOverviewSection({ window }: { window: RetrievalWindow }
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
             data-testid="retrieval-overview-tools-link"
           >
             {t("audit.retrieval.openTools")} →
@@ -237,13 +237,13 @@ export function RetrievalOverviewSection({ window }: { window: RetrievalWindow }
                 className="flex flex-wrap items-center gap-2 py-1.5 text-xs"
                 data-testid="retrieval-overview-change"
               >
-                <span className="font-mono font-medium text-[var(--as-fg)]">
+                <span className="min-w-0 break-all font-mono font-medium text-[var(--as-fg)]">
                   {change.action}
                 </span>
                 <span className="text-[var(--as-muted-fg)]">
                   {shortId(change.actor)}
                 </span>
-                <span className="text-[var(--as-muted-fg)]">
+                <span className="min-w-0 break-all text-[var(--as-muted-fg)]">
                   {change.resource || "—"}
                 </span>
                 <span className="ml-auto text-[var(--as-muted-fg)]">

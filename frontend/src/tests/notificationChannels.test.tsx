@@ -374,6 +374,7 @@ describe("notification settings (plan 148)", () => {
       "href",
       "/settings/audit?tab=retrieval&section=quality",
     );
+    expect(link).toHaveAccessibleName("Manage New posting match");
     expect(screen.queryByTestId("kind-fit_threshold-manage")).toBeNull();
   });
 

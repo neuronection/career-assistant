@@ -112,7 +112,7 @@ export function RetrievalRunsSection({
         actions={
           <Link
             to={TOOLS_RETRIEVAL_URL}
-            className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+            className="inline-flex items-center py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
             data-testid="retrieval-runs-tools-link"
           >
             {t("audit.retrieval.runs.manageInTools")} →
@@ -191,7 +191,12 @@ export function RetrievalRunsSection({
           </StateNote>
         </div>
       ) : (
-        <div className={tableShellClass}>
+        <div
+          className={tableShellClass}
+          tabIndex={0}
+          role="region"
+          aria-label={t("audit.retrieval.runs.title")}
+        >
           <table className={tableClass}>
             <thead>
               <tr className="border-b border-[var(--as-border)]">
@@ -228,22 +233,30 @@ function RunRow({
   const { t } = useTranslation();
   return (
     <tr
-      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)] focus-visible:bg-[var(--as-muted)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--as-accent)]"
+      className="cursor-pointer border-b border-[var(--as-border)] last:border-b-0 hover:bg-[var(--as-muted)]"
       onClick={() => onOpen(run.run_id)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen(run.run_id);
-        }
-      }}
-      tabIndex={0}
       data-testid={`retrieval-run-row-${run.run_id}`}
     >
       <td className={`${tdClass} font-medium`}>
-        {t(`retrieval.runType.${run.job_type}`)}
-        <span className="ml-2 font-mono text-[10px] text-[var(--as-muted-fg)]">
-          {shortId(run.run_id)}
-        </span>
+        <button
+          type="button"
+          className="max-w-full rounded text-left font-medium underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--as-accent)]"
+          title={run.run_id}
+          aria-label={t("audit.retrieval.runs.openRow", {
+            type: t(`retrieval.runType.${run.job_type}`),
+            id: shortId(run.run_id),
+          })}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen(run.run_id);
+          }}
+          data-testid={`retrieval-run-open-${run.run_id}`}
+        >
+          {t(`retrieval.runType.${run.job_type}`)}{" "}
+          <span className="font-mono text-[10px] text-[var(--as-muted-fg)]">
+            {shortId(run.run_id)}
+          </span>
+        </button>
       </td>
       <td className={tdClass}>
         <Badge variant={statusVariant(run.status)}>
