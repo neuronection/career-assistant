@@ -24,7 +24,8 @@ interface FamilyOption {
 /** One signal candidate from the join trace (plan 185 S6.2): the admin's
  * "apply or write a better job" context — what the join already considered
  * and how close it landed. */
-function SignalCandidates({ row }: { row: JobProposalRow }) {  const { t } = useTranslation();
+function SignalCandidates({ row }: { row: JobProposalRow }) {
+  const { t } = useTranslation();
   const candidates = Array.isArray(
     (row.mapping_signals as { semantic?: { candidates?: unknown[] } } | null)?.semantic
       ?.candidates,
@@ -85,9 +86,7 @@ function RerankTrace({ row }: { row: JobProposalRow }) {
 /** The deferred semantic pass marker the backend writes into
  * ``posting_facts["mapping_signals"]`` (plan 50 P2c.3). */
 function pendingReasonOf(row: JobProposalRow): string | null {
-  const signals = row.mapping_signals;
-  if (!signals || signals.semantic_pending !== true) return null;
-  const reason = signals.semantic_pending_reason;
+  const reason = row.mapping_signals?.semantic_pending_reason;
   return typeof reason === "string" && reason ? reason : null;
 }
 
@@ -224,7 +223,7 @@ export function TaxonomyJobProposalCards({
         const proposal = row.proposal ?? {};
         const relative = row.proposed_at ? formatRelativeTime(row.proposed_at) : null;
         const pendingReason = pendingReasonOf(row);
-        const pending = pendingReason !== null;
+        const pending = row.mapping_signals?.semantic_pending === true;
         const isQueued = queued.has(row.id);
         return (
           <div
