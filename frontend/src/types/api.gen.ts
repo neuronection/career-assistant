@@ -281,10 +281,10 @@ export interface paths {
         };
         /**
          * Catalog Mapping Settings
-         * @description The mapping run controls (plan 185 S6.3): the job-proposal and
-         *     semantic-rescue switches, read per decision — effective on the next
-         *     decision, no restart (plan 50 P2a restored the rescue on the family
-         *     vector store).
+         * @description The mapping run controls (plan 185 S6.3, plan 50 P2c.2): the
+         *     job-proposal, semantic-rescue and semantic-rerank switches, read per
+         *     decision — effective on the next decision, no restart. The rerank
+         *     switch defaults OFF and is independent of the rescue.
          */
         get: operations["catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get"];
         /** Put Catalog Mapping Settings */
@@ -10401,6 +10401,8 @@ export interface components {
         CatalogMappingSettingsIn: {
             /** Job Proposals */
             job_proposals?: boolean | null;
+            /** Semantic Rerank */
+            semantic_rerank?: boolean | null;
             /** Semantic Rescue */
             semantic_rescue?: boolean | null;
         };

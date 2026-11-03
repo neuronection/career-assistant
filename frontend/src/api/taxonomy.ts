@@ -98,6 +98,8 @@ export async function remapPosting(id: string): Promise<{ mapping_method: string
 
 export interface CatalogMappingSettings {
   job_proposals: boolean;
+  semantic_rescue: boolean;
+  semantic_rerank: boolean;
 }
 
 export async function fetchCatalogMappingSettings(): Promise<CatalogMappingSettings> {

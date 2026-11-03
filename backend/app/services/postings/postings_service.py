@@ -740,9 +740,16 @@ async def decide_catalog(
     * a **rerank** of the stage-2 candidates when the deterministic outcome
       is ambiguous (best below ``τ_job`` or a runner-up margin under
       ``δ``), using plan 164 S4.4's ``0.75/0.25`` blend — it may only
-      reorder the deterministic candidate set;
+      reorder the deterministic candidate set; gated by its own
+      ``catalog.semantic_rerank`` switch (default OFF);
     * the plan-185 **rescue**, only where the overlap missed, gated by the
-      same shared resolved skill and the published status.
+      same shared resolved skill and the published status, behind its own
+      ``catalog.semantic_rescue`` switch.
+
+    The two switches are independent: turning rescue off never disables the
+    rerank and vice versa. With the rerank switch off the decision is
+    bit-identical to the pre-rerank path (no rerank call, no rerank
+    candidates beyond the deterministic trace).
 
     Semantic never introduces a candidate into the rerank and never
     resurrects a gated-out row. Writes the mapping fields + status, the
@@ -765,7 +772,10 @@ async def decide_catalog(
 
     from sqlalchemy.orm.attributes import flag_modified
 
-    from app.services.postings.catalog_settings import semantic_rescue_enabled
+    from app.services.postings.catalog_settings import (
+        semantic_rerank_enabled,
+        semantic_rescue_enabled,
+    )
     from app.services.postings.change_journal import (
         RETAG_FIELDS,
         PostingChangeJournal,
@@ -812,10 +822,11 @@ async def decide_catalog(
         )
     )
 
-    semantic_enabled = await semantic_rescue_enabled(db)
+    rescue_enabled = await semantic_rescue_enabled(db)
+    rerank_enabled = await semantic_rerank_enabled(db)
     rerank = not_run_rerank(threshold=AUTO_MAP_THRESHOLD)
     semantic = not_run_signal()
-    if skill_ids and ambiguous and semantic_enabled:
+    if skill_ids and ambiguous and rerank_enabled:
         rerank = await semantic_rerank_signal(
             db,
             posting,
@@ -823,7 +834,7 @@ async def decide_catalog(
             threshold=AUTO_MAP_THRESHOLD,
             margin=RERANK_MARGIN,
         )
-    if skill_ids and not overlap_cleared and semantic_enabled and not rerank.accepted:
+    if skill_ids and not overlap_cleared and rescue_enabled and not rerank.accepted:
         semantic = await semantic_catalog_signal(db, posting, skill_ids)
 
     if not skill_ids:

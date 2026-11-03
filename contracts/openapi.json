@@ -2579,6 +2579,17 @@
             ],
             "title": "Job Proposals"
           },
+          "semantic_rerank": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rerank"
+          },
           "semantic_rescue": {
             "anyOf": [
               {
@@ -26555,7 +26566,7 @@
     },
     "/api/v1/admin/catalog-mapping/settings": {
       "get": {
-        "description": "The mapping run controls (plan 185 S6.3): the job-proposal and\nsemantic-rescue switches, read per decision \u2014 effective on the next\ndecision, no restart (plan 50 P2a restored the rescue on the family\nvector store).",
+        "description": "The mapping run controls (plan 185 S6.3, plan 50 P2c.2): the\njob-proposal, semantic-rescue and semantic-rerank switches, read per\ndecision \u2014 effective on the next decision, no restart. The rerank\nswitch defaults OFF and is independent of the rescue.",
         "operationId": "catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get",
         "responses": {
           "200": {

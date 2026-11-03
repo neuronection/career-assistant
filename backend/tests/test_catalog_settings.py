@@ -101,6 +101,42 @@ async def test_job_proposals_switch_off_stops_the_writer(db, client, auth_header
     assert on.json()["job_proposals"] is True
 
 
+async def test_semantic_rerank_switch_defaults_off_and_is_independent(db, client, auth_headers):
+    """The mapping-settings payload carries the rerank kill switch, default
+    OFF. Flipping it never touches the rescue switch, and vice versa."""
+    current = await client.get("/api/v1/admin/catalog-mapping/settings", headers=auth_headers)
+    assert current.status_code == 200, current.text
+    assert current.json()["semantic_rerank"] is False
+    assert current.json()["semantic_rescue"] is True
+
+    rescue_off = await client.put(
+        "/api/v1/admin/catalog-mapping/settings",
+        json={"semantic_rescue": False},
+        headers=auth_headers,
+    )
+    assert rescue_off.json()["semantic_rescue"] is False
+    assert rescue_off.json()["semantic_rerank"] is False, "rescue off must not enable rerank"
+
+    rerank_on = await client.put(
+        "/api/v1/admin/catalog-mapping/settings",
+        json={"semantic_rerank": True},
+        headers=auth_headers,
+    )
+    assert rerank_on.json()["semantic_rerank"] is True
+    assert rerank_on.json()["semantic_rescue"] is False, "rerank on must not enable rescue"
+
+    both = await client.put(
+        "/api/v1/admin/catalog-mapping/settings",
+        json={"semantic_rescue": True, "semantic_rerank": False},
+        headers=auth_headers,
+    )
+    assert both.json() == {
+        "job_proposals": True,
+        "semantic_rescue": True,
+        "semantic_rerank": False,
+    }
+
+
 async def test_remap_upgrades_after_the_catalog_gains_the_skills(
     db, client, auth_headers, seeded_catalog, source
 ):

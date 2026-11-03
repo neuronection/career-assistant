@@ -14,6 +14,7 @@ from app.extensions.sdk import RawPosting
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import MappingMethod
 from app.models.posting_model import JobPosting
+from app.services.postings.catalog_settings import SEMANTIC_RERANK_KEY, set_switch
 from app.services.postings.mapping_remap import (
     REMAP_METHODS,
     invalidate_mapping_space,
@@ -90,6 +91,30 @@ async def test_only_stale_semantic_rows_are_redecided(db, source):
     assert overlap.mapping_method == MappingMethod.SKILL_OVERLAP.value
     assert expired.mapping_method == MappingMethod.SEMANTIC.value
     assert expired.mapping_features["space_key"] == "old-space"
+
+
+async def test_terminal_rows_are_untouched_in_both_rerank_switch_states(db, source):
+    """The rerank kill switch never widens the remap domain: manual and
+    terminal rows stay outside it with the switch off or on."""
+    manual = await _posting(db, source, "remap-switch-manual")
+    manual.mapping_method = MappingMethod.MANUAL.value
+    manual.mapping_features = {"schema_version": 1, "space_key": "old-space"}
+    expired = await _posting(db, source, "remap-switch-expired", status="expired")
+    _semantic(expired, "old-space")
+    hidden = await _posting(db, source, "remap-switch-hidden", status="hidden")
+    _semantic(hidden, "old-space")
+    await db.flush()
+
+    for enabled in (False, True):
+        await set_switch(db, SEMANTIC_RERANK_KEY, enabled)
+        result = await run_posting_remap(
+            db,
+            {"space_key": "old-space", "batch_size": 50, "all_postings": False},
+        )
+        assert result["remapped"] == 0
+        assert manual.mapping_method == MappingMethod.MANUAL.value
+        assert expired.mapping_method == MappingMethod.SEMANTIC.value
+        assert hidden.mapping_method == MappingMethod.SEMANTIC.value
 
 
 async def test_all_postings_ignores_the_recorded_space_key(db, source):

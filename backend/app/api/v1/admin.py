@@ -1657,24 +1657,27 @@ async def catalog_mapping_settings(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_admin),
 ) -> dict:
-    """The mapping run controls (plan 185 S6.3): the job-proposal and
-    semantic-rescue switches, read per decision — effective on the next
-    decision, no restart (plan 50 P2a restored the rescue on the family
-    vector store)."""
+    """The mapping run controls (plan 185 S6.3, plan 50 P2c.2): the
+    job-proposal, semantic-rescue and semantic-rerank switches, read per
+    decision — effective on the next decision, no restart. The rerank
+    switch defaults OFF and is independent of the rescue."""
     from app.services.postings.catalog_settings import (
         job_proposals_enabled,
+        semantic_rerank_enabled,
         semantic_rescue_enabled,
     )
 
     return {
         "job_proposals": await job_proposals_enabled(db),
         "semantic_rescue": await semantic_rescue_enabled(db),
+        "semantic_rerank": await semantic_rerank_enabled(db),
     }
 
 
 class CatalogMappingSettingsIn(BaseModel):
     job_proposals: bool | None = None
     semantic_rescue: bool | None = None
+    semantic_rerank: bool | None = None
 
 
 @router.put("/catalog-mapping/settings")
@@ -1685,8 +1688,10 @@ async def put_catalog_mapping_settings(
 ) -> dict:
     from app.services.postings.catalog_settings import (
         JOB_PROPOSALS_KEY,
+        SEMANTIC_RERANK_KEY,
         SEMANTIC_RESCUE_KEY,
         job_proposals_enabled,
+        semantic_rerank_enabled,
         semantic_rescue_enabled,
         set_switch,
     )
@@ -1695,9 +1700,12 @@ async def put_catalog_mapping_settings(
         await set_switch(db, JOB_PROPOSALS_KEY, payload.job_proposals)
     if payload.semantic_rescue is not None:
         await set_switch(db, SEMANTIC_RESCUE_KEY, payload.semantic_rescue)
+    if payload.semantic_rerank is not None:
+        await set_switch(db, SEMANTIC_RERANK_KEY, payload.semantic_rerank)
     return {
         "job_proposals": await job_proposals_enabled(db),
         "semantic_rescue": await semantic_rescue_enabled(db),
+        "semantic_rerank": await semantic_rerank_enabled(db),
     }
 
 

@@ -26,6 +26,11 @@ from app.models.posting_model import JobPosting
 from app.models.taxonomy_model import Skill
 from app.services.postings import semantic_rerank as rerank_module
 from app.services.postings import semantic_rescue as rescue_module
+from app.services.postings.catalog_settings import (
+    SEMANTIC_RERANK_KEY,
+    SEMANTIC_RESCUE_KEY,
+    set_switch,
+)
 from app.services.postings.mapping_candidates import (
     CatalogCandidate,
     catalog_candidates,
@@ -107,8 +112,16 @@ async def _job(
 
 
 async def _posting(
-    db, source, external_id: str, skills: list[str], *, title: str = "", description: str = ""
+    db,
+    source,
+    external_id: str,
+    skills: list[str],
+    *,
+    title: str = "",
+    description: str = "",
+    rerank: bool = True,
 ) -> JobPosting:
+    await set_switch(db, SEMANTIC_RERANK_KEY, rerank)
     posting = await upsert_posting(
         db,
         source,
@@ -323,6 +336,128 @@ async def test_manual_is_never_overwritten_by_the_rerank(db, source, stub_rerank
     assert posting.mapping_method == MappingMethod.MANUAL.value
     assert posting.catalog_job_id == job.id
     assert posting.mapping_reason == "manually mapped"
+    assert stub_rerank["calls"] == 0
+
+
+async def test_the_rerank_switch_defaults_off_and_applies_to_the_next_decision(
+    db, source, stub_rerank
+):
+    """The kill switch is OFF for an unconfigured deployment: the ambiguous
+    posting keeps the pre-rerank deterministic verdict (abstain here), no
+    rerank call and no rerank candidates. Flipping it is effective on the
+    very next decision, with no restart."""
+    sql = await _skill(db, "rerank-switch-sql")
+    family = JobFamily(key="rerank-switch", label="Switch", path="rerank-switch")
+    db.add(family)
+    await db.flush()
+    job = await _weak_job(db, family, sql)
+
+    posting = await _posting(db, source, "rerank-switch-off", ["rerank-switch-sql"], rerank=False)
+
+    assert stub_rerank["calls"] == 0, "rerank off ⇒ no rerank call"
+    assert posting.mapping_method is None
+    assert posting.catalog_job_id is None
+    assert posting.posting_facts["mapping_signals"]["rerank"]["ran"] is False
+    assert posting.posting_facts["mapping_signals"]["rerank"]["candidates"] == []
+    assert posting.mapping_features["candidates"][0]["semantic"] is None
+
+    stub_rerank["signal"] = RerankSignal(
+        candidates=(_candidate(job, 0.52),),
+        threshold=AUTO_MAP_THRESHOLD,
+        margin=RERANK_MARGIN,
+        space_key="space-key",
+        ran=True,
+        accepted=True,
+        top_changed=True,
+    )
+    await set_switch(db, SEMANTIC_RERANK_KEY, True)
+    await decide_catalog(db, posting, {sql.id})
+
+    assert stub_rerank["calls"] == 1
+    assert posting.mapping_method == MappingMethod.SEMANTIC_RERANK.value
+    assert posting.catalog_job_id == job.id
+
+
+async def test_the_rerank_and_rescue_switches_are_independent(db, source, monkeypatch):
+    """Rescue off never disables the rerank, and rerank off never disables
+    the rescue: each stage has its own per-decision switch."""
+    from app.services.postings.semantic_rescue import SemanticCandidate, SemanticSignal
+
+    sql = await _skill(db, "rerank-independence-sql")
+    family = JobFamily(key="rerank-independence", label="Independent", path="rerank-independence")
+    db.add(family)
+    await db.flush()
+    job = await _weak_job(db, family, sql)
+
+    state = {"rerank": 0, "rescue": 0}
+
+    async def _rerank(*_args, **_kwargs):
+        state["rerank"] += 1
+        return RerankSignal(
+            candidates=(_candidate(job, 0.52),),
+            threshold=AUTO_MAP_THRESHOLD,
+            margin=RERANK_MARGIN,
+            ran=True,
+            accepted=True,
+            top_changed=True,
+        )
+
+    async def _rescue(*_args, **_kwargs):
+        state["rescue"] += 1
+        return SemanticSignal(
+            candidates=(
+                SemanticCandidate(
+                    job_id=str(job.id),
+                    code=job.code,
+                    score=0.90,
+                    shared_skills=1,
+                ),
+            ),
+            threshold=0.6,
+        )
+
+    monkeypatch.setattr(rerank_module, "semantic_rerank_signal", _rerank)
+    monkeypatch.setattr(rescue_module, "semantic_catalog_signal", _rescue)
+
+    # Rerank ON, rescue OFF ⇒ only the rerank runs.
+    await set_switch(db, SEMANTIC_RERANK_KEY, True)
+    await set_switch(db, SEMANTIC_RESCUE_KEY, False)
+    posting = await _posting(db, source, "rerank-independent-on", ["rerank-independence-sql"])
+    assert state == {"rerank": 1, "rescue": 0}
+    assert posting.mapping_method == MappingMethod.SEMANTIC_RERANK.value
+
+    # Rerank OFF, rescue ON ⇒ only the rescue runs.
+    await set_switch(db, SEMANTIC_RERANK_KEY, False)
+    await set_switch(db, SEMANTIC_RESCUE_KEY, True)
+    posting = await _posting(
+        db, source, "rerank-independent-off", ["rerank-independence-sql"], rerank=False
+    )
+    assert state == {"rerank": 1, "rescue": 1}
+    assert posting.mapping_method == MappingMethod.SEMANTIC.value
+    assert posting.posting_facts["mapping_signals"]["rerank"]["ran"] is False
+
+
+async def test_manual_rows_are_untouched_in_both_switch_states(db, source, stub_rerank):
+    sql = await _skill(db, "rerank-manual-switch-sql")
+    family = JobFamily(key="rerank-manual-switch", label="ManualS", path="rerank-manual-switch")
+    db.add(family)
+    await db.flush()
+    job = await _job(db, "manual-switch-role", family, [(sql, 8, "core")])
+    posting = await _posting(db, source, "rerank-manual-switch", ["rerank-manual-switch-sql"])
+    posting.catalog_job_id = job.id
+    posting.mapping_method = MappingMethod.MANUAL.value
+    posting.mapping_confidence = 1.0
+    posting.mapping_reason = "manually mapped"
+    posting.status = "mapped"
+    await db.flush()
+
+    for enabled in (False, True):
+        await set_switch(db, SEMANTIC_RERANK_KEY, enabled)
+        assert await decide_catalog(db, posting, {sql.id}) is None
+        assert posting.mapping_method == MappingMethod.MANUAL.value
+        assert posting.catalog_job_id == job.id
+        assert posting.mapping_reason == "manually mapped"
+
     assert stub_rerank["calls"] == 0
 
 
