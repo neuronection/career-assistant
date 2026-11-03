@@ -28,6 +28,9 @@ from app.services.vector_reconcile_service import (
     KindCoverage,
     ReconcileResult,
     VectorReconcileService,
+    parse_after,
+    parse_carry,
+    parse_completed_kinds,
     parse_kinds,
     parse_since,
 )
@@ -112,8 +115,19 @@ def _service(db, engine, *, embedder=None, **kwargs) -> VectorReconcileService:
 
 
 def _patch_sources(monkeypatch, postings: list) -> None:
-    """Serve the fake postings through the compose/list seam (no DB rows)."""
+    """Serve the fake postings through the compose/list seam (no DB rows).
+
+    Rows get deterministic ``updated_at`` stamps so the reconcile keyset can
+    page them exactly like the real ``list_sources`` query.
+    """
+    from datetime import UTC, datetime, timedelta
+
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    stamped = [(row, base + timedelta(seconds=index)) for index, row in enumerate(postings)]
     by_id = {str(row.id): row for row in postings}
+
+    def _ordered():
+        return sorted(stamped, key=lambda pair: (pair[1], str(pair[0].id)))
 
     async def load_source(_db, kind, source_id):
         row = by_id.get(str(source_id))
@@ -124,11 +138,30 @@ def _patch_sources(monkeypatch, postings: list) -> None:
     async def list_sources(_db, kind, *, since=None, after=None, limit=None):
         if kind != "posting":
             return []
-        ordered = sorted(postings, key=lambda row: str(row.id))
-        return [vis.SourceRow(source_id=str(row.id)) for row in ordered]
+        rows = _ordered()
+        if since is not None:
+            rows = [pair for pair in rows if pair[1] >= since]
+        if after is not None:
+            after_updated, after_id = after
+            rows = [
+                pair for pair in rows if (pair[1], str(pair[0].id)) > (after_updated, str(after_id))
+            ]
+        if limit is not None:
+            rows = rows[: int(limit)]
+        return [vis.SourceRow(source_id=str(row.id), updated_at=updated) for row, updated in rows]
 
-    async def count_sources(_db, kind, *, since=None):
-        return len(postings) if kind == "posting" else 0
+    async def count_sources(_db, kind, *, since=None, after=None):
+        if kind != "posting":
+            return 0
+        rows = _ordered()
+        if since is not None:
+            rows = [pair for pair in rows if pair[1] >= since]
+        if after is not None:
+            after_updated, after_id = after
+            rows = [
+                pair for pair in rows if (pair[1], str(pair[0].id)) > (after_updated, str(after_id))
+            ]
+        return len(rows)
 
     monkeypatch.setattr(vis, "load_source", load_source)
     monkeypatch.setattr(vis, "list_sources", list_sources)
@@ -271,6 +304,261 @@ async def test_the_embed_budget_caps_a_single_run(db, engine, monkeypatch):
     assert result.budget_exhausted is True
     assert result.embedded == 1, "one document's records fit the unit budget"
     assert result.deferred == 2
+
+
+async def test_a_corpus_larger_than_scan_limit_resumes_to_completion(db, engine, monkeypatch):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(5)]
+    _patch_sources(monkeypatch, postings)
+    embedder = CountingEmbedder(_mock)
+    store = _store(engine)
+
+    first = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=2,
+        embedder=embedder,
+    )
+    result = await first.run()
+
+    assert result.scanned == 2, "the first batch is exactly scan_limit"
+    assert result.embedded == 2
+    assert result.done is False
+    assert result.next_after["posting"] is not None
+    assert result.remaining == 3
+    assert result.completed_kinds == ()
+    assert _snapshots(engine) == [], "a partial scan publishes no coverage point"
+
+    seen = result.scanned
+    runs = 0
+    while not result.done:
+        resumed = VectorReconcileService(
+            db,
+            store=store,
+            provision_backend=vc.BACKEND_LINEAR,
+            kinds=("posting",),
+            scan_limit=2,
+            embedder=embedder,
+            after=result.next_after,
+            carry=result.carry,
+            completed_kinds=result.completed_kinds,
+        )
+        result = await resumed.run()
+        seen += result.scanned
+        runs += 1
+        assert runs < 10, "the cursor chain terminates"
+
+    assert seen == 5, "every source was scanned exactly once"
+    assert result.done is True
+    assert result.next_after["posting"] is None
+    assert result.completed_kinds == ("posting",)
+    assert embedder.calls == 5, "no document was double-indexed across the resume"
+
+    with Session(engine) as session:
+        documents = session.scalars(select(VectorDocument)).all()
+        assert len(documents) == 5
+        assert len({document.source_id for document in documents}) == 5
+
+    [snapshot] = _snapshots(engine)
+    assert snapshot.total == 5
+    assert snapshot.embedded == 5, "the carried counters describe the whole kind"
+
+
+async def test_capacity_exhaustion_mid_batch_resumes_from_the_last_processed_source(
+    db, engine, monkeypatch
+):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(5)]
+    _patch_sources(monkeypatch, postings)
+    embedder = CountingEmbedder(_mock)
+    store = _store(engine)
+
+    first = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=10,
+        limit=2,
+        embedder=embedder,
+    )
+    partial = await first.run()
+
+    assert partial.embedded == 2
+    assert partial.deferred == 3, "the unscanned remainder is honestly deferred"
+    assert partial.done is False
+    assert partial.next_after["posting"] is not None
+    assert partial.carry["posting"]["seen"] == 2
+    assert _snapshots(engine) == []
+
+    second = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=10,
+        limit=2,
+        embedder=embedder,
+        after=partial.next_after,
+        carry=partial.carry,
+        completed_kinds=partial.completed_kinds,
+    )
+    resumed = await second.run()
+    assert resumed.embedded == 2
+    assert resumed.done is False
+    assert resumed.deferred == 1
+    assert resumed.carry["posting"]["seen"] == 4
+
+    third = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=10,
+        limit=2,
+        embedder=embedder,
+        after=resumed.next_after,
+        carry=resumed.carry,
+        completed_kinds=resumed.completed_kinds,
+    )
+    final = await third.run()
+    assert final.embedded == 1
+    assert final.done is True
+    assert embedder.calls == 5
+
+    with Session(engine) as session:
+        documents = session.scalars(select(VectorDocument)).all()
+        assert len(documents) == 5
+        assert len({document.source_id for document in documents}) == 5
+    [snapshot] = _snapshots(engine)
+    assert snapshot.total == 5 and snapshot.embedded == 5
+
+
+async def test_a_completed_kind_snapshots_while_another_kind_is_partial(db, engine, monkeypatch):
+    from datetime import UTC, datetime, timedelta
+
+    postings = [_fake_posting(uuid.uuid4())]
+    skills = [
+        SimpleNamespace(id=uuid.uuid4(), key=f"skill-{index}", label=f"Skill {index}", aliases=[])
+        for index in range(3)
+    ]
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    corpus = {
+        "posting": (postings, [base]),
+        "skill": (skills, [base + timedelta(seconds=index) for index in range(3)]),
+    }
+    loaded = {
+        "posting": {
+            str(row.id): LoadedSource(composed=vis.compose_posting_views(row), scope_type="global")
+            for row in postings
+        },
+        "skill": {
+            str(row.id): LoadedSource(composed=vis.compose_skill_views(row), scope_type="global")
+            for row in skills
+        },
+    }
+    calls: list[str] = []
+
+    async def load_source(_db, kind, source_id):
+        return loaded.get(kind, {}).get(str(source_id))
+
+    async def list_sources(_db, kind, *, since=None, after=None, limit=None):
+        calls.append(kind)
+        rows, stamps = corpus.get(kind, ([], []))
+        pairs = sorted(zip(rows, stamps, strict=True), key=lambda pair: (pair[1], str(pair[0].id)))
+        if after is not None:
+            after_updated, after_id = after
+            pairs = [
+                pair
+                for pair in pairs
+                if (pair[1], str(pair[0].id)) > (after_updated, str(after_id))
+            ]
+        if limit is not None:
+            pairs = pairs[: int(limit)]
+        return [vis.SourceRow(source_id=str(row.id), updated_at=stamp) for row, stamp in pairs]
+
+    async def count_sources(_db, kind, *, since=None, after=None):
+        rows, stamps = corpus.get(kind, ([], []))
+        pairs = list(zip(rows, stamps, strict=True))
+        if after is not None:
+            after_updated, after_id = after
+            pairs = [
+                pair
+                for pair in pairs
+                if (pair[1], str(pair[0].id)) > (after_updated, str(after_id))
+            ]
+        return len(pairs)
+
+    import app.services.vector_reconcile_service as vrs
+
+    monkeypatch.setattr(vis, "load_source", load_source)
+    monkeypatch.setattr(vis, "list_sources", list_sources)
+    monkeypatch.setattr(vis, "count_sources", count_sources)
+    monkeypatch.setattr(vrs, "load_source", load_source)
+    monkeypatch.setattr(vrs, "list_sources", list_sources)
+    monkeypatch.setattr(vrs, "count_sources", count_sources)
+
+    store = _store(engine)
+    first = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting", "skill"),
+        scan_limit=2,
+        embedder=_mock,
+    )
+    partial = await first.run()
+
+    assert partial.done is False
+    assert partial.completed_kinds == ("posting",)
+    assert partial.next_after["posting"] is None
+    assert partial.next_after["skill"] is not None
+    assert [snapshot.kind for snapshot in _snapshots(engine)] == ["posting"]
+
+    calls.clear()
+    resumed = await VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting", "skill"),
+        scan_limit=2,
+        embedder=_mock,
+        after=partial.next_after,
+        carry=partial.carry,
+        completed_kinds=partial.completed_kinds,
+    ).run()
+
+    assert resumed.done is True
+    assert calls == ["skill"], "an already-complete kind is not rescanned"
+    assert sorted(snapshot.kind for snapshot in _snapshots(engine)) == ["posting", "skill"]
+
+
+async def test_the_source_scan_never_asks_for_more_than_scan_limit(db, engine, monkeypatch):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(7)]
+    _patch_sources(monkeypatch, postings)
+    import app.services.vector_reconcile_service as vrs
+
+    inner = vrs.list_sources
+    limits: list[int | None] = []
+
+    async def recording(_db, kind, *, since=None, after=None, limit=None):
+        limits.append(limit)
+        return await inner(_db, kind, since=since, after=after, limit=limit)
+
+    monkeypatch.setattr(vrs, "list_sources", recording)
+    result = await VectorReconcileService(
+        db,
+        store=_store(engine),
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=3,
+        embedder=_mock,
+    ).run()
+
+    assert limits == [3], "the scan is one bounded page, never the whole corpus"
+    assert result.scanned == 3
+    assert result.next_after["posting"] is not None
+    assert result.done is False
 
 
 async def test_force_reembeds_current_documents(db, engine, monkeypatch):
@@ -421,6 +709,148 @@ async def test_provider_unassigned_defers_instead_of_failing(db, engine, monkeyp
     assert result.embedded == 0
 
 
+# --------------------------------------------------------- auto-continuation
+
+
+async def _reconcile_job(db, payload: dict):
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobType
+
+    job = BackgroundJob(
+        id=uuid.uuid4(),
+        job_type=BackgroundJobType.VECTOR_RECONCILE.value,
+        payload=payload,
+        status="running",
+    )
+    db.add(job)
+    await db.commit()
+    return job
+
+
+async def _followups(db, job_id):
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobType
+
+    rows = await db.execute(
+        select(BackgroundJob).where(
+            BackgroundJob.job_type == BackgroundJobType.VECTOR_RECONCILE.value,
+            BackgroundJob.id != job_id,
+        )
+    )
+    return list(rows.scalars().all())
+
+
+async def _invoke_reconcile_handler(db, job):
+    from app.services import job_worker as jw
+
+    async def progress(_value, _stage):
+        return None
+
+    async def not_cancelled():
+        return False
+
+    return await jw._run_vector_reconcile(db, job, progress=progress, cancelled=not_cancelled)
+
+
+def _partial_result() -> ReconcileResult:
+    return ReconcileResult(
+        space=SPACE,
+        kinds=(KindCoverage(kind="posting", total=5, missing=3),),
+        scanned=2,
+        embedded=2,
+        deferred=3,
+        remaining=3,
+        next_after={
+            "posting": {"updated_at": "2026-01-01T00:00:02+00:00", "id": str(uuid.uuid4())}
+        },
+        carry={"posting": {"seen": 2, "missing": 0, "stale": 0, "failed": 0, "embedded": 2}},
+        done=False,
+    )
+
+
+async def test_a_partial_reconcile_enqueues_exactly_one_continuation(db, monkeypatch):
+    import app.services.vector_reconcile_service as vrs
+
+    partial = _partial_result()
+
+    class FakeService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def run(self, **_kwargs):
+            return partial
+
+    monkeypatch.setattr(vrs, "VectorReconcileService", FakeService)
+    job = await _reconcile_job(db, {"kinds": ["posting"], "scan_limit": 2})
+
+    await _invoke_reconcile_handler(db, job)
+    [followup] = await _followups(db, job.id)
+    assert followup.status == "queued"
+    assert followup.payload["after"] == partial.next_after
+    assert followup.payload["carry"] == partial.carry
+    assert followup.payload["completed_kinds"] == []
+    assert followup.payload["scan_limit"] == 2
+    assert followup.payload["continuation_key"]
+
+    await _invoke_reconcile_handler(db, job)
+    assert len(await _followups(db, job.id)) == 1, "the same cursor never duplicates"
+
+
+async def test_a_completed_reconcile_enqueues_no_continuation(db, monkeypatch):
+    import app.services.vector_reconcile_service as vrs
+
+    class FakeService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def run(self, **_kwargs):
+            return ReconcileResult(
+                space=SPACE,
+                kinds=(KindCoverage(kind="posting", total=1, embedded=1),),
+                scanned=1,
+                embedded=1,
+                next_after={"posting": None},
+                completed_kinds=("posting",),
+                done=True,
+            )
+
+    monkeypatch.setattr(vrs, "VectorReconcileService", FakeService)
+    job = await _reconcile_job(db, {"kinds": ["posting"], "scan_limit": 2})
+
+    await _invoke_reconcile_handler(db, job)
+    assert await _followups(db, job.id) == []
+
+
+async def test_a_cancelled_reconcile_enqueues_no_continuation(db, monkeypatch):
+    import app.services.vector_reconcile_service as vrs
+
+    class FakeService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def run(self, **_kwargs):
+            return ReconcileResult(
+                space=SPACE,
+                kinds=(KindCoverage(kind="posting", total=5, missing=5),),
+                scanned=1,
+                deferred=4,
+                cancelled=True,
+                next_after={
+                    "posting": {
+                        "updated_at": "2026-01-01T00:00:00+00:00",
+                        "id": str(uuid.uuid4()),
+                    }
+                },
+                done=False,
+            )
+
+    monkeypatch.setattr(vrs, "VectorReconcileService", FakeService)
+    job = await _reconcile_job(db, {"kinds": ["posting"], "scan_limit": 2})
+
+    await _invoke_reconcile_handler(db, job)
+    assert await _followups(db, job.id) == [], "cancellation stops the chain"
+
+
 # ------------------------------------------------------------------- payloads
 
 
@@ -442,6 +872,24 @@ def test_since_parsing_normalizes_to_utc():
     assert parse_since("2026-11-02T00:00:00") == datetime(2026, 11, 2, tzinfo=UTC)
 
 
+def test_cursor_and_carry_payload_parsing():
+    from datetime import UTC, datetime
+
+    after = parse_after({"posting": {"updated_at": "2026-11-02T00:00:00Z", "id": "abc"}})
+    assert after["posting"] == (datetime(2026, 11, 2, tzinfo=UTC), "abc")
+    assert parse_after(None) == {}
+    with pytest.raises(ValueError):
+        parse_after({"posting": {"id": "abc"}})
+    with pytest.raises(ValueError):
+        parse_after({"material": {"updated_at": "2026-11-02T00:00:00Z", "id": "abc"}})
+
+    carry = parse_carry({"posting": {"seen": 2, "missing": 1}})
+    assert carry["posting"]["seen"] == 2
+    assert carry["posting"]["missing"] == 1
+    assert carry["posting"]["embedded"] == 0
+    assert parse_completed_kinds(["posting"]) == ("posting",)
+
+
 def test_result_payload_shape():
     result = ReconcileResult(
         space=SPACE,
@@ -459,6 +907,11 @@ def test_result_payload_shape():
     assert payload["deferred"] == 0
     assert payload["failed_ids"] == ["posting:x"]
     assert payload["kinds"][0]["kind"] == "posting"
+    assert payload["done"] is True
+    assert payload["remaining"] == 0
+    assert payload["next_after"] == {}
+    assert payload["carry"] == {}
+    assert payload["completed_kinds"] == []
 
 
 async def test_a_profile_document_keeps_its_user_scope(db, engine, monkeypatch):
@@ -489,7 +942,7 @@ async def test_a_profile_document_keeps_its_user_scope(db, engine, monkeypatch):
     async def list_sources(_db, kind, *, since=None, after=None, limit=None):
         return [vis.SourceRow(source_id=str(user_id))] if kind == "profile" else []
 
-    async def count_sources(_db, kind, *, since=None):
+    async def count_sources(_db, kind, *, since=None, after=None):
         return 1 if kind == "profile" else 0
 
     import app.services.vector_reconcile_service as vrs
