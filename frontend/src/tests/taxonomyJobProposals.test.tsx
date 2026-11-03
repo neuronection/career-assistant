@@ -254,6 +254,34 @@ describe("TaxonomyJobProposalCards", () => {
     expect(button.textContent).toContain("Queued");
   });
 
+  it("releases the queued lock when the refreshed row settles", async () => {
+    const user = userEvent.setup();
+    remapMock.mockResolvedValueOnce({
+      mapping_method: null,
+      semantic_pending: true,
+      semantic_pending_reason: "ambiguous deterministic outcome",
+    });
+    const { rerender } = render(
+      <TaxonomyJobProposalCards rows={[row]} families={families} onDone={() => {}} />,
+    );
+    await user.click(screen.getByTestId("proposal-remap-p-1"));
+    const button = screen.getByTestId("proposal-remap-p-1") as HTMLButtonElement;
+    await waitFor(() => expect(button.disabled).toBe(true));
+
+    // The parent reloads with the pending marker; the local lock remains.
+    rerender(
+      <TaxonomyJobProposalCards rows={[pendingRow]} families={families} onDone={() => {}} />,
+    );
+    await waitFor(() => expect(button.disabled).toBe(true));
+
+    // The worker settles; the refreshed row has no pending marker.
+    rerender(
+      <TaxonomyJobProposalCards rows={[row]} families={families} onDone={() => {}} />,
+    );
+    await waitFor(() => expect(button.disabled).toBe(false));
+    expect(button.textContent).toContain("taxonomy.jobProposals.remap");
+  });
+
   it("surfaces the server's 409 message instead of swallowing it", async () => {
     const user = userEvent.setup();
     const rejection = Object.assign(new Error("Request failed with status code 409"), {

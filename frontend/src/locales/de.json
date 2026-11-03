@@ -272,7 +272,8 @@
       "summary": "Zusammenfassung",
       "requirements": "Anforderungen",
       "responsibilities": "Aufgaben",
-      "skills": "Fähigkeiten"
+      "skills": "Fähigkeiten",
+      "body": "Volltext"
     }
   },
   "families": {

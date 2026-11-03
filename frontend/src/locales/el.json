@@ -272,7 +272,8 @@
       "summary": "Σύνοψη",
       "requirements": "Απαιτήσεις",
       "responsibilities": "Αρμοδιότητες",
-      "skills": "Δεξιότητες"
+      "skills": "Δεξιότητες",
+      "body": "Κείμενο"
     }
   },
   "families": {

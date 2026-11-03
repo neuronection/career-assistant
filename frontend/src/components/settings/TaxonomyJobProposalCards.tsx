@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Briefcase, Clock, Sparkles } from "lucide-react";
 import {
@@ -124,6 +124,21 @@ export function TaxonomyJobProposalCards({
   const [queued, setQueued] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
 
+  // The worker settles asynchronously: release the local "Queued" lock when
+  // the refreshed row no longer carries the pending marker.
+  useEffect(() => {
+    setQueued((previous) => {
+      const next = new Set(previous);
+      for (const id of previous) {
+        const current = rows.find((row) => row.id === id);
+        if (!current || current.mapping_signals?.semantic_pending !== true) {
+          next.delete(id);
+        }
+      }
+      return next;
+    });
+  }, [rows]);
+
   const pendingReasonText = (reason: string | null): string => {
     if (!reason) return t("taxonomy.jobProposals.pendingReasonUnknown");
     return reason
@@ -224,6 +239,8 @@ export function TaxonomyJobProposalCards({
         const relative = row.proposed_at ? formatRelativeTime(row.proposed_at) : null;
         const pendingReason = pendingReasonOf(row);
         const pending = row.mapping_signals?.semantic_pending === true;
+        // Once the worker settles the pending marker, the effect above
+        // releases the local "Queued" lock with the refreshed row.
         const isQueued = queued.has(row.id);
         return (
           <div
