@@ -356,6 +356,7 @@ class VectorIndexService:
         self._profile = profile
         self._provision_backend = provision_backend
         self._user_id = user_id
+        self._verified_spaces: set[str] = set()
 
     async def index_document(
         self,
@@ -527,11 +528,18 @@ class VectorIndexService:
         re-provision idempotently and continue with the refreshed handle, or
         report ``index_missing`` instead of writing into nothing and failing
         every retry forever.
+
+        A verified space is remembered for the life of this service, so a
+        reconcile pass probes once per space instead of once per document.
         """
+        key = f"{space.space_id}:{space.index_table}"
+        if key in self._verified_spaces:
+            return space
         needs_provision = space.index_table is None and self.store.backend.name != BACKEND_LINEAR
         if not needs_provision:
             try:
                 self.store.ensure_space(space)
+                self._verified_spaces.add(key)
                 return space
             except VectorIndexMissing:
                 needs_provision = True
@@ -546,6 +554,7 @@ class VectorIndexService:
                 session.refresh(row)
             healed = self.store.resolve_space(str(row.id))
             self.store.ensure_space(healed)
+            self._verified_spaces.add(f"{healed.space_id}:{healed.index_table}")
             return healed
         except Exception:  # a broken provision is a degraded write, not a crash
             logger.warning(
