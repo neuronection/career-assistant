@@ -8,12 +8,13 @@ import {
   type CatalogMappingSettings,
 } from "@/api/taxonomy";
 
-/** "Embeddings & mapping" (plan 185 S6.3): the catalog mapping run switch —
- * read per decision, effective on the next decision, so there is no restart
- * to manage: the pipeline is queue/event-driven and this switch +
- * re-extract/re-decide + the Failures-tab requeue are its only levers.
- * Retrieval coverage and reindex controls live on the retrieval ops surface
- * (plan 51). */
+/** "Embeddings & mapping" (plan 185 S6.3, plan 50 P2c.4): the catalog
+ * mapping run switches — read per decision, effective on the next decision,
+ * so there is no restart to manage: the pipeline is queue/event-driven and
+ * these switches + re-extract/re-decide + the Failures-tab requeue are its
+ * only levers. The semantic rescue and the semantic rerank are independent:
+ * either can run without the other. Retrieval coverage and reindex controls
+ * live on the retrieval ops surface (plan 51). */
 export function TaxonomyEmbeddingsCard() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<CatalogMappingSettings | null>(null);
@@ -33,7 +34,10 @@ export function TaxonomyEmbeddingsCard() {
     void load();
   }, [load]);
 
-  const flip = async (key: "job_proposals", enabled: boolean) => {
+  const flip = async (
+    key: "job_proposals" | "semantic_rescue" | "semantic_rerank",
+    enabled: boolean,
+  ) => {
     try {
       setSettings(await putCatalogMappingSettings({ [key]: enabled }));
       setNote(t("taxonomy.embeddings.switchNote"));
@@ -67,6 +71,20 @@ export function TaxonomyEmbeddingsCard() {
             checked={settings.job_proposals}
             onCheckedChange={(enabled) => void flip("job_proposals", enabled)}
             data-testid="embeddings-switch-proposals"
+          />
+          <SwitchRow
+            label={t("taxonomy.embeddings.semanticRescueSwitch")}
+            currentValue={t("taxonomy.embeddings.semanticRescueHint")}
+            checked={settings.semantic_rescue}
+            onCheckedChange={(enabled) => void flip("semantic_rescue", enabled)}
+            data-testid="embeddings-switch-semantic-rescue"
+          />
+          <SwitchRow
+            label={t("taxonomy.embeddings.semanticRerankSwitch")}
+            currentValue={t("taxonomy.embeddings.semanticRerankHint")}
+            checked={settings.semantic_rerank}
+            onCheckedChange={(enabled) => void flip("semantic_rerank", enabled)}
+            data-testid="embeddings-switch-semantic-rerank"
           />
         </div>
       )}

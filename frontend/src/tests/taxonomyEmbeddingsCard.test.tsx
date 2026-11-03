@@ -35,32 +35,72 @@ afterEach(() => {
   apiPut.mockReset();
 });
 
-function setup(proposals = true) {
+function settings(overrides: Partial<Record<string, boolean>> = {}) {
+  return {
+    job_proposals: true,
+    semantic_rescue: true,
+    semantic_rerank: false,
+    ...overrides,
+  };
+}
+
+function setup(overrides: Partial<Record<string, boolean>> = {}) {
   apiGet.mockImplementation((url: string) => {
     if (url === "/admin/catalog-mapping/settings") {
-      return Promise.resolve({ data: { job_proposals: proposals } });
+      return Promise.resolve({ data: settings(overrides) });
     }
     return Promise.reject(new Error(`unexpected GET ${url}`));
   });
 }
 
 describe("TaxonomyEmbeddingsCard", () => {
-  it("renders the mapping run switch", async () => {
+  it("renders the three mapping switches from the API values", async () => {
     setup();
     render(<TaxonomyEmbeddingsCard />);
-    await waitFor(() => expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy(),
+    );
     expect(
       screen.getByTestId("embeddings-switch-proposals").getAttribute("aria-checked"),
     ).toBe("true");
-    expect(screen.queryByTestId("embeddings-buckets")).toBeNull();
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rescue")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rerank")
+        .getAttribute("aria-checked"),
+    ).toBe("false");
     expect(screen.queryByTestId("embeddings-switch-semantic")).toBeNull();
   });
 
-  it("flips the switch through the settings endpoint", async () => {
-    setup();
-    apiPut.mockResolvedValue({ data: { job_proposals: false } });
+  it("shows the API's OFF rerank and ON rescue, never local defaults", async () => {
+    setup({ semantic_rescue: false, semantic_rerank: true });
     render(<TaxonomyEmbeddingsCard />);
-    await waitFor(() => expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByTestId("embeddings-switch-semantic-rerank")).toBeTruthy(),
+    );
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rescue")
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rerank")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
+  });
+
+  it("flips the job proposals switch through the settings endpoint", async () => {
+    setup();
+    apiPut.mockResolvedValue({ data: settings({ job_proposals: false }) });
+    render(<TaxonomyEmbeddingsCard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy(),
+    );
     fireEvent.click(screen.getByTestId("embeddings-switch-proposals"));
     await waitFor(() => expect(apiPut).toHaveBeenCalledTimes(1));
     expect(apiPut.mock.calls[0][1]).toEqual({ job_proposals: false });
@@ -70,5 +110,53 @@ describe("TaxonomyEmbeddingsCard", () => {
       ).toBe("false"),
     );
     expect(screen.getByTestId("embeddings-note").textContent).toContain("Saved");
+  });
+
+  it("flips semantic rescue independently", async () => {
+    setup();
+    apiPut.mockResolvedValue({ data: settings({ semantic_rescue: false }) });
+    render(<TaxonomyEmbeddingsCard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("embeddings-switch-semantic-rescue")).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByTestId("embeddings-switch-semantic-rescue"));
+    await waitFor(() => expect(apiPut).toHaveBeenCalledTimes(1));
+    expect(apiPut.mock.calls[0][1]).toEqual({ semantic_rescue: false });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByTestId("embeddings-switch-semantic-rescue")
+          .getAttribute("aria-checked"),
+      ).toBe("false"),
+    );
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rerank")
+        .getAttribute("aria-checked"),
+    ).toBe("false");
+  });
+
+  it("flips semantic rerank independently", async () => {
+    setup();
+    apiPut.mockResolvedValue({ data: settings({ semantic_rerank: true }) });
+    render(<TaxonomyEmbeddingsCard />);
+    await waitFor(() =>
+      expect(screen.getByTestId("embeddings-switch-semantic-rerank")).toBeTruthy(),
+    );
+    fireEvent.click(screen.getByTestId("embeddings-switch-semantic-rerank"));
+    await waitFor(() => expect(apiPut).toHaveBeenCalledTimes(1));
+    expect(apiPut.mock.calls[0][1]).toEqual({ semantic_rerank: true });
+    await waitFor(() =>
+      expect(
+        screen
+          .getByTestId("embeddings-switch-semantic-rerank")
+          .getAttribute("aria-checked"),
+      ).toBe("true"),
+    );
+    expect(
+      screen
+        .getByTestId("embeddings-switch-semantic-rescue")
+        .getAttribute("aria-checked"),
+    ).toBe("true");
   });
 });

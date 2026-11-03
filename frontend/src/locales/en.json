@@ -229,7 +229,51 @@
     "appliesBy": "applies by {{date}}",
     "openInPaths": "Explore in Career paths",
     "reextract": "Re-run AI extraction",
-    "reextractQueued": "AI re-extraction queued — the structured fields rebuild in a moment"
+    "reextractQueued": "AI re-extraction queued — the structured fields rebuild in a moment",
+    "similarJobs": {
+      "title": "Similar catalog jobs",
+      "open": "Open {{title}}"
+    },
+    "livePostingsForJob": {
+      "title": "Live postings for this job",
+      "open": "Open posting {{title}}",
+      "noDate": "date unknown",
+      "status": {
+        "new": "new",
+        "mapped": "mapped",
+        "expired": "expired",
+        "hidden": "hidden"
+      }
+    },
+    "matchSource": {
+      "semantic": "Semantic match",
+      "skill_overlap": "Skill overlap",
+      "catalog": "Catalog mapping"
+    },
+    "matchDegraded": "Showing the lexical fallback ({{reason}}).",
+    "degradedReason": {
+      "provider_unassigned": "no embedding provider assigned",
+      "embed_failed": "embedding failed",
+      "index_missing": "the vector index is not built yet",
+      "space_mismatch": "the vector space changed",
+      "over_cap": "the store is over its size cap",
+      "unknown": "the vector match is unavailable"
+    },
+    "matchDrawer": {
+      "score": "Match score",
+      "family": "Family",
+      "noFamily": "No family",
+      "org": "Organisation",
+      "status": "Status",
+      "perView": "Per-view cosine",
+      "noPerView": "No per-view breakdown for this lexical match."
+    },
+    "matchView": {
+      "summary": "Summary",
+      "requirements": "Requirements",
+      "responsibilities": "Responsibilities",
+      "skills": "Skills"
+    }
   },
   "families": {
     "technology": "technology",
@@ -1670,6 +1714,10 @@
       "sectionTitle": "Embeddings & mapping",
       "jobProposalsSwitch": "Job proposals",
       "jobProposalsHint": "Unmatched postings propose a catalog job for review",
+      "semanticRescueSwitch": "Semantic rescue",
+      "semanticRescueHint": "Only fills in where the deterministic skill overlap missed, under the shared-skill gate",
+      "semanticRerankSwitch": "Semantic rerank",
+      "semanticRerankHint": "A separate semantic pass, queued off the request path; spends embeddings only while enabled",
       "switchNote": "Saved — effective on the next decision."
     },
     "jobProposals": {
@@ -1693,8 +1741,22 @@
       "signalsLabel": "Closest catalog jobs",
       "remap": "Re-decide",
       "remapTitle": "Re-run the catalog join without re-paying the extract",
-      "remapNote": "The catalog join re-ran for this posting.",
+      "remapNote": "Deterministic decision recorded — no semantic pass was queued.",
+      "remapPendingNote": "Deterministic decision recorded — semantic pass queued ({{reason}}).",
+      "remapQueued": "Queued",
       "remapFailed": "Re-deciding the mapping failed.",
+      "pendingChip": "Semantic pass queued",
+      "pendingNotice": "Semantic pass queued — {{reason}}",
+      "pendingReasons": {
+        "ambiguous": "ambiguous deterministic outcome",
+        "overlap": "overlap below threshold"
+      },
+      "pendingReasonUnknown": "the deterministic outcome needs a semantic pass",
+      "rerankTrace": "Semantic rerank: {{code}} {{score}} — {{outcome}}",
+      "rerankAccepted": "accepted",
+      "rerankKept": "deterministic top kept",
+      "checkAgain": "Check again",
+      "refreshFailed": "Refreshing the proposal list failed.",
       "familyPlaceholder": "Choose a job family…"
     }
   },

@@ -229,7 +229,51 @@
     "appliesBy": "bevor {{date}}",
     "openInPaths": "In Karrierepfaden erkunden",
     "reextract": "KI-Extraktion erneut ausführen",
-    "reextractQueued": "KI-Neuextraktion eingereiht — die strukturierten Felder werden gleich neu aufgebaut"
+    "reextractQueued": "KI-Neuextraktion eingereiht — die strukturierten Felder werden gleich neu aufgebaut",
+    "similarJobs": {
+      "title": "Ähnliche Katalogberufe",
+      "open": "{{title}} öffnen"
+    },
+    "livePostingsForJob": {
+      "title": "Live-Stellenanzeigen für diesen Beruf",
+      "open": "Anzeige {{title}} öffnen",
+      "noDate": "Datum unbekannt",
+      "status": {
+        "new": "neu",
+        "mapped": "zugeordnet",
+        "expired": "abgelaufen",
+        "hidden": "ausgeblendet"
+      }
+    },
+    "matchSource": {
+      "semantic": "Semantische Übereinstimmung",
+      "skill_overlap": "Skill-Überschneidung",
+      "catalog": "Katalog-Zuordnung"
+    },
+    "matchDegraded": "Lexikalischer Fallback ({{reason}}).",
+    "degradedReason": {
+      "provider_unassigned": "kein Embedding-Anbieter zugewiesen",
+      "embed_failed": "Embedding fehlgeschlagen",
+      "index_missing": "der Vektorindex ist noch nicht aufgebaut",
+      "space_mismatch": "der Vektorraum hat sich geändert",
+      "over_cap": "der Speicher ist über seiner Größenobergrenze",
+      "unknown": "der Vektorabgleich ist nicht verfügbar"
+    },
+    "matchDrawer": {
+      "score": "Übereinstimmungswert",
+      "family": "Familie",
+      "noFamily": "Keine Familie",
+      "org": "Organisation",
+      "status": "Status",
+      "perView": "Kosinus pro Ansicht",
+      "noPerView": "Für diese lexikalische Übereinstimmung gibt es keine Aufschlüsselung pro Ansicht."
+    },
+    "matchView": {
+      "summary": "Zusammenfassung",
+      "requirements": "Anforderungen",
+      "responsibilities": "Aufgaben",
+      "skills": "Fähigkeiten"
+    }
   },
   "families": {
     "technology": "Technologie",
@@ -1670,6 +1714,10 @@
       "sectionTitle": "Embeddings & Zuordnung",
       "jobProposalsSwitch": "Stellenvorschläge",
       "jobProposalsHint": "Nicht zugeordnete Anzeigen schlagen eine Katalogposition zur Prüfung vor",
+      "semanticRescueSwitch": "Semantische Rettung",
+      "semanticRescueHint": "Greift nur, wo die deterministische Skill-Überschneidung nichts fand, unter dem Gemeinsame-Skills-Gate",
+      "semanticRerankSwitch": "Semantisches Reranking",
+      "semanticRerankHint": "Ein separater semantischer Durchlauf, außerhalb des Anfragepfads eingereiht; verbraucht Embeddings nur, wenn aktiviert",
       "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."
     },
     "jobProposals": {
@@ -1693,8 +1741,22 @@
       "signalsLabel": "Nächste Katalogjobs",
       "remap": "Neu entscheiden",
       "remapTitle": "Katalog-Join erneut ausführen, ohne die Extraktion erneut zu berechnen",
-      "remapNote": "Der Katalog-Join wurde für diese Anzeige neu ausgeführt.",
+      "remapNote": "Deterministische Entscheidung festgehalten — kein semantischer Durchlauf eingereiht.",
+      "remapPendingNote": "Deterministische Entscheidung festgehalten — semantischer Durchlauf eingereiht ({{reason}}).",
+      "remapQueued": "Eingereiht",
       "remapFailed": "Die neue Zuordnungsentscheidung ist fehlgeschlagen.",
+      "pendingChip": "Semantischer Durchlauf eingereiht",
+      "pendingNotice": "Semantischer Durchlauf eingereiht — {{reason}}",
+      "pendingReasons": {
+        "ambiguous": "mehrdeutiges deterministisches Ergebnis",
+        "overlap": "Überschneidung unter dem Schwellenwert"
+      },
+      "pendingReasonUnknown": "das deterministische Ergebnis braucht einen semantischen Durchlauf",
+      "rerankTrace": "Semantisches Reranking: {{code}} {{score}} — {{outcome}}",
+      "rerankAccepted": "angenommen",
+      "rerankKept": "deterministischer Sieger beibehalten",
+      "checkAgain": "Erneut prüfen",
+      "refreshFailed": "Aktualisieren der Vorschlagsliste fehlgeschlagen.",
       "familyPlaceholder": "Jobfamilie wählen…"
     }
   },
