@@ -106,7 +106,7 @@ function DrawerBody({ selected }: { selected: NonNullable<Selected> }) {
             <span className="text-[var(--as-muted-fg)]">
               {t("jobDetail.matchDrawer.status")}:{" "}
             </span>
-            {t(`jobDetail.livePostings.status.${selected.item.status}`, {
+            {t(`jobDetail.livePostingsForJob.status.${selected.item.status}`, {
               defaultValue: selected.item.status,
             })}
           </p>
@@ -279,7 +279,7 @@ export function JobMatchRails({ jobCode }: { jobCode: string }) {
                         : formatAbsolute(item.posted_at) ||
                           t("jobDetail.livePostingsForJob.noDate")}
                       {" · "}
-                      {t(`jobDetail.livePostings.status.${item.status}`, {
+                      {t(`jobDetail.livePostingsForJob.status.${item.status}`, {
                         defaultValue: item.status,
                       })}
                     </span>

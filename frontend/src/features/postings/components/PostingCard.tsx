@@ -17,7 +17,7 @@ import {
 
 import { hidePosting, markApplied, markPostingsSeen, savePosting } from "@/api/postings";
 import { buttonVariants } from "@/components/ui";
-import { ContextMenu, type ContextMenuItem } from "@neuronection/assistant-ui";
+import { ContextMenu, type ContextMenuEntry } from "@neuronection/assistant-ui";
 import { CardMeta } from "@/components/cards/CardMeta";
 import { CardSpec } from "@/components/cards/CardSpec";
 import { ChipRow } from "@/components/cards/ChipRow";
@@ -165,11 +165,11 @@ export function PostingCard({
     return targets;
   }, [filterMenu, posting, t]);
 
-  const menuItems: ContextMenuItem[] = useMemo(() => {
+  const menuItems: ContextMenuEntry[] = useMemo(() => {
     if (!menu || !filterMenu) return [];
     const { target } = menu;
     const state = filterMenu.stateOf(target.axis, target.value);
-    const entries: ContextMenuItem[] = [
+    const entries: ContextMenuEntry[] = [
       {
         key: "include",
         label: t("filters.menu.include", { value: target.label }),
@@ -191,6 +191,7 @@ export function PostingCard({
         onSelect: () => filterMenu.apply(target, "clear"),
       });
     }
+    entries.push({ key: "sep-nav", separator: true });
     if (target.axis === "skills") {
       entries.push({
         key: "details",
