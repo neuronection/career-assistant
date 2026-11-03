@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0088"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0089"], (
         "revision chain stays linear on one head"
     )
 
@@ -3900,6 +3900,27 @@ def test_0088_drop_ai_embeddings_roundtrip():
 
     command.upgrade(config, "head")
     assert not _schema_probe(("ai_embeddings",))["ai_embeddings"], "re-upgrade drops it again"
+
+
+def test_0089_mapping_provenance_roundtrip():
+    """Plan 50 P2b: the mapping provenance columns and their two indexes
+    exist at head, disappear on downgrade and return on re-upgrade."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("job_postings", "mapping_version"), "version stamp at head"
+    assert _column_present("job_postings", "mapping_features"), "provenance payload at head"
+    assert _index_present("job_postings", "ix_postings_mapping_version")
+    assert _index_present("job_postings", "ix_postings_mapping_method")
+
+    command.downgrade(config, "0088")
+    assert not _column_present("job_postings", "mapping_version")
+    assert not _column_present("job_postings", "mapping_features")
+    assert not _index_present("job_postings", "ix_postings_mapping_version")
+    assert not _index_present("job_postings", "ix_postings_mapping_method")
+
+    command.upgrade(config, "head")
+    assert _column_present("job_postings", "mapping_version")
+    assert _column_present("job_postings", "mapping_features")
 
 
 def _vector_constraint_probe(name: str) -> dict[str, bool]:

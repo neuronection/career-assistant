@@ -184,6 +184,8 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Index("ix_postings_status_posted", "status", "posted_at"),
         Index("ix_postings_detail", "source_id", "detail_fetched_at"),
         Index("ix_postings_catalog_job", "catalog_job_id"),
+        Index("ix_postings_mapping_version", "mapping_version"),
+        Index("ix_postings_mapping_method", "mapping_method"),
         Index("ix_postings_expires_at", "expires_at"),
         Index("ix_postings_salary_min", "salary_min"),
         Index("ix_postings_org_match_state", "org_match_state"),
@@ -261,6 +263,14 @@ class JobPosting(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     mapping_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     mapping_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     mapping_reason: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Plan 164 mapping provenance: the versioned, bounded audit payload
+    # (candidate scores, policy thresholds, embedding space_key, degraded
+    # reason) and the mapping-version stamp. NULL/0 on rows that predate
+    # the v2 decision; never a second source of truth for the mapping.
+    mapping_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    mapping_features: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
 
 class PostingChange(UUIDPrimaryKeyMixin, Base):

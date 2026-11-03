@@ -72,6 +72,7 @@ class MappingMethod(StrEnum):
     AI = "ai"
     MANUAL = "manual"
     SEMANTIC = "semantic"
+    SEMANTIC_RERANK = "semantic_rerank"
 
 
 class PostingChangeKind(StrEnum):

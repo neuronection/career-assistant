@@ -154,6 +154,16 @@ deletion).
 
 ### Migration notes
 
+- **0089** — plan 50 P2b: `job_postings.mapping_version` (the plan-164
+  decision stamp, default 0 on rows that predate v2) and
+  `job_postings.mapping_features` (`StructuredJSON`, nullable) — the bounded,
+  service-validated provenance payload for the deterministic/semantic mapping
+  (top candidates, per-view scores, policy thresholds, embedding `space_key`,
+  degraded reason). Two indexes (`ix_postings_mapping_version`,
+  `ix_postings_mapping_method`) serve the `POSTING_REMAP` cutover sweep. No
+  `mapping_dirty` column: this slice selects semantic rows by method +
+  recorded space key. The downgrade drops both columns and indexes; the
+  payload is derived audit data, rebuilt by re-deciding the postings.
 - **0083** — plan 179: `smart_query_cache`, the cross-user NL-search
   cache (`query_hash` PK = sha256 of the normalized query — casefold +
   whitespace collapse, so keys are stable across users; closed

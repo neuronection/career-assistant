@@ -272,7 +272,7 @@ async def test_retag_writer_journals_skills_set_diff(db, source, seeded_catalog)
     assert decision[0].operation["method"] == decision[0].diff["mapping_method"]["to"]
     assert "overlap_score" in decision[0].operation
     assert "semantic_top" in decision[0].operation
-    assert set(decision[0].operation["mapping_signals"]) == {"overlap", "semantic"}
+    assert set(decision[0].operation["mapping_signals"]) == {"overlap", "semantic", "rerank"}
 
 
 async def test_expiry_writer_journals_status(db, source, seeded_catalog):

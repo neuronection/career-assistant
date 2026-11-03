@@ -279,8 +279,7 @@ async def test_an_unprovisioned_nonlinear_space_never_provisions_in_ingest(db, s
             pytest.fail("the ingest path must not provision/index an unprovisioned ANN space")
 
     assert (
-        await rescue._ensure_posting_indexed(db, posting, indexer=FakeIndexer())
-        == "index_missing"
+        await rescue._ensure_posting_indexed(db, posting, indexer=FakeIndexer()) == "index_missing"
     )
 
 
@@ -304,8 +303,7 @@ async def test_a_stale_index_handle_never_provisions_in_ingest(db, source):
             pytest.fail("the ingest path must not provision a missing physical table")
 
     assert (
-        await rescue._ensure_posting_indexed(db, posting, indexer=FakeIndexer())
-        == "index_missing"
+        await rescue._ensure_posting_indexed(db, posting, indexer=FakeIndexer()) == "index_missing"
     )
 
 
