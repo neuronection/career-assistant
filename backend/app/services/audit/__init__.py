@@ -1,5 +1,6 @@
 """Cross-stream audit & monitoring reads (plans 151-152)."""
 
+from app.services.audit import emitter
 from app.services.audit.queries import (
     breakdown,
     changes,
@@ -17,6 +18,7 @@ from app.services.audit.queries import (
 __all__ = [
     "breakdown",
     "changes",
+    "emitter",
     "events",
     "export_csv",
     "generations",

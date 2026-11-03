@@ -90,7 +90,7 @@ async def audit_breakdown(
 
 @router.get("/events")
 async def audit_events(
-    group: str = Query(default="all", pattern="^(all|auth|admin)$"),
+    group: str = Query(default="all", pattern="^(all|auth|admin|vector)$"),
     outcome: str | None = Query(default=None),
     actor: str | None = Query(default=None),
     window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
@@ -326,7 +326,7 @@ async def audit_export(
     provider: str | None = Query(default=None),
     status: str | None = Query(default=None),
     q: str | None = Query(default=None, max_length=200),
-    group: str = Query(default="all", pattern="^(all|auth|admin)$"),
+    group: str = Query(default="all", pattern="^(all|auth|admin|vector)$"),
     outcome: str | None = Query(default=None),
     actor: str | None = Query(default=None),
     job_type: str | None = Query(default=None),

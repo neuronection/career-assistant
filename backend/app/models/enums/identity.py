@@ -50,6 +50,9 @@ class BackgroundJobType(StrEnum):
     SKILL_RELATION_LEARN = "skill_relation_learn"
     VECTOR_INDEX = "vector_index"
     VECTOR_RECONCILE = "vector_reconcile"
+    # Plan 51 Q1b: maintenance runs and synchronous cutover/gate evaluations.
+    VECTOR_MAINTENANCE = "vector_maintenance"
+    VECTOR_CUTOVER = "vector_cutover"
     POSTING_REMAP = "posting_remap"
 
 

@@ -4,6 +4,31 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — the admin action API and its runtime guards, 2026-11-03)
+- **`/admin/retrieval` now has the only retrieval write seam**: reindex,
+  cancel/retry, build/activate/retire/drop a space, typed maintenance
+  (index rebuild, vacuum, orphan sweep, retry failed documents) and the
+  golden-query quality compare. Every action is admin-only, CSRF-protected
+  and rate-limited by the existing middleware, and audited under the
+  `vector.*` group.
+- **Idempotency is persisted, not assumed**: an `Idempotency-Key` replay
+  within 24 hours returns the original run; reusing the key with a different
+  body is a 409. Bulk runs take `vector_space:<id>` and one active run per
+  space is enforced at the database, so two admins cannot race a reindex.
+  A stale-heartbeat reaper fails a crashed `running` run after 15 minutes,
+  releases its lock and records `vector.run.stalled` instead of blocking the
+  space until restart.
+- **Activation now needs coverage and quality**: the pre-cutover compare
+  scores the versioned golden-query set on the active and building space
+  (recall/precision@k and per-query misses, no query text in the response)
+  and its result is stored on the cutover run, so the activation decision is
+  reproducible. A missing golden set is an honest refusal, never a fabricated
+  score.
+- **Maintenance is dialect-aware**: `REINDEX INDEX CONCURRENTLY` and
+  `VACUUM` run on an AUTOCOMMIT PostgreSQL connection; SQLite uses its
+  `VACUUM` path. A linear desktop store reports the action as skipped rather
+  than pretending it ran.
+
 ### Added (retrieval operations — the admin read API and its data checkpoint, 2026-11-03)
 - **The admin retrieval surface now has a composed read API** under
   `/admin/retrieval` (admin-only, desktop owner included): instance

@@ -60,6 +60,7 @@ from app.services.vector_index_service import (
     list_sources,
     load_source,
 )
+from app.storage.retrieval_ops import FAILED_IDS_LIMIT
 from app.storage.vector_backends import VectorBackendError, VectorSpaceNotFound
 from app.storage.vector_store import VectorStoreService
 
@@ -177,6 +178,7 @@ class VectorReconcileService:
         completed_kinds: Sequence[str] | None = None,
         since: datetime | None = None,
         force: bool = False,
+        only: Mapping[str, Sequence[str]] | None = None,
         provision_backend: str | None = None,
         embedder: Any = None,
         run: Any = None,
@@ -194,6 +196,10 @@ class VectorReconcileService:
         self.space_name = space_name
         self.space_id = str(space_id) if space_id is not None else None
         self.kinds = selected
+        # A focused retry scans exactly these source ids per kind (the
+        # maintenance "retry-failed" path); it never writes a full coverage
+        # snapshot and never chains a continuation.
+        self._only = parse_only(only)
         self.limit = max(int(limit), 1)
         self.budget = max(int(budget), 0)
         self.batch_size = max(int(batch_size), 1)
@@ -233,8 +239,14 @@ class VectorReconcileService:
         completed = set(self._completed)
         remaining = 0
 
+        only = self._only
         population_by_kind = {
-            kind: await count_sources(self.db, kind, since=self.since) for kind in self.kinds
+            kind: (
+                len(only[kind])
+                if only is not None and kind in only
+                else await count_sources(self.db, kind, since=self.since)
+            )
+            for kind in self.kinds
         }
         population = sum(population_by_kind.values())
         done_global = sum(
@@ -251,13 +263,18 @@ class VectorReconcileService:
             state = _empty_carry()
             state.update(self._carry.get(kind, {}))
             cursor = self._after.get(kind)
-            sources = await list_sources(
-                self.db,
-                kind,
-                since=self.since,
-                after=cursor,
-                limit=self.scan_limit,
-            )
+            focused = only is not None and kind in only
+            if focused:
+                assert only is not None
+                sources = [SourceRow(source_id=str(source_id)) for source_id in only[kind]]
+            else:
+                sources = await list_sources(
+                    self.db,
+                    kind,
+                    since=self.since,
+                    after=cursor,
+                    limit=self.scan_limit,
+                )
             hashes = self._stored_hashes(kind, [row.source_id for row in sources])
             kind_total = population_by_kind.get(kind, 0)
             last_processed: SourceRow | None = None
@@ -345,7 +362,7 @@ class VectorReconcileService:
                         f"indexed {embedded} document(s)",
                     )
 
-            if kind_complete and len(sources) >= self.scan_limit:
+            if kind_complete and not focused and len(sources) >= self.scan_limit:
                 kind_complete = False
 
             if kind_complete:
@@ -358,7 +375,8 @@ class VectorReconcileService:
                     embedded=state["embedded"],
                     as_of=datetime.now(UTC),
                 )
-                await self._write_snapshot(coverage)
+                if not focused:
+                    await self._write_snapshot(coverage)
                 coverages.append(coverage)
                 completed.add(kind)
                 next_after[kind] = None
@@ -367,11 +385,14 @@ class VectorReconcileService:
             next_cursor = (
                 self._cursor_from_row(last_processed) if last_processed is not None else cursor
             )
-            kind_remaining = (
-                await count_sources(self.db, kind, since=self.since, after=next_cursor)
-                if next_cursor is not None
-                else kind_total
-            )
+            if focused:
+                kind_remaining = 0
+            else:
+                kind_remaining = (
+                    await count_sources(self.db, kind, since=self.since, after=next_cursor)
+                    if next_cursor is not None
+                    else kind_total
+                )
             remaining += kind_remaining
             deferred += kind_remaining
             next_after[kind] = self._cursor_dict(next_cursor)
@@ -391,7 +412,7 @@ class VectorReconcileService:
                 break
 
         done = all(kind in completed for kind in self.kinds)
-        if done and self.since is None:
+        if done and self.since is None and self._only is None:
             for kind in self.kinds:
                 orphans += await self._sweep_orphans(kind)
         await self._report(progress, 100, "reconciled" if done else "batch reconciled")
@@ -631,6 +652,41 @@ def parse_completed_kinds(value: Any) -> tuple[str, ...]:
     return completed
 
 
+def parse_only(value: Any) -> dict[str, tuple[str, ...]] | None:
+    """A focused retry list (``kind:source_id``) → ``{kind: (source_id, ...)}``.
+
+    This is the bounded "retry failed documents" scope: only the ids named
+    here are loaded, never a fresh corpus scan. The list is capped by the
+    contract's failed-id bound so one request can never become a backfill.
+    """
+    if value in (None, "", [], {}):
+        return None
+    if isinstance(value, Mapping):
+        rows = [
+            f"{kind}:{source_id}"
+            for kind, source_ids in value.items()
+            for source_id in (source_ids or ())
+        ]
+    elif isinstance(value, str):
+        rows = [part.strip() for part in value.split(",") if part.strip()]
+    elif isinstance(value, (list, tuple)):
+        rows = [str(item) for item in value]
+    else:
+        raise ValueError("only must be a list of kind:source_id entries")
+    grouped: dict[str, list[str]] = {}
+    for row in rows:
+        kind, _, source_id = str(row).partition(":")
+        if not kind or not source_id:
+            raise ValueError(f"invalid retry entry {row!r}; expected kind:source_id")
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown retry kind {kind!r}")
+        grouped.setdefault(kind, []).append(source_id)
+    total = sum(len(ids) for ids in grouped.values())
+    if total > FAILED_IDS_LIMIT:
+        raise ValueError(f"at most {FAILED_IDS_LIMIT} source ids may be retried at once")
+    return {kind: tuple(dict.fromkeys(ids)) for kind, ids in grouped.items()}
+
+
 __all__ = [
     "CARRY_FIELDS",
     "DEFAULT_BATCH_SIZE",
@@ -638,6 +694,7 @@ __all__ = [
     "DEFAULT_LIMIT",
     "DEFAULT_SCAN_LIMIT",
     "FAILED_IDS_CAP",
+    "FAILED_IDS_LIMIT",
     "RECONCILE_KINDS",
     "KindCoverage",
     "ReconcileResult",
@@ -646,5 +703,6 @@ __all__ = [
     "parse_carry",
     "parse_completed_kinds",
     "parse_kinds",
+    "parse_only",
     "parse_since",
 ]

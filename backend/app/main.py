@@ -208,6 +208,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         """Concurrent modification → 409."""
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    from app.services.retrieval_actions import RetrievalActionRefused
+
+    @application.exception_handler(RetrievalActionRefused)
+    async def retrieval_refusal_handler(request: Request, exc: RetrievalActionRefused):
+        """A retrieval gate/state refusal carries its structured evidence."""
+        return JSONResponse(status_code=409, content=exc.payload)
+
     @application.exception_handler(AINotConfiguredError)
     async def ai_not_configured_handler(request: Request, exc: AINotConfiguredError):
         """Mock/unconfigured AI in production → 503 (never serve fake results)."""

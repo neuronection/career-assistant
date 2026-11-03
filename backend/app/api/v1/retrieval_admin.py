@@ -1,13 +1,14 @@
-"""Admin retrieval reads and the plan-50 enqueues.
+"""Admin retrieval reads, the plan-50 enqueues and the plan-51 action seam.
 
 Plan 50 ships the status/health reads and the ``VECTOR_INDEX`` /
 ``VECTOR_RECONCILE`` triggers; plan 51 Q1a composes the full
 audit/operations read model (overview, spaces, coverage, runs, run detail,
 quality, query health, failures, usage) under the same admin-only
-``/admin/retrieval`` namespace. The Q1b action API (reindex, cancel/retry,
-space lifecycle, maintenance, quality compare), the audit emitter and the
-alerts are deliberately absent here: every new endpoint in this module only
-reads.
+``/admin/retrieval`` namespace. Q1b adds the only write seam: reindex,
+cancel/retry, space lifecycle, maintenance and the golden-query compare.
+Every action is idempotent, space-locked where it mutates, audited under the
+``vector.*`` group, and delegates to the existing services/handlers rather
+than duplicating execution. Notifications (Q1c) and the UI (Q2) are not here.
 """
 
 from __future__ import annotations
@@ -15,16 +16,20 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db, sync_engine
-from app.core.errors import ValidationError
+from app.core.errors import NotFoundError, ValidationError
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.services import retrieval_actions as actions
+from app.services import retrieval_jobs as retrieval_jobs
 from app.services import retrieval_ops_reads as reads
+from app.services.audit import emitter
 from app.services.deps import require_admin
 from app.services.vector_reconcile_service import (
     DEFAULT_BATCH_SIZE,
@@ -51,10 +56,44 @@ FAILURE_KIND_QUERY = Query(
     default=None, pattern="^(embed_provider|indexing|cutover_gate|maintenance)$"
 )
 
+IDEMPOTENCY_HEADER = Header(
+    default=None,
+    alias="Idempotency-Key",
+    description=(
+        "Client-generated replay key (8-120 chars); a repeat with the same body is a replay"
+    ),
+)
+
 
 def _guarded(payload: dict[str, Any]) -> dict[str, Any]:
     """Every read payload passes the family no-raw-text rule before it leaves."""
     return ops.assert_no_raw_text(payload)
+
+
+def _key(
+    header: str | None,
+    body: Any,
+    *,
+    required: bool,
+    action: str,
+) -> str | None:
+    """Resolve the Idempotency-Key (header wins), validating its shape."""
+    value = header or getattr(body, "idempotency_key", None)
+    if value is None or str(value).strip() == "":
+        if required:
+            raise ValidationError(
+                f"an Idempotency-Key header (or idempotency_key field) is required for {action}"
+            )
+        return None
+    return retrieval_jobs.validate_key(value)
+
+
+def _action_response(payload: dict[str, Any]) -> JSONResponse:
+    """Honor the contract's http_status (202 queued, 200 sync)."""
+    return JSONResponse(
+        status_code=int(payload.get("http_status") or 200),
+        content=payload,
+    )
 
 
 async def _space_or_none(db: AsyncSession, space: str | None):
@@ -93,6 +132,80 @@ class ReconcileRequest(BaseModel):
         default=True,
         description="enqueue the next bounded batch when this one is partial",
     )
+    idempotency_key: str | None = Field(
+        default=None, description="optional replay key; the Idempotency-Key header also works"
+    )
+
+
+class ReindexRequest(BaseModel):
+    """One bounded reindex of a space (the plan-50 reconcile handler)."""
+
+    space: str = Field(..., description="vector space id or name")
+    kind: str | None = Field(default=None, description="one source kind; default all")
+    view: str | None = Field(default=None, description="run-scope view label")
+    since: str | None = Field(default=None, description="ISO timestamp — only rows updated since")
+    budget: int = Field(default=DEFAULT_BUDGET, ge=0, le=100_000, description="embed units")
+    limit: int = Field(default=DEFAULT_LIMIT, ge=1, le=5000, description="documents per run")
+    batch_size: int = Field(default=DEFAULT_BATCH_SIZE, ge=1, le=200)
+    scan_limit: int = Field(default=DEFAULT_SCAN_LIMIT, ge=1, le=10_000)
+    force: bool = Field(default=False)
+    auto_continue: bool = Field(default=True)
+    idempotency_key: str | None = Field(default=None)
+
+
+class ActionKeyRequest(BaseModel):
+    """Body for path-addressed actions; the header is preferred."""
+
+    idempotency_key: str | None = Field(default=None)
+
+
+class BuildSpaceRequest(BaseModel):
+    """Provision a ``building`` space beside the active one."""
+
+    name: str = Field(..., min_length=1, max_length=40)
+    provider: str = Field(..., min_length=1, max_length=60)
+    model: str = Field(..., min_length=1, max_length=120)
+    dim: int = Field(..., ge=1, le=3072)
+    metric: str = Field(default="cosine")
+    normalize: bool = True
+    query_prefix: str | None = Field(default=None, max_length=80)
+    document_prefix: str | None = Field(default=None, max_length=80)
+    idempotency_key: str | None = Field(default=None)
+
+
+class TypedSpaceRequest(BaseModel):
+    """Destructive lifecycle action: the typed space name is mandatory."""
+
+    confirm_space_name: str = Field(..., min_length=1, max_length=40)
+    idempotency_key: str | None = Field(default=None)
+
+
+class DropSpaceRequest(TypedSpaceRequest):
+    force: bool = Field(
+        default=False,
+        description="skip the retirement grace period; the typed name is still required",
+    )
+
+
+class MaintenanceRequest(BaseModel):
+    """One typed maintenance action (or a scoped retry of failed documents)."""
+
+    space: str = Field(..., description="vector space id or name")
+    action: str = Field(
+        ...,
+        description="index-rebuild | vacuum | orphan-sweep | retry-failed",
+    )
+    dry_run: bool = Field(default=False)
+    limit: int | None = Field(default=None, ge=1, le=5000)
+    idempotency_key: str | None = Field(default=None)
+
+
+class QualityCompareRequest(BaseModel):
+    """Score the versioned golden set on the old and new space."""
+
+    space: str = Field(..., description="candidate/new space id or name")
+    compare_space: str = Field(..., description="baseline/old space id or name")
+    idempotency_key: str | None = Field(default=None)
 
 
 @router.get("/overview")
@@ -254,6 +367,7 @@ async def enqueue_index(
 @router.post("/reconcile")
 async def enqueue_reconcile(
     request: ReconcileRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
@@ -262,10 +376,10 @@ async def enqueue_reconcile(
     Thin enqueue: the handler owns composing, classification, the embed
     budget and the coverage snapshots, so the run is a ``background_jobs``
     row (plan 51's Runs view reads it) and the embed spend lands on the system
-    path rather than the requesting admin's budget.
+    path rather than the requesting admin's budget. The legacy endpoint now
+    rides the same replay/lock/audit seam as ``POST /reindex``: an optional
+    key makes it replay-deduped, and the run always takes the space lock.
     """
-    from app.services.job_worker import enqueue
-
     try:
         payload: dict[str, Any] = {
             "limit": request.limit,
@@ -288,15 +402,220 @@ async def enqueue_reconcile(
         raise ValidationError(str(exc)) from exc
     if since is not None:
         payload["since"] = since.isoformat()
-    job = await enqueue(
+    key = _key(idempotency_key, request, required=False, action="reconcile")
+    if key is None:
+        key = f"auto:{uuid.uuid4().hex}"
+    try:
+        space = await reads.resolve_space(db, "content")
+    except NotFoundError:
+        # The handler's default is the content space; if it does not exist
+        # yet, there is no space to lock (the first index creates it).
+        space = None
+    audit = emitter.audit_event(
+        actor=user.id,
+        action="vector.reindex.started",
+        resource_ref=emitter.resource(
+            f"space:{space.id}" if space is not None else "space:content",
+            trigger="reconcile",
+        ),
+    )
+    job, deduplicated = await retrieval_jobs.enqueue_retrieval_job(
         db,
-        BackgroundJobType.VECTOR_RECONCILE.value,
-        payload,
+        job_type=BackgroundJobType.VECTOR_RECONCILE.value,
+        payload=payload,
+        idempotency_key=key,
         user_id=user.id,
+        space_id=space.id if space is not None else None,
+        lock=space is not None,
+        audit=audit,
     )
     return {
         "job_id": str(job.id),
         "job_type": job.job_type,
         "status": job.status,
         "payload": payload,
+        "idempotency_key": job.idempotency_key,
+        "deduplicated": deduplicated,
     }
+
+
+# ---------------------------------------------------------------------------
+# the plan-51 Q1b action surface
+# ---------------------------------------------------------------------------
+
+
+@router.post("/reindex")
+async def retrieval_reindex(
+    request: ReindexRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Queue the existing ``VECTOR_RECONCILE`` handler for one bounded run."""
+    key = _key(idempotency_key, request, required=True, action="reindex")
+    payload = await actions.start_reindex(
+        db,
+        space_ref=request.space,
+        kind=request.kind,
+        view=request.view,
+        since=request.since,
+        budget=request.budget,
+        limit=request.limit,
+        batch_size=request.batch_size,
+        scan_limit=request.scan_limit,
+        force=request.force,
+        auto_continue=request.auto_continue,
+        idempotency_key=str(key),
+        actor=user.id,
+    )
+    return _action_response(payload)
+
+
+@router.post("/runs/{run_id}/cancel")
+async def retrieval_cancel_run(
+    run_id: str,
+    request: ActionKeyRequest | None = None,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Request cancellation; the running work observes the flag itself."""
+    key = _key(idempotency_key, request, required=True, action="cancel")
+    payload = await actions.cancel_run(db, run_id=run_id, idempotency_key=str(key), actor=user.id)
+    return _action_response(payload)
+
+
+@router.post("/runs/{run_id}/retry")
+async def retrieval_retry_run(
+    run_id: str,
+    request: ActionKeyRequest | None = None,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Bounded re-enqueue of a terminal run under a fresh idempotency scope."""
+    key = _key(idempotency_key, request, required=True, action="retry")
+    payload = await actions.retry_run(db, run_id=run_id, idempotency_key=str(key), actor=user.id)
+    return _action_response(payload)
+
+
+@router.post("/spaces")
+async def retrieval_build_space(
+    request: BuildSpaceRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Provision a ``building`` space through the lifecycle service."""
+    key = _key(idempotency_key, request, required=True, action="build")
+    payload = await actions.build_space(
+        db,
+        name=request.name,
+        provider=request.provider,
+        model=request.model,
+        dim=request.dim,
+        metric=request.metric,
+        normalize=request.normalize,
+        query_prefix=request.query_prefix,
+        document_prefix=request.document_prefix,
+        idempotency_key=str(key),
+        actor=user.id,
+    )
+    return _action_response(payload)
+
+
+@router.post("/spaces/{space_id}/activate")
+async def retrieval_activate_space(
+    space_id: str,
+    request: ActionKeyRequest | None = None,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Activate only when coverage **and** the golden-query quality gate pass."""
+    key = _key(idempotency_key, request, required=True, action="activate")
+    payload = await actions.activate_space(
+        db, space_ref=space_id, idempotency_key=str(key), actor=user.id
+    )
+    return _action_response(payload)
+
+
+@router.post("/spaces/{space_id}/retire")
+async def retrieval_retire_space(
+    space_id: str,
+    request: TypedSpaceRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Retire a non-active space; the typed name must match exactly."""
+    key = _key(idempotency_key, request, required=True, action="retire")
+    payload = await actions.retire_space(
+        db,
+        space_ref=space_id,
+        confirm_space_name=request.confirm_space_name,
+        idempotency_key=str(key),
+        actor=user.id,
+    )
+    return _action_response(payload)
+
+
+@router.post("/spaces/{space_id}/drop")
+async def retrieval_drop_space(
+    space_id: str,
+    request: DropSpaceRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Drop a retired space; the typed name is mandatory (never a boolean)."""
+    key = _key(idempotency_key, request, required=True, action="drop")
+    payload = await actions.drop_space(
+        db,
+        space_ref=space_id,
+        confirm_space_name=request.confirm_space_name,
+        force=request.force,
+        idempotency_key=str(key),
+        actor=user.id,
+    )
+    return _action_response(payload)
+
+
+@router.post("/maintenance")
+async def retrieval_maintenance(
+    request: MaintenanceRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Queue one typed maintenance action (index-rebuild/vacuum/orphan/retry)."""
+    key = _key(idempotency_key, request, required=True, action="maintenance")
+    payload = await actions.run_maintenance(
+        db,
+        space_ref=request.space,
+        action=request.action,
+        dry_run=request.dry_run,
+        limit=request.limit,
+        idempotency_key=str(key),
+        actor=user.id,
+    )
+    return _action_response(payload)
+
+
+@router.post("/quality/compare")
+async def retrieval_quality_compare(
+    request: QualityCompareRequest,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Run the versioned golden set on old vs new space; persist the result."""
+    key = _key(idempotency_key, request, required=False, action="quality compare")
+    payload = await actions.compare_quality(
+        db,
+        space_ref=request.space,
+        compare_space_ref=request.compare_space,
+        idempotency_key=key,
+        actor=user.id,
+    )
+    return _action_response(payload)

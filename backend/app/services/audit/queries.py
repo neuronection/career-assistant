@@ -465,6 +465,8 @@ async def events(
         conditions.append(AuditEvent.action.like("auth.%"))
     elif group == "admin":
         conditions.append(AuditEvent.action.like("admin.%"))
+    elif group == "vector":
+        conditions.append(AuditEvent.action.like("vector.%"))
     if outcome:
         conditions.append(AuditEvent.outcome == outcome)
     if actor:

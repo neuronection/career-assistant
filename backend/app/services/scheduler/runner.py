@@ -6,13 +6,13 @@ WHAT/HOW — a tick never runs business logic itself."""
 import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ValidationError
+from app.core.errors import ConflictError, ValidationError
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import (
     BackgroundJobStatus,
@@ -558,7 +558,15 @@ class SchedulerService:
                 await self.db.commit()
                 return False
 
-        job = await self._enqueue(schedule, now)
+        try:
+            job = await self._enqueue(schedule, now)
+        except ConflictError:
+            # A bulk vector run already holds the space lock. Skipping is the
+            # honest overlap outcome; the next slot retries.
+            schedule.last_status = ScheduleStatus.SKIPPED_OVERLAP.value
+            schedule.next_run_at = now + timedelta(minutes=5)
+            await self.db.commit()
+            return False
         schedule.last_job_id = job.id
         schedule.last_run_at = now
         schedule.last_status = job.status
@@ -581,12 +589,50 @@ class SchedulerService:
         payload = {**(schedule.payload or {})}
         if schedule.owner_user_id is not None:
             payload.setdefault("user_id", str(schedule.owner_user_id))
+        if schedule.task == BackgroundJobType.VECTOR_RECONCILE.value:
+            return await self._enqueue_vector_reconcile(schedule, payload)
         job = await enqueue(
             self.db,
             cast(str, schedule.task),
             payload,
             user_id=schedule.owner_user_id,
             max_attempts=2,
+        )
+        return job
+
+    async def _enqueue_vector_reconcile(self, schedule: Schedule, payload: dict) -> BackgroundJob:
+        """The scheduled reconcile rides the same lock/audit seam as HTTP."""
+        import uuid
+
+        from app.core.errors import NotFoundError
+        from app.services import retrieval_jobs
+        from app.services import retrieval_ops_reads as reads
+        from app.services.audit import emitter
+
+        space: Any
+        target = payload.get("space_id") or payload.get("space") or "content"
+        try:
+            space = await reads.resolve_space(self.db, target)
+        except NotFoundError:
+            space = None
+        actor = str(schedule.owner_user_id) if schedule.owner_user_id else "system"
+        audit = emitter.audit_event(
+            actor=actor,
+            action="vector.reindex.started",
+            resource_ref=emitter.resource(
+                f"space:{space.id}" if space is not None else "space:content",
+                trigger="scheduled",
+            ),
+        )
+        job, _deduplicated = await retrieval_jobs.enqueue_retrieval_job(
+            self.db,
+            job_type=BackgroundJobType.VECTOR_RECONCILE.value,
+            payload=payload,
+            idempotency_key=f"sched:{schedule.id}:{uuid.uuid4().hex}",
+            user_id=schedule.owner_user_id,
+            space_id=space.id if space is not None else None,
+            lock=space is not None,
+            audit=audit,
         )
         return job
 

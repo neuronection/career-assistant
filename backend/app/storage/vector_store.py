@@ -668,30 +668,40 @@ class VectorStoreService:
         resolver: Callable[[str, str], bool],
         *,
         limit: int = 500,
+        after_id: uuid.UUID | str | None = None,
+        dry_run: bool = False,
     ) -> int:
-        """Delete documents whose polymorphic source no longer resolves."""
+        """Delete documents whose polymorphic source no longer resolves.
+
+        ``after_id`` walks pages by document id (the maintenance action's
+        bounded sweep); ``dry_run`` counts what would be deleted without
+        touching metadata or the physical index.
+        """
         canonical = self.resolve_space(space)
         with self._session_factory() as session:
             row = resolve_space_row(session, canonical)
-            documents = list(
-                session.execute(
-                    select(
-                        VectorDocument.id,
-                        VectorDocument.kind,
-                        VectorDocument.source_id,
-                    )
-                    .where(VectorDocument.space_id == row.id)
-                    .limit(limit)
+            statement = (
+                select(
+                    VectorDocument.id,
+                    VectorDocument.kind,
+                    VectorDocument.source_id,
                 )
+                .where(VectorDocument.space_id == row.id)
+                .order_by(VectorDocument.id)
+                .limit(limit)
             )
+            if after_id is not None:
+                statement = statement.where(VectorDocument.id > uuid.UUID(str(after_id)))
+            documents = list(session.execute(statement))
             stale = [
                 document_id
                 for document_id, kind, source_id in documents
                 if not resolver(str(kind), str(source_id))
             ]
-            for document_id in stale:
-                self._backend.delete_document_index(session, canonical, str(document_id))
-            if stale:
+            if stale and not dry_run:
+                for document_id in stale:
+                    if canonical.index_table is not None:
+                        self._backend.delete_document_index(session, canonical, str(document_id))
                 session.execute(delete(VectorDocument).where(VectorDocument.id.in_(stale)))
                 session.commit()
         return len(stale)

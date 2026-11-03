@@ -81,11 +81,16 @@ DEFAULT_SPACE_NAME = "content"
 _JOB_TYPE_MAP = {
     "vector_reconcile": "VECTOR_REINDEX",
     "vector_index": "VECTOR_REINDEX",
+    "vector_maintenance": "VECTOR_MAINTENANCE",
+    "vector_cutover": "VECTOR_CUTOVER",
     "VECTOR_REINDEX": "VECTOR_REINDEX",
     "VECTOR_CUTOVER": "VECTOR_CUTOVER",
     "VECTOR_MAINTENANCE": "VECTOR_MAINTENANCE",
 }
 _VECTOR_DB_JOB_TYPES = tuple(_JOB_TYPE_MAP)
+#: The actual index-writing runs; a maintenance/cutover action is not a
+#: reindex when the Spaces card reports ``last_reindex_at``.
+_REINDEX_JOB_TYPES = ("vector_reconcile", "vector_index")
 
 _BACKEND_LABEL = {
     BACKEND_PGVECTOR: "PostgreSQL pgvector/HNSW",
@@ -462,7 +467,7 @@ async def _last_run_per_space(
     rows = list(
         await db.scalars(
             select(BackgroundJob)
-            .where(BackgroundJob.job_type.in_(_VECTOR_DB_JOB_TYPES))
+            .where(BackgroundJob.job_type.in_(_REINDEX_JOB_TYPES))
             .order_by(BackgroundJob.created_at.desc())
             .limit(RUN_PAGE_MAX * 4)
         )
@@ -573,9 +578,25 @@ async def read_run(db: AsyncSession, run_id: str) -> dict[str, Any]:
     finished = job.finished_at or datetime.now(UTC)
     duration = max((finished - started).total_seconds(), 0.0)
     detail = ops.RunDetailDTO(run=_run_dto(run), result=result, duration_seconds=duration)
+    payload = detail.to_dict()
+    action = (job.payload or {}).get("action")
+    if action:
+        payload["action"] = str(action)
+    raw_result = job.result if isinstance(job.result, Mapping) else {}
+    gate_payload = raw_result.get("activation_gate")
+    if isinstance(gate_payload, Mapping):
+        try:
+            payload["activation_gate"] = ops.ActivationGateDTO(**dict(gate_payload)).to_dict()
+        except (TypeError, ValueError):
+            payload["activation_gate"] = None
+    if raw_result.get("quality") is not None:
+        from app.services.retrieval_quality import parse_persisted_compare
+
+        compare = parse_persisted_compare(raw_result)
+        payload["quality"] = compare.to_dict() if compare is not None else None
     return {
         "state": "ok" if result_state != "invalid" else "degraded",
-        "detail": detail.to_dict(),
+        "detail": payload,
         "result_state": result_state,
         "failed_ids_limit": ops.FAILED_IDS_LIMIT,
     }
@@ -1116,6 +1137,49 @@ def _quality_set_summary(golden: ops.GoldenQuerySet) -> dict[str, Any]:
     }
 
 
+async def _latest_persisted_compare(
+    db: AsyncSession, space: VectorSpaceRow
+) -> tuple[BackgroundJob, ops.QualityCompareDTO] | None:
+    """The newest stored ``quality_compare`` cutover evaluation for a space."""
+    rows = list(
+        await db.scalars(
+            select(BackgroundJob)
+            .where(
+                BackgroundJob.job_type.in_(["vector_cutover", "VECTOR_CUTOVER"]),
+                BackgroundJob.status == "succeeded",
+            )
+            .order_by(BackgroundJob.created_at.desc())
+            .limit(RUN_PAGE_MAX)
+        )
+    )
+    from app.services.retrieval_quality import parse_persisted_compare
+
+    for job in rows:
+        if (job.payload or {}).get("action") != "quality_compare":
+            continue
+        compare = parse_persisted_compare(job.result)
+        if compare is None or compare.new_space_id != str(space.id):
+            continue
+        return job, compare
+    return None
+
+
+def _quality_from_compare(compare: ops.QualityCompareDTO, *, space_id: str) -> ops.QualityDTO:
+    """The candidate's own score block behind a persisted compare."""
+    return ops.QualityDTO(
+        space_id=space_id,
+        set_version=compare.set_version,
+        k=compare.k,
+        recall_at_k=compare.new_recall_at_k,
+        precision_at_k=compare.new_precision_at_k,
+        passed=compare.passed,
+        queries=compare.queries,
+        floor_recall=compare.floor_recall,
+        floor_precision=compare.floor_precision,
+        generated_at=compare.generated_at,
+    )
+
+
 async def read_quality(
     db: AsyncSession,
     *,
@@ -1124,12 +1188,12 @@ async def read_quality(
     retrieved_by_query: Mapping[str, Sequence[str]] | None = None,
     window: str = DEFAULT_WINDOW,
 ) -> dict[str, Any]:
-    """The versioned golden-query set and, when retrieval data exists, its scores.
+    """The versioned golden-query set and, when a compare exists, its scores.
 
-    Q1a ships no compare action, so the live endpoint passes no retrieval
-    mapping and answers ``not_sampled``. The scoring path is the contract's
-    :func:`~app.storage.retrieval_ops.evaluate_quality_set`, exercised by the
-    read tests and reused by Q1b's compare action.
+    Q1b persists every ``quality_compare`` outcome on a completed
+    ``VECTOR_CUTOVER`` evaluation run. This reader shows the newest one for
+    the space so the Dashboard/Quality section reports the same evidence the
+    activation gate used — still ids and scores only, never query text.
     """
     start, end, key = _window(window)
     window_payload = _window_payload(start, end, key)
@@ -1137,14 +1201,9 @@ async def read_quality(
         from app.services.retrieval_quality import load_golden_sets
 
         golden_sets = load_golden_sets()
-    golden = next(
-        (
-            candidate
-            for candidate in golden_sets
-            if candidate.space_id in {str(space.id), space.name}
-        ),
-        None,
-    )
+    from app.services.retrieval_quality import select_golden_set
+
+    golden = select_golden_set(space, golden_sets)
     if golden is None:
         return {
             "state": "no_golden_set",
@@ -1156,26 +1215,46 @@ async def read_quality(
             "window": window_payload,
         }
     summary = _quality_set_summary(golden)
-    if retrieved_by_query is None:
+    if retrieved_by_query is not None:
+        quality = ops.evaluate_quality_set(golden, retrieved_by_query)
         return {
-            "state": "not_sampled",
+            "state": "ok",
             "space_id": str(space.id),
             "name": space.name,
-            "sampled": False,
+            "sampled": True,
             "set": summary,
-            "quality": None,
-            "reason": "compare_not_implemented",
+            "quality": quality.to_dict(),
+            "activation_gate": str(quality.activation_gate),
             "window": window_payload,
         }
-    quality = ops.evaluate_quality_set(golden, retrieved_by_query)
+    persisted = await _latest_persisted_compare(db, space)
+    if persisted is not None:
+        job, compare = persisted
+        quality = _quality_from_compare(compare, space_id=str(space.id))
+        fresh = compare.set_version == golden.set_version and compare.k == golden.k
+        return {
+            "state": "sampled" if fresh else "stale_compare",
+            "space_id": str(space.id),
+            "name": space.name,
+            "sampled": True,
+            "set": summary,
+            "quality": quality.to_dict(),
+            "compare": compare.to_dict(),
+            "activation_gate": (
+                str(quality.activation_gate) if fresh else str(ops.GateStatus.UNKNOWN)
+            ),
+            "compare_run_id": str(job.id),
+            "compare_set_version": compare.set_version,
+            "window": window_payload,
+        }
     return {
-        "state": "ok",
+        "state": "not_sampled",
         "space_id": str(space.id),
         "name": space.name,
-        "sampled": True,
+        "sampled": False,
         "set": summary,
-        "quality": quality.to_dict(),
-        "activation_gate": str(quality.activation_gate),
+        "quality": None,
+        "reason": "compare_not_run",
         "window": window_payload,
     }
 
@@ -1262,7 +1341,7 @@ async def read_overview(db: AsyncSession, *, window: str = DEFAULT_WINDOW) -> di
         )
     ).one()
     runs, unattributed, scan_truncated = await _vector_jobs(db, start=start, end=end)
-    latest = runs[0] if runs else None
+    latest = next((run for run in runs if run.job.job_type in _REINDEX_JOB_TYPES), None)
     audit_rows = (
         await db.execute(
             select(

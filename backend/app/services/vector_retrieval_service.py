@@ -167,6 +167,7 @@ class VectorRetrievalService:
         *,
         store: VectorStoreService | None = None,
         space_name: str = CONTENT_SPACE,
+        space_id: str | uuid.UUID | None = None,
         embedder: Embedder | None = None,
         user_id: uuid.UUID | None = None,
         run: Any = None,
@@ -178,6 +179,9 @@ class VectorRetrievalService:
         self.db = db
         self.store = store
         self.space_name = space_name
+        # An explicit id reads a non-active (building) space — the pre-cutover
+        # quality compare needs the same retrieval math as the live pointer.
+        self.space_id = str(space_id) if space_id is not None else None
         self._embedder = embedder
         self._tags: dict[str, Any] = {}
         self._user_id = user_id
@@ -508,6 +512,8 @@ class VectorRetrievalService:
 
     def _space(self) -> VectorSpace | DegradedReason:
         try:
+            if self.space_id is not None:
+                return self.store.resolve_space(self.space_id)
             return self.store.active_space(self.space_name)
         except VectorSpaceNotFound:
             return DegradedReason.INDEX_MISSING

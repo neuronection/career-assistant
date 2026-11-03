@@ -124,6 +124,24 @@
         "title": "AchievementOut",
         "type": "object"
       },
+      "ActionKeyRequest": {
+        "description": "Body for path-addressed actions; the header is preferred.",
+        "properties": {
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "title": "ActionKeyRequest",
+        "type": "object"
+      },
       "AddBlockOp": {
         "description": "Append (or insert at a position) one registry-valid block.",
         "properties": {
@@ -2395,6 +2413,88 @@
           "is_active"
         ],
         "title": "BudgetOut",
+        "type": "object"
+      },
+      "BuildSpaceRequest": {
+        "description": "Provision a ``building`` space beside the active one.",
+        "properties": {
+          "dim": {
+            "maximum": 3072.0,
+            "minimum": 1.0,
+            "title": "Dim",
+            "type": "integer"
+          },
+          "document_prefix": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Prefix"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "metric": {
+            "default": "cosine",
+            "title": "Metric",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "normalize": {
+            "default": true,
+            "title": "Normalize",
+            "type": "boolean"
+          },
+          "provider": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          },
+          "query_prefix": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Prefix"
+          }
+        },
+        "required": [
+          "name",
+          "provider",
+          "model",
+          "dim"
+        ],
+        "title": "BuildSpaceRequest",
         "type": "object"
       },
       "BulkJobActionIn": {
@@ -7957,6 +8057,38 @@
         "title": "DraftAIRequest",
         "type": "object"
       },
+      "DropSpaceRequest": {
+        "properties": {
+          "confirm_space_name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Confirm Space Name",
+            "type": "string"
+          },
+          "force": {
+            "default": false,
+            "description": "skip the retirement grace period; the typed name is still required",
+            "title": "Force",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "confirm_space_name"
+        ],
+        "title": "DropSpaceRequest",
+        "type": "object"
+      },
       "EducationItemIn": {
         "properties": {
           "department_id": {
@@ -12591,6 +12723,56 @@
           "password"
         ],
         "title": "LoginIn",
+        "type": "object"
+      },
+      "MaintenanceRequest": {
+        "description": "One typed maintenance action (or a scoped retry of failed documents).",
+        "properties": {
+          "action": {
+            "description": "index-rebuild | vacuum | orphan-sweep | retry-failed",
+            "title": "Action",
+            "type": "string"
+          },
+          "dry_run": {
+            "default": false,
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "maximum": 5000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "space": {
+            "description": "vector space id or name",
+            "title": "Space",
+            "type": "string"
+          }
+        },
+        "required": [
+          "space",
+          "action"
+        ],
+        "title": "MaintenanceRequest",
         "type": "object"
       },
       "MarketMonthPointOut": {
@@ -18560,6 +18742,38 @@
         "title": "ProviderUpdate",
         "type": "object"
       },
+      "QualityCompareRequest": {
+        "description": "Score the versioned golden set on the old and new space.",
+        "properties": {
+          "compare_space": {
+            "description": "baseline/old space id or name",
+            "title": "Compare Space",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "space": {
+            "description": "candidate/new space id or name",
+            "title": "Space",
+            "type": "string"
+          }
+        },
+        "required": [
+          "space",
+          "compare_space"
+        ],
+        "title": "QualityCompareRequest",
+        "type": "object"
+      },
       "QuietHoursIn": {
         "properties": {
           "end": {
@@ -19161,6 +19375,18 @@
             "title": "Force",
             "type": "boolean"
           },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "optional replay key; the Idempotency-Key header also works",
+            "title": "Idempotency Key"
+          },
           "kinds": {
             "anyOf": [
               {
@@ -19234,6 +19460,108 @@
           "password"
         ],
         "title": "RegisterIn",
+        "type": "object"
+      },
+      "ReindexRequest": {
+        "description": "One bounded reindex of a space (the plan-50 reconcile handler).",
+        "properties": {
+          "auto_continue": {
+            "default": true,
+            "title": "Auto Continue",
+            "type": "boolean"
+          },
+          "batch_size": {
+            "default": 10,
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "budget": {
+            "default": 2000,
+            "description": "embed units",
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Budget",
+            "type": "integer"
+          },
+          "force": {
+            "default": false,
+            "title": "Force",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "one source kind; default all",
+            "title": "Kind"
+          },
+          "limit": {
+            "default": 200,
+            "description": "documents per run",
+            "maximum": 5000.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "scan_limit": {
+            "default": 500,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Scan Limit",
+            "type": "integer"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO timestamp \u2014 only rows updated since",
+            "title": "Since"
+          },
+          "space": {
+            "description": "vector space id or name",
+            "title": "Space",
+            "type": "string"
+          },
+          "view": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "run-scope view label",
+            "title": "View"
+          }
+        },
+        "required": [
+          "space"
+        ],
+        "title": "ReindexRequest",
         "type": "object"
       },
       "RelationOut": {
@@ -23707,6 +24035,33 @@
         "title": "TreeOut",
         "type": "object"
       },
+      "TypedSpaceRequest": {
+        "description": "Destructive lifecycle action: the typed space name is mandatory.",
+        "properties": {
+          "confirm_space_name": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Confirm Space Name",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          }
+        },
+        "required": [
+          "confirm_space_name"
+        ],
+        "title": "TypedSpaceRequest",
+        "type": "object"
+      },
       "UniversityCreate": {
         "properties": {
           "city": {
@@ -25383,7 +25738,7 @@
             "required": false,
             "schema": {
               "default": "all",
-              "pattern": "^(all|auth|admin)$",
+              "pattern": "^(all|auth|admin|vector)$",
               "title": "Group",
               "type": "string"
             }
@@ -25668,7 +26023,7 @@
             "required": false,
             "schema": {
               "default": "all",
-              "pattern": "^(all|auth|admin)$",
+              "pattern": "^(all|auth|admin|vector)$",
               "title": "Group",
               "type": "string"
             }
@@ -30458,6 +30813,66 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/maintenance": {
+      "post": {
+        "description": "Queue one typed maintenance action (index-rebuild/vacuum/orphan/retry).",
+        "operationId": "retrieval_maintenance_api_v1_admin_retrieval_maintenance_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MaintenanceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Maintenance",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/overview": {
       "get": {
         "description": "Instance-wide retrieval KPIs: spaces, coverage, queries, embed usage.",
@@ -30570,6 +30985,66 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/quality/compare": {
+      "post": {
+        "description": "Run the versioned golden set on old vs new space; persist the result.",
+        "operationId": "retrieval_quality_compare_api_v1_admin_retrieval_quality_compare_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QualityCompareRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Quality Compare",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/query-health": {
       "get": {
         "description": "Latency/candidate/zero-result/degraded aggregates from the rollups.",
@@ -30655,8 +31130,28 @@
     },
     "/api/v1/admin/retrieval/reconcile": {
       "post": {
-        "description": "Enqueue a ``VECTOR_RECONCILE`` run (backfill / drift repair).\n\nThin enqueue: the handler owns composing, classification, the embed\nbudget and the coverage snapshots, so the run is a ``background_jobs``\nrow (plan 51's Runs view reads it) and the embed spend lands on the system\npath rather than the requesting admin's budget.",
+        "description": "Enqueue a ``VECTOR_RECONCILE`` run (backfill / drift repair).\n\nThin enqueue: the handler owns composing, classification, the embed\nbudget and the coverage snapshots, so the run is a ``background_jobs``\nrow (plan 51's Runs view reads it) and the embed spend lands on the system\npath rather than the requesting admin's budget. The legacy endpoint now\nrides the same replay/lock/audit seam as ``POST /reindex``: an optional\nkey makes it replay-deduped, and the run always takes the space lock.",
         "operationId": "enqueue_reconcile_api_v1_admin_retrieval_reconcile_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -30692,6 +31187,66 @@
           }
         },
         "summary": "Enqueue Reconcile",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/reindex": {
+      "post": {
+        "description": "Queue the existing ``VECTOR_RECONCILE`` handler for one bounded run.",
+        "operationId": "retrieval_reindex_api_v1_admin_retrieval_reindex_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReindexRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Reindex",
         "tags": [
           "retrieval-admin"
         ]
@@ -30865,6 +31420,158 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/runs/{run_id}/cancel": {
+      "post": {
+        "description": "Request cancellation; the running work observes the flag itself.",
+        "operationId": "retrieval_cancel_run_api_v1_admin_retrieval_runs__run_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ActionKeyRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Cancel Run",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/runs/{run_id}/retry": {
+      "post": {
+        "description": "Bounded re-enqueue of a terminal run under a fresh idempotency scope.",
+        "operationId": "retrieval_retry_run_api_v1_admin_retrieval_runs__run_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ActionKeyRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Retry Run",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/spaces": {
       "get": {
         "description": "One row per persisted space with counts, coverage and backend label.",
@@ -30884,6 +31591,278 @@
           }
         },
         "summary": "Retrieval Spaces",
+        "tags": [
+          "retrieval-admin"
+        ]
+      },
+      "post": {
+        "description": "Provision a ``building`` space through the lifecycle service.",
+        "operationId": "retrieval_build_space_api_v1_admin_retrieval_spaces_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuildSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Build Space",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/spaces/{space_id}/activate": {
+      "post": {
+        "description": "Activate only when coverage **and** the golden-query quality gate pass.",
+        "operationId": "retrieval_activate_space_api_v1_admin_retrieval_spaces__space_id__activate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ActionKeyRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Activate Space",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/spaces/{space_id}/drop": {
+      "post": {
+        "description": "Drop a retired space; the typed name is mandatory (never a boolean).",
+        "operationId": "retrieval_drop_space_api_v1_admin_retrieval_spaces__space_id__drop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DropSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Drop Space",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/spaces/{space_id}/retire": {
+      "post": {
+        "description": "Retire a non-active space; the typed name must match exactly.",
+        "operationId": "retrieval_retire_space_api_v1_admin_retrieval_spaces__space_id__retire_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "space_id",
+            "required": true,
+            "schema": {
+              "title": "Space Id",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TypedSpaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Retire Space",
         "tags": [
           "retrieval-admin"
         ]

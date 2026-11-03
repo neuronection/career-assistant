@@ -14,6 +14,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
@@ -220,6 +221,15 @@ class JobWorker:
         )
         orphans = list(rows.scalars().all())
         for job in orphans:
+            if job.job_type == BackgroundJobType.VECTOR_CUTOVER.value:
+                # A synchronous cutover evaluation cannot resume; re-running
+                # the action is the only honest recovery (plan 51 Q1b).
+                job.status = BackgroundJobStatus.FAILED.value
+                job.error = "Interrupted by restart; re-run the action"
+                job.finished_at = _utcnow()
+                job.lock_key = None
+                job.updated_at = _utcnow()
+                continue
             if job.attempts < job.max_attempts:
                 job.status = BackgroundJobStatus.QUEUED.value
                 job.stage = "recovered after restart"
@@ -935,6 +945,7 @@ async def _run_vector_reconcile(
         parse_carry,
         parse_completed_kinds,
         parse_kinds,
+        parse_only,
         parse_since,
     )
 
@@ -945,6 +956,7 @@ async def _run_vector_reconcile(
         after = parse_after(payload.get("after"))
         carry = parse_carry(payload.get("carry"))
         completed = parse_completed_kinds(payload.get("completed_kinds"))
+        only = parse_only(payload.get("source_ids"))
     except ValueError as exc:
         raise DomainError(str(exc)) from exc
     space = str(payload.get("space") or CONTENT_SPACE)
@@ -963,12 +975,18 @@ async def _run_vector_reconcile(
         completed_kinds=completed,
         since=since,
         force=bool(payload.get("force")),
+        only=only,
         run=RunRef(id=job.id, stage="vector_reconcile"),
     )
     result = await service.run(progress=progress, cancelled=cancelled)
     if result.cancelled:
         await progress(95, "cancelled")
-    elif not result.done and payload.get("auto_continue", True) and result.scanned > 0:
+    elif (
+        only is None
+        and not result.done
+        and payload.get("auto_continue", True)
+        and result.scanned > 0
+    ):
         follow = _continuation_payload(
             payload,
             result,
@@ -976,12 +994,32 @@ async def _run_vector_reconcile(
             kinds=kinds or RECONCILE_KINDS,
         )
         if not await has_pending_reconcile(db, follow["continuation_key"]):
-            await enqueue(
-                db,
-                BackgroundJobType.VECTOR_RECONCILE.value,
-                follow,
+            # Transfer the single-active-run lock to the continuation: the
+            # parent is about to finish, and releasing the lock in between
+            # would let another admin start a competing run.
+            parent_lock = job.lock_key
+            if parent_lock:
+                job.lock_key = None
+                await db.execute(
+                    update(BackgroundJob).where(BackgroundJob.id == job.id).values(lock_key=None)
+                )
+                await db.flush()
+            follow_job = BackgroundJob(
                 user_id=job.user_id,
+                job_type=BackgroundJobType.VECTOR_RECONCILE.value,
+                payload=follow,
+                lock_key=parent_lock,
+                max_attempts=job.max_attempts,
             )
+            db.add(follow_job)
+            try:
+                await db.commit()
+            except IntegrityError:
+                await db.rollback()
+                logger.warning(
+                    "vector reconcile continuation for %s could not take the space lock",
+                    space_id or space,
+                )
     return result.as_dict()
 
 
@@ -1099,6 +1137,57 @@ async def _run_vector_index(
     return outcome.as_result()
 
 
+async def _run_vector_maintenance(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """One typed maintenance action (plan 51 Q1b).
+
+    Payload: ``{space_id, action, dry_run?, limit?}``. The bounded
+    implementation lives in :mod:`app.services.vector_maintenance`; this
+    handler only supplies progress and the run-result envelope.
+    """
+    from app.services.vector_maintenance import run_maintenance
+
+    payload = job.payload or {}
+    space_id = payload.get("space_id")
+    if not space_id:
+        raise DomainError("vector_maintenance requires space_id")
+    await progress(10, f"maintenance {payload.get('action') or 'unknown'}")
+    if await cancelled():
+        raise DomainError("Cancelled")
+    result = await run_maintenance(
+        db,
+        space_id=str(space_id),
+        action=str(payload.get("action") or ""),
+        dry_run=bool(payload.get("dry_run")),
+        limit=int(payload["limit"]) if payload.get("limit") is not None else None,
+        cancelled=cancelled,
+    )
+    await progress(100, "maintenance done")
+    return result
+
+
+async def _run_vector_cutover(
+    db: AsyncSession,
+    job: BackgroundJob,
+    **_kw,
+) -> dict:
+    """Cutover/gate evaluations are executed by the action API.
+
+    A queued row here means something bypassed the action seam; fail honestly
+    instead of pretending a cutover ran.
+    """
+    del db, job
+    raise DomainError(
+        "VECTOR_CUTOVER evaluations are recorded by /admin/retrieval actions; "
+        "nothing is queued to execute"
+    )
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -1133,13 +1222,23 @@ HANDLERS: dict[str, Handler] = {
     "skill_relation_learn": _run_skill_relation_learn,
     "vector_index": _run_vector_index,
     "vector_reconcile": _run_vector_reconcile,
+    "vector_maintenance": _run_vector_maintenance,
+    "vector_cutover": _run_vector_cutover,
     "posting_remap": _run_posting_remap,
 }
 
 
 async def start_workers(worker_count: int) -> list[asyncio.Task]:
-    """Recover orphaned jobs, purge stale exports, start `worker_count` tasks."""
+    """Recover orphaned jobs, purge stale exports, start worker + reaper tasks."""
+    from app.services.retrieval_jobs import reap_stale_runs, reaper_loop
+
     async with AsyncSessionLocal() as db:
+        # Reap stale vector runs *before* the boot orphan recovery: a crashed
+        # run past the 15-minute heartbeat window must fail (and release its
+        # space lock) rather than be silently requeued forever.
+        reaped = await reap_stale_runs(db)
+        if reaped:
+            logger.warning("Reaped %d stale vector run(s) at boot", len(reaped))
         recovered = await JobWorker(db).recover_orphans()
         if recovered:
             logger.info("Recovered %d orphaned background job(s)", recovered)
@@ -1148,7 +1247,9 @@ async def start_workers(worker_count: int) -> list[asyncio.Task]:
     purged = cleanup_old_exports()
     if purged:
         logger.info("Purged %d stale export archive(s)", purged)
-    return [asyncio.create_task(_worker_loop()) for _ in range(max(worker_count, 0))]
+    tasks = [asyncio.create_task(_worker_loop()) for _ in range(max(worker_count, 0))]
+    tasks.append(asyncio.create_task(reaper_loop()))
+    return tasks
 
 
 async def drain_queue(db: AsyncSession | None = None) -> int:
