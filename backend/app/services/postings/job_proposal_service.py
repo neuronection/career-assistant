@@ -342,24 +342,17 @@ class JobProposalService:
     ) -> Job:
         """Apply the proposal: create the PUBLISHED catalog job from the
         extract (the admin applying it to the public catalog IS the act of
-        publishing — a draft would be invisible to the recompute, the
-        semantic filter and every /catalog consumer), map the posting
-        MANUAL, clear the proposal and embed the new job — ONE transaction.
+        publishing — a draft would be invisible to the semantic filter and
+        every /catalog consumer), map the posting MANUAL and clear the
+        proposal — ONE transaction.
 
         The code is slugified + deduped CALLER-side (``JobService.create``
         passes it verbatim); skills map onto ``JobSkillIn`` through
         ``PRIORITY_TO_IMPORTANCE``, resolved keys only.
         """
-        from sqlalchemy.orm import joinedload
-
         from app.ai.agents.job_generator import _slugify
         from app.schemas.job import JobCreate, JobSkillIn
         from app.services.catalog.job_service import JobService
-        from app.services.embedding_service import (
-            KIND_JOB,
-            EmbeddingService,
-            compose_job_text,
-        )
 
         proposal = proposal_of(posting)
         if not proposal:
@@ -456,23 +449,6 @@ class JobProposalService:
             after=snapshot(posting, RETAG_FIELDS),
         )
 
-        links = (
-            (
-                await self.db.execute(
-                    select(JobSkill)
-                    .options(joinedload(JobSkill.skill))
-                    .where(JobSkill.job_id == job.id)
-                )
-            )
-            .scalars()
-            .unique()
-            .all()
-        )
-        text_surface = compose_job_text(job, links)
-        if text_surface.strip():
-            await EmbeddingService(self.db).upsert_embedding(
-                KIND_JOB, job.id, text_surface, commit=False
-            )
         await self.db.commit()
         await self.db.refresh(posting)
         return job

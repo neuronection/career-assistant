@@ -1,15 +1,19 @@
 """The HITL job proposal lifecycle (plan 185 S4): an unmapped-and-rich
 extract proposes into ``posting_facts["job_proposal"]``; an admin applies
-it (creates the PUBLISHED catalog job + maps MANUAL + clears the proposal
-+ embeds the job — one transaction) or dismisses it (explicit JSON null).
-The pending filter is the JSON-TYPE test, never presence."""
+it (creates the PUBLISHED catalog job + maps MANUAL + clears the proposal —
+one transaction) or dismisses it (explicit JSON null). The pending filter is
+the JSON-TYPE test, never presence.
+
+Job vectors are no longer written on apply: they belonged to the retired
+``ai_embeddings`` store (plan 50 P1d) and return with the long-text matcher in
+P2, which indexes catalog jobs through the same vector writer as everything
+else."""
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.extensions.sdk import RawPosting
-from app.models.embedding_model import AIEmbedding
 from app.models.job_model import Job, JobFamily, JobSkill
 from app.models.posting_model import JobPosting, PostingChange
 from app.models.taxonomy_model import Skill
@@ -362,23 +366,12 @@ async def test_proposal_lifecycle_queue_apply_dismiss(db, client, auth_headers, 
         ), "the priority→importance map is pinned per link"
     assert {link.required_level for link in links} == {4}
 
-    # The queue is empty afterwards; the vectors exist for the new job.
+    # The queue is empty afterwards and the created job is published.
     queue_after = (
         await client.get("/api/v1/admin/postings/job-proposals", headers=auth_headers)
     ).json()
     assert queue_after == []
-    vectors = (
-        (
-            await db.execute(
-                select(AIEmbedding).where(
-                    AIEmbedding.entity_kind == "job", AIEmbedding.entity_id == job.id
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
-    assert len(vectors) == 1, "the applied job embeds in the same transaction"
+    assert job.status == "published"
 
     # A second rich posting dismisses instead — and lands the audit trail.
     posting2 = await _rich_unmapped_posting(
@@ -771,15 +764,18 @@ async def test_apply_slug_dedupes_and_overrides(db, client, auth_headers, kinds,
 async def test_apply_failure_leaves_no_job_row(
     db, client, auth_headers, kinds, source, monkeypatch
 ):
-    """The commit-semantics regression: a mid-apply failure (the job embed
-    raises) leaves NO job row and the proposal pending — one transaction."""
+    """The commit-semantics regression: a failure after the job row is
+    flushed (the journal write blows up) leaves NO job row and the proposal
+    pending — one transaction."""
+    from app.services.postings.change_journal import PostingChangeJournal
+
     await _seed_world(db)
     posting = await _rich_unmapped_posting(db, source, external_id="proposal-fail")
 
-    async def broken_embed_texts(_db, texts, **_kw):
-        raise RuntimeError("embeddings provider down mid-apply")
+    def broken_record(*_args, **_kwargs):
+        raise RuntimeError("journal write failed mid-apply")
 
-    monkeypatch.setattr("app.ai.gateway.embed_texts", broken_embed_texts)
+    monkeypatch.setattr(PostingChangeJournal, "record", broken_record)
 
     with pytest.raises(RuntimeError):
         await client.post(

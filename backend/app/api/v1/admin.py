@@ -1657,21 +1657,14 @@ async def catalog_mapping_settings(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_admin),
 ) -> dict:
-    """The mapping run controls (plan 185 S6.3): the two admin switches,
+    """The mapping run controls (plan 185 S6.3): the job-proposal switch,
     read per decision — effective on the next decision, no restart."""
-    from app.services.postings.catalog_settings import (
-        job_proposals_enabled,
-        semantic_rescue_enabled,
-    )
+    from app.services.postings.catalog_settings import job_proposals_enabled
 
-    return {
-        "semantic_rescue": await semantic_rescue_enabled(db),
-        "job_proposals": await job_proposals_enabled(db),
-    }
+    return {"job_proposals": await job_proposals_enabled(db)}
 
 
 class CatalogMappingSettingsIn(BaseModel):
-    semantic_rescue: bool | None = None
     job_proposals: bool | None = None
 
 
@@ -1683,20 +1676,13 @@ async def put_catalog_mapping_settings(
 ) -> dict:
     from app.services.postings.catalog_settings import (
         JOB_PROPOSALS_KEY,
-        SEMANTIC_RESCUE_KEY,
         job_proposals_enabled,
-        semantic_rescue_enabled,
         set_switch,
     )
 
-    if payload.semantic_rescue is not None:
-        await set_switch(db, SEMANTIC_RESCUE_KEY, payload.semantic_rescue)
     if payload.job_proposals is not None:
         await set_switch(db, JOB_PROPOSALS_KEY, payload.job_proposals)
-    return {
-        "semantic_rescue": await semantic_rescue_enabled(db),
-        "job_proposals": await job_proposals_enabled(db),
-    }
+    return {"job_proposals": await job_proposals_enabled(db)}
 
 
 @router.get("/postings")

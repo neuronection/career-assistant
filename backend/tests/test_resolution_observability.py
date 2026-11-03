@@ -450,8 +450,8 @@ async def test_stats_aggregates_job_results(db, client, admin_headers, seeded_ca
 async def test_stats_counts_failing_schedules(db, client, admin_headers, seeded_catalog):
     db.add(
         Schedule(
-            kind="system_embeddings_reconcile",
-            task="embeddings_reconcile",
+            kind="system_vector_reconcile",
+            task="vector_reconcile",
             trigger={"every_minutes": 60},
             payload={},
             payload_hash=uuid4().hex,

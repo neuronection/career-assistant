@@ -32,7 +32,6 @@ from app.models.econ_model import (
     Scenario,
     ScenarioPoint,
 )
-from app.models.embedding_model import AIEmbedding
 from app.models.engagement_model import (
     Notification,
     NotificationDelivery,
@@ -110,7 +109,6 @@ from app.models.vector_model import (
 )
 
 __all__ = [
-    "AIEmbedding",
     "AIGeneration",
     "AIMCPServer",
     "AIModel",

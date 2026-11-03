@@ -96,26 +96,7 @@ export async function remapPosting(id: string): Promise<{ mapping_method: string
   return data;
 }
 
-export interface EmbeddingBucket {
-  entity_kind: string;
-  dim: number;
-  count: number;
-}
-
-export async function fetchEmbeddingStatus(): Promise<EmbeddingBucket[]> {
-  const { data } = await api.get<EmbeddingBucket[]>("/ai/embeddings/status");
-  return data;
-}
-
-export async function recomputeEmbeddings(
-  kind: "posting" | "job",
-): Promise<{ candidates: number; embedded: number; kind: string }> {
-  const { data } = await api.post("/ai/embeddings/recompute", null, { params: { kind } });
-  return data;
-}
-
 export interface CatalogMappingSettings {
-  semantic_rescue: boolean;
   job_proposals: boolean;
 }
 

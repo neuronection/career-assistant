@@ -129,11 +129,17 @@ def _set_hash(refs: list[dict]) -> str:
 
 
 def _posting_text(posting) -> str:
-    """The posting's prompt-facing text (title + raw description +
-    extracted skills/responsibilities), capped for one prompt slot."""
-    from app.services.embedding_service import compose_posting_text
+    """The posting's prompt-facing text (title + org + extracted
+    skills/responsibilities), capped for one prompt slot."""
+    from app.services.vector_composers import compose_posting_views
 
-    return compose_posting_text(posting)[:2000]
+    views = compose_posting_views(posting).views
+    parts = [
+        views.get("summary") or "",
+        views.get("requirements") or "",
+        views.get("responsibilities") or "",
+    ]
+    return "\n".join(part for part in parts if part)[:2000]
 
 
 def _validate_refs(refs: list[dict]) -> None:

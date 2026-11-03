@@ -94,7 +94,7 @@ SCHEDULE_TASKS = {
     "extension_reconcile",
     "demand_import",
     "skill_relation_learn",
-    "embeddings_reconcile",
+    "vector_reconcile",
 }
 
 CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
