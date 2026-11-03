@@ -4,6 +4,34 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (catalog matching — the semantic rescue and the job match reads, 2026-11-03)
+- **Catalog jobs are indexed as documents, and postings are matched against
+  them by long text.** A catalog job now composes the same views as a
+  posting (summary, requirements, responsibilities, skills and a chunked
+  short-description body) with pointers at the `jobs` row instead of copied
+  text, and joins the `VECTOR_INDEX`/`VECTOR_RECONCILE` vocabulary (`job`).
+  The reconcile backfills jobs; publishing or editing one queues its index.
+- **The semantic catalog rescue is back, on the family vector store.** Where
+  the deterministic weighted skill overlap misses, `decide_catalog` asks the
+  new job↔posting match (bounded MaxSim on view pairs — requirements and
+  responsibilities lead, body is the fallback) for candidates. Every
+  candidate must pass the same shared-skill gate and be published, so a
+  semantic hit can never map a job the deterministic evidence excluded;
+  reruns record `top`, `threshold`, `space_key` and the per-view candidate
+  scores in `posting_facts.mapping_signals.semantic`. The posting is indexed
+  through the sanctioned synchronous writer first (one embed batch only when
+  its content changed), and any embedding/index failure degrades to the
+  overlap-only decision — a posting write never fails because of embeddings.
+  The `catalog.semantic_rescue` run switch is back on the catalog-mapping
+  settings endpoint (default ON, effective on the next decision).
+- **Two job-detail reads.** `GET /api/v1/jobs/{ref}/similar` returns similar
+  published catalog jobs and `GET /api/v1/jobs/{ref}/postings` the live
+  postings ranked against the job, both with per-view scores and a
+  structured degradation reason; they fall back to the skill-overlap /
+  already-mapped lists when the vector store is unavailable, and the
+  posting read keeps the feed's visibility rules (live statuses, never a
+  hidden posting).
+
 ### Changed (retrieval read cutover — semantic now runs on the family vector store, 2026-11-03)
 - **Semantic ranking moved onto the new retrieval store, and the old
   embedding table is gone.** Explore's relevance fusion and smart-sort

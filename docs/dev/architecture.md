@@ -301,15 +301,18 @@ There is no side door around it.
   (`app/models/vector_model.py`) plus a per-space physical index —
   pgvector + HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a
   capped exact-linear fallback without either extension. Composers
-  (`app/services/vector_composers.py`) turn a posting, skill or profile
-  into named views; the `VECTOR_INDEX`/`VECTOR_RECONCILE` jobs embed only
-  changed content and write through `app/storage/vector_store.py`. Reads go
-  through `app/services/vector_retrieval_service.py` (query embedding →
+  (`app/services/vector_composers.py`) turn a posting, catalog job, skill or
+  profile into named views; the `VECTOR_INDEX`/`VECTOR_RECONCILE` jobs embed
+  only changed content and write through `app/storage/vector_store.py`. Reads
+  go through `app/services/vector_retrieval_service.py` (query embedding →
   per-view ANN → chunk aggregation → weighted RRF), and
-  `app/services/hybrid_search.py` keeps the lexical RRF math. Semantic is a
-  ranking signal, never a filter gate; every failure degrades to lexical with
-  a structured reason. The legacy `ai_embeddings` store is gone (migration
-  `0088`).
+  `app/services/hybrid_search.py` keeps the lexical RRF math. `match_documents`
+  compares a stored job/posting document's views on pinned view pairs (the
+  catalog matching read in `app/services/catalog/job_match_service.py`), and
+  `app/services/postings/semantic_rescue.py` turns that match into the bounded
+  plan-185 rescue under the shared-skill gate. Semantic is a ranking signal,
+  never a filter gate; every failure degrades to lexical with a structured
+  reason. The legacy `ai_embeddings` store is gone (migration `0088`).
 - **Follow-up automation** is a scheduler slot
   (`system_followups` → `followup_sweep` job,
   `app/services/postings/followups_service.py`): a stateless sweep over applied

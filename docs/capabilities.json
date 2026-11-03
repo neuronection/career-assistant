@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-02",
+  "updated": "2026-11-03",
   "capabilities": [
     {
       "id": "update-checks",
@@ -37,7 +37,7 @@
         "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
         "Rich structured attributes per job: skills, salary bands, demand outlook, education",
         "AI-generated jobs map onto the existing taxonomy — two-posting labels auto-promote unless a near-duplicate active skill blocks them",
-        "Live postings map onto catalog jobs through a deterministic weighted skill-overlap join, each decision audit-journaled"
+        "Live postings map onto catalog jobs by weighted skill overlap, with a gated semantic rescue, each decision audit-journaled"
       ],
       "links": [
         {

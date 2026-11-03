@@ -468,16 +468,21 @@ gone (migration `0088`); one text is embedded once per changed view/chunk and
 never re-embedded unchanged (content-hash dedupe).
 
 - **Write path.** Versioned pure composers (`app/services/vector_composers.py`)
-  turn a posting, skill or profile into named views; the `VECTOR_INDEX` job
-  indexes one document and the `VECTOR_RECONCILE` job backfills/reconciles the
-  store in bounded keyset batches (resumable cursor, budget-capped, coverage
-  snapshots only when a kind's chain completes). Both write through
-  `app/storage/vector_store.py`, never dialect SQL.
+  turn a posting, catalog job, skill or profile into named views; the
+  `VECTOR_INDEX` job indexes one document and the `VECTOR_RECONCILE` job
+  backfills/reconciles the store in bounded keyset batches (resumable cursor,
+  budget-capped, coverage snapshots only when a kind's chain completes). Both
+  write through `app/storage/vector_store.py`, never dialect SQL.
 - **Read path.** `app/services/vector_retrieval_service.py` embeds the query
   once, searches each view under the caller's opaque scope, aggregates chunks
   into a document score and fuses lexical rankings with weighted RRF
   (`app/services/hybrid_search.py` keeps the RRF math). Explore's relevance
   sort, the smart-sort affinity and the autopilot semantic sweep ride it.
+  `match_documents` is the long-text read: a stored document's views against
+  another kind on pinned view pairs (requirements/responsibilities lead, the
+  chunked body is the fallback) with a bounded MaxSim over capped query
+  chunks and a capped candidate set — no provider call, no corpus comparison.
+  `match_text` is the same cascade for a posting that has no indexed document.
 - **Degradation.** No provider, a failed embed, a missing space/index, a
   dimension mismatch or an over-cap scan each return the contract's structured
   reason and the caller falls back to the lexical/neutral path — **semantic is
@@ -493,20 +498,27 @@ never touches `PostingSkill` rows). The method + `retag` journal make every
 map auditable and admin-overridable (manual map endpoint,
 `POST /admin/postings/{id}/remap` re-runs the join without the extract).
 
-The **semantic rescue** that used to fire where the overlap missed lived on
-the retired `ai_embeddings` store. It returns on the family vector store with
-the long-text job↔posting matcher (plan 50 P2: `compose_job_views`,
-`job_match`, the bounded 164 S4.4 rerank). Until then the
-`posting_facts["mapping_signals"].semantic` block stays empty
-(`{top: null, threshold: null, candidates: []}`) so the audit Changes drawer
-keeps its shape, and the overlap decides alone.
+The **semantic rescue** fires only where that overlap misses (plan 50 P2,
+`app/services/postings/semantic_rescue.py`): the posting is indexed through
+the sanctioned synchronous writer (unchanged content costs zero embeds), its
+stored views are matched against the `job` documents, and a candidate may map
+only when it clears `SEMANTIC_MAP_THRESHOLD` **and** shares ≥1 resolved skill
+with the posting — the same deterministic evidence the overlap uses. Draft
+jobs are filtered when candidates are hydrated, so they are never proposed.
+The trace lands in `posting_facts["mapping_signals"]`:
+`overlap {score, runner_up}` plus
+`semantic {top, threshold, candidates[{code, score, shared_skills, per_view}],
+space_key, degraded}`. Any embedding/index failure degrades to the
+overlap-only verdict and the reason is recorded — a posting write never fails
+for it.
 
 Every embedding failure (unconfigured provider, gateway error, dim
 mismatch) degrades to the overlap-only decision — the RRF discipline
 recorded in the `retag` journal row's operation payload (the audit Changes
 drawer renders it verbatim — that IS the join's trace; there is no LangGraph
-here to stream). The `catalog.job_proposals` run switch in `app_settings` is
-read per decision — effective on the next decision, no restart.
+here to stream). The `catalog.job_proposals` and `catalog.semantic_rescue`
+run switches in `app_settings` are read per decision — effective on the next
+decision, no restart.
 
 A posting the overlap cannot place AND whose extract is rich enough (kept
 title + ≥ 3 kept skills) stores `posting_facts["job_proposal"]` — the HITL
