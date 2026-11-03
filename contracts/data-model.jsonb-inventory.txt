@@ -35,3 +35,4 @@ autopilot_runs.run_steps :: keep-open durable per-node run trace (step/kind/iter
 smart_query_cache.spec :: typed-out closed SmartSearchSpec projection (pydantic extra=forbid over the explore vocabulary — plan 179)
 vector_records.text_ref :: keep-open {table,id,field} pointer rehydrated under ACL (validated at the service boundary; no raw text)
 retrieval_query_rollups.latency_buckets :: keep-open latency histogram bucket-to-count map (plan 51 Q0 owns the boundaries; latency_bucket_schema_version is the sibling)
+ai_generations.metadata :: keep-open caller-supplied embedding tags (space_id/kind/view/chunk_index; schema version sibling; never text)

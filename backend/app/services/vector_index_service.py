@@ -228,13 +228,19 @@ def gateway_embedder(
     *,
     user_id: uuid.UUID | None = None,
     run: Any = None,
+    tags: dict[str, Any] | None = None,
 ) -> Embedder:
-    """The production embedder: every batch through the gateway ``embed`` task."""
+    """The production embedder: every batch through the gateway ``embed`` task.
+
+    ``tags`` is a live dictionary the caller mutates as it learns the
+    retrieval dimensions (space/kind/view/chunk index); the gateway stores
+    whatever is present at call time — it never invents a tag (plan 51 Q1a).
+    """
 
     async def _embed(texts: Sequence[str]) -> list[list[float]]:
         from app.ai.gateway import embed_texts
 
-        return await embed_texts(db, list(texts), user_id=user_id, run=run)
+        return await embed_texts(db, list(texts), user_id=user_id, run=run, metadata=tags)
 
     return _embed
 
@@ -427,7 +433,11 @@ class VectorIndexService:
         # space's backfill). It never creates a space; the lifecycle service
         # owns that decision.
         self.space_id = str(space_id) if space_id is not None else None
-        self._embedder = embedder or gateway_embedder(db, user_id=user_id, run=run)
+        # Live retrieval tags handed to the gateway with each embed batch
+        # (plan 51 Q1a): the pipeline fills them in as it learns the space
+        # and the batch's view; the gateway never derives them.
+        self._tags: dict[str, Any] = {}
+        self._embedder = embedder or gateway_embedder(db, user_id=user_id, run=run, tags=self._tags)
         self._profile = profile
         self._provision_backend = provision_backend
         self._user_id = user_id
@@ -472,6 +482,8 @@ class VectorIndexService:
         composed = loaded.composed
         if composed.is_empty:
             return IndexOutcome(kind=kind, source_id=source_id, space=self.space_name)
+        self._tags.clear()
+        self._tags["kind"] = kind
         await self._report(progress, 10, "composing")
         profile: EmbeddingProfile | None = None
         space: VectorSpace | None = self._find_space()
@@ -509,6 +521,12 @@ class VectorIndexService:
                 profile = await self._resolve_profile()
             if profile is None:
                 return self._degraded(kind, source_id, composed)
+            self._tags["space_id"] = str(space.space_id)
+            views = {record.view for record in changed}
+            if len(views) == 1:
+                self._tags["view"] = next(iter(views))
+            if len(changed) == 1:
+                self._tags["chunk_index"] = changed[0].chunk_index
             vectors = await self._embed([record.text for record in changed], progress)
             if vectors is None:
                 return self._degraded(kind, source_id, composed)

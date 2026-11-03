@@ -50,3 +50,44 @@ async def test_mock_vectors_are_deterministic_and_unit_length(
     assert abs(sum(v * v for v in vectors[0]) - 1.0) < 0.01, "unit length"
     other = await embed_texts(db, ["chef position"], UUID(_uid(auth_headers)))
     assert other[0] != vectors[0]
+
+
+async def test_embed_calls_store_the_caller_supplied_retrieval_tags(
+    client, auth_headers, profile_ready, seeded_catalog, db
+):
+    """Plan 51 Q1a: the gateway stores exactly the tags the caller handed it
+    (never inventing one), and an untagged call keeps the empty default."""
+    from sqlalchemy import select
+
+    from app.models.ai_model import AIGeneration
+
+    user_id = UUID(_uid(auth_headers))
+    tags = {
+        "space_id": "11111111-1111-1111-1111-111111111111",
+        "kind": "posting",
+        "view": "summary",
+        "chunk_index": 0,
+    }
+    await embed_texts(db, ["tagged text"], user_id, metadata=tags)
+    tagged = (
+        await db.execute(
+            select(AIGeneration)
+            .where(AIGeneration.task_type == "embed")
+            .order_by(AIGeneration.created_at.desc(), AIGeneration.id.desc())
+            .limit(1)
+        )
+    ).scalar_one()
+    assert tagged.metadata_json == tags
+    assert tagged.metadata_schema_version == 1
+
+    await embed_texts(db, ["untagged text"], user_id)
+    untagged = (
+        await db.execute(
+            select(AIGeneration)
+            .where(AIGeneration.task_type == "embed")
+            .order_by(AIGeneration.created_at.desc(), AIGeneration.id.desc())
+            .limit(1)
+        )
+    ).scalar_one()
+    assert untagged.id != tagged.id
+    assert untagged.metadata_json == {}

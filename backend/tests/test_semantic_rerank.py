@@ -613,7 +613,7 @@ async def test_the_real_match_records_the_space_key_and_per_view_scores(db, sour
     monkeypatch.setattr(
         vector_index_service,
         "gateway_embedder",
-        lambda _db, user_id=None, run=None: TokenEmbedder(),
+        lambda _db, user_id=None, run=None, tags=None: TokenEmbedder(),
     )
     sql = await _skill(db, "python")
     family = JobFamily(key="rerank-real", label="Real", path="rerank-real")

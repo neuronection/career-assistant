@@ -13,7 +13,7 @@ import random
 import re
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal, TypeVar, overload
 
@@ -335,9 +335,16 @@ async def _record(
     pack_version: int | None = None,
     run_id: uuid.UUID | None = None,
     run_stage: str | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> AIGeneration:
     """Persist an audit row for one AI call (the row is returned so the
-    `with_audit_ref` opt-in can hand back exactly what was written)."""
+    `with_audit_ref` opt-in can hand back exactly what was written).
+
+    ``metadata`` is the caller-supplied retrieval seam (plan 51 Q1a): the
+    gateway stores exactly the tags it was handed (space/kind/view/chunk
+    index) and never invents one. A row without tags keeps the column
+    default ``{}``.
+    """
     from app.ai.prompt_versions import prompt_version
     from app.ai.tasks import task_tier
 
@@ -360,6 +367,8 @@ async def _record(
         run_id=run_id,
         run_stage=run_stage,
     )
+    if metadata:
+        row.metadata_json = dict(metadata)
     db.add(row)
     await db.flush()
     return row
@@ -1073,6 +1082,7 @@ async def embed_texts(
     texts: list[str],
     user_id=None,
     run: RunRef | None = None,
+    metadata: Mapping[str, Any] | None = None,
 ) -> list[list[float]]:
     """Embed a batch of texts via the ``embed`` task.
 
@@ -1082,6 +1092,11 @@ async def embed_texts(
     testable without a provider; real providers go through the
     embeddings model factory. ``run`` opt-in links the audit row to a
     multi-step flow run and stage, like ``ainvoke_structured``.
+
+    ``metadata`` is the caller's retrieval tagging seam (plan 51 Q1a):
+    ``space_id``/``kind``/``view``/``chunk_index`` travel with the audit row
+    exactly as supplied, never derived here. It is ids and counters only —
+    no prompt, document or query text.
     """
     from app.ai.providers.resolution import resolve_task_model
 
@@ -1120,6 +1135,7 @@ async def embed_texts(
             provider_type="none",
             run_id=run_id,
             run_stage=run_stage,
+            metadata=metadata,
         )
         raise AINotConfiguredError(error)
     if resolved.provider_type == "mock" and settings.is_production:
@@ -1164,6 +1180,7 @@ async def embed_texts(
                 provider_type=resolved.provider_type,
                 run_id=run_id,
                 run_stage=run_stage,
+                metadata=metadata,
             )
             llm_span.set({"status": "ok", "latency_ms": int(latency), "texts": len(texts)})
             return vectors
@@ -1183,6 +1200,7 @@ async def embed_texts(
                 f"{type(exc).__name__}: {exc}",
                 run_id=run_id,
                 run_stage=run_stage,
+                metadata=metadata,
             )
             llm_span.set({"status": "error", "latency_ms": int(latency)})
             raise

@@ -37,3 +37,6 @@ vector_documents :: operational
 vector_records :: operational
 retrieval_query_rollups :: operational
 retrieval_coverage_snapshots :: operational
+# plan 51 Q1a: the retrieval tags live on the AI ledger and the run locks on the queue
+ai_generations :: record
+background_jobs :: operational

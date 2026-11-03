@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0089"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0090"], (
         "revision chain stays linear on one head"
     )
 
@@ -4075,3 +4075,191 @@ def test_0087_vector_space_and_rollup_constraints():
     assert results["null_index_table"] is True, "NULL index tables coexist (linear spaces)"
     assert results["rollup"] is True
     assert results["duplicate_rollup"] is False, "the COALESCE dimension index dedupes"
+
+
+def test_0090_retrieval_ops_roundtrip():
+    """Plan 51 Q1a: the retrieval tag columns and the two job partial-unique
+    indexes exist at head, disappear on downgrade and return on re-upgrade."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("ai_generations", "metadata"), "retrieval tags at head"
+    assert _column_present("ai_generations", "metadata_schema_version")
+    assert _column_present("background_jobs", "idempotency_key")
+    assert _column_present("background_jobs", "lock_key")
+    assert _index_present("background_jobs", "uq_background_jobs_idempotency_active")
+    assert _index_present("background_jobs", "uq_background_jobs_lock_key_active")
+
+    command.downgrade(config, "0089")
+    assert not _column_present("ai_generations", "metadata")
+    assert not _column_present("ai_generations", "metadata_schema_version")
+    assert not _column_present("background_jobs", "idempotency_key")
+    assert not _column_present("background_jobs", "lock_key")
+    assert not _index_present("background_jobs", "uq_background_jobs_idempotency_active")
+    assert not _index_present("background_jobs", "uq_background_jobs_lock_key_active")
+
+    command.upgrade(config, "head")
+    assert _column_present("ai_generations", "metadata")
+    assert _column_present("background_jobs", "lock_key")
+
+
+def _retrieval_ops_seam_probe() -> dict[str, bool]:
+    """Behavioral checks for the 0090 seams: tag defaults and the two
+    active-status partial unique indexes on both dialects."""
+    import json as _json
+    import uuid as _uuid
+
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def run() -> dict[str, bool]:
+        engine = create_async_engine(settings.database_url)
+        is_postgres = engine.dialect.name == "postgresql"
+
+        def uuid_param(param: str) -> str:
+            return f"CAST(:{param} AS uuid)" if is_postgres else f":{param}"
+
+        now = datetime.now(UTC)
+        generation_id = _uuid.uuid4()
+        job_ids = [_uuid.uuid4() for _ in range(10)]
+        results: dict[str, bool] = {}
+
+        job_insert = (
+            "INSERT INTO background_jobs "
+            f"(id, job_type, status, progress, payload, attempts, max_attempts, "
+            "cancel_requested, idempotency_key, lock_key, created_at, updated_at) "
+            f"VALUES ({uuid_param('id')}, :job_type, :status, 0, '{{}}', 0, 2, "
+            "false, :idempotency_key, :lock_key, :now, :now)"
+        )
+        generation_insert = (
+            "INSERT INTO ai_generations "
+            f"(id, task_type, provider, model, prompt, status, error, "
+            "created_at, updated_at) "
+            f"VALUES ({uuid_param('id')}, 'embed', 'openai', 'text-embedding-3-small', "
+            "'embed 1 text(s)', 'ok', '', :now, :now)"
+        )
+
+        async def attempt(statement: str, params: dict) -> bool:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(statement), params)
+                return True
+            except IntegrityError:
+                return False
+
+        def job(index: int, **overrides) -> dict:
+            values = {
+                "id": str(job_ids[index]),
+                "job_type": "vector_reconcile",
+                "status": "queued",
+                "idempotency_key": None,
+                "lock_key": None,
+                "now": now,
+            }
+            values.update(overrides)
+            return values
+
+        try:
+            results["generation"] = await attempt(
+                generation_insert, {"id": str(generation_id), "now": now}
+            )
+            async with engine.connect() as conn:
+                row = (
+                    await conn.execute(
+                        text(
+                            "SELECT metadata, metadata_schema_version "
+                            "FROM ai_generations WHERE id = :id"
+                        ),
+                        {"id": str(generation_id)},
+                    )
+                ).one()
+            raw_metadata = row[0] if isinstance(row[0], dict) else _json.loads(str(row[0]))
+            results["metadata_default"] = raw_metadata == {}
+            results["metadata_version"] = int(row[1]) == 1
+
+            tag_sql = (
+                "UPDATE ai_generations SET metadata = CAST(:payload AS jsonb) WHERE id = :id"
+                if is_postgres
+                else "UPDATE ai_generations SET metadata = :payload WHERE id = :id"
+            )
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(tag_sql),
+                    {
+                        "payload": '{"space_id": "space-content", "kind": "posting"}',
+                        "id": str(generation_id),
+                    },
+                )
+                tagged = (
+                    await conn.execute(
+                        text("SELECT metadata FROM ai_generations WHERE id = :id"),
+                        {"id": str(generation_id)},
+                    )
+                ).scalar()
+            tagged_metadata = tagged if isinstance(tagged, dict) else _json.loads(str(tagged))
+            results["metadata_tagged"] = tagged_metadata == {
+                "space_id": "space-content",
+                "kind": "posting",
+            }
+
+            results["first_key"] = await attempt(job_insert, job(0, idempotency_key="req-abc12345"))
+            results["same_key_active"] = await attempt(
+                job_insert, job(1, idempotency_key="req-abc12345")
+            )
+            results["same_key_other_type"] = await attempt(
+                job_insert,
+                job(2, job_type="vector_index", idempotency_key="req-abc12345"),
+            )
+            results["same_key_terminal"] = await attempt(
+                job_insert, job(3, status="succeeded", idempotency_key="req-abc12345")
+            )
+            results["lock_first"] = await attempt(
+                job_insert, job(4, lock_key="vector_space:space-content")
+            )
+            results["lock_same_active"] = await attempt(
+                job_insert, job(5, lock_key="vector_space:space-content")
+            )
+            results["lock_terminal"] = await attempt(
+                job_insert,
+                job(6, status="cancelled", lock_key="vector_space:space-content"),
+            )
+            results["lock_running"] = await attempt(
+                job_insert,
+                job(7, status="running", lock_key="vector_space:space-content"),
+            )
+        finally:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text("DELETE FROM ai_generations WHERE id = :id"),
+                    {"id": str(generation_id)},
+                )
+                for job_id in job_ids:
+                    await conn.execute(
+                        text(f"DELETE FROM background_jobs WHERE id = {uuid_param('id')}"),
+                        {"id": str(job_id)},
+                    )
+            await engine.dispose()
+        return results
+
+    return asyncio.run(run())
+
+
+def test_0090_retrieval_ops_seams_behavior():
+    """Tag defaults/tagging and the active-status partial unique indexes."""
+    config = _configured()
+    command.upgrade(config, "head")
+    results = _retrieval_ops_seam_probe()
+    assert results["generation"] is True
+    assert results["metadata_default"] is True, "an untagged row defaults to {}"
+    assert results["metadata_version"] is True, "the schema-version sibling defaults to 1"
+    assert results["metadata_tagged"] is True
+    assert results["first_key"] is True
+    assert results["same_key_active"] is False, "an active replay key is unique per job type"
+    assert results["same_key_other_type"] is True, "the key scope includes the job type"
+    assert results["same_key_terminal"] is True, "a terminal row releases the replay slot"
+    assert results["lock_first"] is True
+    assert results["lock_same_active"] is False, "one active run per lock_key"
+    assert results["lock_terminal"] is True, "a terminal row releases the lock"
+    assert results["lock_running"] is False, "a queued and a running row cannot share a lock"

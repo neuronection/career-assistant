@@ -179,6 +179,7 @@ class VectorRetrievalService:
         self.store = store
         self.space_name = space_name
         self._embedder = embedder
+        self._tags: dict[str, Any] = {}
         self._user_id = user_id
         self._run = run
 
@@ -214,6 +215,12 @@ class VectorRetrievalService:
         space = self._space()
         if isinstance(space, DegradedReason):
             return RetrievalResult(space=self.space_name, degraded=space)
+        # Caller-supplied retrieval tags (plan 51 Q1a): the query embed is
+        # attributable to the space and the requested kind, never to text.
+        self._tags.clear()
+        self._tags["space_id"] = str(space.space_id)
+        if kind is not None:
+            self._tags["kind"] = kind
         vector = await self._embed_query(text)
         if isinstance(vector, DegradedReason):
             return RetrievalResult(space=self.space_name, degraded=vector)
@@ -531,7 +538,13 @@ class VectorRetrievalService:
         async def _embed(texts: Sequence[str]) -> list[list[float]]:
             from app.ai.gateway import embed_texts
 
-            return await embed_texts(self.db, list(texts), user_id=self._user_id, run=self._run)
+            return await embed_texts(
+                self.db,
+                list(texts),
+                user_id=self._user_id,
+                run=self._run,
+                metadata=self._tags,
+            )
 
         return _embed
 

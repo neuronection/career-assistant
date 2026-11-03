@@ -154,6 +154,19 @@ deletion).
 
 ### Migration notes
 
+- **0090** — plan 51 Q1a: the retrieval-operations checkpoint. Adds
+  `ai_generations.metadata` (`StructuredJSON`, `NOT NULL` default `'{}'`)
+  and `ai_generations.metadata_schema_version` (`SMALLINT`, default 1) —
+  the caller-supplied embedding tags (`space_id`/`kind`/`view`/
+  `chunk_index`), written by the caller through the gateway call exactly
+  like `run_id`/`run_stage`, never invented by the gateway. Adds
+  `background_jobs.idempotency_key` and `background_jobs.lock_key`
+  (nullable, ≤120 chars) with two partial unique indexes over
+  `status IN ('queued','running')`: `(job_type, idempotency_key)` is the
+  request-replay key and `lock_key` is the one-active-run-per-space lock.
+  The two rollup stores already exist from `0087` and are not recreated.
+  Downgrade drops the indexes and columns; the tags are derived audit
+  metadata.
 - **0089** — plan 50 P2b: `job_postings.mapping_version` (the plan-164
   decision stamp, default 0 on rows that predate v2) and
   `job_postings.mapping_features` (`StructuredJSON`, nullable) — the bounded,
@@ -421,7 +434,7 @@ deletion).
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
-| `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) |
+| `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
 | `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces, polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
@@ -445,7 +458,7 @@ deletion).
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) |
+| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) |
 | `schedules` | `schedule_model.py` | Trigger definitions, misfire policy, claimed/queued state |
 | `app_settings` | `settings_model.py` | Instance settings (AI config, web tools, notification config) |
 | `interview_sessions` | `interview_model.py` | Interview plans, rubric aggregates, status |
