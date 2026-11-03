@@ -83,6 +83,28 @@ class TextRef:
     schema_version: int | None = None
 
 
+@dataclass(frozen=True)
+class DocumentInfo:
+    """The product-facing identity of one indexed document (read path)."""
+
+    document_id: str
+    kind: str
+    source_id: str
+    scope_type: str
+    scope_id: str | None = None
+    profile_id: str | None = None
+
+
+@dataclass(frozen=True)
+class StoredVector:
+    """One stored record vector, for using a document as the query."""
+
+    record_id: str
+    view: str
+    chunk_index: int
+    vector: tuple[float, ...]
+
+
 def _make_sessionmaker(bind: Engine | sessionmaker[Session]) -> sessionmaker[Session]:
     return sessionmaker(bind=bind, expire_on_commit=False) if isinstance(bind, Engine) else bind
 
@@ -682,3 +704,82 @@ class VectorStoreService:
 
     def health(self, space: VectorSpace | uuid.UUID | str) -> BackendHealth:
         return self._backend.health(self.resolve_space(space))
+
+    def lookup_documents(
+        self,
+        space: VectorSpace | uuid.UUID | str,
+        document_ids: Sequence[str] | None = None,
+        *,
+        source_ids: Sequence[str] | None = None,
+        kind: str | None = None,
+        limit: int | None = None,
+    ) -> dict[str, DocumentInfo]:
+        """The product identity (kind + source id) of indexed documents.
+
+        The read path ranks document ids; this is how a caller maps them back
+        to its own rows without trusting anything stored in a vector table.
+        ``source_ids`` is the inverse lookup (a caller that holds its own ids).
+        """
+        canonical = self.resolve_space(space)
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            statement = select(VectorDocument).where(VectorDocument.space_id == row.id)
+            if document_ids is not None:
+                if not document_ids:
+                    return {}
+                statement = statement.where(
+                    VectorDocument.id.in_([uuid.UUID(str(value)) for value in document_ids])
+                )
+            if source_ids is not None:
+                if not source_ids:
+                    return {}
+                statement = statement.where(
+                    VectorDocument.source_id.in_([str(value) for value in source_ids])
+                )
+            if kind is not None:
+                statement = statement.where(VectorDocument.kind == kind)
+            if limit is not None:
+                statement = statement.limit(int(limit))
+            return {
+                str(document.id): DocumentInfo(
+                    document_id=str(document.id),
+                    kind=str(document.kind),
+                    source_id=str(document.source_id),
+                    scope_type=str(document.scope_type),
+                    scope_id=str(document.scope_id) if document.scope_id else None,
+                    profile_id=str(document.profile_id) if document.profile_id else None,
+                )
+                for document in session.scalars(statement)
+            }
+
+    def document_vectors(
+        self, space: VectorSpace | uuid.UUID | str, *, document_id: uuid.UUID | str
+    ) -> list[StoredVector]:
+        """Read one document's stored vectors back, in view/chunk order."""
+        canonical = self.resolve_space(space)
+        document_uuid = uuid.UUID(str(document_id))
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            records = list(
+                session.execute(
+                    select(VectorRecord.id, VectorRecord.view, VectorRecord.chunk_index)
+                    .where(
+                        VectorRecord.document_id == document_uuid,
+                        VectorRecord.space_id == row.id,
+                    )
+                    .order_by(VectorRecord.view, VectorRecord.chunk_index)
+                )
+            )
+        if not records:
+            return []
+        vectors = self._backend.fetch_vectors(canonical, [record_id for record_id, _, _ in records])
+        return [
+            StoredVector(
+                record_id=str(record_id),
+                view=str(view),
+                chunk_index=int(chunk_index),
+                vector=vectors[str(record_id)],
+            )
+            for record_id, view, chunk_index in records
+            if vectors.get(str(record_id))
+        ]

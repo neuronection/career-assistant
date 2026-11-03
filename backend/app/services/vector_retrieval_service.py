@@ -1,0 +1,511 @@
+"""The retrieval read path over the family vector store (plan 50 §6, P1d).
+
+One service answers the two questions the product asks of a space:
+
+* :meth:`VectorRetrievalService.search_text` — embed a free-text query once
+  through the gateway ``embed`` task, search the active space per view,
+  aggregate chunk hits into one score per document, and (optionally) fuse a
+  lexical ranking with weighted RRF.
+* :meth:`VectorRetrievalService.similar_documents` — use an indexed
+  document's own view vectors as the query against another kind, over a
+  bounded candidate set.
+
+Both are *signals*. Hard filters stay SQL-side and are handed in as an opaque
+:class:`~app.storage.vector_contract.ScopeSpec` that every backend enforces
+before ranking, so a vector hit can never resurrect a filtered-out row.
+Missing vectors, an unassigned provider, an embed failure, a missing index
+and an over-cap scan all degrade to a structured :class:`RetrievalResult`
+with a reason from the contract's closed vocabulary — never an exception and
+never a silent zero.
+
+Scores are plain cosine-derived (``per_view`` keeps the raw values for
+explainability) so `max`/top-2-mean aggregation is comparable across
+backends; the fused score is RRF over view and lexical rankings and is used
+for *ordering* only.
+"""
+
+from __future__ import annotations
+
+import time
+import uuid
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import AINotConfiguredError
+from app.storage.vector_backends import (
+    VectorBackendError,
+    VectorBackendOverCap,
+    VectorIndexMissing,
+    VectorSpaceNotFound,
+    filter_scope,
+)
+from app.storage.vector_contract import (
+    CANDIDATE_MULTIPLIER,
+    RRF_K,
+    V1_VIEWS,
+    DegradedReason,
+    ScopeSpec,
+    VectorSpace,
+    fused_order,
+    rrf_merge,
+    top_mean,
+)
+from app.storage.vector_store import VectorStoreService
+
+CONTENT_SPACE = "content"
+#: The default per-view weights of a posting-shaped query (summary and the
+#: extracted views lead; the chunked body is the sparse-extraction fallback).
+SEMANTIC_VIEW_WEIGHTS: Mapping[str, float] = {
+    "summary": 1.5,
+    "requirements": 1.5,
+    "responsibilities": 1.5,
+    "skills": 1.5,
+    "body": 1.0,
+}
+#: Profile↔posting affinity only compares the views both sides compose.
+AFFINITY_VIEW_WEIGHTS: Mapping[str, float] = {"summary": 1.5, "skills": 1.5, "body": 1.0}
+#: At most this many query chunks per view feed a document-as-query search.
+MAX_QUERY_CHUNKS = 4
+
+Embedder = Any  # Callable[[Sequence[str]], Awaitable[list[list[float]]]]
+
+
+@dataclass(frozen=True)
+class DocumentHit:
+    """One ranked document: its product identity plus the score breakdown."""
+
+    document_id: str
+    kind: str
+    source_id: str
+    score: float
+    per_view: Mapping[str, float] = field(default_factory=dict)
+    fused_score: float = 0.0
+    backend: str = ""
+
+
+@dataclass(frozen=True)
+class RetrievalResult:
+    """Hits plus the structured degradation reason (§4.2) — never an error."""
+
+    hits: tuple[DocumentHit, ...] = ()
+    space: str = CONTENT_SPACE
+    backend: str = ""
+    degraded: DegradedReason | None = None
+    timings: Mapping[str, float] = field(default_factory=dict)
+
+    @property
+    def source_ids(self) -> list[str]:
+        """The product ids in rank order — what a caller feeds its SQL."""
+        return [hit.source_id for hit in self.hits]
+
+    def scores_by_source(self) -> dict[str, DocumentHit]:
+        """Source id → hit, for per-row lookups (an affinity window)."""
+        return {hit.source_id: hit for hit in self.hits}
+
+
+def document_score(per_view: Mapping[str, float], weights: Mapping[str, float]) -> float:
+    """Weighted sum of the per-view similarities, normalized to ``0..1``.
+
+    A negative cosine (an anti-correlated view) counts as no evidence: it can
+    lower a document's rank but never below the "nothing matched" floor, and
+    the normalization keeps scores comparable across kinds that compose
+    different numbers of views.
+    """
+    total_weight = sum(max(float(weights.get(view, 0.0)), 0.0) for view in per_view)
+    if total_weight <= 0.0:
+        return 0.0
+    total = 0.0
+    for view, similarity in per_view.items():
+        weight = max(float(weights.get(view, 0.0)), 0.0)
+        if weight:
+            total += weight * max(float(similarity), 0.0)
+    return total / total_weight
+
+
+def aggregate_view_scores(
+    hits: Sequence[Any],
+    *,
+    aggregation: str = "max",
+) -> tuple[dict[str, dict[str, float]], str]:
+    """Chunk hits → one score per (document, view); returns the backend name."""
+    by_view: dict[str, dict[str, list[float]]] = {}
+    backend = ""
+    for hit in hits:
+        backend = backend or str(hit.backend)
+        by_view.setdefault(str(hit.view), {}).setdefault(str(hit.document_id), []).append(
+            float(hit.similarity)
+        )
+    scores: dict[str, dict[str, float]] = {}
+    for view, per_document in by_view.items():
+        for document_id, values in per_document.items():
+            scores.setdefault(document_id, {})[view] = (
+                top_mean(values) if aggregation == "top_mean" else max(values)
+            )
+    return scores, backend
+
+
+class VectorRetrievalService:
+    """Read one space: text queries and document-as-query similarity."""
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        *,
+        store: VectorStoreService | None = None,
+        space_name: str = CONTENT_SPACE,
+        embedder: Embedder | None = None,
+        user_id: uuid.UUID | None = None,
+        run: Any = None,
+    ) -> None:
+        if store is None:
+            from app.core.database import sync_engine
+
+            store = VectorStoreService(sync_engine)
+        self.db = db
+        self.store = store
+        self.space_name = space_name
+        self._embedder = embedder
+        self._user_id = user_id
+        self._run = run
+
+    # ------------------------------------------------------------ public API
+
+    async def search_text(
+        self,
+        query: str,
+        *,
+        kind: str | None = None,
+        views: Sequence[str] | None = None,
+        view_weights: Mapping[str, float] | None = None,
+        scope: ScopeSpec | None = None,
+        limit: int = 20,
+        ef_search: int | None = None,
+        candidate_multiplier: int = CANDIDATE_MULTIPLIER,
+        aggregation: str = "max",
+        lexical_ranked: Sequence[str] | None = None,
+        lexical_weight: float = 1.0,
+    ) -> RetrievalResult:
+        """Rank documents of ``kind`` against a free-text query.
+
+        ``lexical_ranked`` (source ids, best first) is fused with the semantic
+        per-view rankings through weighted RRF; a lexical-only id still earns
+        its rank, which is what keeps a query answerable with no vectors at
+        all. The caller owns the hard filters — ``scope`` is enforced by the
+        backend before scoring.
+        """
+        text = (query or "").strip()
+        if not text or limit <= 0:
+            return RetrievalResult(space=self.space_name)
+        started = time.perf_counter()
+        space = self._space()
+        if isinstance(space, DegradedReason):
+            return RetrievalResult(space=self.space_name, degraded=space)
+        vector = await self._embed_query(text)
+        if isinstance(vector, DegradedReason):
+            return RetrievalResult(space=self.space_name, degraded=vector)
+        if len(vector) != space.dim:
+            return RetrievalResult(
+                space=space.name,
+                backend=self.store.backend.name,
+                degraded=DegradedReason.SPACE_MISMATCH,
+            )
+        resolved_views = _resolve_views(views or tuple(SEMANTIC_VIEW_WEIGHTS), view_weights)
+        weights = _resolve_weights(resolved_views, view_weights)
+        scoped = scope if scope is not None else self._kind_scope(kind)
+        fetched, backend, degraded = self._search_views(
+            space,
+            vector,
+            views=resolved_views,
+            scope=scoped,
+            limit=limit,
+            ef_search=ef_search,
+            candidate_multiplier=candidate_multiplier,
+            aggregation=aggregation,
+        )
+        if degraded is not None:
+            return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+        return self._rank(
+            space,
+            fetched,
+            weights,
+            limit=limit,
+            backend=backend,
+            lexical_ranked=lexical_ranked,
+            lexical_weight=lexical_weight,
+            started=started,
+        )
+
+    async def similar_documents(
+        self,
+        *,
+        source_kind: str,
+        source_id: str,
+        target_kind: str | None = None,
+        view_weights: Mapping[str, float] | None = None,
+        scope: ScopeSpec | None = None,
+        limit: int = 20,
+        ef_search: int | None = None,
+        candidate_multiplier: int = CANDIDATE_MULTIPLIER,
+        aggregation: str = "max",
+        exclude_self: bool = True,
+    ) -> RetrievalResult:
+        """Rank documents near an already-indexed document's view vectors.
+
+        No provider call: the query is the source document's stored vectors
+        (read back through the backend, so pgvector/sqlite-vec work too). A
+        source that is not indexed yet returns no hits with
+        ``index_missing`` — callers keep their neutral fallback.
+        """
+        if limit <= 0:
+            return RetrievalResult(space=self.space_name)
+        started = time.perf_counter()
+        space = self._space()
+        if isinstance(space, DegradedReason):
+            return RetrievalResult(space=self.space_name, degraded=space)
+        try:
+            query_document = self.store.find_document(space, kind=source_kind, source_id=source_id)
+        except VectorBackendError:
+            query_document = None
+        if query_document is None:
+            return RetrievalResult(
+                space=space.name,
+                backend=self.store.backend.name,
+                degraded=DegradedReason.INDEX_MISSING,
+            )
+        stored = [
+            vector
+            for vector in self.store.document_vectors(space, document_id=query_document)
+            if vector.vector
+        ]
+        if not stored:
+            return RetrievalResult(
+                space=space.name,
+                backend=self.store.backend.name,
+                degraded=DegradedReason.INDEX_MISSING,
+            )
+        weights = dict(view_weights or AFFINITY_VIEW_WEIGHTS)
+        available = sorted({vector.view for vector in stored} & set(weights))
+        if not available:
+            return RetrievalResult(space=space.name, backend=self.store.backend.name)
+        scoped = scope if scope is not None else self._kind_scope(target_kind)
+        combined: dict[str, dict[str, float]] = {}
+        backend = ""
+        for view in available:
+            chunks = [vector for vector in stored if vector.view == view][:MAX_QUERY_CHUNKS]
+            per_document: dict[str, float] = {}
+            for chunk in chunks:
+                hits, view_backend, degraded = self._search_views(
+                    space,
+                    list(chunk.vector),
+                    views=(view,),
+                    scope=scoped,
+                    limit=limit,
+                    ef_search=ef_search,
+                    candidate_multiplier=candidate_multiplier,
+                    aggregation=aggregation,
+                )
+                backend = backend or view_backend
+                if degraded is not None:
+                    return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+                for document_id, per_view in hits.items():
+                    for similarity in per_view.values():
+                        per_document[document_id] = max(
+                            per_document.get(document_id, similarity), similarity
+                        )
+            for document_id, similarity in per_document.items():
+                combined.setdefault(document_id, {})[view] = similarity
+        if exclude_self:
+            combined.pop(query_document, None)
+        return self._rank(
+            space,
+            combined,
+            weights,
+            limit=limit,
+            backend=backend,
+            started=started,
+        )
+
+    # ----------------------------------------------------------- internals
+
+    def _space(self) -> VectorSpace | DegradedReason:
+        try:
+            return self.store.active_space(self.space_name)
+        except VectorSpaceNotFound:
+            return DegradedReason.INDEX_MISSING
+        except VectorBackendError:
+            return DegradedReason.INDEX_MISSING
+
+    @staticmethod
+    def _kind_scope(kind: str | None) -> ScopeSpec | None:
+        if kind is None:
+            return None
+        return filter_scope(kinds=(kind,))
+
+    async def _embed_query(self, text: str) -> list[float] | DegradedReason:
+        try:
+            vectors = await self._embedder_for()([text])
+        except AINotConfiguredError:
+            return DegradedReason.PROVIDER_UNASSIGNED
+        except Exception:
+            return DegradedReason.EMBED_FAILED
+        if not vectors or not vectors[0]:
+            return DegradedReason.EMBED_FAILED
+        return [float(value) for value in vectors[0]]
+
+    def _embedder_for(self) -> Embedder:
+        if self._embedder is not None:
+            return self._embedder
+
+        async def _embed(texts: Sequence[str]) -> list[list[float]]:
+            from app.ai.gateway import embed_texts
+
+            return await embed_texts(self.db, list(texts), user_id=self._user_id, run=self._run)
+
+        return _embed
+
+    def _search_views(
+        self,
+        space: VectorSpace,
+        vector: Sequence[float],
+        *,
+        views: Sequence[str],
+        scope: ScopeSpec | None,
+        limit: int,
+        ef_search: int | None,
+        candidate_multiplier: int,
+        aggregation: str,
+    ) -> tuple[dict[str, dict[str, float]], str, DegradedReason | None]:
+        """Per-view backend search → ``{document_id: {view: score}}``."""
+        scoped = scope if scope is not None else ScopeSpec(kind="all", predicate=None)
+        fetch = max(int(limit) * max(int(candidate_multiplier), 1), int(limit))
+        combined: dict[str, dict[str, float]] = {}
+        backend = self.store.backend.name
+        for view in views:
+            try:
+                hits = self.store.search(
+                    space,
+                    vector,
+                    views=(view,),
+                    scope=scoped,
+                    limit=fetch,
+                    ef_search=ef_search,
+                )
+            except VectorBackendOverCap:
+                return {}, backend, DegradedReason.OVER_CAP
+            except VectorIndexMissing:
+                return {}, backend, DegradedReason.INDEX_MISSING
+            except VectorBackendError:
+                return {}, backend, DegradedReason.INDEX_MISSING
+            scores, view_backend = aggregate_view_scores(hits, aggregation=aggregation)
+            backend = view_backend or backend
+            for document_id, per_view in scores.items():
+                combined.setdefault(document_id, {}).update(per_view)
+        return combined, backend, None
+
+    def _rank(
+        self,
+        space: VectorSpace,
+        scores: Mapping[str, Mapping[str, float]],
+        weights: Mapping[str, float],
+        *,
+        limit: int,
+        backend: str,
+        lexical_ranked: Sequence[str] | None = None,
+        lexical_weight: float = 1.0,
+        started: float | None = None,
+    ) -> RetrievalResult:
+        """Aggregate → fuse → truncate; ties break on the document id."""
+        lexical_sources = [str(value) for value in lexical_ranked or ()]
+        if not scores and not lexical_sources:
+            return RetrievalResult(space=space.name, backend=backend)
+        documents = self.store.lookup_documents(space, list(scores)) if scores else {}
+        if lexical_sources:
+            known = {info.source_id for info in documents.values()}
+            missing = [value for value in lexical_sources if value not in known]
+            if missing:
+                documents.update(self.store.lookup_documents(space, source_ids=missing))
+        by_source = {info.source_id: document_id for document_id, info in documents.items()}
+        lexical_documents = [by_source[value] for value in lexical_sources if value in by_source]
+        semantic_order = sorted(
+            scores,
+            key=lambda document_id: (-document_score(scores[document_id], weights), document_id),
+        )
+        view_order: dict[str, list[str]] = {}
+        for view in weights:
+            ranked = sorted(
+                (document_id for document_id in scores if view in scores[document_id]),
+                key=lambda document_id: (-scores[document_id][view], document_id),
+            )
+            if ranked:
+                view_order[view] = ranked
+        lists: list[list[str]] = list(view_order.values())
+        list_weights: list[float] = [float(weights[view]) for view in view_order]
+        if lexical_documents:
+            lists.append(lexical_documents)
+            list_weights.append(float(lexical_weight))
+        if len(lists) > 1:
+            fused = rrf_merge(lists, k=RRF_K, weights=list_weights)
+            order = fused_order(fused)
+        elif lexical_documents and not scores:
+            order = lexical_documents
+            fused = dict.fromkeys(order, 0.0)
+        else:
+            order = semantic_order
+            fused = dict.fromkeys(semantic_order, 0.0)
+        hits: list[DocumentHit] = []
+        for document_id in order:
+            if len(hits) >= limit:
+                break
+            per_view = dict(scores.get(document_id, {}))
+            info = documents.get(document_id)
+            hits.append(
+                DocumentHit(
+                    document_id=document_id,
+                    kind=info.kind if info is not None else "",
+                    source_id=info.source_id if info is not None else document_id,
+                    score=round(document_score(per_view, weights), 6),
+                    per_view={view: round(value, 6) for view, value in sorted(per_view.items())},
+                    fused_score=round(float(fused.get(document_id, 0.0)), 8),
+                    backend=backend,
+                )
+            )
+        timings = {"total_ms": round((time.perf_counter() - started) * 1000, 3)} if started else {}
+        return RetrievalResult(
+            hits=tuple(hits),
+            space=space.name,
+            backend=backend,
+            timings=timings,
+        )
+
+
+def _resolve_views(
+    views: Sequence[str], view_weights: Mapping[str, float] | None
+) -> tuple[str, ...]:
+    wanted = list(views) if views else list(view_weights or SEMANTIC_VIEW_WEIGHTS)
+    unknown = [view for view in wanted if view not in V1_VIEWS]
+    if unknown:
+        raise ValueError(f"unknown view(s): {unknown}")
+    return tuple(dict.fromkeys(wanted))
+
+
+def _resolve_weights(
+    views: Sequence[str], view_weights: Mapping[str, float] | None
+) -> dict[str, float]:
+    defaults = SEMANTIC_VIEW_WEIGHTS if view_weights is None else view_weights
+    return {view: float(defaults.get(view, 1.0)) for view in views}
+
+
+__all__ = [
+    "AFFINITY_VIEW_WEIGHTS",
+    "CONTENT_SPACE",
+    "MAX_QUERY_CHUNKS",
+    "SEMANTIC_VIEW_WEIGHTS",
+    "DocumentHit",
+    "RetrievalResult",
+    "VectorRetrievalService",
+    "aggregate_view_scores",
+    "document_score",
+]

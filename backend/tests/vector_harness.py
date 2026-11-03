@@ -18,9 +18,11 @@ from sqlalchemy import (
     MetaData,
     Table,
     Uuid,
+    bindparam,
     create_engine,
     delete,
     event,
+    select,
     text,
 )
 from sqlalchemy.orm import Session
@@ -239,6 +241,19 @@ def drop_space(harness: Harness) -> None:
             if harness.engine.dialect.name == "sqlite":
                 session.execute(text(f"DROP TABLE IF EXISTS {table}"))
                 space_id = uuid.UUID(harness.space.space_id or "")
+                record_ids = [
+                    str(value)
+                    for value in session.scalars(
+                        select(VectorRecord.id).where(VectorRecord.space_id == space_id)
+                    )
+                ]
+                if record_ids:
+                    session.execute(
+                        text("DELETE FROM vector_entry_ids WHERE record_id IN :ids").bindparams(
+                            bindparam("ids", expanding=True)
+                        ),
+                        {"ids": record_ids},
+                    )
                 session.execute(delete(VectorRecord).where(VectorRecord.space_id == space_id))
                 session.execute(delete(VectorDocument).where(VectorDocument.space_id == space_id))
             else:

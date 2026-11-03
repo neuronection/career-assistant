@@ -67,6 +67,7 @@ SCOPE_FILTERS = "filters"
 _SCOPE_COLUMNS = {
     "document_ids": VectorRecord.document_id,
     "kinds": VectorDocument.kind,
+    "source_ids": VectorDocument.source_id,
     "scope_types": VectorDocument.scope_type,
     "scope_ids": VectorDocument.scope_id,
     "profile_ids": VectorDocument.profile_id,
@@ -74,6 +75,7 @@ _SCOPE_COLUMNS = {
 _SCOPE_SQL = {
     "document_ids": "r.document_id",
     "kinds": "d.kind",
+    "source_ids": "d.source_id",
     "scope_types": "d.scope_type",
     "scope_ids": "d.scope_id",
     "profile_ids": "d.profile_id",
@@ -190,8 +192,11 @@ def document_scope(document_ids: Collection[str]) -> ScopeSpec:
 def filter_scope(**filters: Collection[str]) -> ScopeSpec:
     """A hard filter over document columns; an empty collection admits nothing.
 
-    Recognized keys: ``document_ids``, ``kinds``, ``scope_types``,
-    ``scope_ids``, ``profile_ids``.
+    Recognized keys: ``document_ids``, ``kinds``, ``source_ids``,
+    ``scope_types``, ``scope_ids``, ``profile_ids``. ``source_ids`` filters the
+    product's own entity ids (a posting UUID, a user UUID for a profile), so a
+    caller can bound a search to the rows it already holds without resolving
+    their document ids first.
     """
     unknown = set(filters) - set(_SCOPE_COLUMNS)
     if unknown:
@@ -223,6 +228,14 @@ def _unpack(blob: bytes | None) -> tuple[float, ...]:
 
 def _vector_literal(embedding: Sequence[float]) -> str:
     return "[" + ",".join(repr(float(value)) for value in embedding) + "]"
+
+
+def _parse_pg_vector(value: str) -> tuple[float, ...]:
+    """Inverse of :func:`_vector_literal` for a pgvector text cast."""
+    body = (value or "").strip().strip("[]")
+    if not body:
+        return ()
+    return tuple(float(part) for part in body.split(","))
 
 
 def _as_uuid(value: Any, *, field: str) -> uuid.UUID:
@@ -366,6 +379,26 @@ class SessionBackedBackend:
         """Delete stale records from the physical index (metadata is the service's)."""
         raise NotImplementedError
 
+    def fetch_vectors(
+        self, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> dict[str, tuple[float, ...]]:
+        """Read stored vectors back by record id (the read path's query source).
+
+        ``similar_documents`` needs a document's own vectors as the query, and
+        they live in the physical index under pgvector/sqlite-vec while the
+        metadata column is ``NULL``. Returning them through the backend keeps
+        one storage seam; ids the backend does not hold are simply absent.
+        """
+        if not record_ids:
+            return {}
+        with self._session_factory() as session:
+            return self._fetch_vectors(session, space, record_ids)
+
+    def _fetch_vectors(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> dict[str, tuple[float, ...]]:
+        raise NotImplementedError
+
     def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
         """Write index rows in one short transaction (contract shape)."""
         if not records:
@@ -462,6 +495,19 @@ class LinearBackend(SessionBackedBackend, VectorBackend):
     ) -> None:
         """No separate index: deleting the metadata rows removes their embeddings."""
         del session, space, record_ids
+
+    def _fetch_vectors(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> dict[str, tuple[float, ...]]:
+        """The BLOB column is the only copy under the linear backend."""
+        rows = session.execute(
+            select(VectorRecord.id, VectorRecord.embedding).where(
+                VectorRecord.space_id == self._space_id(space),
+                VectorRecord.id.in_(list(record_ids)),
+                VectorRecord.embedding.is_not(None),
+            )
+        )
+        return {str(record_id): _unpack(blob) for record_id, blob in rows}
 
     def search(
         self,
@@ -712,6 +758,20 @@ class PgVectorBackend(SessionBackedBackend, VectorBackend):
         if clauses is not None:
             statement = statement.where(*clauses)
         return int(session.scalar(statement) or 0)
+
+    def _fetch_vectors(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> dict[str, tuple[float, ...]]:
+        """The HNSW table is the only copy; the vector casts back through text."""
+        table = self._index_table(space)
+        rows = session.execute(
+            text(
+                f"SELECT record_id, CAST(embedding AS text) AS embedding FROM {table} "
+                "WHERE record_id IN :record_ids"
+            ).bindparams(bindparam("record_ids", expanding=True)),
+            {"record_ids": list(record_ids)},
+        )
+        return {str(row.record_id): _parse_pg_vector(str(row.embedding)) for row in rows}
 
     def _set_tuning(self, session: Session, version: str, ef_search: int) -> None:
         session.execute(text("SELECT CAST('[1]' AS vector)"))
@@ -1045,6 +1105,37 @@ class SqliteVecBackend(SessionBackedBackend, VectorBackend):
         if clauses is not None:
             statement = statement.where(*clauses)
         return int(session.scalar(statement) or 0)
+
+    def _fetch_vectors(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> dict[str, tuple[float, ...]]:
+        """Read the vec0 payload back through the rowid map."""
+        self._load(session)
+        table = self._index_table(space)
+        rowids = [rowid_for(str(record_id)) for record_id in record_ids]
+        mapped = {
+            int(row.record_rowid): str(row.record_id)
+            for row in session.execute(
+                text(
+                    "SELECT record_rowid, record_id FROM vector_entry_ids "
+                    "WHERE record_rowid IN :rowids"
+                ).bindparams(bindparam("rowids", expanding=True)),
+                {"rowids": rowids},
+            )
+        }
+        if not mapped:
+            return {}
+        rows = session.execute(
+            text(
+                f"SELECT record_rowid, embedding FROM {table} WHERE record_rowid IN :rowids"
+            ).bindparams(bindparam("rowids", expanding=True)),
+            {"rowids": list(mapped)},
+        )
+        return {
+            mapped[int(row.record_rowid)]: _unpack(row.embedding)
+            for row in rows
+            if int(row.record_rowid) in mapped
+        }
 
     def _allowed_records(
         self,
