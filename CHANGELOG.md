@@ -4,6 +4,21 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (internal — retrieval index pipeline, 2026-11-03)
+- **The retrieval store now fills itself.** Versioned, pure composers turn a
+  posting, skill or profile into named views (summary, requirements,
+  responsibilities, skills, chunked body) with source pointers instead of
+  copied text, and a `VECTOR_INDEX` background job embeds only the records
+  whose content changed, keeps unchanged records, and prunes the ones that
+  no longer compose. A re-index of unchanged content makes zero embedding
+  calls, and a missing embedding provider reports a degraded result rather
+  than failing. Admins get two read-only facts for ops — space documents/
+  records/coverage (`GET /api/v1/admin/retrieval/status`) and backend,
+  extension and per-space health (`GET /api/v1/admin/retrieval/health`) —
+  plus `POST /api/v1/admin/retrieval/index` to enqueue one document.
+  Explore, autopilot and mapping still use the existing embedding store;
+  the read cutover lands next.
+
 ### Changed (internal — vector retrieval foundation, 2026-11-03)
 - **Groundwork for multi-view semantic retrieval.** The database now carries
   versioned embedding-space, document and record tables (plus two bounded
@@ -14,7 +29,8 @@ All notable changes to **Career Assistant** are documented here.
   request path, and Alembic ignores those extension-managed objects. The
   sqlite-vec extension is now an explicit `sqlite`/`desktop` dependency.
   No existing embedding call site, ranking surface or stored vector changes
-  in this step — composers, read cutover and the `VECTOR_*` jobs land next.
+  in this step — the read cutover and the remaining `VECTOR_*` jobs land
+  next.
 
 ### Added (card entity menu on /postings, 2026-11-02)
 - **Filter straight from the cards.** On `/postings`, clicking or

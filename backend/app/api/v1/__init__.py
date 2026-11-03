@@ -17,6 +17,7 @@ from app.api.v1 import (
     me,
     metrics,
     profiles,
+    retrieval_admin,
     scheduler,
     skill_relation_admin,
 )
@@ -91,4 +92,5 @@ api_router.include_router(mcp_admin.router)
 api_router.include_router(admin.router)
 api_router.include_router(audit.router)
 api_router.include_router(skill_relation_admin.router)
+api_router.include_router(retrieval_admin.router)
 api_router.include_router(extensions.router)

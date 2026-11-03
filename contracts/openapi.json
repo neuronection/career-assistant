@@ -10808,6 +10808,45 @@
         "title": "HobbyItem",
         "type": "object"
       },
+      "IndexRequest": {
+        "description": "One document to (re)index; ``space`` defaults to the content space.",
+        "properties": {
+          "force": {
+            "default": false,
+            "description": "re-embed even unchanged records",
+            "title": "Force",
+            "type": "boolean"
+          },
+          "kind": {
+            "description": "source kind: posting | skill | profile",
+            "title": "Kind",
+            "type": "string"
+          },
+          "source_id": {
+            "description": "source row id (UUID)",
+            "title": "Source Id",
+            "type": "string"
+          },
+          "space": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "space name; defaults to content",
+            "title": "Space"
+          }
+        },
+        "required": [
+          "kind",
+          "source_id"
+        ],
+        "title": "IndexRequest",
+        "type": "object"
+      },
       "IndustryMixOut": {
         "properties": {
           "count": {
@@ -29910,6 +29949,101 @@
         "summary": "Remap Posting",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/health": {
+      "get": {
+        "description": "Backend, extension version, capability caps and per-space health.",
+        "operationId": "retrieval_health_api_v1_admin_retrieval_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Health Api V1 Admin Retrieval Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retrieval Health",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/index": {
+      "post": {
+        "description": "Enqueue a ``VECTOR_INDEX`` run for one document.",
+        "operationId": "enqueue_index_api_v1_admin_retrieval_index_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Enqueue Index Api V1 Admin Retrieval Index Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enqueue Index",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/status": {
+      "get": {
+        "description": "Per-space documents/records, coverage snapshot and last reindex.",
+        "operationId": "retrieval_status_api_v1_admin_retrieval_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "title": "Response Retrieval Status Api V1 Admin Retrieval Status Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retrieval Status",
+        "tags": [
+          "retrieval-admin"
         ]
       }
     },
