@@ -360,6 +360,12 @@ class SessionBackedBackend:
     def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
         raise NotImplementedError
 
+    def delete_record_ids_index(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> None:
+        """Delete stale records from the physical index (metadata is the service's)."""
+        raise NotImplementedError
+
     def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
         """Write index rows in one short transaction (contract shape)."""
         if not records:
@@ -450,6 +456,12 @@ class LinearBackend(SessionBackedBackend, VectorBackend):
     def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
         """No separate index: the record rows (and their embeddings) cascade."""
         del session, space, document_id
+
+    def delete_record_ids_index(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> None:
+        """No separate index: deleting the metadata rows removes their embeddings."""
+        del session, space, record_ids
 
     def search(
         self,
@@ -669,6 +681,19 @@ class PgVectorBackend(SessionBackedBackend, VectorBackend):
                 "document_id": _as_uuid(document_id, field="document_id"),
                 "space_id": self._space_id(space),
             },
+        )
+
+    def delete_record_ids_index(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> None:
+        if not record_ids:
+            return
+        table = self._index_table(space)
+        session.execute(
+            text(f"DELETE FROM {table} WHERE record_id IN :record_ids").bindparams(
+                bindparam("record_ids", expanding=True)
+            ),
+            {"record_ids": list(record_ids)},
         )
 
     def _scoped_count(
@@ -955,6 +980,29 @@ class SqliteVecBackend(SessionBackedBackend, VectorBackend):
         ]
         if not record_ids:
             return
+        rowids = [rowid_for(value) for value in record_ids]
+        for start in range(0, len(rowids), 500):
+            chunk = rowids[start : start + 500]
+            session.execute(
+                text(f"DELETE FROM {table} WHERE record_rowid IN :rowids").bindparams(
+                    bindparam("rowids", expanding=True)
+                ),
+                {"rowids": chunk},
+            )
+            session.execute(
+                text("DELETE FROM vector_entry_ids WHERE record_rowid IN :rowids").bindparams(
+                    bindparam("rowids", expanding=True)
+                ),
+                {"rowids": chunk},
+            )
+
+    def delete_record_ids_index(
+        self, session: Session, space: VectorSpace, record_ids: Sequence[uuid.UUID]
+    ) -> None:
+        if not record_ids:
+            return
+        self._load(session)
+        table = self._index_table(space)
         rowids = [rowid_for(value) for value in record_ids]
         for start in range(0, len(rowids), 500):
             chunk = rowids[start : start + 500]

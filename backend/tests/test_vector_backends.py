@@ -179,6 +179,28 @@ def test_content_hash_dedupe_skips_unchanged_records(linear: Harness):
     ) == {("summary", 0): "same"}
 
 
+def test_reupsert_removes_stale_views_and_chunks(linear: Harness):
+    summary = linear.record("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary")
+    body = linear.record("doc-a", (0.0, 1.0, 0.0, 0.0), view="body", chunk_index=1)
+    linear.index_many([summary, body])
+    assert linear.service.count(linear.space) == 2
+
+    linear.service.upsert_document(
+        linear.space, document_id=linear.documents["doc-a"], records=[summary]
+    )
+    assert linear.service.count(linear.space) == 1, "the document is a rebuild unit"
+    assert [hit.record_id for hit in linear.search((1.0, 0.0, 0.0, 0.0))] == [
+        summary.record_id
+    ]
+    with Session(linear.engine) as session:
+        assert (
+            session.scalars(
+                select(VectorRecord).where(VectorRecord.document_id == linear.documents["doc-a"])
+            ).all()
+            == [session.get(VectorRecord, uuid.UUID(summary.record_id))]
+        )
+
+
 def test_upsert_requires_a_registered_document(linear: Harness):
     orphan = vc.IndexRecord(
         record_id=str(uuid.uuid4()),
@@ -239,8 +261,12 @@ def test_linear_backend_caps_are_published(engine):
 
 
 def test_count_and_delete_cascade_through_the_space(linear: Harness, engine):
-    linear.index("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary")
-    linear.index("doc-a", (0.5, 0.5, 0.0, 0.0), view="body")
+    linear.index_many(
+        [
+            linear.record("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary"),
+            linear.record("doc-a", (0.5, 0.5, 0.0, 0.0), view="body"),
+        ]
+    )
     assert linear.service.count(linear.space) == 2
     with Session(engine) as session:
         session.execute(

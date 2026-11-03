@@ -305,6 +305,15 @@ class VectorStoreService:
                     select(VectorRecord).where(VectorRecord.document_id == document_uuid)
                 )
             }
+            new_keys = {(record.view, record.chunk_index) for record in records}
+            stale_ids = [
+                stored.id
+                for key, stored in existing.items()
+                if key not in new_keys
+            ]
+            if stale_ids:
+                self._backend.delete_record_ids_index(session, canonical, stale_ids)
+                session.execute(delete(VectorRecord).where(VectorRecord.id.in_(stale_ids)))
             written = 0
             for record in records:
                 key = (record.view, record.chunk_index)
