@@ -861,6 +861,16 @@ class SqliteVecBackend(SessionBackedBackend, VectorBackend):
     over-fetched then post-filtered against metadata; the safety invariant
     holds after truncation because the allowed-record set comes from SQL,
     never from the ANN result itself.
+
+    vec0 is a brute-force scan, so it can answer *exactly* when the whole
+    index is requested. When the metadata scoped candidate count is at or
+    below ``EXACT_SCAN_THRESHOLD`` the adapter asks for all rows and takes
+    the top ``limit`` after filtering — deterministic and exact, matching
+    the PostgreSQL path's rule (the threshold applies to the scoped count,
+    not the space size) with a single query. Above it the bounded
+    over-fetch resumes: ``k`` expands until the limit is met or the index
+    is exhausted, so scope safety still holds, but a selective query can
+    cost several scans instead of one.
     """
 
     name = BACKEND_SQLITE_VEC
@@ -1019,6 +1029,23 @@ class SqliteVecBackend(SessionBackedBackend, VectorBackend):
                 {"rowids": chunk},
             )
 
+    def _scoped_count(
+        self, session: Session, space: VectorSpace, views: Sequence[str], scope: ScopeSpec
+    ) -> int:
+        statement = (
+            select(func.count())
+            .select_from(VectorRecord)
+            .join(VectorDocument, VectorRecord.document_id == VectorDocument.id)
+            .where(
+                VectorRecord.space_id == self._space_id(space),
+                VectorRecord.view.in_(list(views)),
+            )
+        )
+        clauses = _scope_clauses(scope)
+        if clauses is not None:
+            statement = statement.where(*clauses)
+        return int(session.scalar(statement) or 0)
+
     def _allowed_records(
         self,
         session: Session,
@@ -1076,7 +1103,11 @@ class SqliteVecBackend(SessionBackedBackend, VectorBackend):
                     f"({self.capabilities.max_recommended_rows}) — serve lexical instead"
                 )
             payload = sqlite_vec.serialize_float32(list(query))
-            k = min(max(limit * CANDIDATE_MULTIPLIER, limit), total)
+            scoped_count = self._scoped_count(session, space, views, scope)
+            if scoped_count == 0:
+                return []
+            exact = scoped_count <= EXACT_SCAN_THRESHOLD
+            k = total if exact else min(max(limit * CANDIDATE_MULTIPLIER, limit), total)
             hits: list[IndexHit] = []
             while True:
                 rows = session.execute(

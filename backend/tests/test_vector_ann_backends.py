@@ -315,3 +315,25 @@ def test_ann_recall_gate_against_the_exact_order(ann_engine, monkeypatch):
         assert recall >= 0.95, f"ANN recall@10 was {recall:.2f}"
     finally:
         drop_space(harness)
+
+
+def test_sqlite_scoped_exact_scan_matches_the_exact_order(ann_engine, monkeypatch):
+    if ann_engine.dialect.name != "sqlite":
+        pytest.skip("exact-vs-overfetch is the sqlite-vec path")
+    harness = _corpus(ann_engine)
+    try:
+        monkeypatch.setattr(vb, "CANDIDATE_MULTIPLIER", 1)
+        allowed = str(harness.documents["f"])
+        hits = harness.search(QUERY, scope=vb.document_scope([allowed]), limit=1)
+        assert [hit.document_id for hit in hits] == [allowed], (
+            "a scoped query below the exact threshold is exact, not a truncation"
+        )
+
+        monkeypatch.setattr(vb, "EXACT_SCAN_THRESHOLD", 0)
+        bounded = harness.search(QUERY, scope=vb.document_scope([allowed]), limit=1)
+        assert [hit.document_id for hit in bounded] == [allowed], (
+            "above the threshold the bounded over-fetch expansion still converges on "
+            "the exact set (it costs more queries, it does not lose the scope)"
+        )
+    finally:
+        drop_space(harness)

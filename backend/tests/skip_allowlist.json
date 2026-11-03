@@ -48,6 +48,12 @@
       "reason_contains": "rowid map is sqlite-vec only",
       "when": "always",
       "why": "the rowid map is a sqlite-vec extension object; the Postgres parity/scope tests cover the pgvector adapter"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_sqlite_scoped_exact_scan_matches_the_exact_order*",
+      "reason_contains": "exact-vs-overfetch is the sqlite-vec path",
+      "when": "always",
+      "why": "the over-fetch/exact-threshold behaviour is a sqlite-vec property; the Postgres lane proves its own scoped-exact path in test_scope_safety_holds_under_ann_and_over_fetch"
     }
   ],
   "sqlite": [
@@ -116,6 +122,12 @@
       "reason_contains": "pgvector is not installed in this environment",
       "when": "always",
       "why": "the cross-dialect parity case needs a live pgvector engine; the SQLite lane runs the exact top-k against the contract and the pgvector lane proves the cross-engine identity"
+    },
+    {
+      "id": "tests/test_vector_provisioning.py::test_pg_provisioning_refuses_dimensions_hnsw_cannot_index",
+      "reason_contains": "the pgvector HNSW dimension ceiling is PostgreSQL-only",
+      "when": "always",
+      "why": "the 2000-dimension HNSW guard only applies to the pgvector physical index; SQLite vec0 has no HNSW operator class and the Postgres lane asserts the refusal"
     }
   ]
 }

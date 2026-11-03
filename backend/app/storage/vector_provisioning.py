@@ -21,7 +21,7 @@ import re
 import uuid
 from dataclasses import dataclass
 
-from sqlalchemy import Engine, select, text
+from sqlalchemy import Connection, Engine, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -39,6 +39,13 @@ from app.storage.vector_schema import (
 )
 
 logger = logging.getLogger(__name__)
+
+# pgvector's HNSW operator classes are defined for ``vector`` up to 2000
+# dimensions; ``halfvec`` (and 3072-dim ``vector`` without an HNSW index)
+# arrives with a later slice. The contract's capability ceiling is 3072, so
+# provisioning must refuse the un-indexable middle instead of letting
+# ``CREATE INDEX`` fail cryptically.
+PGVECTOR_HNSW_MAX_DIM = 2000
 
 
 class VectorProvisioningError(RuntimeError):
@@ -121,19 +128,36 @@ def _declared_table(row: VectorSpaceRow) -> str:
     return index_table_name(row.id)
 
 
+def _create_pg_extension(session: Session) -> None:
+    """``CREATE EXTENSION vector`` on its own AUTOCOMMIT connection.
+
+    The plan's rule (and the family FastMCP gotcha): extension creation runs
+    outside the caller's transaction. Inside one, a failure poisons the
+    session and a savepoint cannot recover the server-side state; on a
+    shared pool an aborted transaction can also block the DDL.
+    """
+    bind = session.get_bind()
+    engine = bind.engine if isinstance(bind, Connection) else bind
+    if not isinstance(engine, Engine):  # pragma: no cover - defensive
+        raise VectorProvisioningError(
+            "pgvector provisioning needs a session bound to an Engine or Connection"
+        )
+    try:
+        with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+            connection.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+    except SQLAlchemyError as exc:
+        raise VectorProvisioningError(
+            "pgvector is not installed and CREATE EXTENSION vector failed — "
+            "semantic search is a hard prerequisite on PostgreSQL"
+        ) from exc
+
+
 def _pg_extension_version(session: Session) -> str:
     version = session.execute(
         text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
     ).scalar()
     if version is None:
-        try:
-            with session.begin_nested():
-                session.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        except SQLAlchemyError as exc:
-            raise VectorProvisioningError(
-                "pgvector is not installed and CREATE EXTENSION vector failed — "
-                "semantic search is a hard prerequisite on PostgreSQL"
-            ) from exc
+        _create_pg_extension(session)
         version = session.execute(
             text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
         ).scalar()
@@ -143,6 +167,12 @@ def _pg_extension_version(session: Session) -> str:
 
 
 def _pg_provision(session: Session, row: VectorSpaceRow) -> SpaceProvision:
+    if row.dim > PGVECTOR_HNSW_MAX_DIM:
+        raise VectorProvisioningError(
+            f"space {row.name!r} needs vector({row.dim}), but pgvector's HNSW index "
+            f"supports at most {PGVECTOR_HNSW_MAX_DIM} dimensions; use a smaller "
+            "embedding model (halfvec support is a later slice)"
+        )
     table = _declared_table(row)
     version = _pg_extension_version(session)
     exists = (
@@ -350,15 +380,25 @@ def space_status(
     detail = "linear fallback"
     if table is not None and dialect == "postgresql":
         backend = BACKEND_PGVECTOR
-        declared = session.execute(
-            text(
-                "SELECT format_type(a.atttypid, a.atttypmod) "
-                "FROM pg_attribute a "
-                "WHERE a.attrelid = CAST(:table AS regclass) "
-                "AND a.attname = 'embedding' AND NOT a.attisdropped"
-            ),
-            {"table": table},
-        ).scalar()
+        present = (
+            session.execute(
+                text("SELECT to_regclass(CAST(:table AS text))"), {"table": table}
+            ).scalar()
+            is not None
+        )
+        declared = (
+            session.execute(
+                text(
+                    "SELECT format_type(a.atttypid, a.atttypmod) "
+                    "FROM pg_attribute a "
+                    "WHERE a.attrelid = CAST(:table AS regclass) "
+                    "AND a.attname = 'embedding' AND NOT a.attisdropped"
+                ),
+                {"table": table},
+            ).scalar()
+            if present
+            else None
+        )
         exists = declared is not None
         if declared is not None:
             match = re.fullmatch(r"vector\((\d+)\)", str(declared))

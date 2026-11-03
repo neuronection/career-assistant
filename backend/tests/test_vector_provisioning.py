@@ -22,7 +22,7 @@ from app.storage.vector_provisioning import (
     provision_space,
     space_status,
 )
-from app.storage.vector_schema import INDEX_TABLE_RE
+from app.storage.vector_schema import INDEX_TABLE_RE, index_table_name
 from tests.vector_harness import (
     column_type,
     create_native_engine,
@@ -188,3 +188,93 @@ def test_linear_provisioning_creates_no_table(engine):
 def test_provision_requires_a_persisted_space(engine):
     with Session(engine) as session, pytest.raises(VectorProvisioningError):
         provision_space(session, uuid.uuid4())
+
+
+def test_pg_provisioning_refuses_dimensions_hnsw_cannot_index():
+    engine = create_native_engine()
+    try:
+        if engine.dialect.name != "postgresql":
+            pytest.skip("the pgvector HNSW dimension ceiling is PostgreSQL-only")
+        space_id = _new_space(engine, dim=2001)
+        try:
+            with Session(engine) as session:
+                row = session.get(VectorSpaceRow, space_id)
+                with pytest.raises(VectorProvisioningError) as raised:
+                    provision_space(session, row)
+            assert "2000" in str(raised.value)
+            assert "halfvec" in str(raised.value)
+            table = index_table_name(space_id)
+            assert table_exists(engine, table) is False, "the guard runs before any DDL"
+        finally:
+            _drop(engine, space_id)
+    finally:
+        engine.dispose()
+
+
+def test_create_pg_extension_uses_a_separate_autocommit_connection(monkeypatch):
+    from app.storage import vector_provisioning as vp
+
+    recorded: dict[str, object] = {}
+
+    class FakeConnection:
+        def __init__(self) -> None:
+            self.options: dict[str, object] = {}
+
+        def execution_options(self, **kwargs):
+            self.options.update(kwargs)
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc) -> bool:
+            return False
+
+        def execute(self, statement):
+            recorded["sql"] = str(statement)
+            recorded["options"] = dict(self.options)
+
+    class FakeEngine:
+        def connect(self):
+            return FakeConnection()
+
+    class FakeSession:
+        def get_bind(self):
+            return FakeEngine()
+
+    monkeypatch.setattr(vp, "Engine", FakeEngine)
+    vp._create_pg_extension(FakeSession())  # type: ignore[arg-type]
+    assert "CREATE EXTENSION IF NOT EXISTS vector" in str(recorded["sql"])
+    assert recorded["options"] == {"isolation_level": "AUTOCOMMIT"}
+
+
+def test_create_pg_extension_failure_is_loud(monkeypatch):
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from app.storage import vector_provisioning as vp
+
+    class FailingConnection:
+        def execution_options(self, **_kwargs):
+            return self
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc) -> bool:
+            return False
+
+        def execute(self, _statement):
+            raise SQLAlchemyError("permission denied to create extension")
+
+    class FakeEngine:
+        def connect(self):
+            return FailingConnection()
+
+    class FakeSession:
+        def get_bind(self):
+            return FakeEngine()
+
+    monkeypatch.setattr(vp, "Engine", FakeEngine)
+    with pytest.raises(VectorProvisioningError) as raised:
+        vp._create_pg_extension(FakeSession())  # type: ignore[arg-type]
+    assert "hard prerequisite" in str(raised.value)
