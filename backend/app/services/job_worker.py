@@ -9,7 +9,7 @@ reuse the existing services; only the entry point moves off the request path.
 import asyncio
 import logging
 import uuid
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -905,16 +905,24 @@ async def _run_vector_reconcile(
 ) -> dict:
     """Backfill/reconcile the vector store (plan 50 §5.7, P1d).
 
-    Payload: ``{kinds?, limit?, budget?, batch_size?, since?, force?}``.
-    System budget: no ``user_id`` reaches the gateway, so the embed calls are
-    attributed to the system path — an admin-triggered run is never charged
-    to that admin's personal budget. Deferred work stays missing/stale for
-    the next run; cancellation between documents returns a partial result and
-    the worker marks the job cancelled.
+    Payload: ``{kinds?, limit?, budget?, batch_size?, scan_limit?, since?,
+    force?, after?, carry?, completed_kinds?, auto_continue?}``. The scan is
+    a bounded keyset batch; a partial result returns ``next_after`` and the
+    handler enqueues one follow-up with the same options plus that cursor
+    (``auto_continue`` defaults to true) so the chain resumes without a
+    ledger. System budget: no ``user_id`` reaches the gateway, so the embed
+    calls are attributed to the system path — an admin-triggered run is never
+    charged to that admin's personal budget. A cancelled run never chains.
     """
     from app.ai.gateway import RunRef
+    from app.services.vector_index_service import CONTENT_SPACE
     from app.services.vector_reconcile_service import (
+        DEFAULT_SCAN_LIMIT,
+        RECONCILE_KINDS,
         VectorReconcileService,
+        parse_after,
+        parse_carry,
+        parse_completed_kinds,
         parse_kinds,
         parse_since,
     )
@@ -923,14 +931,23 @@ async def _run_vector_reconcile(
     try:
         kinds = parse_kinds(payload.get("kinds"))
         since = parse_since(payload.get("since"))
+        after = parse_after(payload.get("after"))
+        carry = parse_carry(payload.get("carry"))
+        completed = parse_completed_kinds(payload.get("completed_kinds"))
     except ValueError as exc:
         raise DomainError(str(exc)) from exc
+    space = str(payload.get("space") or CONTENT_SPACE)
     service = VectorReconcileService(
         db,
+        space_name=space,
         kinds=kinds,
         limit=int(payload.get("limit") or 200),
         budget=int(payload.get("budget") or 2000),
         batch_size=int(payload.get("batch_size") or 10),
+        scan_limit=int(payload.get("scan_limit") or DEFAULT_SCAN_LIMIT),
+        after=after,
+        carry=carry,
+        completed_kinds=completed,
         since=since,
         force=bool(payload.get("force")),
         run=RunRef(id=job.id, stage="vector_reconcile"),
@@ -938,7 +955,68 @@ async def _run_vector_reconcile(
     result = await service.run(progress=progress, cancelled=cancelled)
     if result.cancelled:
         await progress(95, "cancelled")
+    elif not result.done and payload.get("auto_continue", True) and result.scanned > 0:
+        follow = _continuation_payload(
+            payload,
+            result,
+            space=space,
+            kinds=kinds or RECONCILE_KINDS,
+        )
+        if not await has_pending_reconcile(db, follow["continuation_key"]):
+            await enqueue(
+                db,
+                BackgroundJobType.VECTOR_RECONCILE.value,
+                follow,
+                user_id=job.user_id,
+            )
     return result.as_dict()
+
+
+def _continuation_key(space: str, kinds: Sequence[str], after: dict[str, dict]) -> str:
+    """A stable identity for one continuation cursor (idempotency key)."""
+    parts = [space, ",".join(sorted(str(kind) for kind in kinds))]
+    for kind in sorted(after):
+        cursor = after[kind]
+        parts.append(f"{kind}@{cursor.get('updated_at')}@{cursor.get('id')}")
+    return "|".join(parts)
+
+
+def _continuation_payload(
+    payload: dict,
+    result,
+    *,
+    space: str,
+    kinds: Sequence[str],
+) -> dict:
+    """The same run options plus the cursor state that resumes the chain."""
+    follow = {
+        key: value
+        for key, value in payload.items()
+        if key not in {"after", "carry", "completed_kinds", "continuation_key"}
+    }
+    after = {kind: cursor for kind, cursor in result.next_after.items() if cursor is not None}
+    follow["after"] = after
+    follow["carry"] = result.carry
+    follow["completed_kinds"] = list(result.completed_kinds)
+    follow["continuation_key"] = _continuation_key(space, kinds, after)
+    return follow
+
+
+async def has_pending_reconcile(db: AsyncSession, continuation_key: str) -> bool:
+    """True when a continuation job for this exact cursor is queued/running."""
+    rows = await db.execute(
+        select(BackgroundJob.id).where(
+            BackgroundJob.job_type == BackgroundJobType.VECTOR_RECONCILE.value,
+            BackgroundJob.status.in_(
+                [
+                    BackgroundJobStatus.QUEUED.value,
+                    BackgroundJobStatus.RUNNING.value,
+                ]
+            ),
+            BackgroundJob.payload["continuation_key"].as_string() == continuation_key,
+        )
+    )
+    return rows.scalars().first() is not None
 
 
 async def _run_vector_index(

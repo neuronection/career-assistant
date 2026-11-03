@@ -757,12 +757,14 @@ class VectorStoreService:
         space: VectorSpace | uuid.UUID | str,
         *,
         kind: str | None = None,
+        source_ids: Sequence[str] | None = None,
     ) -> dict[str, str]:
         """``source_id → stored source_hash`` for the space's documents.
 
         The reconcile pass compares this to a fresh composition: an equal
         hash costs zero embedding calls, a different one marks the document
-        stale.
+        stale. ``source_ids`` bounds the read to one scan batch instead of
+        loading the whole kind into memory.
         """
         canonical = self.resolve_space(space)
         with self._session_factory() as session:
@@ -772,6 +774,12 @@ class VectorStoreService:
             )
             if kind is not None:
                 statement = statement.where(VectorDocument.kind == kind)
+            if source_ids is not None:
+                if not source_ids:
+                    return {}
+                statement = statement.where(
+                    VectorDocument.source_id.in_([str(value) for value in source_ids])
+                )
             return {
                 str(source_id): str(source_hash)
                 for source_id, source_hash in session.execute(statement)

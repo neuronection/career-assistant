@@ -1,25 +1,34 @@
 """Resumable, budget-capped vector backfill and reconciliation (plan 50 §5.7,
 §11, P1d).
 
-One pass per kind classifies every source row against the active space by
-composing it (pure, no provider call) and comparing the composed hash to the
+One pass per kind classifies source rows against the active space by
+composing them (pure, no provider call) and comparing the composed hash to the
 stored document's ``source_hash``:
 
 * no document → **missing**;
 * a different hash (or ``force``) → **stale**;
 * an equal hash → **current**, costing zero embedding calls.
 
-The documents that need work are then indexed through
-:class:`~app.services.vector_index_service.VectorIndexService` — the same
-writer the ``VECTOR_INDEX`` job uses, so there is no second write path. A
-run's embedding spend is capped twice (``limit`` documents, ``budget`` embed
-units); whatever the caps defer is still missing/stale on the next run, which
-is what makes the pass resumable without a fragile cursor: a rerun of
-unchanged content embeds nothing and only picks up the remainder.
+The scan is a **bounded keyset batch**, never the whole corpus: each kind is
+read through :func:`~app.services.vector_index_service.list_sources` with an
+exclusive ``(updated_at, id)`` cursor and at most ``scan_limit`` rows. Sources
+are composed and indexed one at a time; no all-dirty ``work`` list of
+``LoadedSource`` objects is held. A run's spend is still capped twice
+(``limit`` documents, ``budget`` embed units); when a cap is hit mid-batch the
+run stops *before* the next source and returns the cursor of the last fully
+processed source, so a continuation resumes without skipping or re-indexing
+work.
 
-Every pass writes one ``retrieval_coverage_snapshots`` row per kind — the
-P1d read model the admin status surface consumes (plan 51 owns the dashboards
-built on them).
+The ``VECTOR_RECONCILE`` handler chains partial results: it enqueues one
+follow-up job with the returned ``after``/``carry``/``completed_kinds`` state
+(unless ``auto_continue`` is false). The cursor lives in the job payload and
+result, so there is no new table or ledger. A continuation job for the same
+``(space, kind, cursor)`` is never duplicated.
+
+Every kind writes one ``retrieval_coverage_snapshots`` row only when its scan
+is **complete for the chain** — a partial batch never publishes a misleading
+full-coverage point. Counters carried across the chain make a resumed
+completion report the whole kind, not just its tail.
 
 **Budget attribution.** The reconcile is system work: the handler passes no
 ``user_id`` to the gateway, so the embed calls land on the system path
@@ -35,7 +44,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
@@ -45,7 +54,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.vector_model import RetrievalCoverageSnapshot
 from app.services.vector_index_service import (
     CONTENT_SPACE,
-    LoadedSource,
     SourceRow,
     VectorIndexService,
     count_sources,
@@ -61,10 +69,13 @@ RECONCILE_KINDS = ("posting", "profile", "skill")
 DEFAULT_LIMIT = 200
 DEFAULT_BUDGET = 2000
 DEFAULT_BATCH_SIZE = 10
+DEFAULT_SCAN_LIMIT = 500
 FAILED_IDS_CAP = 25
+CARRY_FIELDS = ("seen", "missing", "stale", "failed", "embedded")
 
 ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelledCb = Callable[[], Awaitable[bool]]
+Cursor = tuple[datetime, str]
 
 
 @dataclass(frozen=True)
@@ -110,6 +121,11 @@ class ReconcileResult:
     cancelled: bool = False
     budget_exhausted: bool = False
     degraded: str | None = None
+    next_after: dict[str, dict[str, str] | None] = field(default_factory=dict)
+    carry: dict[str, dict[str, int]] = field(default_factory=dict)
+    completed_kinds: tuple[str, ...] = ()
+    done: bool = True
+    remaining: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -128,16 +144,15 @@ class ReconcileResult:
             "cancelled": self.cancelled,
             "budget_exhausted": self.budget_exhausted,
             "degraded": self.degraded,
+            "next_after": {
+                kind: (dict(cursor) if cursor is not None else None)
+                for kind, cursor in self.next_after.items()
+            },
+            "carry": {kind: dict(stats) for kind, stats in self.carry.items()},
+            "completed_kinds": list(self.completed_kinds),
+            "done": self.done,
+            "remaining": self.remaining,
         }
-
-
-@dataclass
-class _Work:
-    """One source that needs indexing, with the bucket it started in."""
-
-    row: SourceRow
-    loaded: LoadedSource
-    state: str
 
 
 class VectorReconcileService:
@@ -153,6 +168,10 @@ class VectorReconcileService:
         limit: int = DEFAULT_LIMIT,
         budget: int = DEFAULT_BUDGET,
         batch_size: int = DEFAULT_BATCH_SIZE,
+        scan_limit: int = DEFAULT_SCAN_LIMIT,
+        after: Mapping[str, Any] | None = None,
+        carry: Mapping[str, Any] | None = None,
+        completed_kinds: Sequence[str] | None = None,
         since: datetime | None = None,
         force: bool = False,
         provision_backend: str | None = None,
@@ -174,9 +193,13 @@ class VectorReconcileService:
         self.limit = max(int(limit), 1)
         self.budget = max(int(budget), 0)
         self.batch_size = max(int(batch_size), 1)
+        self.scan_limit = max(int(scan_limit), 1)
         self.since = since
         self.force = force
         self._run = run
+        self._after = parse_after(after)
+        self._carry = parse_carry(carry)
+        self._completed = set(parse_completed_kinds(completed_kinds))
         self._indexer = VectorIndexService(
             db,
             store=store,
@@ -186,7 +209,6 @@ class VectorReconcileService:
             run=run,
         )
         self._units = 0
-        self._hashes: dict[str, dict[str, str]] | None = None
 
     async def run(
         self,
@@ -194,110 +216,180 @@ class VectorReconcileService:
         progress: ProgressCb | None = None,
         cancelled: CancelledCb | None = None,
     ) -> ReconcileResult:
-        """Classify + index one pass; never raises for a per-document failure."""
+        """Classify + index one bounded batch; never raises for a document failure."""
         scanned = embedded = skipped = written = pruned = 0
         failed = deferred = orphans = 0
         failed_ids: list[str] = []
         truncated = withdrew = budget_exhausted = False
         coverages: list[KindCoverage] = []
         degraded: str | None = None
-        population = sum(
-            [await count_sources(self.db, kind, since=self.since) for kind in self.kinds]
+        next_after: dict[str, dict[str, str] | None] = {}
+        next_carry: dict[str, dict[str, int]] = {}
+        completed = set(self._completed)
+        remaining = 0
+
+        population_by_kind = {
+            kind: await count_sources(self.db, kind, since=self.since) for kind in self.kinds
+        }
+        population = sum(population_by_kind.values())
+        done_global = sum(
+            population_by_kind.get(kind, 0) for kind in self._completed if kind in self.kinds
+        ) + sum(
+            self._carry.get(kind, {}).get("seen", 0)
+            for kind in self.kinds
+            if kind not in self._completed
         )
-        done = 0
+
         for kind in self.kinds:
-            sources = await list_sources(self.db, kind, since=self.since)
-            current = kind_failed = 0
-            work: list[_Work] = []
+            if kind in completed:
+                continue
+            state = _empty_carry()
+            state.update(self._carry.get(kind, {}))
+            cursor = self._after.get(kind)
+            sources = await list_sources(
+                self.db,
+                kind,
+                since=self.since,
+                after=cursor,
+                limit=self.scan_limit,
+            )
+            hashes = self._stored_hashes(kind, [row.source_id for row in sources])
+            kind_total = population_by_kind.get(kind, 0)
+            last_processed: SourceRow | None = None
+            kind_complete = True
+
             for row in sources:
-                done += 1
-                await self._report(progress, self._percent(done, population), f"scanning {kind}")
                 if cancelled is not None and await cancelled():
                     withdrew = True
+                    kind_complete = False
                     break
+                if embedded >= self.limit or self._units >= self.budget:
+                    budget_exhausted = budget_exhausted or self._units >= self.budget
+                    kind_complete = False
+                    break
+                done_global += 1
+                await self._report(
+                    progress, self._percent(done_global, population), f"scanning {kind}"
+                )
                 loaded = await load_source(self.db, kind, row.source_id)
                 if loaded is None:
                     orphans += await self._drop_orphan(kind, row.source_id)
                     scanned += 1
+                    state["seen"] += 1
+                    last_processed = row
                     continue
                 scanned += 1
                 if loaded.composed.is_empty:
-                    current += 1
+                    state["embedded"] += 1
+                    state["seen"] += 1
+                    last_processed = row
                     continue
-                stored = self._stored_hash(kind, row.source_id)
+                stored = hashes.get(row.source_id)
                 if stored == loaded.composed.source_hash and not self.force:
-                    current += 1
+                    state["embedded"] += 1
                     skipped += 1
+                    state["seen"] += 1
+                    last_processed = row
                     continue
-                work.append(
-                    _Work(row=row, loaded=loaded, state="missing" if stored is None else "stale")
-                )
-            for item in work:
-                if withdrew or embedded >= self.limit or self._units >= self.budget:
-                    budget_exhausted = budget_exhausted or self._units >= self.budget
-                    deferred += 1
-                    continue
+                dirty = "missing" if stored is None else "stale"
                 if cancelled is not None and await cancelled():
                     withdrew = True
-                    deferred += 1
-                    continue
+                    kind_complete = False
+                    break
                 try:
                     outcome = await self._indexer.index_composed(
-                        item.loaded, kind=kind, source_id=item.row.source_id, force=self.force
+                        loaded, kind=kind, source_id=row.source_id, force=self.force
                     )
                 except Exception:
                     failed += 1
-                    kind_failed += 1
-                    truncated = (
-                        self._record_failure(failed_ids, kind, item.row.source_id) or truncated
-                    )
+                    state["failed"] += 1
+                    state[dirty] += 1
+                    truncated = self._record_failure(failed_ids, kind, row.source_id) or truncated
                     logger.warning(
-                        "vector reconcile failed for %s %s", kind, item.row.source_id, exc_info=True
+                        "vector reconcile failed for %s %s", kind, row.source_id, exc_info=True
                     )
+                    state["seen"] += 1
+                    last_processed = row
                     continue
                 if outcome.degraded is not None:
                     degraded = outcome.degraded
                     if outcome.degraded == "provider_unassigned":
                         deferred += 1
+                        state[dirty] += 1
                     else:
                         failed += 1
-                        kind_failed += 1
+                        state["failed"] += 1
+                        state[dirty] += 1
                         truncated = (
-                            self._record_failure(failed_ids, kind, item.row.source_id) or truncated
+                            self._record_failure(failed_ids, kind, row.source_id) or truncated
                         )
+                    state["seen"] += 1
+                    last_processed = row
                     continue
-                item.state = "indexed"
-                current += 1
+                state["embedded"] += 1
+                state["seen"] += 1
                 embedded += 1
                 written += outcome.written
                 pruned += outcome.pruned
                 self._units += outcome.embedded
+                last_processed = row
                 if embedded % self.batch_size == 0:
                     await self._report(
                         progress,
-                        self._percent(done, population),
+                        self._percent(done_global, population),
                         f"indexed {embedded} document(s)",
                     )
-            dirty = {"missing": 0, "stale": 0}
-            for item in work:
-                if item.state in dirty:
-                    dirty[item.state] += 1
-            if self.since is None:
-                orphans += await self._sweep_orphans(kind, {row.source_id for row in sources})
-            coverage = KindCoverage(
-                kind=kind,
-                total=len(sources),
-                missing=dirty["missing"],
-                stale=dirty["stale"],
-                failed=kind_failed,
-                embedded=current,
-                as_of=datetime.now(UTC),
+
+            if kind_complete and len(sources) >= self.scan_limit:
+                kind_complete = False
+
+            if kind_complete:
+                coverage = KindCoverage(
+                    kind=kind,
+                    total=kind_total,
+                    missing=state["missing"],
+                    stale=state["stale"],
+                    failed=state["failed"],
+                    embedded=state["embedded"],
+                    as_of=datetime.now(UTC),
+                )
+                await self._write_snapshot(coverage)
+                coverages.append(coverage)
+                completed.add(kind)
+                next_after[kind] = None
+                continue
+
+            next_cursor = (
+                self._cursor_from_row(last_processed) if last_processed is not None else cursor
             )
-            await self._write_snapshot(coverage)
-            coverages.append(coverage)
+            kind_remaining = (
+                await count_sources(self.db, kind, since=self.since, after=next_cursor)
+                if next_cursor is not None
+                else kind_total
+            )
+            remaining += kind_remaining
+            deferred += kind_remaining
+            next_after[kind] = self._cursor_dict(next_cursor)
+            next_carry[kind] = state
+            coverages.append(
+                KindCoverage(
+                    kind=kind,
+                    total=kind_total,
+                    missing=state["missing"] + kind_remaining,
+                    stale=state["stale"],
+                    failed=state["failed"],
+                    embedded=state["embedded"],
+                    as_of=datetime.now(UTC),
+                )
+            )
             if withdrew:
                 break
-        await self._report(progress, 100, "reconciled")
+
+        done = all(kind in completed for kind in self.kinds)
+        if done and self.since is None:
+            for kind in self.kinds:
+                orphans += await self._sweep_orphans(kind)
+        await self._report(progress, 100, "reconciled" if done else "batch reconciled")
         return ReconcileResult(
             space=self.space_name,
             kinds=tuple(coverages),
@@ -314,6 +406,11 @@ class VectorReconcileService:
             cancelled=withdrew,
             budget_exhausted=budget_exhausted,
             degraded=degraded,
+            next_after=next_after,
+            carry=next_carry,
+            completed_kinds=tuple(kind for kind in self.kinds if kind in completed),
+            done=done,
+            remaining=remaining,
         )
 
     # ----------------------------------------------------------- internals
@@ -324,31 +421,42 @@ class VectorReconcileService:
         except (VectorSpaceNotFound, VectorBackendError):
             return None
 
-    def _stored_hash(self, kind: str, source_id: str) -> str | None:
+    def _stored_hashes(self, kind: str, source_ids: Sequence[str]) -> dict[str, str]:
         space = self._space()
         if space is None:
-            return None
-        if self._hashes is None:
-            self._hashes = {
-                kind_name: self.store.document_hashes(space, kind=kind_name)
-                for kind_name in self.kinds
-            }
-        return self._hashes.get(kind, {}).get(str(source_id))
+            return {}
+        return self.store.document_hashes(space, kind=kind, source_ids=source_ids)
 
-    async def _sweep_orphans(self, kind: str, known: set[str]) -> int:
-        """Delete documents whose source no longer resolves (bounded sweep).
+    @staticmethod
+    def _cursor_from_row(row: SourceRow | None) -> Cursor | None:
+        if row is None or row.updated_at is None:
+            return None
+        return (row.updated_at, row.source_id)
+
+    @staticmethod
+    def _cursor_dict(cursor: Cursor | None) -> dict[str, str] | None:
+        if cursor is None:
+            return None
+        updated, source_id = cursor
+        value = (
+            updated.astimezone(UTC).isoformat() if isinstance(updated, datetime) else str(updated)
+        )
+        return {"updated_at": value, "id": str(source_id)}
+
+    async def _sweep_orphans(self, kind: str) -> int:
+        """Delete a bounded page of documents whose source no longer resolves.
 
         The polymorphic document has no FK to its source, so this is the
-        safety net after a hard delete. A windowed (``since``) pass never
-        sweeps: its source list is not the population.
+        safety net after a hard delete. It only runs after a full pass (never
+        on a partial batch) and inspects at most ``scan_limit`` documents, so
+        a completed pass does not load the whole document table. A windowed
+        (``since``) pass never sweeps: its source list is not the population.
         """
         space = self._space()
         if space is None:
             return 0
         removed = 0
-        for info in self.store.lookup_documents(space, kind=kind).values():
-            if info.source_id in known:
-                continue
+        for info in self.store.lookup_documents(space, kind=kind, limit=self.scan_limit).values():
             if await load_source(self.db, kind, info.source_id) is not None:
                 continue
             removed += 1 if self.store.delete_document(space, info.document_id) else 0
@@ -410,6 +518,10 @@ class VectorReconcileService:
             await progress(value, stage)
 
 
+def _empty_carry() -> dict[str, int]:
+    return dict.fromkeys(CARRY_FIELDS, 0)
+
+
 def parse_kinds(value: Any) -> tuple[str, ...] | None:
     """Payload ``kinds`` → a validated tuple (``None`` = all supported kinds)."""
     if value is None:
@@ -438,15 +550,77 @@ def parse_since(value: Any) -> datetime | None:
     return parsed.astimezone(UTC)
 
 
+def parse_after(value: Any) -> dict[str, Cursor]:
+    """Payload ``after`` → per-kind exclusive ``(updated_at, id)`` cursors.
+
+    The JSON shape is ``{"<kind>": {"updated_at": ISO, "id": UUID}}``. An
+    empty/missing map starts every kind at the beginning.
+    """
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("after must be an object keyed by kind")
+    cursors: dict[str, Cursor] = {}
+    for kind, entry in value.items():
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown reconcile kind in after: {kind}")
+        if entry is None:
+            continue
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"after[{kind}] must be an object")
+        updated = parse_since(entry.get("updated_at"))
+        source_id = entry.get("id")
+        if updated is None or source_id in (None, ""):
+            raise ValueError(f"after[{kind}] requires updated_at and id")
+        cursors[str(kind)] = (updated, str(source_id))
+    return cursors
+
+
+def parse_carry(value: Any) -> dict[str, dict[str, int]]:
+    """Payload ``carry`` → cumulative per-kind counters for a chained scan."""
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("carry must be an object keyed by kind")
+    carried: dict[str, dict[str, int]] = {}
+    for kind, entry in value.items():
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown reconcile kind in carry: {kind}")
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"carry[{kind}] must be an object")
+        carried[str(kind)] = {name: max(int(entry.get(name) or 0), 0) for name in CARRY_FIELDS}
+    return carried
+
+
+def parse_completed_kinds(value: Any) -> tuple[str, ...]:
+    """Payload ``completed_kinds`` → kinds already complete in this chain."""
+    if value in (None, "", []):
+        return ()
+    if isinstance(value, str):
+        value = [part.strip() for part in value.split(",") if part.strip()]
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("completed_kinds must be a list")
+    completed = tuple(str(kind) for kind in value)
+    unknown = [kind for kind in completed if kind not in RECONCILE_KINDS]
+    if unknown:
+        raise ValueError(f"unknown completed kind(s): {unknown}")
+    return completed
+
+
 __all__ = [
+    "CARRY_FIELDS",
     "DEFAULT_BATCH_SIZE",
     "DEFAULT_BUDGET",
     "DEFAULT_LIMIT",
+    "DEFAULT_SCAN_LIMIT",
     "FAILED_IDS_CAP",
     "RECONCILE_KINDS",
     "KindCoverage",
     "ReconcileResult",
     "VectorReconcileService",
+    "parse_after",
+    "parse_carry",
+    "parse_completed_kinds",
     "parse_kinds",
     "parse_since",
 ]

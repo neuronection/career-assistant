@@ -193,12 +193,31 @@ async def list_sources(
     ]
 
 
-async def count_sources(db: AsyncSession, kind: str, *, since: Any = None) -> int:
-    """How many source rows this kind holds (the coverage denominator)."""
+async def count_sources(
+    db: AsyncSession,
+    kind: str,
+    *,
+    since: Any = None,
+    after: Any = None,
+) -> int:
+    """How many source rows this kind holds (the coverage denominator).
+
+    ``after`` counts only the rows beyond an exclusive ``(updated_at, id)``
+    keyset cursor, so a batched reconcile reports its unscanned remainder
+    without loading it.
+    """
     model = _source_model(kind)
     statement = select(func.count()).select_from(model)
     if since is not None:
         statement = statement.where(model.updated_at >= since)
+    if after is not None:
+        after_updated, after_id = after
+        statement = statement.where(
+            or_(
+                model.updated_at > after_updated,
+                and_(model.updated_at == after_updated, model.id > after_id),
+            )
+        )
     return int((await db.execute(statement)).scalar() or 0)
 
 

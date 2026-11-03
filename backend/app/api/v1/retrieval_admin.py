@@ -26,6 +26,7 @@ from app.services.vector_reconcile_service import (
     DEFAULT_BATCH_SIZE,
     DEFAULT_BUDGET,
     DEFAULT_LIMIT,
+    DEFAULT_SCAN_LIMIT,
     RECONCILE_KINDS,
     parse_kinds,
     parse_since,
@@ -57,8 +58,18 @@ class ReconcileRequest(BaseModel):
     limit: int = Field(default=DEFAULT_LIMIT, ge=1, le=5000, description="documents per run")
     budget: int = Field(default=DEFAULT_BUDGET, ge=0, le=100_000, description="embed units per run")
     batch_size: int = Field(default=DEFAULT_BATCH_SIZE, ge=1, le=200)
+    scan_limit: int = Field(
+        default=DEFAULT_SCAN_LIMIT,
+        ge=1,
+        le=10_000,
+        description="source rows per keyset batch",
+    )
     since: str | None = Field(default=None, description="ISO timestamp — only rows updated since")
     force: bool = Field(default=False, description="re-embed even unchanged content")
+    auto_continue: bool = Field(
+        default=True,
+        description="enqueue the next bounded batch when this one is partial",
+    )
 
 
 @router.get("/status")
@@ -135,7 +146,9 @@ async def enqueue_reconcile(
             "limit": request.limit,
             "budget": request.budget,
             "batch_size": request.batch_size,
+            "scan_limit": request.scan_limit,
             "force": bool(request.force),
+            "auto_continue": bool(request.auto_continue),
         }
         kinds = parse_kinds(request.kinds)
         if kinds is not None:

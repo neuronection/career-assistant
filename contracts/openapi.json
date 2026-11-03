@@ -18998,6 +18998,12 @@
       "ReconcileRequest": {
         "description": "One backfill/reconcile run (a resumable, budget-capped batch).",
         "properties": {
+          "auto_continue": {
+            "default": true,
+            "description": "enqueue the next bounded batch when this one is partial",
+            "title": "Auto Continue",
+            "type": "boolean"
+          },
           "batch_size": {
             "default": 10,
             "maximum": 200.0,
@@ -19040,6 +19046,14 @@
             "maximum": 5000.0,
             "minimum": 1.0,
             "title": "Limit",
+            "type": "integer"
+          },
+          "scan_limit": {
+            "default": 500,
+            "description": "source rows per keyset batch",
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "Scan Limit",
             "type": "integer"
           },
           "since": {
