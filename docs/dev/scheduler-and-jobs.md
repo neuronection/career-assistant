@@ -21,6 +21,8 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
 | `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
+| `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store (plan 50) |
+| `posting_remap` | Re-decide semantic catalog mappings after a space cutover (plan 50 P2b) |
 | `data_export` | Exports |
 
 The plan-138 learn job is the one handler that lives in the catalog —
@@ -87,6 +89,20 @@ is charged); `POST /api/v1/admin/retrieval/reconcile` and
 so every run is a `background_jobs` row. Publishing or editing a catalog job
 queues a `VECTOR_INDEX` for it rather than embedding in the request. The full
 Runs/Retrieval surface is plan 51.
+
+### The posting remap after a space cutover (plan 50 P2b)
+
+A semantic mapping depends on the embedding space it was decided in:
+`job_postings.mapping_features` stamps the contract's `space_key`. When a
+space is retired/cut over, `app/services/postings/mapping_remap.py` is the
+single invalidation seam — `invalidate_mapping_space(space_key=retired.key)`
+enqueues a bounded `POSTING_REMAP` job. The handler selects only
+`mapping_method IN ('semantic','semantic_rerank')` rows (never `manual`),
+skips terminal statuses, re-runs `decide_catalog` without touching
+`PostingSkill` rows, and pages by posting id with one auto-continuation
+cursor. Plan 51's retrieval-management action calls the hook after the new
+space is active; there is deliberately no second sweep. The run result
+carries `{remapped, failed, skipped, next_after_id, space_key}`.
 
 ### The failed-jobs lifecycle (plan 184)
 

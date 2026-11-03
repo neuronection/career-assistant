@@ -499,6 +499,18 @@ never touches `PostingSkill` rows). The method + `retag` journal make every
 map auditable and admin-overridable (manual map endpoint,
 `POST /admin/postings/{id}/remap` re-runs the join without the extract).
 
+The **bounded semantic rerank** runs first where the deterministic outcome
+is ambiguous — best below `AUTO_MAP_THRESHOLD` or a runner-up margin under
+`δ = 0.08` (plan 164 S4.4, `app/services/postings/semantic_rerank.py`). It
+scores **only the stage-2 candidates** the deterministic scorer produced
+(`K = 25`), using the same stored-vector job↔posting match, and applies the
+pinned blend `0.75·deterministic + 0.25·semantic`. A rerank is accepted only
+when its top candidate clears `τ_job = 0.34` with the `δ` margin (and, when
+the deterministic winner already cleared `τ_job`, only if the top-1 changes);
+it records `semantic_rerank`, never silently replaces the deterministic
+score, and never introduces a candidate. The plan-185 rescue below still
+handles the below-threshold case the rerank could not lift.
+
 The **semantic rescue** fires only where that overlap misses (plan 50 P2,
 `app/services/postings/semantic_rescue.py`): the posting is indexed through
 the sanctioned synchronous writer (unchanged content costs zero embeds; the
@@ -512,9 +524,22 @@ jobs are filtered when candidates are hydrated, so they are never proposed.
 The trace lands in `posting_facts["mapping_signals"]`:
 `overlap {score, runner_up}` plus
 `semantic {top, threshold, candidates[{code, score, shared_skills, per_view}],
-space_key, degraded}`. Any embedding/index failure degrades to the
+space_key, degraded}` and `rerank {ran, top, accepted, margin, space_key,
+candidates[...]}`. Any embedding/index failure degrades to the
 overlap-only verdict and the reason is recorded — a posting write never fails
 for it.
+
+Every automatic decision also writes the bounded, versioned
+`job_postings.mapping_features` payload (`mapping_version = 2`): the top
+candidates with their deterministic/semantic/blend scores, shared taxonomy
+keys and per-view scores, the pinned policy thresholds, the embedding
+`space_key` and the degradation reason. A space cutover therefore has a
+recorded dependency: `app/services/postings/mapping_remap.py` enqueues one
+bounded `POSTING_REMAP` sweep over rows whose method is
+`semantic`/`semantic_rerank` (never `manual`); plan 51's retirement action
+calls `invalidate_mapping_space(space_key=retired.key)` after the new space
+is active. The sweep re-runs `decide_catalog` only — it never rewrites
+`PostingSkill` rows and never alerts.
 
 Every embedding failure (unconfigured provider, gateway error, dim
 mismatch) degrades to the overlap-only decision — the RRF discipline

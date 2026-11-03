@@ -1019,6 +1019,33 @@ async def has_pending_reconcile(db: AsyncSession, continuation_key: str) -> bool
     return rows.scalars().first() is not None
 
 
+async def _run_posting_remap(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """Re-decide semantic mapping rows after a space cutover (plan 50 P2b).
+
+    Payload: ``{space_key?, all_postings?, batch_size?, after_id?,
+    auto_continue?}``. Only rows whose ``mapping_method`` is ``semantic`` or
+    ``semantic_rerank`` are selected — ``manual`` never is. The handler
+    commits its batch and enqueues one continuation with the next cursor;
+    plan 51's space-retirement action calls
+    :func:`invalidate_mapping_space` to start the chain.
+    """
+    from app.services.postings.mapping_remap import run_posting_remap
+
+    return await run_posting_remap(
+        db,
+        job.payload or {},
+        run_id=job.id,
+        progress=progress,
+        cancelled=cancelled,
+    )
+
+
 async def _run_vector_index(
     db: AsyncSession,
     job: BackgroundJob,
@@ -1093,6 +1120,7 @@ HANDLERS: dict[str, Handler] = {
     "skill_relation_learn": _run_skill_relation_learn,
     "vector_index": _run_vector_index,
     "vector_reconcile": _run_vector_reconcile,
+    "posting_remap": _run_posting_remap,
 }
 
 

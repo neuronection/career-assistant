@@ -50,6 +50,7 @@ class BackgroundJobType(StrEnum):
     SKILL_RELATION_LEARN = "skill_relation_learn"
     VECTOR_INDEX = "vector_index"
     VECTOR_RECONCILE = "vector_reconcile"
+    POSTING_REMAP = "posting_remap"
 
 
 class ScheduleKind(StrEnum):
