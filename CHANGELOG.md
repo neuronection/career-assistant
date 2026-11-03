@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — the alert layer, 2026-11-03)
+- **The ten retrieval alerts now reach admins through the notification
+  funnel**: coverage below the gate, failed and stalled runs, a quality
+  compare below the floor, query p95 over budget, an excessive degraded
+  share, an unassigned embeddings task, a missing pgvector index, an
+  exhausted token budget and a retired space past its drop grace. Each is
+  boot-seeded with its contract threshold, dedup scope and daily cap, and
+  points at the real Tools/Usage/Audit destination.
+- **Dedup recovers instead of silencing forever**: an alert whose condition
+  clears releases its dedup key, so a later recurrence notifies again; a
+  still-true condition is not repeated inside the dedup window. Every
+  payload carries ids, counts, scores and reasons only — never document,
+  query or prompt text.
+- **The evaluator is a bounded system job**, `retrieval_alert_sweep` on a
+  five-minute schedule: one pass reads the latest snapshots, recent runs,
+  the 15-minute rollups, the persisted quality compare and the token budget,
+  never the corpus or the full history. Missing kinds, muted recipients and
+  a cold/empty store fail soft. Migration `0091`.
+
 ### Added (retrieval operations — the admin action API and its runtime guards, 2026-11-03)
 - **`/admin/retrieval` now has the only retrieval write seam**: reindex,
   cancel/retry, build/activate/retire/drop a space, typed maintenance

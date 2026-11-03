@@ -22,6 +22,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
 | `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
 | `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store; `vector_reconcile` accepts an explicit `space_id` for a building space (plan 50) |
+| `retrieval_alert_sweep` | Evaluate the ten retrieval-operations alert thresholds through the notification funnel (plan 51 Q1c) |
 | `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass (plan 50 P2b/P2c.3) |
 | `data_export` | Exports |
 
@@ -192,8 +193,11 @@ params)` — always timezone-aware and UTC-normalized.
 `system_catalog_enrich`, `system_followups`, `system_market_history`,
 `system_proposal_sweep`, `system_checkpoint_prune`,
 `system_extension_reconcile`, `system_skill_relation_learn` (daily at
-03:30 UTC — enqueues `skill_relation_learn`), `user_saved_search`,
-`user_radar_digest`, `user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
+03:30 UTC — enqueues `skill_relation_learn`), `system_vector_reconcile`
+(daily at 04:15 UTC — enqueues `vector_reconcile`),
+`system_retrieval_alerts` (every five minutes — enqueues
+`retrieval_alert_sweep`), `user_saved_search`, `user_radar_digest`,
+`user_checkin`, `user_autopilot`. `runner.py` maps each kind to a job type;
 `system_demand_import` enqueues `demand_import`, which walks enabled
 `job_sources` rows of kind `market` and writes salary/outlook observations
 into `market_snapshots` and `jobs.demand` (field-level provenance).
@@ -227,6 +231,13 @@ channel. Nothing else should send notifications.
 
 Alert rules and their triggers live on `EngagementService`; the follow-up
 sweep and threshold alerts both emit through this funnel.
+
+**Retrieval operations alerts** are the exception that proves the rule:
+`app/services/retrieval_alerts.py` evaluates the ten contract thresholds
+(plan 51 §2C) from the Q1 read model on the `retrieval_alert_sweep`
+schedule and emits only through `NotificationService.emit`. Each kind is
+boot-seeded with its dedup scope and daily cap; a condition that clears
+releases its `dedup_key`, so recovery never leaves a permanent silence.
 
 ## Related
 
