@@ -49,6 +49,7 @@ class BackgroundJobType(StrEnum):
     DEMAND_IMPORT = "demand_import"
     SKILL_RELATION_LEARN = "skill_relation_learn"
     EMBEDDINGS_RECONCILE = "embeddings_reconcile"
+    VECTOR_INDEX = "vector_index"
 
 
 class ScheduleKind(StrEnum):

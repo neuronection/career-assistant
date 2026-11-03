@@ -906,6 +906,46 @@ async def _run_embeddings_reconcile(db: AsyncSession, job: BackgroundJob, **_kw)
     return await EmbeddingService(db).recompute_skills(limit=max(1, min(limit, 200)))
 
 
+async def _run_vector_index(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """Index one source document into the family vector store (plan 50 P1c).
+
+    Payload: ``{kind, source_id, space?, force?}``. Composes, embeds only the
+    changed records, writes with ``prune=False`` and prunes the leftover
+    keys; a missing embed provider returns a degraded result instead of
+    failing the run.
+    """
+    from app.ai.gateway import RunRef
+    from app.services.vector_index_service import CONTENT_SPACE, VectorIndexService
+
+    payload = job.payload or {}
+    kind = str(payload.get("kind") or "")
+    source_id = str(payload.get("source_id") or "")
+    if not kind or not source_id:
+        raise DomainError("vector_index requires kind and source_id")
+    await progress(5, "loading source")
+    service = VectorIndexService(
+        db,
+        space_name=str(payload.get("space") or CONTENT_SPACE),
+        user_id=job.user_id,
+        run=RunRef(id=job.id, stage="vector_index"),
+    )
+    outcome = await service.index_document(
+        kind=kind,
+        source_id=source_id,
+        force=bool(payload.get("force")),
+        progress=progress,
+    )
+    if await cancelled():
+        raise DomainError("Cancelled")
+    return outcome.as_result()
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -939,6 +979,7 @@ HANDLERS: dict[str, Handler] = {
     "demand_import": _run_demand_import,
     "skill_relation_learn": _run_skill_relation_learn,
     "embeddings_reconcile": _run_embeddings_reconcile,
+    "vector_index": _run_vector_index,
 }
 
 
