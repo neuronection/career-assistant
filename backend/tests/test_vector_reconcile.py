@@ -1039,3 +1039,48 @@ async def test_the_reconcile_indexes_catalog_jobs(db, engine, seeded_catalog):
     assert store.count_documents(space, kind="job") == total
     snapshots = _snapshots(engine)
     assert [snapshot.kind for snapshot in snapshots] == ["job"]
+
+
+async def test_the_reconcile_handler_passes_an_explicit_space_id(db, monkeypatch):
+    """A ``VECTOR_RECONCILE`` payload can target a building space by id."""
+    import app.services.vector_reconcile_service as vrs
+
+    seen: dict = {}
+
+    class FakeService:
+        def __init__(self, *_args, **kwargs) -> None:
+            seen.update(kwargs)
+
+        async def run(self, **_kwargs):
+            return ReconcileResult(space="content", space_id=seen.get("space_id"), done=True)
+
+    monkeypatch.setattr(vrs, "VectorReconcileService", FakeService)
+    space_id = str(uuid.uuid4())
+    job = await _reconcile_job(db, {"kinds": ["posting"], "space_id": space_id})
+
+    result = await _invoke_reconcile_handler(db, job)
+
+    assert seen["space_id"] == space_id
+    assert result["space_id"] == space_id
+
+
+async def test_a_reconcile_continuation_keeps_the_explicit_space_id(db, monkeypatch):
+    import app.services.vector_reconcile_service as vrs
+
+    partial = _partial_result()
+
+    class FakeService:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def run(self, **_kwargs):
+            return partial
+
+    monkeypatch.setattr(vrs, "VectorReconcileService", FakeService)
+    space_id = str(uuid.uuid4())
+    job = await _reconcile_job(db, {"kinds": ["posting"], "scan_limit": 2, "space_id": space_id})
+
+    await _invoke_reconcile_handler(db, job)
+
+    [followup] = await _followups(db, job.id)
+    assert followup.payload["space_id"] == space_id
