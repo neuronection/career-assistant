@@ -1,124 +1,6196 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "generated": "2026-11-03",
-  "provenance": "Hand-authored representative slice of the plan-164 posting↔catalog matching golden set for plan 50 P2b. Neutral synthetic roles and skills only; no private-integration data. The semantic column is a pinned oracle for the rerank policy benchmark (the vector match itself is covered by test_vector_retrieval_service.py and test_semantic_rerank.py).",
+  "provenance": "Public/synthetic corpus for the plan-164 posting\u2194catalog matching golden benchmark (plan 50 P2b/P2c.2). The original 17-case P2b slice is kept verbatim; the P2c.2 expansion adds seven synthetic families (operations, sales, cybersecurity, education, legal, research, hospitality) with clear matches, wrong deterministic winners, below-threshold lifts, margin/threshold abstentions, draft-gated candidates, family-only/S3-pending rows, no-shared-skill rows, manual rows and terminal postings. All names, roles, skills and descriptions are synthetic; no private-integration or scraped personal data is present. The semantic column is a pinned oracle for the rerank policy; the real vector match is covered by test_vector_retrieval_service.py and test_semantic_rerank.py.",
   "scale": {
-    "families": 6,
-    "jobs": 32,
-    "cases": 17,
-    "note": "17 cases / 32 jobs is a representative slice, not plan 164's full 150-250-case set; candidate_recall@25 is a real ceiling because 32 jobs > K=25."
+    "families": 13,
+    "jobs": 123,
+    "skills": 135,
+    "cases": 164,
+    "note": "164 cases / 123 jobs / 13 families. candidate_recall@25 is a real ceiling because the catalog exceeds K=25; family-only rows are S3-pending coverage and manual/terminal rows are invariant checks.",
+    "by_kind": {
+      "clear": 34,
+      "delta": 7,
+      "draft": 7,
+      "family": 21,
+      "lift": 10,
+      "manual": 14,
+      "margin": 9,
+      "misleading": 7,
+      "no_shared_skill": 22,
+      "terminal": 14,
+      "threshold": 9,
+      "wrong": 10
+    }
   },
   "families": [
-    {"key": "data-engineering", "label": "Data Engineering", "path": "data-engineering"},
-    {"key": "software-engineering", "label": "Software Engineering", "path": "software-engineering"},
-    {"key": "product-design", "label": "Product Design", "path": "product-design"},
-    {"key": "marketing", "label": "Marketing", "path": "marketing"},
-    {"key": "healthcare", "label": "Healthcare", "path": "healthcare"},
-    {"key": "finance", "label": "Finance", "path": "finance"}
+    {
+      "key": "data-engineering",
+      "label": "Data Engineering",
+      "path": "data-engineering"
+    },
+    {
+      "key": "software-engineering",
+      "label": "Software Engineering",
+      "path": "software-engineering"
+    },
+    {
+      "key": "product-design",
+      "label": "Product Design",
+      "path": "product-design"
+    },
+    {
+      "key": "marketing",
+      "label": "Marketing",
+      "path": "marketing"
+    },
+    {
+      "key": "healthcare",
+      "label": "Healthcare",
+      "path": "healthcare"
+    },
+    {
+      "key": "finance",
+      "label": "Finance",
+      "path": "finance"
+    },
+    {
+      "key": "operations",
+      "label": "Operations",
+      "path": "operations"
+    },
+    {
+      "key": "sales",
+      "label": "Sales",
+      "path": "sales"
+    },
+    {
+      "key": "cybersecurity",
+      "label": "Cybersecurity",
+      "path": "cybersecurity"
+    },
+    {
+      "key": "education",
+      "label": "Education",
+      "path": "education"
+    },
+    {
+      "key": "legal",
+      "label": "Legal",
+      "path": "legal"
+    },
+    {
+      "key": "research",
+      "label": "Research",
+      "path": "research"
+    },
+    {
+      "key": "hospitality",
+      "label": "Hospitality",
+      "path": "hospitality"
+    }
   ],
   "skills": [
-    {"key": "python", "label": "Python"},
-    {"key": "sql", "label": "SQL"},
-    {"key": "spark", "label": "Spark"},
-    {"key": "airflow", "label": "Airflow"},
-    {"key": "typescript", "label": "TypeScript"},
-    {"key": "react", "label": "React"},
-    {"key": "node", "label": "Node"},
-    {"key": "figma", "label": "Figma"},
-    {"key": "prototyping", "label": "Prototyping"},
-    {"key": "ux-research", "label": "UX Research"},
-    {"key": "analytics", "label": "Analytics"},
-    {"key": "seo", "label": "SEO"},
-    {"key": "copywriting", "label": "Copywriting"},
-    {"key": "patient-care", "label": "Patient Care"},
-    {"key": "triage", "label": "Triage"},
-    {"key": "ehr", "label": "EHR"},
-    {"key": "accounting", "label": "Accounting"},
-    {"key": "excel", "label": "Excel"},
-    {"key": "audit", "label": "Audit"},
-    {"key": "case-wrong-1-a", "label": "Wrong Case 1 A"},
-    {"key": "case-wrong-1-b", "label": "Wrong Case 1 B"},
-    {"key": "case-wrong-2-a", "label": "Wrong Case 2 A"},
-    {"key": "case-wrong-2-b", "label": "Wrong Case 2 B"},
-    {"key": "case-wrong-3-a", "label": "Wrong Case 3 A"},
-    {"key": "case-wrong-3-b", "label": "Wrong Case 3 B"},
-    {"key": "case-lift-1-a", "label": "Lift Case 1 A"},
-    {"key": "case-lift-1-b", "label": "Lift Case 1 B"},
-    {"key": "case-lift-2-a", "label": "Lift Case 2 A"},
-    {"key": "case-lift-2-b", "label": "Lift Case 2 B"},
-    {"key": "case-lift-3-a", "label": "Lift Case 3 A"},
-    {"key": "case-lift-3-b", "label": "Lift Case 3 B"},
-    {"key": "case-margin-1-a", "label": "Margin Case 1 A"},
-    {"key": "case-margin-1-b", "label": "Margin Case 1 B"},
-    {"key": "case-margin-2-a", "label": "Margin Case 2 A"},
-    {"key": "case-margin-2-b", "label": "Margin Case 2 B"},
-    {"key": "case-threshold-1-a", "label": "Threshold Case 1 A"},
-    {"key": "case-threshold-1-b", "label": "Threshold Case 1 B"},
-    {"key": "case-threshold-2-a", "label": "Threshold Case 2 A"},
-    {"key": "case-threshold-2-b", "label": "Threshold Case 2 B"},
-    {"key": "case-none-skill", "label": "Unmatched Case Skill"}
+    {
+      "key": "accounting",
+      "label": "Accounting"
+    },
+    {
+      "key": "airflow",
+      "label": "Airflow"
+    },
+    {
+      "key": "analytics",
+      "label": "Analytics"
+    },
+    {
+      "key": "assessment-design",
+      "label": "Assessment Design"
+    },
+    {
+      "key": "audit",
+      "label": "Audit"
+    },
+    {
+      "key": "case-cybersecurity-draft-a",
+      "label": "Case Cybersecurity Draft A"
+    },
+    {
+      "key": "case-cybersecurity-draft-b",
+      "label": "Case Cybersecurity Draft B"
+    },
+    {
+      "key": "case-cybersecurity-lift-a",
+      "label": "Case Cybersecurity Lift A"
+    },
+    {
+      "key": "case-cybersecurity-lift-b",
+      "label": "Case Cybersecurity Lift B"
+    },
+    {
+      "key": "case-cybersecurity-mis-a",
+      "label": "Case Cybersecurity Mis A"
+    },
+    {
+      "key": "case-cybersecurity-mis-b",
+      "label": "Case Cybersecurity Mis B"
+    },
+    {
+      "key": "case-cybersecurity-wrong-a",
+      "label": "Case Cybersecurity Wrong A"
+    },
+    {
+      "key": "case-cybersecurity-wrong-b",
+      "label": "Case Cybersecurity Wrong B"
+    },
+    {
+      "key": "case-education-draft-a",
+      "label": "Case Education Draft A"
+    },
+    {
+      "key": "case-education-draft-b",
+      "label": "Case Education Draft B"
+    },
+    {
+      "key": "case-education-lift-a",
+      "label": "Case Education Lift A"
+    },
+    {
+      "key": "case-education-lift-b",
+      "label": "Case Education Lift B"
+    },
+    {
+      "key": "case-education-mis-a",
+      "label": "Case Education Mis A"
+    },
+    {
+      "key": "case-education-mis-b",
+      "label": "Case Education Mis B"
+    },
+    {
+      "key": "case-education-wrong-a",
+      "label": "Case Education Wrong A"
+    },
+    {
+      "key": "case-education-wrong-b",
+      "label": "Case Education Wrong B"
+    },
+    {
+      "key": "case-hospitality-draft-a",
+      "label": "Case Hospitality Draft A"
+    },
+    {
+      "key": "case-hospitality-draft-b",
+      "label": "Case Hospitality Draft B"
+    },
+    {
+      "key": "case-hospitality-lift-a",
+      "label": "Case Hospitality Lift A"
+    },
+    {
+      "key": "case-hospitality-lift-b",
+      "label": "Case Hospitality Lift B"
+    },
+    {
+      "key": "case-hospitality-mis-a",
+      "label": "Case Hospitality Mis A"
+    },
+    {
+      "key": "case-hospitality-mis-b",
+      "label": "Case Hospitality Mis B"
+    },
+    {
+      "key": "case-hospitality-wrong-a",
+      "label": "Case Hospitality Wrong A"
+    },
+    {
+      "key": "case-hospitality-wrong-b",
+      "label": "Case Hospitality Wrong B"
+    },
+    {
+      "key": "case-legal-draft-a",
+      "label": "Case Legal Draft A"
+    },
+    {
+      "key": "case-legal-draft-b",
+      "label": "Case Legal Draft B"
+    },
+    {
+      "key": "case-legal-lift-a",
+      "label": "Case Legal Lift A"
+    },
+    {
+      "key": "case-legal-lift-b",
+      "label": "Case Legal Lift B"
+    },
+    {
+      "key": "case-legal-mis-a",
+      "label": "Case Legal Mis A"
+    },
+    {
+      "key": "case-legal-mis-b",
+      "label": "Case Legal Mis B"
+    },
+    {
+      "key": "case-legal-wrong-a",
+      "label": "Case Legal Wrong A"
+    },
+    {
+      "key": "case-legal-wrong-b",
+      "label": "Case Legal Wrong B"
+    },
+    {
+      "key": "case-lift-1-a",
+      "label": "Lift Case 1 A"
+    },
+    {
+      "key": "case-lift-1-b",
+      "label": "Lift Case 1 B"
+    },
+    {
+      "key": "case-lift-2-a",
+      "label": "Lift Case 2 A"
+    },
+    {
+      "key": "case-lift-2-b",
+      "label": "Lift Case 2 B"
+    },
+    {
+      "key": "case-lift-3-a",
+      "label": "Lift Case 3 A"
+    },
+    {
+      "key": "case-lift-3-b",
+      "label": "Lift Case 3 B"
+    },
+    {
+      "key": "case-margin-1-a",
+      "label": "Margin Case 1 A"
+    },
+    {
+      "key": "case-margin-1-b",
+      "label": "Margin Case 1 B"
+    },
+    {
+      "key": "case-margin-2-a",
+      "label": "Margin Case 2 A"
+    },
+    {
+      "key": "case-margin-2-b",
+      "label": "Margin Case 2 B"
+    },
+    {
+      "key": "case-none-skill",
+      "label": "Unmatched Case Skill"
+    },
+    {
+      "key": "case-operations-draft-a",
+      "label": "Case Operations Draft A"
+    },
+    {
+      "key": "case-operations-draft-b",
+      "label": "Case Operations Draft B"
+    },
+    {
+      "key": "case-operations-lift-a",
+      "label": "Case Operations Lift A"
+    },
+    {
+      "key": "case-operations-lift-b",
+      "label": "Case Operations Lift B"
+    },
+    {
+      "key": "case-operations-mis-a",
+      "label": "Case Operations Mis A"
+    },
+    {
+      "key": "case-operations-mis-b",
+      "label": "Case Operations Mis B"
+    },
+    {
+      "key": "case-operations-wrong-a",
+      "label": "Case Operations Wrong A"
+    },
+    {
+      "key": "case-operations-wrong-b",
+      "label": "Case Operations Wrong B"
+    },
+    {
+      "key": "case-research-draft-a",
+      "label": "Case Research Draft A"
+    },
+    {
+      "key": "case-research-draft-b",
+      "label": "Case Research Draft B"
+    },
+    {
+      "key": "case-research-lift-a",
+      "label": "Case Research Lift A"
+    },
+    {
+      "key": "case-research-lift-b",
+      "label": "Case Research Lift B"
+    },
+    {
+      "key": "case-research-mis-a",
+      "label": "Case Research Mis A"
+    },
+    {
+      "key": "case-research-mis-b",
+      "label": "Case Research Mis B"
+    },
+    {
+      "key": "case-research-wrong-a",
+      "label": "Case Research Wrong A"
+    },
+    {
+      "key": "case-research-wrong-b",
+      "label": "Case Research Wrong B"
+    },
+    {
+      "key": "case-sales-draft-a",
+      "label": "Case Sales Draft A"
+    },
+    {
+      "key": "case-sales-draft-b",
+      "label": "Case Sales Draft B"
+    },
+    {
+      "key": "case-sales-lift-a",
+      "label": "Case Sales Lift A"
+    },
+    {
+      "key": "case-sales-lift-b",
+      "label": "Case Sales Lift B"
+    },
+    {
+      "key": "case-sales-mis-a",
+      "label": "Case Sales Mis A"
+    },
+    {
+      "key": "case-sales-mis-b",
+      "label": "Case Sales Mis B"
+    },
+    {
+      "key": "case-sales-wrong-a",
+      "label": "Case Sales Wrong A"
+    },
+    {
+      "key": "case-sales-wrong-b",
+      "label": "Case Sales Wrong B"
+    },
+    {
+      "key": "case-threshold-1-a",
+      "label": "Threshold Case 1 A"
+    },
+    {
+      "key": "case-threshold-1-b",
+      "label": "Threshold Case 1 B"
+    },
+    {
+      "key": "case-threshold-2-a",
+      "label": "Threshold Case 2 A"
+    },
+    {
+      "key": "case-threshold-2-b",
+      "label": "Threshold Case 2 B"
+    },
+    {
+      "key": "case-wrong-1-a",
+      "label": "Wrong Case 1 A"
+    },
+    {
+      "key": "case-wrong-1-b",
+      "label": "Wrong Case 1 B"
+    },
+    {
+      "key": "case-wrong-2-a",
+      "label": "Wrong Case 2 A"
+    },
+    {
+      "key": "case-wrong-2-b",
+      "label": "Wrong Case 2 B"
+    },
+    {
+      "key": "case-wrong-3-a",
+      "label": "Wrong Case 3 A"
+    },
+    {
+      "key": "case-wrong-3-b",
+      "label": "Wrong Case 3 B"
+    },
+    {
+      "key": "compliance",
+      "label": "Compliance"
+    },
+    {
+      "key": "contract-law",
+      "label": "Contract Law"
+    },
+    {
+      "key": "copywriting",
+      "label": "Copywriting"
+    },
+    {
+      "key": "crm",
+      "label": "Crm"
+    },
+    {
+      "key": "curriculum-design",
+      "label": "Curriculum Design"
+    },
+    {
+      "key": "customer-service",
+      "label": "Customer Service"
+    },
+    {
+      "key": "ehr",
+      "label": "EHR"
+    },
+    {
+      "key": "erp",
+      "label": "Erp"
+    },
+    {
+      "key": "event-planning",
+      "label": "Event Planning"
+    },
+    {
+      "key": "excel",
+      "label": "Excel"
+    },
+    {
+      "key": "family-cybersecurity-signal",
+      "label": "Family Cybersecurity Signal"
+    },
+    {
+      "key": "family-education-signal",
+      "label": "Family Education Signal"
+    },
+    {
+      "key": "family-hospitality-signal",
+      "label": "Family Hospitality Signal"
+    },
+    {
+      "key": "family-legal-signal",
+      "label": "Family Legal Signal"
+    },
+    {
+      "key": "family-operations-signal",
+      "label": "Family Operations Signal"
+    },
+    {
+      "key": "family-research-signal",
+      "label": "Family Research Signal"
+    },
+    {
+      "key": "family-sales-signal",
+      "label": "Family Sales Signal"
+    },
+    {
+      "key": "figma",
+      "label": "Figma"
+    },
+    {
+      "key": "food-safety",
+      "label": "Food Safety"
+    },
+    {
+      "key": "forecasting",
+      "label": "Forecasting"
+    },
+    {
+      "key": "gdpr",
+      "label": "Gdpr"
+    },
+    {
+      "key": "hospitality-operations",
+      "label": "Hospitality Operations"
+    },
+    {
+      "key": "incident-response",
+      "label": "Incident Response"
+    },
+    {
+      "key": "inventory",
+      "label": "Inventory"
+    },
+    {
+      "key": "legal-research",
+      "label": "Legal Research"
+    },
+    {
+      "key": "literature-review",
+      "label": "Literature Review"
+    },
+    {
+      "key": "lms",
+      "label": "Lms"
+    },
+    {
+      "key": "logistics",
+      "label": "Logistics"
+    },
+    {
+      "key": "negotiation",
+      "label": "Negotiation"
+    },
+    {
+      "key": "node",
+      "label": "Node"
+    },
+    {
+      "key": "patient-care",
+      "label": "Patient Care"
+    },
+    {
+      "key": "pedagogy",
+      "label": "Pedagogy"
+    },
+    {
+      "key": "penetration-testing",
+      "label": "Penetration Testing"
+    },
+    {
+      "key": "project-management",
+      "label": "Project Management"
+    },
+    {
+      "key": "prospecting",
+      "label": "Prospecting"
+    },
+    {
+      "key": "prototyping",
+      "label": "Prototyping"
+    },
+    {
+      "key": "python",
+      "label": "Python"
+    },
+    {
+      "key": "r",
+      "label": "R"
+    },
+    {
+      "key": "react",
+      "label": "React"
+    },
+    {
+      "key": "risk-assessment",
+      "label": "Risk Assessment"
+    },
+    {
+      "key": "salesforce",
+      "label": "Salesforce"
+    },
+    {
+      "key": "scheduling",
+      "label": "Scheduling"
+    },
+    {
+      "key": "seo",
+      "label": "SEO"
+    },
+    {
+      "key": "siem",
+      "label": "Siem"
+    },
+    {
+      "key": "spark",
+      "label": "Spark"
+    },
+    {
+      "key": "sql",
+      "label": "SQL"
+    },
+    {
+      "key": "stakeholder-management",
+      "label": "Stakeholder Management"
+    },
+    {
+      "key": "statistics",
+      "label": "Statistics"
+    },
+    {
+      "key": "threat-modeling",
+      "label": "Threat Modeling"
+    },
+    {
+      "key": "triage",
+      "label": "Triage"
+    },
+    {
+      "key": "typescript",
+      "label": "TypeScript"
+    },
+    {
+      "key": "ux-research",
+      "label": "UX Research"
+    },
+    {
+      "key": "vendor-management",
+      "label": "Vendor Management"
+    }
   ],
   "jobs": [
-    {"code": "data-pipeline-engineer", "title": "Data Pipeline Engineer", "family": "data-engineering", "description": "Builds batch and streaming data pipelines with Python and SQL.", "skills": [{"key": "python", "level": 10, "importance": "core"}, {"key": "sql", "level": 10, "importance": "core"}]},
-    {"code": "frontend-engineer", "title": "Frontend Engineer", "family": "software-engineering", "description": "Builds accessible product interfaces in TypeScript and React.", "skills": [{"key": "typescript", "level": 10, "importance": "core"}, {"key": "react", "level": 10, "importance": "core"}]},
-    {"code": "product-designer", "title": "Product Designer", "family": "product-design", "description": "Designs product flows and prototypes in Figma.", "skills": [{"key": "figma", "level": 10, "importance": "core"}, {"key": "prototyping", "level": 10, "importance": "core"}]},
-    {"code": "growth-marketer", "title": "Growth Marketer", "family": "marketing", "description": "Runs SEO and copywriting experiments for growth.", "skills": [{"key": "seo", "level": 10, "importance": "core"}, {"key": "copywriting", "level": 10, "importance": "core"}]},
-    {"code": "registered-nurse", "title": "Registered Nurse", "family": "healthcare", "description": "Provides patient care and triage in a clinic.", "skills": [{"key": "patient-care", "level": 10, "importance": "core"}, {"key": "triage", "level": 10, "importance": "core"}]},
-    {"code": "financial-analyst", "title": "Financial Analyst", "family": "finance", "description": "Builds accounting models and reports in Excel.", "skills": [{"key": "accounting", "level": 10, "importance": "core"}, {"key": "excel", "level": 10, "importance": "core"}]},
-
-    {"code": "data-warehouse-architect", "title": "Data Warehouse Architect", "family": "data-engineering", "description": "Designs warehouse models with Spark and Airflow.", "skills": [{"key": "spark", "level": 10, "importance": "core"}, {"key": "airflow", "level": 10, "importance": "core"}, {"key": "sql", "level": 6, "importance": "important"}]},
-    {"code": "backend-engineer", "title": "Backend Engineer", "family": "software-engineering", "description": "Builds services in Node and SQL with a TypeScript surface.", "skills": [{"key": "node", "level": 10, "importance": "core"}, {"key": "sql", "level": 8, "importance": "core"}, {"key": "typescript", "level": 6, "importance": "important"}]},
-    {"code": "ux-researcher", "title": "UX Researcher", "family": "product-design", "description": "Runs UX research studies and analytics reviews.", "skills": [{"key": "ux-research", "level": 10, "importance": "core"}, {"key": "analytics", "level": 8, "importance": "core"}]},
-    {"code": "content-strategist", "title": "Content Strategist", "family": "marketing", "description": "Plans content and copywriting with analytics.", "skills": [{"key": "copywriting", "level": 8, "importance": "core"}, {"key": "analytics", "level": 10, "importance": "core"}]},
-    {"code": "clinic-coordinator", "title": "Clinic Coordinator", "family": "healthcare", "description": "Coordinates patient care and EHR records.", "skills": [{"key": "ehr", "level": 10, "importance": "core"}, {"key": "patient-care", "level": 6, "importance": "important"}]},
-    {"code": "auditor", "title": "Auditor", "family": "finance", "description": "Audits accounts and builds Excel workpapers.", "skills": [{"key": "audit", "level": 10, "importance": "core"}, {"key": "excel", "level": 8, "importance": "core"}]},
-
-    {"code": "wrong-expected-1", "title": "Wrong Expected 1", "family": "data-engineering", "description": "Expected role for wrong case one.", "skills": [{"key": "case-wrong-1-a", "level": 10, "importance": "core"}, {"key": "case-wrong-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core", "extra": [{"level": 5, "importance": "core"}]}},
-    {"code": "wrong-distractor-1", "title": "Wrong Distractor 1", "family": "software-engineering", "description": "Deterministic winner for wrong case one.", "skills": [{"key": "case-wrong-1-a", "level": 10, "importance": "core"}, {"key": "case-wrong-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core"}},
-    {"code": "wrong-expected-2", "title": "Wrong Expected 2", "family": "product-design", "description": "Expected role for wrong case two.", "skills": [{"key": "case-wrong-2-a", "level": 10, "importance": "core"}, {"key": "case-wrong-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core", "extra": [{"level": 5, "importance": "core"}]}},
-    {"code": "wrong-distractor-2", "title": "Wrong Distractor 2", "family": "marketing", "description": "Deterministic winner for wrong case two.", "skills": [{"key": "case-wrong-2-a", "level": 10, "importance": "core"}, {"key": "case-wrong-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core"}},
-    {"code": "wrong-expected-3", "title": "Wrong Expected 3", "family": "healthcare", "description": "Expected role for wrong case three.", "skills": [{"key": "case-wrong-3-a", "level": 10, "importance": "core"}, {"key": "case-wrong-3-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core", "extra": [{"level": 5, "importance": "core"}]}},
-    {"code": "wrong-distractor-3", "title": "Wrong Distractor 3", "family": "finance", "description": "Deterministic winner for wrong case three.", "skills": [{"key": "case-wrong-3-a", "level": 10, "importance": "core"}, {"key": "case-wrong-3-b", "level": 10, "importance": "core"}], "fillers": {"count": 3, "level": 10, "importance": "core"}},
-
-    {"code": "lift-expected-1", "title": "Lift Expected 1", "family": "data-engineering", "description": "Expected role for lift case one.", "skills": [{"key": "case-lift-1-a", "level": 10, "importance": "core"}, {"key": "case-lift-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 4, "level": 10, "importance": "core", "extra": [{"level": 10, "importance": "important"}]}},
-    {"code": "lift-distractor-1", "title": "Lift Distractor 1", "family": "software-engineering", "description": "Weak deterministic candidate for lift case one.", "skills": [{"key": "case-lift-1-a", "level": 10, "importance": "core"}], "fillers": {"count": 9, "level": 10, "importance": "core"}},
-    {"code": "lift-expected-2", "title": "Lift Expected 2", "family": "product-design", "description": "Expected role for lift case two.", "skills": [{"key": "case-lift-2-a", "level": 10, "importance": "core"}, {"key": "case-lift-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 4, "level": 10, "importance": "core", "extra": [{"level": 10, "importance": "important"}]}},
-    {"code": "lift-distractor-2", "title": "Lift Distractor 2", "family": "marketing", "description": "Weak deterministic candidate for lift case two.", "skills": [{"key": "case-lift-2-a", "level": 10, "importance": "core"}], "fillers": {"count": 9, "level": 10, "importance": "core"}},
-    {"code": "lift-expected-3", "title": "Lift Expected 3", "family": "healthcare", "description": "Expected role for lift case three.", "skills": [{"key": "case-lift-3-a", "level": 10, "importance": "core"}, {"key": "case-lift-3-b", "level": 10, "importance": "core"}], "fillers": {"count": 4, "level": 10, "importance": "core", "extra": [{"level": 10, "importance": "important"}]}},
-    {"code": "lift-distractor-3", "title": "Lift Distractor 3", "family": "finance", "description": "Weak deterministic candidate for lift case three.", "skills": [{"key": "case-lift-3-a", "level": 10, "importance": "core"}], "fillers": {"count": 9, "level": 10, "importance": "core"}},
-
-    {"code": "margin-expected-1", "title": "Margin Expected 1", "family": "data-engineering", "description": "Expected role for margin case one.", "skills": [{"key": "case-margin-1-a", "level": 10, "importance": "core"}, {"key": "case-margin-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 14, "level": 10, "importance": "bonus"}},
-    {"code": "margin-distractor-1", "title": "Margin Distractor 1", "family": "software-engineering", "description": "Near-tie deterministic candidate for margin case one.", "skills": [{"key": "case-margin-1-a", "level": 10, "importance": "core"}, {"key": "case-margin-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 13, "level": 10, "importance": "bonus"}},
-    {"code": "margin-expected-2", "title": "Margin Expected 2", "family": "product-design", "description": "Expected role for margin case two.", "skills": [{"key": "case-margin-2-a", "level": 10, "importance": "core"}, {"key": "case-margin-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 14, "level": 10, "importance": "bonus"}},
-    {"code": "margin-distractor-2", "title": "Margin Distractor 2", "family": "marketing", "description": "Near-tie deterministic candidate for margin case two.", "skills": [{"key": "case-margin-2-a", "level": 10, "importance": "core"}, {"key": "case-margin-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 13, "level": 10, "importance": "bonus"}},
-
-    {"code": "threshold-expected-1", "title": "Threshold Expected 1", "family": "data-engineering", "description": "Expected role for threshold case one.", "skills": [{"key": "case-threshold-1-a", "level": 10, "importance": "core"}, {"key": "case-threshold-1-b", "level": 10, "importance": "core"}], "fillers": {"count": 24, "level": 10, "importance": "bonus"}},
-    {"code": "threshold-distractor-1", "title": "Threshold Distractor 1", "family": "software-engineering", "description": "Weak deterministic candidate for threshold case one.", "skills": [{"key": "case-threshold-1-a", "level": 10, "importance": "core"}], "fillers": {"count": 17, "level": 10, "importance": "bonus"}},
-    {"code": "threshold-expected-2", "title": "Threshold Expected 2", "family": "product-design", "description": "Expected role for threshold case two.", "skills": [{"key": "case-threshold-2-a", "level": 10, "importance": "core"}, {"key": "case-threshold-2-b", "level": 10, "importance": "core"}], "fillers": {"count": 24, "level": 10, "importance": "bonus"}},
-    {"code": "threshold-distractor-2", "title": "Threshold Distractor 2", "family": "marketing", "description": "Weak deterministic candidate for threshold case two.", "skills": [{"key": "case-threshold-2-a", "level": 10, "importance": "core"}], "fillers": {"count": 17, "level": 10, "importance": "bonus"}}
+    {
+      "code": "data-pipeline-engineer",
+      "title": "Data Pipeline Engineer",
+      "family": "data-engineering",
+      "description": "Builds batch and streaming data pipelines with Python and SQL.",
+      "skills": [
+        {
+          "key": "python",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "sql",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "frontend-engineer",
+      "title": "Frontend Engineer",
+      "family": "software-engineering",
+      "description": "Builds accessible product interfaces in TypeScript and React.",
+      "skills": [
+        {
+          "key": "typescript",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "react",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "product-designer",
+      "title": "Product Designer",
+      "family": "product-design",
+      "description": "Designs product flows and prototypes in Figma.",
+      "skills": [
+        {
+          "key": "figma",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "prototyping",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "growth-marketer",
+      "title": "Growth Marketer",
+      "family": "marketing",
+      "description": "Runs SEO and copywriting experiments for growth.",
+      "skills": [
+        {
+          "key": "seo",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "copywriting",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "registered-nurse",
+      "title": "Registered Nurse",
+      "family": "healthcare",
+      "description": "Provides patient care and triage in a clinic.",
+      "skills": [
+        {
+          "key": "patient-care",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "triage",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "financial-analyst",
+      "title": "Financial Analyst",
+      "family": "finance",
+      "description": "Builds accounting models and reports in Excel.",
+      "skills": [
+        {
+          "key": "accounting",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "excel",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "data-warehouse-architect",
+      "title": "Data Warehouse Architect",
+      "family": "data-engineering",
+      "description": "Designs warehouse models with Spark and Airflow.",
+      "skills": [
+        {
+          "key": "spark",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "airflow",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "sql",
+          "level": 6,
+          "importance": "important"
+        }
+      ]
+    },
+    {
+      "code": "backend-engineer",
+      "title": "Backend Engineer",
+      "family": "software-engineering",
+      "description": "Builds services in Node and SQL with a TypeScript surface.",
+      "skills": [
+        {
+          "key": "node",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "sql",
+          "level": 8,
+          "importance": "core"
+        },
+        {
+          "key": "typescript",
+          "level": 6,
+          "importance": "important"
+        }
+      ]
+    },
+    {
+      "code": "ux-researcher",
+      "title": "UX Researcher",
+      "family": "product-design",
+      "description": "Runs UX research studies and analytics reviews.",
+      "skills": [
+        {
+          "key": "ux-research",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "analytics",
+          "level": 8,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "content-strategist",
+      "title": "Content Strategist",
+      "family": "marketing",
+      "description": "Plans content and copywriting with analytics.",
+      "skills": [
+        {
+          "key": "copywriting",
+          "level": 8,
+          "importance": "core"
+        },
+        {
+          "key": "analytics",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "clinic-coordinator",
+      "title": "Clinic Coordinator",
+      "family": "healthcare",
+      "description": "Coordinates patient care and EHR records.",
+      "skills": [
+        {
+          "key": "ehr",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "patient-care",
+          "level": 6,
+          "importance": "important"
+        }
+      ]
+    },
+    {
+      "code": "auditor",
+      "title": "Auditor",
+      "family": "finance",
+      "description": "Audits accounts and builds Excel workpapers.",
+      "skills": [
+        {
+          "key": "audit",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "excel",
+          "level": 8,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "wrong-expected-1",
+      "title": "Wrong Expected 1",
+      "family": "data-engineering",
+      "description": "Expected role for wrong case one.",
+      "skills": [
+        {
+          "key": "case-wrong-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "wrong-distractor-1",
+      "title": "Wrong Distractor 1",
+      "family": "software-engineering",
+      "description": "Deterministic winner for wrong case one.",
+      "skills": [
+        {
+          "key": "case-wrong-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "wrong-expected-2",
+      "title": "Wrong Expected 2",
+      "family": "product-design",
+      "description": "Expected role for wrong case two.",
+      "skills": [
+        {
+          "key": "case-wrong-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "wrong-distractor-2",
+      "title": "Wrong Distractor 2",
+      "family": "marketing",
+      "description": "Deterministic winner for wrong case two.",
+      "skills": [
+        {
+          "key": "case-wrong-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "wrong-expected-3",
+      "title": "Wrong Expected 3",
+      "family": "healthcare",
+      "description": "Expected role for wrong case three.",
+      "skills": [
+        {
+          "key": "case-wrong-3-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-3-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "wrong-distractor-3",
+      "title": "Wrong Distractor 3",
+      "family": "finance",
+      "description": "Deterministic winner for wrong case three.",
+      "skills": [
+        {
+          "key": "case-wrong-3-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-wrong-3-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "lift-expected-1",
+      "title": "Lift Expected 1",
+      "family": "data-engineering",
+      "description": "Expected role for lift case one.",
+      "skills": [
+        {
+          "key": "case-lift-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-lift-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "lift-distractor-1",
+      "title": "Lift Distractor 1",
+      "family": "software-engineering",
+      "description": "Weak deterministic candidate for lift case one.",
+      "skills": [
+        {
+          "key": "case-lift-1-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "lift-expected-2",
+      "title": "Lift Expected 2",
+      "family": "product-design",
+      "description": "Expected role for lift case two.",
+      "skills": [
+        {
+          "key": "case-lift-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-lift-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "lift-distractor-2",
+      "title": "Lift Distractor 2",
+      "family": "marketing",
+      "description": "Weak deterministic candidate for lift case two.",
+      "skills": [
+        {
+          "key": "case-lift-2-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "lift-expected-3",
+      "title": "Lift Expected 3",
+      "family": "healthcare",
+      "description": "Expected role for lift case three.",
+      "skills": [
+        {
+          "key": "case-lift-3-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-lift-3-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "lift-distractor-3",
+      "title": "Lift Distractor 3",
+      "family": "finance",
+      "description": "Weak deterministic candidate for lift case three.",
+      "skills": [
+        {
+          "key": "case-lift-3-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "margin-expected-1",
+      "title": "Margin Expected 1",
+      "family": "data-engineering",
+      "description": "Expected role for margin case one.",
+      "skills": [
+        {
+          "key": "case-margin-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-margin-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 14,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "margin-distractor-1",
+      "title": "Margin Distractor 1",
+      "family": "software-engineering",
+      "description": "Near-tie deterministic candidate for margin case one.",
+      "skills": [
+        {
+          "key": "case-margin-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-margin-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 13,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "margin-expected-2",
+      "title": "Margin Expected 2",
+      "family": "product-design",
+      "description": "Expected role for margin case two.",
+      "skills": [
+        {
+          "key": "case-margin-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-margin-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 14,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "margin-distractor-2",
+      "title": "Margin Distractor 2",
+      "family": "marketing",
+      "description": "Near-tie deterministic candidate for margin case two.",
+      "skills": [
+        {
+          "key": "case-margin-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-margin-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 13,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "threshold-expected-1",
+      "title": "Threshold Expected 1",
+      "family": "data-engineering",
+      "description": "Expected role for threshold case one.",
+      "skills": [
+        {
+          "key": "case-threshold-1-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-threshold-1-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "threshold-distractor-1",
+      "title": "Threshold Distractor 1",
+      "family": "software-engineering",
+      "description": "Weak deterministic candidate for threshold case one.",
+      "skills": [
+        {
+          "key": "case-threshold-1-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 17,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "threshold-expected-2",
+      "title": "Threshold Expected 2",
+      "family": "product-design",
+      "description": "Expected role for threshold case two.",
+      "skills": [
+        {
+          "key": "case-threshold-2-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-threshold-2-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 24,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "threshold-distractor-2",
+      "title": "Threshold Distractor 2",
+      "family": "marketing",
+      "description": "Weak deterministic candidate for threshold case two.",
+      "skills": [
+        {
+          "key": "case-threshold-2-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 17,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "operations-coordinator",
+      "title": "Operations Coordinator",
+      "family": "operations",
+      "description": "Representative synthetic role for the operations family.",
+      "skills": [
+        {
+          "key": "project-management",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "vendor-management",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "supply-chain-analyst",
+      "title": "Supply Chain Analyst",
+      "family": "operations",
+      "description": "Representative synthetic role for the operations family.",
+      "skills": [
+        {
+          "key": "forecasting",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "erp",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "logistics-planner",
+      "title": "Logistics Planner",
+      "family": "operations",
+      "description": "Representative synthetic role for the operations family.",
+      "skills": [
+        {
+          "key": "logistics",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "forecasting",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "warehouse-manager",
+      "title": "Warehouse Manager",
+      "family": "operations",
+      "description": "Representative synthetic role for the operations family.",
+      "skills": [
+        {
+          "key": "inventory",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "vendor-management",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "operations-wrong-expected",
+      "title": "Operations Wrong Expected",
+      "family": "operations",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-operations-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "operations-wrong-distractor",
+      "title": "Operations Wrong Distractor",
+      "family": "operations",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-operations-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "operations-lift-expected",
+      "title": "Operations Lift Expected",
+      "family": "operations",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-operations-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "operations-lift-distractor",
+      "title": "Operations Lift Distractor",
+      "family": "operations",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-operations-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "operations-misleading-expected",
+      "title": "Operations Misleading Expected",
+      "family": "operations",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-operations-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "operations-misleading-distractor",
+      "title": "Operations Misleading Distractor",
+      "family": "operations",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-operations-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "operations-draft-expected",
+      "title": "Operations Draft Expected",
+      "family": "operations",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-operations-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "operations-draft-distractor",
+      "title": "Operations Draft Distractor",
+      "family": "operations",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-operations-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-operations-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "operations-family-anchor",
+      "title": "Operations Family Anchor",
+      "family": "operations",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-operations-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "account-executive",
+      "title": "Account Executive",
+      "family": "sales",
+      "description": "Representative synthetic role for the sales family.",
+      "skills": [
+        {
+          "key": "prospecting",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "negotiation",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "sales-engineer",
+      "title": "Sales Engineer",
+      "family": "sales",
+      "description": "Representative synthetic role for the sales family.",
+      "skills": [
+        {
+          "key": "salesforce",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "negotiation",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "customer-success-manager",
+      "title": "Customer Success Manager",
+      "family": "sales",
+      "description": "Representative synthetic role for the sales family.",
+      "skills": [
+        {
+          "key": "crm",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "stakeholder-management",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "sales-ops-analyst",
+      "title": "Sales Operations Analyst",
+      "family": "sales",
+      "description": "Representative synthetic role for the sales family.",
+      "skills": [
+        {
+          "key": "crm",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "analytics",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "sales-wrong-expected",
+      "title": "Sales Wrong Expected",
+      "family": "sales",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-sales-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "sales-wrong-distractor",
+      "title": "Sales Wrong Distractor",
+      "family": "sales",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-sales-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "sales-lift-expected",
+      "title": "Sales Lift Expected",
+      "family": "sales",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-sales-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "sales-lift-distractor",
+      "title": "Sales Lift Distractor",
+      "family": "sales",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-sales-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "sales-misleading-expected",
+      "title": "Sales Misleading Expected",
+      "family": "sales",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-sales-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "sales-misleading-distractor",
+      "title": "Sales Misleading Distractor",
+      "family": "sales",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-sales-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "sales-draft-expected",
+      "title": "Sales Draft Expected",
+      "family": "sales",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-sales-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "sales-draft-distractor",
+      "title": "Sales Draft Distractor",
+      "family": "sales",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-sales-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-sales-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "sales-family-anchor",
+      "title": "Sales Family Anchor",
+      "family": "sales",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-sales-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "security-analyst",
+      "title": "Security Analyst",
+      "family": "cybersecurity",
+      "description": "Representative synthetic role for the cybersecurity family.",
+      "skills": [
+        {
+          "key": "siem",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "incident-response",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "penetration-tester",
+      "title": "Penetration Tester",
+      "family": "cybersecurity",
+      "description": "Representative synthetic role for the cybersecurity family.",
+      "skills": [
+        {
+          "key": "penetration-testing",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "threat-modeling",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "security-engineer",
+      "title": "Security Engineer",
+      "family": "cybersecurity",
+      "description": "Representative synthetic role for the cybersecurity family.",
+      "skills": [
+        {
+          "key": "incident-response",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "threat-modeling",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "grc-specialist",
+      "title": "GRC Specialist",
+      "family": "cybersecurity",
+      "description": "Representative synthetic role for the cybersecurity family.",
+      "skills": [
+        {
+          "key": "risk-assessment",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "compliance",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "cybersecurity-wrong-expected",
+      "title": "Cybersecurity Wrong Expected",
+      "family": "cybersecurity",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "cybersecurity-wrong-distractor",
+      "title": "Cybersecurity Wrong Distractor",
+      "family": "cybersecurity",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "cybersecurity-lift-expected",
+      "title": "Cybersecurity Lift Expected",
+      "family": "cybersecurity",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "cybersecurity-lift-distractor",
+      "title": "Cybersecurity Lift Distractor",
+      "family": "cybersecurity",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "cybersecurity-misleading-expected",
+      "title": "Cybersecurity Misleading Expected",
+      "family": "cybersecurity",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "cybersecurity-misleading-distractor",
+      "title": "Cybersecurity Misleading Distractor",
+      "family": "cybersecurity",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "cybersecurity-draft-expected",
+      "title": "Cybersecurity Draft Expected",
+      "family": "cybersecurity",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "cybersecurity-draft-distractor",
+      "title": "Cybersecurity Draft Distractor",
+      "family": "cybersecurity",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-cybersecurity-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-cybersecurity-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "cybersecurity-family-anchor",
+      "title": "Cybersecurity Family Anchor",
+      "family": "cybersecurity",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-cybersecurity-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "curriculum-designer",
+      "title": "Curriculum Designer",
+      "family": "education",
+      "description": "Representative synthetic role for the education family.",
+      "skills": [
+        {
+          "key": "curriculum-design",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "pedagogy",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "instructional-coordinator",
+      "title": "Instructional Coordinator",
+      "family": "education",
+      "description": "Representative synthetic role for the education family.",
+      "skills": [
+        {
+          "key": "lms",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "pedagogy",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "education-program-manager",
+      "title": "Education Program Manager",
+      "family": "education",
+      "description": "Representative synthetic role for the education family.",
+      "skills": [
+        {
+          "key": "assessment-design",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "project-management",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "learning-designer",
+      "title": "Learning Designer",
+      "family": "education",
+      "description": "Representative synthetic role for the education family.",
+      "skills": [
+        {
+          "key": "curriculum-design",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "lms",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "education-wrong-expected",
+      "title": "Education Wrong Expected",
+      "family": "education",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-education-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "education-wrong-distractor",
+      "title": "Education Wrong Distractor",
+      "family": "education",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-education-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "education-lift-expected",
+      "title": "Education Lift Expected",
+      "family": "education",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-education-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "education-lift-distractor",
+      "title": "Education Lift Distractor",
+      "family": "education",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-education-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "education-misleading-expected",
+      "title": "Education Misleading Expected",
+      "family": "education",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-education-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "education-misleading-distractor",
+      "title": "Education Misleading Distractor",
+      "family": "education",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-education-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "education-draft-expected",
+      "title": "Education Draft Expected",
+      "family": "education",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-education-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "education-draft-distractor",
+      "title": "Education Draft Distractor",
+      "family": "education",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-education-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-education-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "education-family-anchor",
+      "title": "Education Family Anchor",
+      "family": "education",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-education-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "contract-manager",
+      "title": "Contract Manager",
+      "family": "legal",
+      "description": "Representative synthetic role for the legal family.",
+      "skills": [
+        {
+          "key": "contract-law",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "negotiation",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "compliance-officer",
+      "title": "Compliance Officer",
+      "family": "legal",
+      "description": "Representative synthetic role for the legal family.",
+      "skills": [
+        {
+          "key": "compliance",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "risk-assessment",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "paralegal",
+      "title": "Paralegal",
+      "family": "legal",
+      "description": "Representative synthetic role for the legal family.",
+      "skills": [
+        {
+          "key": "legal-research",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "contract-law",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "privacy-counsel",
+      "title": "Privacy Counsel",
+      "family": "legal",
+      "description": "Representative synthetic role for the legal family.",
+      "skills": [
+        {
+          "key": "gdpr",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "compliance",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "legal-wrong-expected",
+      "title": "Legal Wrong Expected",
+      "family": "legal",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-legal-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "legal-wrong-distractor",
+      "title": "Legal Wrong Distractor",
+      "family": "legal",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-legal-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "legal-lift-expected",
+      "title": "Legal Lift Expected",
+      "family": "legal",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-legal-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "legal-lift-distractor",
+      "title": "Legal Lift Distractor",
+      "family": "legal",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-legal-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "legal-misleading-expected",
+      "title": "Legal Misleading Expected",
+      "family": "legal",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-legal-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "legal-misleading-distractor",
+      "title": "Legal Misleading Distractor",
+      "family": "legal",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-legal-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "legal-draft-expected",
+      "title": "Legal Draft Expected",
+      "family": "legal",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-legal-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "legal-draft-distractor",
+      "title": "Legal Draft Distractor",
+      "family": "legal",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-legal-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-legal-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "legal-family-anchor",
+      "title": "Legal Family Anchor",
+      "family": "legal",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-legal-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "research-scientist",
+      "title": "Research Scientist",
+      "family": "research",
+      "description": "Representative synthetic role for the research family.",
+      "skills": [
+        {
+          "key": "statistics",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "literature-review",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "data-scientist",
+      "title": "Data Scientist",
+      "family": "research",
+      "description": "Representative synthetic role for the research family.",
+      "skills": [
+        {
+          "key": "statistics",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "python",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "sql",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "lab-manager",
+      "title": "Lab Manager",
+      "family": "research",
+      "description": "Representative synthetic role for the research family.",
+      "skills": [
+        {
+          "key": "project-management",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "inventory",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "biostatistician",
+      "title": "Biostatistician",
+      "family": "research",
+      "description": "Representative synthetic role for the research family.",
+      "skills": [
+        {
+          "key": "statistics",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "r",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "research-wrong-expected",
+      "title": "Research Wrong Expected",
+      "family": "research",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-research-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "research-wrong-distractor",
+      "title": "Research Wrong Distractor",
+      "family": "research",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-research-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "research-lift-expected",
+      "title": "Research Lift Expected",
+      "family": "research",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-research-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "research-lift-distractor",
+      "title": "Research Lift Distractor",
+      "family": "research",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-research-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "research-misleading-expected",
+      "title": "Research Misleading Expected",
+      "family": "research",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-research-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "research-misleading-distractor",
+      "title": "Research Misleading Distractor",
+      "family": "research",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-research-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "research-draft-expected",
+      "title": "Research Draft Expected",
+      "family": "research",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-research-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "research-draft-distractor",
+      "title": "Research Draft Distractor",
+      "family": "research",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-research-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-research-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "research-family-anchor",
+      "title": "Research Family Anchor",
+      "family": "research",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-research-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    },
+    {
+      "code": "hotel-manager",
+      "title": "Hotel Manager",
+      "family": "hospitality",
+      "description": "Representative synthetic role for the hospitality family.",
+      "skills": [
+        {
+          "key": "hospitality-operations",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "customer-service",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "event-planner",
+      "title": "Event Planner",
+      "family": "hospitality",
+      "description": "Representative synthetic role for the hospitality family.",
+      "skills": [
+        {
+          "key": "event-planning",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "vendor-management",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "front-desk-supervisor",
+      "title": "Front Desk Supervisor",
+      "family": "hospitality",
+      "description": "Representative synthetic role for the hospitality family.",
+      "skills": [
+        {
+          "key": "customer-service",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "scheduling",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "food-service-manager",
+      "title": "Food Service Manager",
+      "family": "hospitality",
+      "description": "Representative synthetic role for the hospitality family.",
+      "skills": [
+        {
+          "key": "food-safety",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "inventory",
+          "level": 10,
+          "importance": "core"
+        }
+      ]
+    },
+    {
+      "code": "hospitality-wrong-expected",
+      "title": "Hospitality Wrong Expected",
+      "family": "hospitality",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-hospitality-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 5,
+            "importance": "core"
+          }
+        ]
+      }
+    },
+    {
+      "code": "hospitality-wrong-distractor",
+      "title": "Hospitality Wrong Distractor",
+      "family": "hospitality",
+      "description": "Synthetic wrong-winner pair role.",
+      "skills": [
+        {
+          "key": "case-hospitality-wrong-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-wrong-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "hospitality-lift-expected",
+      "title": "Hospitality Lift Expected",
+      "family": "hospitality",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-hospitality-lift-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-lift-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "hospitality-lift-distractor",
+      "title": "Hospitality Lift Distractor",
+      "family": "hospitality",
+      "description": "Synthetic below-threshold pair role.",
+      "skills": [
+        {
+          "key": "case-hospitality-lift-a",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 9,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "hospitality-misleading-expected",
+      "title": "Hospitality Misleading Expected",
+      "family": "hospitality",
+      "description": "Deterministic top that a heavier semantic weight would overturn.",
+      "skills": [
+        {
+          "key": "case-hospitality-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core"
+      }
+    },
+    {
+      "code": "hospitality-misleading-distractor",
+      "title": "Hospitality Misleading Distractor",
+      "family": "hospitality",
+      "description": "Semantic-favoured runner-up that must not win at the pinned blend.",
+      "skills": [
+        {
+          "key": "case-hospitality-mis-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-mis-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 3,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "bonus"
+          }
+        ]
+      }
+    },
+    {
+      "code": "hospitality-draft-expected",
+      "title": "Hospitality Draft Expected",
+      "family": "hospitality",
+      "description": "Synthetic draft-gate expected role.",
+      "skills": [
+        {
+          "key": "case-hospitality-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 5,
+        "level": 10,
+        "importance": "core",
+        "extra": [
+          {
+            "level": 10,
+            "importance": "important"
+          }
+        ]
+      }
+    },
+    {
+      "code": "hospitality-draft-distractor",
+      "title": "Hospitality Draft Distractor",
+      "family": "hospitality",
+      "description": "Synthetic draft role that must never win a published rerank.",
+      "skills": [
+        {
+          "key": "case-hospitality-draft-a",
+          "level": 10,
+          "importance": "core"
+        },
+        {
+          "key": "case-hospitality-draft-b",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 4,
+        "level": 10,
+        "importance": "core"
+      },
+      "status": "draft"
+    },
+    {
+      "code": "hospitality-family-anchor",
+      "title": "Hospitality Family Anchor",
+      "family": "hospitality",
+      "description": "Weak single-skill anchor for the family-only fallback cases.",
+      "skills": [
+        {
+          "key": "family-hospitality-signal",
+          "level": 10,
+          "importance": "core"
+        }
+      ],
+      "fillers": {
+        "count": 6,
+        "level": 10,
+        "importance": "bonus"
+      }
+    }
   ],
   "cases": [
-    {"id": "clear-data-pipeline", "title": "Data Pipeline Engineer", "description": "Builds batch and streaming data pipelines with Python and SQL.", "skills": ["python", "sql"], "expected_job": "data-pipeline-engineer", "expected_family": "data-engineering", "ambiguous": false, "semantic": {"data-pipeline-engineer": 0.80}},
-    {"id": "clear-frontend", "title": "Frontend Engineer", "description": "Builds accessible product interfaces in TypeScript and React.", "skills": ["typescript", "react"], "expected_job": "frontend-engineer", "expected_family": "software-engineering", "ambiguous": false, "semantic": {"frontend-engineer": 0.80}},
-    {"id": "clear-product-design", "title": "Product Designer", "description": "Designs product flows and prototypes in Figma.", "skills": ["figma", "prototyping"], "expected_job": "product-designer", "expected_family": "product-design", "ambiguous": false, "semantic": {"product-designer": 0.80}},
-    {"id": "clear-growth", "title": "Growth Marketer", "description": "Runs SEO and copywriting experiments for growth.", "skills": ["seo", "copywriting"], "expected_job": "growth-marketer", "expected_family": "marketing", "ambiguous": false, "semantic": {"growth-marketer": 0.80}},
-    {"id": "clear-nurse", "title": "Registered Nurse", "description": "Provides patient care and triage in a clinic.", "skills": ["patient-care", "triage"], "expected_job": "registered-nurse", "expected_family": "healthcare", "ambiguous": false, "semantic": {"registered-nurse": 0.80}},
-    {"id": "clear-finance", "title": "Financial Analyst", "description": "Builds accounting models and reports in Excel.", "skills": ["accounting", "excel"], "expected_job": "financial-analyst", "expected_family": "finance", "ambiguous": false, "semantic": {"financial-analyst": 0.80}},
-
-    {"id": "wrong-1", "title": "Wrong Case One", "description": "Ambiguous case one where the deterministic winner is the wrong role.", "skills": ["case-wrong-1-a", "case-wrong-1-b"], "expected_job": "wrong-expected-1", "expected_family": "data-engineering", "ambiguous": true, "semantic": {"wrong-expected-1": 0.75, "wrong-distractor-1": 0.10}},
-    {"id": "wrong-2", "title": "Wrong Case Two", "description": "Ambiguous case two where the deterministic winner is the wrong role.", "skills": ["case-wrong-2-a", "case-wrong-2-b"], "expected_job": "wrong-expected-2", "expected_family": "product-design", "ambiguous": true, "semantic": {"wrong-expected-2": 0.75, "wrong-distractor-2": 0.10}},
-    {"id": "wrong-3", "title": "Wrong Case Three", "description": "Ambiguous case three where the deterministic winner is the wrong role.", "skills": ["case-wrong-3-a", "case-wrong-3-b"], "expected_job": "wrong-expected-3", "expected_family": "healthcare", "ambiguous": true, "semantic": {"wrong-expected-3": 0.75, "wrong-distractor-3": 0.10}},
-
-    {"id": "lift-1", "title": "Lift Case One", "description": "Below-threshold case one that the rerank lifts to the expected role.", "skills": ["case-lift-1-a", "case-lift-1-b"], "expected_job": "lift-expected-1", "expected_family": "data-engineering", "ambiguous": true, "semantic": {"lift-expected-1": 0.55, "lift-distractor-1": 0.10}},
-    {"id": "lift-2", "title": "Lift Case Two", "description": "Below-threshold case two that the rerank lifts to the expected role.", "skills": ["case-lift-2-a", "case-lift-2-b"], "expected_job": "lift-expected-2", "expected_family": "product-design", "ambiguous": true, "semantic": {"lift-expected-2": 0.55, "lift-distractor-2": 0.10}},
-    {"id": "lift-3", "title": "Lift Case Three", "description": "Below-threshold case three that the rerank lifts to the expected role.", "skills": ["case-lift-3-a", "case-lift-3-b"], "expected_job": "lift-expected-3", "expected_family": "healthcare", "ambiguous": true, "semantic": {"lift-expected-3": 0.55, "lift-distractor-3": 0.10}},
-
-    {"id": "margin-1", "title": "Margin Case One", "description": "Near-tie case one that must abstain because the rerank margin is too small.", "skills": ["case-margin-1-a", "case-margin-1-b"], "expected_job": "margin-expected-1", "expected_family": "data-engineering", "ambiguous": true, "semantic": {"margin-expected-1": 0.55, "margin-distractor-1": 0.50}},
-    {"id": "margin-2", "title": "Margin Case Two", "description": "Near-tie case two that must abstain because the rerank margin is too small.", "skills": ["case-margin-2-a", "case-margin-2-b"], "expected_job": "margin-expected-2", "expected_family": "product-design", "ambiguous": true, "semantic": {"margin-expected-2": 0.55, "margin-distractor-2": 0.50}},
-
-    {"id": "threshold-1", "title": "Threshold Case One", "description": "Weak case one that must abstain because the blended score is below the job floor.", "skills": ["case-threshold-1-a", "case-threshold-1-b"], "expected_job": "threshold-expected-1", "expected_family": "data-engineering", "ambiguous": true, "semantic": {"threshold-expected-1": 0.40, "threshold-distractor-1": 0.20}},
-    {"id": "threshold-2", "title": "Threshold Case Two", "description": "Weak case two that must abstain because the blended score is below the job floor.", "skills": ["case-threshold-2-a", "case-threshold-2-b"], "expected_job": "threshold-expected-2", "expected_family": "product-design", "ambiguous": true, "semantic": {"threshold-expected-2": 0.40, "threshold-distractor-2": 0.20}},
-
-    {"id": "no-shared-skill", "title": "Unmatched Role", "description": "A posting whose only skill is unknown to the catalog.", "skills": ["case-none-skill"], "expected_job": null, "expected_family": null, "ambiguous": false, "semantic": {}}
+    {
+      "id": "clear-data-pipeline",
+      "title": "Data Pipeline Engineer",
+      "description": "Builds batch and streaming data pipelines with Python and SQL.",
+      "skills": [
+        "python",
+        "sql"
+      ],
+      "expected_job": "data-pipeline-engineer",
+      "expected_family": "data-engineering",
+      "ambiguous": false,
+      "semantic": {
+        "data-pipeline-engineer": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "clear-frontend",
+      "title": "Frontend Engineer",
+      "description": "Builds accessible product interfaces in TypeScript and React.",
+      "skills": [
+        "typescript",
+        "react"
+      ],
+      "expected_job": "frontend-engineer",
+      "expected_family": "software-engineering",
+      "ambiguous": false,
+      "semantic": {
+        "frontend-engineer": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "clear-product-design",
+      "title": "Product Designer",
+      "description": "Designs product flows and prototypes in Figma.",
+      "skills": [
+        "figma",
+        "prototyping"
+      ],
+      "expected_job": "product-designer",
+      "expected_family": "product-design",
+      "ambiguous": false,
+      "semantic": {
+        "product-designer": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "clear-growth",
+      "title": "Growth Marketer",
+      "description": "Runs SEO and copywriting experiments for growth.",
+      "skills": [
+        "seo",
+        "copywriting"
+      ],
+      "expected_job": "growth-marketer",
+      "expected_family": "marketing",
+      "ambiguous": false,
+      "semantic": {
+        "growth-marketer": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "clear-nurse",
+      "title": "Registered Nurse",
+      "description": "Provides patient care and triage in a clinic.",
+      "skills": [
+        "patient-care",
+        "triage"
+      ],
+      "expected_job": "registered-nurse",
+      "expected_family": "healthcare",
+      "ambiguous": false,
+      "semantic": {
+        "registered-nurse": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "clear-finance",
+      "title": "Financial Analyst",
+      "description": "Builds accounting models and reports in Excel.",
+      "skills": [
+        "accounting",
+        "excel"
+      ],
+      "expected_job": "financial-analyst",
+      "expected_family": "finance",
+      "ambiguous": false,
+      "semantic": {
+        "financial-analyst": 0.8
+      },
+      "kind": "clear",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "wrong-1",
+      "title": "Wrong Case One",
+      "description": "Ambiguous case one where the deterministic winner is the wrong role.",
+      "skills": [
+        "case-wrong-1-a",
+        "case-wrong-1-b"
+      ],
+      "expected_job": "wrong-expected-1",
+      "expected_family": "data-engineering",
+      "ambiguous": true,
+      "semantic": {
+        "wrong-expected-1": 0.75,
+        "wrong-distractor-1": 0.1
+      },
+      "kind": "wrong",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "wrong-2",
+      "title": "Wrong Case Two",
+      "description": "Ambiguous case two where the deterministic winner is the wrong role.",
+      "skills": [
+        "case-wrong-2-a",
+        "case-wrong-2-b"
+      ],
+      "expected_job": "wrong-expected-2",
+      "expected_family": "product-design",
+      "ambiguous": true,
+      "semantic": {
+        "wrong-expected-2": 0.75,
+        "wrong-distractor-2": 0.1
+      },
+      "kind": "wrong",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "wrong-3",
+      "title": "Wrong Case Three",
+      "description": "Ambiguous case three where the deterministic winner is the wrong role.",
+      "skills": [
+        "case-wrong-3-a",
+        "case-wrong-3-b"
+      ],
+      "expected_job": "wrong-expected-3",
+      "expected_family": "healthcare",
+      "ambiguous": true,
+      "semantic": {
+        "wrong-expected-3": 0.75,
+        "wrong-distractor-3": 0.1
+      },
+      "kind": "wrong",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "lift-1",
+      "title": "Lift Case One",
+      "description": "Below-threshold case one that the rerank lifts to the expected role.",
+      "skills": [
+        "case-lift-1-a",
+        "case-lift-1-b"
+      ],
+      "expected_job": "lift-expected-1",
+      "expected_family": "data-engineering",
+      "ambiguous": true,
+      "semantic": {
+        "lift-expected-1": 0.55,
+        "lift-distractor-1": 0.1
+      },
+      "kind": "lift",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "lift-2",
+      "title": "Lift Case Two",
+      "description": "Below-threshold case two that the rerank lifts to the expected role.",
+      "skills": [
+        "case-lift-2-a",
+        "case-lift-2-b"
+      ],
+      "expected_job": "lift-expected-2",
+      "expected_family": "product-design",
+      "ambiguous": true,
+      "semantic": {
+        "lift-expected-2": 0.55,
+        "lift-distractor-2": 0.1
+      },
+      "kind": "lift",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "lift-3",
+      "title": "Lift Case Three",
+      "description": "Below-threshold case three that the rerank lifts to the expected role.",
+      "skills": [
+        "case-lift-3-a",
+        "case-lift-3-b"
+      ],
+      "expected_job": "lift-expected-3",
+      "expected_family": "healthcare",
+      "ambiguous": true,
+      "semantic": {
+        "lift-expected-3": 0.55,
+        "lift-distractor-3": 0.1
+      },
+      "kind": "lift",
+      "expected_outcome": "job"
+    },
+    {
+      "id": "margin-1",
+      "title": "Margin Case One",
+      "description": "Near-tie case one that must abstain because the rerank margin is too small.",
+      "skills": [
+        "case-margin-1-a",
+        "case-margin-1-b"
+      ],
+      "expected_job": "margin-expected-1",
+      "expected_family": "data-engineering",
+      "ambiguous": true,
+      "semantic": {
+        "margin-expected-1": 0.55,
+        "margin-distractor-1": 0.5
+      },
+      "kind": "margin",
+      "expected_outcome": "none"
+    },
+    {
+      "id": "margin-2",
+      "title": "Margin Case Two",
+      "description": "Near-tie case two that must abstain because the rerank margin is too small.",
+      "skills": [
+        "case-margin-2-a",
+        "case-margin-2-b"
+      ],
+      "expected_job": "margin-expected-2",
+      "expected_family": "product-design",
+      "ambiguous": true,
+      "semantic": {
+        "margin-expected-2": 0.55,
+        "margin-distractor-2": 0.5
+      },
+      "kind": "margin",
+      "expected_outcome": "none"
+    },
+    {
+      "id": "threshold-1",
+      "title": "Threshold Case One",
+      "description": "Weak case one that must abstain because the blended score is below the job floor.",
+      "skills": [
+        "case-threshold-1-a",
+        "case-threshold-1-b"
+      ],
+      "expected_job": "threshold-expected-1",
+      "expected_family": "data-engineering",
+      "ambiguous": true,
+      "semantic": {
+        "threshold-expected-1": 0.4,
+        "threshold-distractor-1": 0.2
+      },
+      "kind": "threshold",
+      "expected_outcome": "none"
+    },
+    {
+      "id": "threshold-2",
+      "title": "Threshold Case Two",
+      "description": "Weak case two that must abstain because the blended score is below the job floor.",
+      "skills": [
+        "case-threshold-2-a",
+        "case-threshold-2-b"
+      ],
+      "expected_job": "threshold-expected-2",
+      "expected_family": "product-design",
+      "ambiguous": true,
+      "semantic": {
+        "threshold-expected-2": 0.4,
+        "threshold-distractor-2": 0.2
+      },
+      "kind": "threshold",
+      "expected_outcome": "none"
+    },
+    {
+      "id": "no-shared-skill",
+      "title": "Unmatched Role",
+      "description": "A posting whose only skill is unknown to the catalog.",
+      "skills": [
+        "case-none-skill"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "ambiguous": false,
+      "semantic": {},
+      "kind": "no_shared_skill",
+      "expected_outcome": "none"
+    },
+    {
+      "id": "clear-operations-coordinator",
+      "kind": "clear",
+      "title": "Operations Coordinator",
+      "description": "Clear deterministic match for Operations Coordinator.",
+      "skills": [
+        "project-management",
+        "vendor-management"
+      ],
+      "expected_job": "operations-coordinator",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "operations-coordinator": 0.8
+      }
+    },
+    {
+      "id": "clear-supply-chain-analyst",
+      "kind": "clear",
+      "title": "Supply Chain Analyst",
+      "description": "Clear deterministic match for Supply Chain Analyst.",
+      "skills": [
+        "forecasting",
+        "erp"
+      ],
+      "expected_job": "supply-chain-analyst",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "supply-chain-analyst": 0.8
+      }
+    },
+    {
+      "id": "clear-logistics-planner",
+      "kind": "clear",
+      "title": "Logistics Planner",
+      "description": "Clear deterministic match for Logistics Planner.",
+      "skills": [
+        "logistics",
+        "forecasting"
+      ],
+      "expected_job": "logistics-planner",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "logistics-planner": 0.8
+      }
+    },
+    {
+      "id": "clear-warehouse-manager",
+      "kind": "clear",
+      "title": "Warehouse Manager",
+      "description": "Clear deterministic match for Warehouse Manager.",
+      "skills": [
+        "inventory",
+        "vendor-management"
+      ],
+      "expected_job": "warehouse-manager",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "warehouse-manager": 0.8
+      }
+    },
+    {
+      "id": "wrong-operations",
+      "kind": "wrong",
+      "title": "Operations Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-operations-wrong-a",
+        "case-operations-wrong-b"
+      ],
+      "expected_job": "operations-wrong-expected",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "operations-wrong-expected": 0.75,
+        "operations-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-operations",
+      "kind": "lift",
+      "title": "Operations Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-operations-lift-a",
+        "case-operations-lift-b"
+      ],
+      "expected_job": "operations-lift-expected",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "operations-lift-expected": 0.55,
+        "operations-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-operations",
+      "kind": "margin",
+      "title": "Operations Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-operations-lift-a",
+        "case-operations-lift-b"
+      ],
+      "expected_job": "operations-lift-expected",
+      "expected_family": "operations",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "operations-lift-expected": 0.55,
+        "operations-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-operations",
+      "kind": "threshold",
+      "title": "Operations Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-operations-lift-a",
+        "case-operations-lift-b"
+      ],
+      "expected_job": "operations-lift-expected",
+      "expected_family": "operations",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "operations-lift-expected": 0.4,
+        "operations-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-operations",
+      "kind": "draft",
+      "title": "Operations Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-operations-draft-a",
+        "case-operations-draft-b"
+      ],
+      "expected_job": "operations-draft-expected",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "operations-draft-distractor"
+      ],
+      "semantic": {
+        "operations-draft-expected": 0.75,
+        "operations-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-operations",
+      "kind": "delta",
+      "title": "Operations Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-operations-wrong-a",
+        "case-operations-wrong-b"
+      ],
+      "expected_job": "operations-wrong-expected",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "operations-wrong-expected": 0.88,
+        "operations-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-operations",
+      "kind": "misleading",
+      "title": "Operations Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-operations-mis-a",
+        "case-operations-mis-b"
+      ],
+      "expected_job": "operations-misleading-expected",
+      "expected_family": "operations",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "operations-misleading-expected": 0.1,
+        "operations-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-operations-1",
+      "kind": "family",
+      "title": "Operations Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-operations-signal",
+        "case-operations-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "operations",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "operations-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-operations-2",
+      "kind": "family",
+      "title": "Operations Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-operations-signal",
+        "case-operations-unknown-2",
+        "case-operations-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "operations",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "operations-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-operations-3",
+      "kind": "family",
+      "title": "Operations Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-operations-signal",
+        "case-operations-unknown-3",
+        "case-operations-unknown-3",
+        "case-operations-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "operations",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "operations-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-operations-1",
+      "kind": "no_shared_skill",
+      "title": "Operations Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-operations-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-operations-2",
+      "kind": "no_shared_skill",
+      "title": "Operations Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-operations-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-operations-3",
+      "kind": "no_shared_skill",
+      "title": "Operations Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-operations-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-operations-a",
+      "kind": "manual",
+      "title": "Operations Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "project-management",
+        "vendor-management"
+      ],
+      "expected_job": "operations-coordinator",
+      "expected_family": "operations",
+      "expected_outcome": "manual",
+      "manual_job": "supply-chain-analyst",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-operations-b",
+      "kind": "manual",
+      "title": "Operations Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "logistics",
+        "forecasting"
+      ],
+      "expected_job": "logistics-planner",
+      "expected_family": "operations",
+      "expected_outcome": "manual",
+      "manual_job": "warehouse-manager",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-operations-expired",
+      "kind": "terminal",
+      "title": "Operations Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "project-management",
+        "vendor-management"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-operations-hidden",
+      "kind": "terminal",
+      "title": "Operations Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "forecasting",
+        "erp"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-account-executive",
+      "kind": "clear",
+      "title": "Account Executive",
+      "description": "Clear deterministic match for Account Executive.",
+      "skills": [
+        "prospecting",
+        "negotiation"
+      ],
+      "expected_job": "account-executive",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "account-executive": 0.8
+      }
+    },
+    {
+      "id": "clear-sales-engineer",
+      "kind": "clear",
+      "title": "Sales Engineer",
+      "description": "Clear deterministic match for Sales Engineer.",
+      "skills": [
+        "salesforce",
+        "negotiation"
+      ],
+      "expected_job": "sales-engineer",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "sales-engineer": 0.8
+      }
+    },
+    {
+      "id": "clear-customer-success-manager",
+      "kind": "clear",
+      "title": "Customer Success Manager",
+      "description": "Clear deterministic match for Customer Success Manager.",
+      "skills": [
+        "crm",
+        "stakeholder-management"
+      ],
+      "expected_job": "customer-success-manager",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "customer-success-manager": 0.8
+      }
+    },
+    {
+      "id": "clear-sales-ops-analyst",
+      "kind": "clear",
+      "title": "Sales Operations Analyst",
+      "description": "Clear deterministic match for Sales Operations Analyst.",
+      "skills": [
+        "crm",
+        "analytics"
+      ],
+      "expected_job": "sales-ops-analyst",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "sales-ops-analyst": 0.8
+      }
+    },
+    {
+      "id": "wrong-sales",
+      "kind": "wrong",
+      "title": "Sales Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-sales-wrong-a",
+        "case-sales-wrong-b"
+      ],
+      "expected_job": "sales-wrong-expected",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "sales-wrong-expected": 0.75,
+        "sales-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-sales",
+      "kind": "lift",
+      "title": "Sales Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-sales-lift-a",
+        "case-sales-lift-b"
+      ],
+      "expected_job": "sales-lift-expected",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "sales-lift-expected": 0.55,
+        "sales-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-sales",
+      "kind": "margin",
+      "title": "Sales Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-sales-lift-a",
+        "case-sales-lift-b"
+      ],
+      "expected_job": "sales-lift-expected",
+      "expected_family": "sales",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "sales-lift-expected": 0.55,
+        "sales-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-sales",
+      "kind": "threshold",
+      "title": "Sales Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-sales-lift-a",
+        "case-sales-lift-b"
+      ],
+      "expected_job": "sales-lift-expected",
+      "expected_family": "sales",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "sales-lift-expected": 0.4,
+        "sales-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-sales",
+      "kind": "draft",
+      "title": "Sales Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-sales-draft-a",
+        "case-sales-draft-b"
+      ],
+      "expected_job": "sales-draft-expected",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "sales-draft-distractor"
+      ],
+      "semantic": {
+        "sales-draft-expected": 0.75,
+        "sales-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-sales",
+      "kind": "delta",
+      "title": "Sales Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-sales-wrong-a",
+        "case-sales-wrong-b"
+      ],
+      "expected_job": "sales-wrong-expected",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "sales-wrong-expected": 0.88,
+        "sales-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-sales",
+      "kind": "misleading",
+      "title": "Sales Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-sales-mis-a",
+        "case-sales-mis-b"
+      ],
+      "expected_job": "sales-misleading-expected",
+      "expected_family": "sales",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "sales-misleading-expected": 0.1,
+        "sales-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-sales-1",
+      "kind": "family",
+      "title": "Sales Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-sales-signal",
+        "case-sales-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "sales",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "sales-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-sales-2",
+      "kind": "family",
+      "title": "Sales Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-sales-signal",
+        "case-sales-unknown-2",
+        "case-sales-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "sales",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "sales-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-sales-3",
+      "kind": "family",
+      "title": "Sales Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-sales-signal",
+        "case-sales-unknown-3",
+        "case-sales-unknown-3",
+        "case-sales-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "sales",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "sales-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-sales-1",
+      "kind": "no_shared_skill",
+      "title": "Sales Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-sales-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-sales-2",
+      "kind": "no_shared_skill",
+      "title": "Sales Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-sales-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-sales-3",
+      "kind": "no_shared_skill",
+      "title": "Sales Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-sales-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-sales-a",
+      "kind": "manual",
+      "title": "Sales Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "prospecting",
+        "negotiation"
+      ],
+      "expected_job": "account-executive",
+      "expected_family": "sales",
+      "expected_outcome": "manual",
+      "manual_job": "sales-engineer",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-sales-b",
+      "kind": "manual",
+      "title": "Sales Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "crm",
+        "stakeholder-management"
+      ],
+      "expected_job": "customer-success-manager",
+      "expected_family": "sales",
+      "expected_outcome": "manual",
+      "manual_job": "sales-ops-analyst",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-sales-expired",
+      "kind": "terminal",
+      "title": "Sales Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "prospecting",
+        "negotiation"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-sales-hidden",
+      "kind": "terminal",
+      "title": "Sales Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "salesforce",
+        "negotiation"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-security-analyst",
+      "kind": "clear",
+      "title": "Security Analyst",
+      "description": "Clear deterministic match for Security Analyst.",
+      "skills": [
+        "siem",
+        "incident-response"
+      ],
+      "expected_job": "security-analyst",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "security-analyst": 0.8
+      }
+    },
+    {
+      "id": "clear-penetration-tester",
+      "kind": "clear",
+      "title": "Penetration Tester",
+      "description": "Clear deterministic match for Penetration Tester.",
+      "skills": [
+        "penetration-testing",
+        "threat-modeling"
+      ],
+      "expected_job": "penetration-tester",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "penetration-tester": 0.8
+      }
+    },
+    {
+      "id": "clear-security-engineer",
+      "kind": "clear",
+      "title": "Security Engineer",
+      "description": "Clear deterministic match for Security Engineer.",
+      "skills": [
+        "incident-response",
+        "threat-modeling"
+      ],
+      "expected_job": "security-engineer",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "security-engineer": 0.8
+      }
+    },
+    {
+      "id": "clear-grc-specialist",
+      "kind": "clear",
+      "title": "GRC Specialist",
+      "description": "Clear deterministic match for GRC Specialist.",
+      "skills": [
+        "risk-assessment",
+        "compliance"
+      ],
+      "expected_job": "grc-specialist",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "grc-specialist": 0.8
+      }
+    },
+    {
+      "id": "wrong-cybersecurity",
+      "kind": "wrong",
+      "title": "Cybersecurity Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-cybersecurity-wrong-a",
+        "case-cybersecurity-wrong-b"
+      ],
+      "expected_job": "cybersecurity-wrong-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-wrong-expected": 0.75,
+        "cybersecurity-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-cybersecurity",
+      "kind": "lift",
+      "title": "Cybersecurity Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-cybersecurity-lift-a",
+        "case-cybersecurity-lift-b"
+      ],
+      "expected_job": "cybersecurity-lift-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-lift-expected": 0.55,
+        "cybersecurity-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-cybersecurity",
+      "kind": "margin",
+      "title": "Cybersecurity Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-cybersecurity-lift-a",
+        "case-cybersecurity-lift-b"
+      ],
+      "expected_job": "cybersecurity-lift-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-lift-expected": 0.55,
+        "cybersecurity-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-cybersecurity",
+      "kind": "threshold",
+      "title": "Cybersecurity Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-cybersecurity-lift-a",
+        "case-cybersecurity-lift-b"
+      ],
+      "expected_job": "cybersecurity-lift-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-lift-expected": 0.4,
+        "cybersecurity-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-cybersecurity",
+      "kind": "draft",
+      "title": "Cybersecurity Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-cybersecurity-draft-a",
+        "case-cybersecurity-draft-b"
+      ],
+      "expected_job": "cybersecurity-draft-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "cybersecurity-draft-distractor"
+      ],
+      "semantic": {
+        "cybersecurity-draft-expected": 0.75,
+        "cybersecurity-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-cybersecurity",
+      "kind": "delta",
+      "title": "Cybersecurity Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-cybersecurity-wrong-a",
+        "case-cybersecurity-wrong-b"
+      ],
+      "expected_job": "cybersecurity-wrong-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-wrong-expected": 0.88,
+        "cybersecurity-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-cybersecurity",
+      "kind": "misleading",
+      "title": "Cybersecurity Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-cybersecurity-mis-a",
+        "case-cybersecurity-mis-b"
+      ],
+      "expected_job": "cybersecurity-misleading-expected",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-misleading-expected": 0.1,
+        "cybersecurity-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-cybersecurity-1",
+      "kind": "family",
+      "title": "Cybersecurity Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-cybersecurity-signal",
+        "case-cybersecurity-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "cybersecurity",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-cybersecurity-2",
+      "kind": "family",
+      "title": "Cybersecurity Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-cybersecurity-signal",
+        "case-cybersecurity-unknown-2",
+        "case-cybersecurity-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "cybersecurity",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-cybersecurity-3",
+      "kind": "family",
+      "title": "Cybersecurity Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-cybersecurity-signal",
+        "case-cybersecurity-unknown-3",
+        "case-cybersecurity-unknown-3",
+        "case-cybersecurity-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "cybersecurity",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "cybersecurity-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-cybersecurity-1",
+      "kind": "no_shared_skill",
+      "title": "Cybersecurity Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-cybersecurity-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-cybersecurity-2",
+      "kind": "no_shared_skill",
+      "title": "Cybersecurity Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-cybersecurity-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-cybersecurity-3",
+      "kind": "no_shared_skill",
+      "title": "Cybersecurity Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-cybersecurity-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-cybersecurity-a",
+      "kind": "manual",
+      "title": "Cybersecurity Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "siem",
+        "incident-response"
+      ],
+      "expected_job": "security-analyst",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "manual",
+      "manual_job": "penetration-tester",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-cybersecurity-b",
+      "kind": "manual",
+      "title": "Cybersecurity Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "incident-response",
+        "threat-modeling"
+      ],
+      "expected_job": "security-engineer",
+      "expected_family": "cybersecurity",
+      "expected_outcome": "manual",
+      "manual_job": "grc-specialist",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-cybersecurity-expired",
+      "kind": "terminal",
+      "title": "Cybersecurity Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "siem",
+        "incident-response"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-cybersecurity-hidden",
+      "kind": "terminal",
+      "title": "Cybersecurity Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "penetration-testing",
+        "threat-modeling"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-curriculum-designer",
+      "kind": "clear",
+      "title": "Curriculum Designer",
+      "description": "Clear deterministic match for Curriculum Designer.",
+      "skills": [
+        "curriculum-design",
+        "pedagogy"
+      ],
+      "expected_job": "curriculum-designer",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "curriculum-designer": 0.8
+      }
+    },
+    {
+      "id": "clear-instructional-coordinator",
+      "kind": "clear",
+      "title": "Instructional Coordinator",
+      "description": "Clear deterministic match for Instructional Coordinator.",
+      "skills": [
+        "lms",
+        "pedagogy"
+      ],
+      "expected_job": "instructional-coordinator",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "instructional-coordinator": 0.8
+      }
+    },
+    {
+      "id": "clear-education-program-manager",
+      "kind": "clear",
+      "title": "Education Program Manager",
+      "description": "Clear deterministic match for Education Program Manager.",
+      "skills": [
+        "assessment-design",
+        "project-management"
+      ],
+      "expected_job": "education-program-manager",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "education-program-manager": 0.8
+      }
+    },
+    {
+      "id": "clear-learning-designer",
+      "kind": "clear",
+      "title": "Learning Designer",
+      "description": "Clear deterministic match for Learning Designer.",
+      "skills": [
+        "curriculum-design",
+        "lms"
+      ],
+      "expected_job": "learning-designer",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "learning-designer": 0.8
+      }
+    },
+    {
+      "id": "wrong-education",
+      "kind": "wrong",
+      "title": "Education Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-education-wrong-a",
+        "case-education-wrong-b"
+      ],
+      "expected_job": "education-wrong-expected",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "education-wrong-expected": 0.75,
+        "education-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-education",
+      "kind": "lift",
+      "title": "Education Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-education-lift-a",
+        "case-education-lift-b"
+      ],
+      "expected_job": "education-lift-expected",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "education-lift-expected": 0.55,
+        "education-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-education",
+      "kind": "margin",
+      "title": "Education Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-education-lift-a",
+        "case-education-lift-b"
+      ],
+      "expected_job": "education-lift-expected",
+      "expected_family": "education",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "education-lift-expected": 0.55,
+        "education-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-education",
+      "kind": "threshold",
+      "title": "Education Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-education-lift-a",
+        "case-education-lift-b"
+      ],
+      "expected_job": "education-lift-expected",
+      "expected_family": "education",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "education-lift-expected": 0.4,
+        "education-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-education",
+      "kind": "draft",
+      "title": "Education Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-education-draft-a",
+        "case-education-draft-b"
+      ],
+      "expected_job": "education-draft-expected",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "education-draft-distractor"
+      ],
+      "semantic": {
+        "education-draft-expected": 0.75,
+        "education-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-education",
+      "kind": "delta",
+      "title": "Education Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-education-wrong-a",
+        "case-education-wrong-b"
+      ],
+      "expected_job": "education-wrong-expected",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "education-wrong-expected": 0.88,
+        "education-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-education",
+      "kind": "misleading",
+      "title": "Education Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-education-mis-a",
+        "case-education-mis-b"
+      ],
+      "expected_job": "education-misleading-expected",
+      "expected_family": "education",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "education-misleading-expected": 0.1,
+        "education-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-education-1",
+      "kind": "family",
+      "title": "Education Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-education-signal",
+        "case-education-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "education",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "education-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-education-2",
+      "kind": "family",
+      "title": "Education Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-education-signal",
+        "case-education-unknown-2",
+        "case-education-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "education",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "education-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-education-3",
+      "kind": "family",
+      "title": "Education Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-education-signal",
+        "case-education-unknown-3",
+        "case-education-unknown-3",
+        "case-education-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "education",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "education-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-education-1",
+      "kind": "no_shared_skill",
+      "title": "Education Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-education-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-education-2",
+      "kind": "no_shared_skill",
+      "title": "Education Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-education-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-education-3",
+      "kind": "no_shared_skill",
+      "title": "Education Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-education-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-education-a",
+      "kind": "manual",
+      "title": "Education Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "curriculum-design",
+        "pedagogy"
+      ],
+      "expected_job": "curriculum-designer",
+      "expected_family": "education",
+      "expected_outcome": "manual",
+      "manual_job": "instructional-coordinator",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-education-b",
+      "kind": "manual",
+      "title": "Education Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "assessment-design",
+        "project-management"
+      ],
+      "expected_job": "education-program-manager",
+      "expected_family": "education",
+      "expected_outcome": "manual",
+      "manual_job": "learning-designer",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-education-expired",
+      "kind": "terminal",
+      "title": "Education Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "curriculum-design",
+        "pedagogy"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-education-hidden",
+      "kind": "terminal",
+      "title": "Education Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "lms",
+        "pedagogy"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-contract-manager",
+      "kind": "clear",
+      "title": "Contract Manager",
+      "description": "Clear deterministic match for Contract Manager.",
+      "skills": [
+        "contract-law",
+        "negotiation"
+      ],
+      "expected_job": "contract-manager",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "contract-manager": 0.8
+      }
+    },
+    {
+      "id": "clear-compliance-officer",
+      "kind": "clear",
+      "title": "Compliance Officer",
+      "description": "Clear deterministic match for Compliance Officer.",
+      "skills": [
+        "compliance",
+        "risk-assessment"
+      ],
+      "expected_job": "compliance-officer",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "compliance-officer": 0.8
+      }
+    },
+    {
+      "id": "clear-paralegal",
+      "kind": "clear",
+      "title": "Paralegal",
+      "description": "Clear deterministic match for Paralegal.",
+      "skills": [
+        "legal-research",
+        "contract-law"
+      ],
+      "expected_job": "paralegal",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "paralegal": 0.8
+      }
+    },
+    {
+      "id": "clear-privacy-counsel",
+      "kind": "clear",
+      "title": "Privacy Counsel",
+      "description": "Clear deterministic match for Privacy Counsel.",
+      "skills": [
+        "gdpr",
+        "compliance"
+      ],
+      "expected_job": "privacy-counsel",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "privacy-counsel": 0.8
+      }
+    },
+    {
+      "id": "wrong-legal",
+      "kind": "wrong",
+      "title": "Legal Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-legal-wrong-a",
+        "case-legal-wrong-b"
+      ],
+      "expected_job": "legal-wrong-expected",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "legal-wrong-expected": 0.75,
+        "legal-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-legal",
+      "kind": "lift",
+      "title": "Legal Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-legal-lift-a",
+        "case-legal-lift-b"
+      ],
+      "expected_job": "legal-lift-expected",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "legal-lift-expected": 0.55,
+        "legal-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-legal",
+      "kind": "margin",
+      "title": "Legal Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-legal-lift-a",
+        "case-legal-lift-b"
+      ],
+      "expected_job": "legal-lift-expected",
+      "expected_family": "legal",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "legal-lift-expected": 0.55,
+        "legal-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-legal",
+      "kind": "threshold",
+      "title": "Legal Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-legal-lift-a",
+        "case-legal-lift-b"
+      ],
+      "expected_job": "legal-lift-expected",
+      "expected_family": "legal",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "legal-lift-expected": 0.4,
+        "legal-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-legal",
+      "kind": "draft",
+      "title": "Legal Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-legal-draft-a",
+        "case-legal-draft-b"
+      ],
+      "expected_job": "legal-draft-expected",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "legal-draft-distractor"
+      ],
+      "semantic": {
+        "legal-draft-expected": 0.75,
+        "legal-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-legal",
+      "kind": "delta",
+      "title": "Legal Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-legal-wrong-a",
+        "case-legal-wrong-b"
+      ],
+      "expected_job": "legal-wrong-expected",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "legal-wrong-expected": 0.88,
+        "legal-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-legal",
+      "kind": "misleading",
+      "title": "Legal Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-legal-mis-a",
+        "case-legal-mis-b"
+      ],
+      "expected_job": "legal-misleading-expected",
+      "expected_family": "legal",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "legal-misleading-expected": 0.1,
+        "legal-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-legal-1",
+      "kind": "family",
+      "title": "Legal Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-legal-signal",
+        "case-legal-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "legal",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "legal-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-legal-2",
+      "kind": "family",
+      "title": "Legal Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-legal-signal",
+        "case-legal-unknown-2",
+        "case-legal-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "legal",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "legal-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-legal-3",
+      "kind": "family",
+      "title": "Legal Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-legal-signal",
+        "case-legal-unknown-3",
+        "case-legal-unknown-3",
+        "case-legal-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "legal",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "legal-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-legal-1",
+      "kind": "no_shared_skill",
+      "title": "Legal Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-legal-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-legal-2",
+      "kind": "no_shared_skill",
+      "title": "Legal Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-legal-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-legal-3",
+      "kind": "no_shared_skill",
+      "title": "Legal Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-legal-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-legal-a",
+      "kind": "manual",
+      "title": "Legal Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "contract-law",
+        "negotiation"
+      ],
+      "expected_job": "contract-manager",
+      "expected_family": "legal",
+      "expected_outcome": "manual",
+      "manual_job": "compliance-officer",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-legal-b",
+      "kind": "manual",
+      "title": "Legal Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "legal-research",
+        "contract-law"
+      ],
+      "expected_job": "paralegal",
+      "expected_family": "legal",
+      "expected_outcome": "manual",
+      "manual_job": "privacy-counsel",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-legal-expired",
+      "kind": "terminal",
+      "title": "Legal Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "contract-law",
+        "negotiation"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-legal-hidden",
+      "kind": "terminal",
+      "title": "Legal Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "compliance",
+        "risk-assessment"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-research-scientist",
+      "kind": "clear",
+      "title": "Research Scientist",
+      "description": "Clear deterministic match for Research Scientist.",
+      "skills": [
+        "statistics",
+        "literature-review"
+      ],
+      "expected_job": "research-scientist",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "research-scientist": 0.8
+      }
+    },
+    {
+      "id": "clear-data-scientist",
+      "kind": "clear",
+      "title": "Data Scientist",
+      "description": "Clear deterministic match for Data Scientist.",
+      "skills": [
+        "statistics",
+        "python",
+        "sql"
+      ],
+      "expected_job": "data-scientist",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "data-scientist": 0.8
+      }
+    },
+    {
+      "id": "clear-lab-manager",
+      "kind": "clear",
+      "title": "Lab Manager",
+      "description": "Clear deterministic match for Lab Manager.",
+      "skills": [
+        "project-management",
+        "inventory"
+      ],
+      "expected_job": "lab-manager",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "lab-manager": 0.8
+      }
+    },
+    {
+      "id": "clear-biostatistician",
+      "kind": "clear",
+      "title": "Biostatistician",
+      "description": "Clear deterministic match for Biostatistician.",
+      "skills": [
+        "statistics",
+        "r"
+      ],
+      "expected_job": "biostatistician",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "biostatistician": 0.8
+      }
+    },
+    {
+      "id": "wrong-research",
+      "kind": "wrong",
+      "title": "Research Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-research-wrong-a",
+        "case-research-wrong-b"
+      ],
+      "expected_job": "research-wrong-expected",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "research-wrong-expected": 0.75,
+        "research-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-research",
+      "kind": "lift",
+      "title": "Research Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-research-lift-a",
+        "case-research-lift-b"
+      ],
+      "expected_job": "research-lift-expected",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "research-lift-expected": 0.55,
+        "research-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-research",
+      "kind": "margin",
+      "title": "Research Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-research-lift-a",
+        "case-research-lift-b"
+      ],
+      "expected_job": "research-lift-expected",
+      "expected_family": "research",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "research-lift-expected": 0.55,
+        "research-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-research",
+      "kind": "threshold",
+      "title": "Research Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-research-lift-a",
+        "case-research-lift-b"
+      ],
+      "expected_job": "research-lift-expected",
+      "expected_family": "research",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "research-lift-expected": 0.4,
+        "research-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-research",
+      "kind": "draft",
+      "title": "Research Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-research-draft-a",
+        "case-research-draft-b"
+      ],
+      "expected_job": "research-draft-expected",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "research-draft-distractor"
+      ],
+      "semantic": {
+        "research-draft-expected": 0.75,
+        "research-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-research",
+      "kind": "delta",
+      "title": "Research Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-research-wrong-a",
+        "case-research-wrong-b"
+      ],
+      "expected_job": "research-wrong-expected",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "research-wrong-expected": 0.88,
+        "research-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-research",
+      "kind": "misleading",
+      "title": "Research Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-research-mis-a",
+        "case-research-mis-b"
+      ],
+      "expected_job": "research-misleading-expected",
+      "expected_family": "research",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "research-misleading-expected": 0.1,
+        "research-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-research-1",
+      "kind": "family",
+      "title": "Research Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-research-signal",
+        "case-research-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "research",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "research-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-research-2",
+      "kind": "family",
+      "title": "Research Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-research-signal",
+        "case-research-unknown-2",
+        "case-research-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "research",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "research-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-research-3",
+      "kind": "family",
+      "title": "Research Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-research-signal",
+        "case-research-unknown-3",
+        "case-research-unknown-3",
+        "case-research-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "research",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "research-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-research-1",
+      "kind": "no_shared_skill",
+      "title": "Research Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-research-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-research-2",
+      "kind": "no_shared_skill",
+      "title": "Research Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-research-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-research-3",
+      "kind": "no_shared_skill",
+      "title": "Research Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-research-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-research-a",
+      "kind": "manual",
+      "title": "Research Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "statistics",
+        "literature-review"
+      ],
+      "expected_job": "research-scientist",
+      "expected_family": "research",
+      "expected_outcome": "manual",
+      "manual_job": "data-scientist",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-research-b",
+      "kind": "manual",
+      "title": "Research Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "project-management",
+        "inventory"
+      ],
+      "expected_job": "lab-manager",
+      "expected_family": "research",
+      "expected_outcome": "manual",
+      "manual_job": "biostatistician",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-research-expired",
+      "kind": "terminal",
+      "title": "Research Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "statistics",
+        "literature-review"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-research-hidden",
+      "kind": "terminal",
+      "title": "Research Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "statistics",
+        "python",
+        "sql"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "clear-hotel-manager",
+      "kind": "clear",
+      "title": "Hotel Manager",
+      "description": "Clear deterministic match for Hotel Manager.",
+      "skills": [
+        "hospitality-operations",
+        "customer-service"
+      ],
+      "expected_job": "hotel-manager",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "hotel-manager": 0.8
+      }
+    },
+    {
+      "id": "clear-event-planner",
+      "kind": "clear",
+      "title": "Event Planner",
+      "description": "Clear deterministic match for Event Planner.",
+      "skills": [
+        "event-planning",
+        "vendor-management"
+      ],
+      "expected_job": "event-planner",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "event-planner": 0.8
+      }
+    },
+    {
+      "id": "clear-front-desk-supervisor",
+      "kind": "clear",
+      "title": "Front Desk Supervisor",
+      "description": "Clear deterministic match for Front Desk Supervisor.",
+      "skills": [
+        "customer-service",
+        "scheduling"
+      ],
+      "expected_job": "front-desk-supervisor",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "front-desk-supervisor": 0.8
+      }
+    },
+    {
+      "id": "clear-food-service-manager",
+      "kind": "clear",
+      "title": "Food Service Manager",
+      "description": "Clear deterministic match for Food Service Manager.",
+      "skills": [
+        "food-safety",
+        "inventory"
+      ],
+      "expected_job": "food-service-manager",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": false,
+      "semantic": {
+        "food-service-manager": 0.8
+      }
+    },
+    {
+      "id": "wrong-hospitality",
+      "kind": "wrong",
+      "title": "Hospitality Wrong Winner",
+      "description": "The deterministic winner is the wrong role; the rerank corrects it.",
+      "skills": [
+        "case-hospitality-wrong-a",
+        "case-hospitality-wrong-b"
+      ],
+      "expected_job": "hospitality-wrong-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-wrong-expected": 0.75,
+        "hospitality-wrong-distractor": 0.1
+      }
+    },
+    {
+      "id": "lift-hospitality",
+      "kind": "lift",
+      "title": "Hospitality Below-Threshold Lift",
+      "description": "Both roles sit below the job floor; the rerank lifts the expected one.",
+      "skills": [
+        "case-hospitality-lift-a",
+        "case-hospitality-lift-b"
+      ],
+      "expected_job": "hospitality-lift-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-lift-expected": 0.55,
+        "hospitality-lift-distractor": 0.1
+      }
+    },
+    {
+      "id": "margin-hospitality",
+      "kind": "margin",
+      "title": "Hospitality Margin Abstention",
+      "description": "The rerank blend is too close to call; the decision must abstain.",
+      "skills": [
+        "case-hospitality-lift-a",
+        "case-hospitality-lift-b"
+      ],
+      "expected_job": "hospitality-lift-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-lift-expected": 0.55,
+        "hospitality-lift-distractor": 1.0
+      }
+    },
+    {
+      "id": "threshold-hospitality",
+      "kind": "threshold",
+      "title": "Hospitality Threshold Abstention",
+      "description": "The blended score stays below the job floor; abstain.",
+      "skills": [
+        "case-hospitality-lift-a",
+        "case-hospitality-lift-b"
+      ],
+      "expected_job": "hospitality-lift-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "none",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-lift-expected": 0.4,
+        "hospitality-lift-distractor": 0.2
+      }
+    },
+    {
+      "id": "draft-hospitality",
+      "kind": "draft",
+      "title": "Hospitality Draft Gate",
+      "description": "The deterministic winner is a draft; only the published role can win the rerank.",
+      "skills": [
+        "case-hospitality-draft-a",
+        "case-hospitality-draft-b"
+      ],
+      "expected_job": "hospitality-draft-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "draft_jobs": [
+        "hospitality-draft-distractor"
+      ],
+      "semantic": {
+        "hospitality-draft-expected": 0.75,
+        "hospitality-draft-distractor": 0.1
+      }
+    },
+    {
+      "id": "delta-hospitality",
+      "kind": "delta",
+      "title": "Hospitality Delta Boundary",
+      "description": "A correct rerank whose margin sits between 0.05 and 0.08.",
+      "skills": [
+        "case-hospitality-wrong-a",
+        "case-hospitality-wrong-b"
+      ],
+      "expected_job": "hospitality-wrong-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-wrong-expected": 0.88,
+        "hospitality-wrong-distractor": 0.38
+      }
+    },
+    {
+      "id": "misleading-hospitality",
+      "kind": "misleading",
+      "title": "Hospitality Misleading Semantic",
+      "description": "Semantic favours the deterministic runner-up; a heavier semantic weight would accept the wrong role.",
+      "skills": [
+        "case-hospitality-mis-a",
+        "case-hospitality-mis-b"
+      ],
+      "expected_job": "hospitality-misleading-expected",
+      "expected_family": "hospitality",
+      "expected_outcome": "job",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-misleading-expected": 0.1,
+        "hospitality-misleading-distractor": 0.45
+      }
+    },
+    {
+      "id": "family-hospitality-1",
+      "kind": "family",
+      "title": "Hospitality Family-Only 1",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-hospitality-signal",
+        "case-hospitality-unknown-1"
+      ],
+      "expected_job": null,
+      "expected_family": "hospitality",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-family-anchor": 0.1
+      }
+    },
+    {
+      "id": "family-hospitality-2",
+      "kind": "family",
+      "title": "Hospitality Family-Only 2",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-hospitality-signal",
+        "case-hospitality-unknown-2",
+        "case-hospitality-unknown-2"
+      ],
+      "expected_job": null,
+      "expected_family": "hospitality",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-family-anchor": 0.15000000000000002
+      }
+    },
+    {
+      "id": "family-hospitality-3",
+      "kind": "family",
+      "title": "Hospitality Family-Only 3",
+      "description": "A real family signal but no role clears the job floor; family fallback is S3.",
+      "skills": [
+        "family-hospitality-signal",
+        "case-hospitality-unknown-3",
+        "case-hospitality-unknown-3",
+        "case-hospitality-unknown-3"
+      ],
+      "expected_job": null,
+      "expected_family": "hospitality",
+      "expected_outcome": "family",
+      "ambiguous": true,
+      "semantic": {
+        "hospitality-family-anchor": 0.2
+      }
+    },
+    {
+      "id": "none-hospitality-1",
+      "kind": "no_shared_skill",
+      "title": "Hospitality Unmatched 1",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-hospitality-none-1"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-hospitality-2",
+      "kind": "no_shared_skill",
+      "title": "Hospitality Unmatched 2",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-hospitality-none-2"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "none-hospitality-3",
+      "kind": "no_shared_skill",
+      "title": "Hospitality Unmatched 3",
+      "description": "No recognised catalog skill; the decision must abstain.",
+      "skills": [
+        "case-hospitality-none-3"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "none",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-hospitality-a",
+      "kind": "manual",
+      "title": "Hospitality Manual Row",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "hospitality-operations",
+        "customer-service"
+      ],
+      "expected_job": "hotel-manager",
+      "expected_family": "hospitality",
+      "expected_outcome": "manual",
+      "manual_job": "event-planner",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "manual-hospitality-b",
+      "kind": "manual",
+      "title": "Hospitality Manual Row B",
+      "description": "A human mapping must survive every automatic path.",
+      "skills": [
+        "customer-service",
+        "scheduling"
+      ],
+      "expected_job": "front-desk-supervisor",
+      "expected_family": "hospitality",
+      "expected_outcome": "manual",
+      "manual_job": "food-service-manager",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-hospitality-expired",
+      "kind": "terminal",
+      "title": "Hospitality Expired Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "hospitality-operations",
+        "customer-service"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "expired",
+      "ambiguous": false,
+      "semantic": {}
+    },
+    {
+      "id": "terminal-hospitality-hidden",
+      "kind": "terminal",
+      "title": "Hospitality Hidden Row",
+      "description": "Terminal statuses stay outside the remap domain.",
+      "skills": [
+        "event-planning",
+        "vendor-management"
+      ],
+      "expected_job": null,
+      "expected_family": null,
+      "expected_outcome": "terminal",
+      "posting_status": "hidden",
+      "ambiguous": false,
+      "semantic": {}
+    }
   ]
 }
