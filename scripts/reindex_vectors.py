@@ -18,10 +18,14 @@ Usage (interpreter with the app's dependencies, e.g. ``uv run python``):
     # the final delta pass before a space cutover (rows touched in 24h):
     python scripts/reindex_vectors.py --since 2026-11-02T00:00:00Z --wait
 
-A run classifies every source of the selected kinds and spends at most
-``--budget`` embed units (and ``--limit`` documents). Whatever it defers is
-still missing/stale for the next run, so repeating the command resumes the
-backfill and an unchanged corpus costs zero embedding calls.
+A run scans a bounded keyset batch per kind (``--scan-limit`` source rows),
+classifies each source and spends at most ``--budget`` embed units (and
+``--limit`` documents). A partial batch enqueues one follow-up with the same
+options plus its cursor unless ``--no-auto-continue`` is given, so the job
+chain resumes the backfill without loading the whole corpus. Whatever is left
+is still missing/stale for the next run, so an unchanged corpus costs zero
+embedding calls. ``--wait`` waits for the first job only; the continuation
+chain keeps running in the worker (use ``--no-auto-continue`` for one batch).
 
 Exit codes: 0 enqueued (or the finished run succeeded), 2 refused arguments,
 1 unexpected error.
@@ -53,6 +57,7 @@ from app.services.vector_reconcile_service import (  # noqa: E402
     DEFAULT_BATCH_SIZE,
     DEFAULT_BUDGET,
     DEFAULT_LIMIT,
+    DEFAULT_SCAN_LIMIT,
     RECONCILE_KINDS,
     parse_kinds,
     parse_since,
@@ -77,8 +82,20 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--limit", type=int, default=DEFAULT_LIMIT, help="documents per run")
     parser.add_argument("--budget", type=int, default=DEFAULT_BUDGET, help="embed units per run")
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument(
+        "--scan-limit",
+        type=int,
+        default=DEFAULT_SCAN_LIMIT,
+        help="source rows per keyset batch (the scan never loads the whole corpus)",
+    )
     parser.add_argument("--since", default=None, help="ISO timestamp — only rows updated since")
     parser.add_argument("--force", action="store_true", help="re-embed even unchanged content")
+    parser.add_argument(
+        "--no-auto-continue",
+        dest="auto_continue",
+        action="store_false",
+        help="do not enqueue the next bounded batch automatically",
+    )
     parser.add_argument("--wait", action="store_true", help="poll until the queued run finishes")
     parser.add_argument("--timeout", type=int, default=1800, help="wait timeout in seconds")
     return parser
@@ -129,7 +146,9 @@ async def main(argv: list[str] | None = None) -> int:
         "limit": max(1, args.limit),
         "budget": max(0, args.budget),
         "batch_size": max(1, args.batch_size),
+        "scan_limit": max(1, args.scan_limit),
         "force": bool(args.force),
+        "auto_continue": bool(args.auto_continue),
     }
     if kinds:
         payload["kinds"] = list(kinds)

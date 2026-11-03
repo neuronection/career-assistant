@@ -58,18 +58,33 @@ never clobbers a live pending proposal.
 ### The vector reconcile (plan 50 P1d)
 
 `system_vector_reconcile` enqueues a `vector_reconcile` job daily (04:15
-UTC). The handler composes every source of the selected kinds and compares
-the composed hash with the stored document: unchanged content costs zero
+UTC). The handler composes sources of the selected kinds and compares the
+composed hash with the stored document: unchanged content costs zero
 embedding calls, missing/stale documents are indexed through the same writer
-the `VECTOR_INDEX` job uses, and each pass writes a
-`retrieval_coverage_snapshots` row per kind. Two caps bound a run —
-`limit` (documents) and `budget` (embed units) — and whatever they defer stays
-missing/stale for the next run, so repeating the job resumes the backfill.
-Deleting a source row orphans its document; an unwindowed pass sweeps those.
-Embed spend goes through the gateway's **system** path (no admin's personal
-budget is charged); `POST /api/v1/admin/retrieval/reconcile` and
-`scripts/reindex_vectors.py` only enqueue the job, so every run is a
-`background_jobs` row. The full Runs/Retrieval surface is plan 51.
+the `VECTOR_INDEX` job uses. The scan is a **bounded keyset batch** —
+`scan_limit` source rows per kind, read with an exclusive `(updated_at, id)`
+cursor — so a run never loads or composes the whole corpus. Sources are
+processed one at a time; no all-dirty work list is held.
+
+Two caps still bound a run — `limit` (documents) and `budget` (embed units).
+When a cap is hit mid-batch the run stops before the next source and returns
+`next_after` (the last fully processed source), `carry` (cumulative counters)
+and `completed_kinds`. The handler enqueues one follow-up `vector_reconcile`
+with that state unless `auto_continue` is false; the same
+`(space, kind, cursor)` continuation is never duplicated, and a cancelled run
+never chains. A kind writes its `retrieval_coverage_snapshots` row only when
+its scan is complete for the chain, so a partial batch never publishes a
+misleading full-coverage point; counters carried across the chain make a
+resumed completion describe the whole kind.
+
+Deleting a source row orphans its document. Only a full, unwindowed pass
+(`done=true`, no `since`) sweeps orphans, and it inspects at most
+`scan_limit` documents per pass rather than loading the whole table. Embed
+spend goes through the gateway's **system** path (no admin's personal budget
+is charged); `POST /api/v1/admin/retrieval/reconcile` and
+`scripts/reindex_vectors.py` only enqueue the job (both accept `scan_limit`),
+so every run is a `background_jobs` row. The full Runs/Retrieval surface is
+plan 51.
 
 ### The failed-jobs lifecycle (plan 184)
 

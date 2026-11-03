@@ -18,13 +18,17 @@ All notable changes to **Career Assistant** are documented here.
   result with a structured reason instead of an error.
 - **A backfill/reconcile job fills and repairs the index.**
   `VECTOR_RECONCILE` (daily at 04:15 UTC, `system_vector_reconcile`)
-  composes every posting, skill and profile, indexes only the documents whose
-  content changed (a rerun of unchanged content costs zero embedding calls),
-  sweeps orphans, and writes a per-kind coverage snapshot. Each run is
-  bounded by a document cap and an embed budget; the remainder is picked up
-  next run. Admins can enqueue one from `POST /api/v1/admin/retrieval/reconcile`;
-  operators run `scripts/reindex_vectors.py`. Embed spend lands on the system
-  budget, never an admin's personal one.
+  composes postings, skills and profiles in bounded keyset batches, indexes
+  only the documents whose content changed (a rerun of unchanged content
+  costs zero embedding calls), sweeps orphans, and writes a per-kind coverage
+  snapshot once that kind's chain completes. Each run is bounded by a source
+  scan limit, a document cap and an embed budget; a partial batch returns its
+  cursor and automatically enqueues the next bounded batch (unless
+  `auto_continue` is off), so the whole corpus is covered without loading it
+  into memory. Admins can enqueue one from
+  `POST /api/v1/admin/retrieval/reconcile`; operators run
+  `scripts/reindex_vectors.py`. Embed spend lands on the system budget, never
+  an admin's personal one.
 - **Behavior notes.** The smart sort no longer embeds anything per request:
   the affinity is a stored-document similarity, and a profile the index has
   not reached yet keeps the neutral 7.0 affinity. The semantic catalog

@@ -470,8 +470,9 @@ never re-embedded unchanged (content-hash dedupe).
 - **Write path.** Versioned pure composers (`app/services/vector_composers.py`)
   turn a posting, skill or profile into named views; the `VECTOR_INDEX` job
   indexes one document and the `VECTOR_RECONCILE` job backfills/reconciles the
-  whole store (resumable, budget-capped, coverage snapshots per kind). Both
-  write through `app/storage/vector_store.py`, never dialect SQL.
+  store in bounded keyset batches (resumable cursor, budget-capped, coverage
+  snapshots only when a kind's chain completes). Both write through
+  `app/storage/vector_store.py`, never dialect SQL.
 - **Read path.** `app/services/vector_retrieval_service.py` embeds the query
   once, searches each view under the caller's opaque scope, aggregates chunks
   into a document score and fuses lexical rankings with weighted RRF
