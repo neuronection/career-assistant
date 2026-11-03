@@ -281,8 +281,10 @@ export interface paths {
         };
         /**
          * Catalog Mapping Settings
-         * @description The mapping run controls (plan 185 S6.3): the job-proposal switch,
-         *     read per decision — effective on the next decision, no restart.
+         * @description The mapping run controls (plan 185 S6.3): the job-proposal and
+         *     semantic-rescue switches, read per decision — effective on the next
+         *     decision, no restart (plan 50 P2a restored the rescue on the family
+         *     vector store).
          */
         get: operations["catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get"];
         /** Put Catalog Mapping Settings */
@@ -6006,6 +6008,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/jobs/{ref}/postings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Job Live Postings
+         * @description Live postings ranked against this catalog job (visibility-filtered).
+         */
+        get: operations["job_live_postings_api_v1_jobs__ref__postings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs/{ref}/publish": {
         parameters: {
             query?: never;
@@ -6040,6 +6062,26 @@ export interface paths {
          * @description AI-propose relations between this job and same-family peers (stored as ai).
          */
         post: operations["suggest_job_relations_api_v1_jobs__ref__relations_suggest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{ref}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Similar Jobs
+         * @description Similar published catalog jobs (semantic, skill-overlap fallback).
+         */
+        get: operations["similar_jobs_api_v1_jobs__ref__similar_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -10359,6 +10401,8 @@ export interface components {
         CatalogMappingSettingsIn: {
             /** Job Proposals */
             job_proposals?: boolean | null;
+            /** Semantic Rescue */
+            semantic_rescue?: boolean | null;
         };
         /**
          * CatalogPresetIn
@@ -13566,7 +13610,7 @@ export interface components {
             force: boolean;
             /**
              * Kind
-             * @description source kind: posting | skill | profile
+             * @description source kind: posting | job | skill | profile
              */
             kind: string;
             /**
@@ -13946,6 +13990,59 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** Title */
             title: string;
+        };
+        /**
+         * JobPostingMatchOut
+         * @description One live posting ranked against a catalog job (plan 50 §7.3).
+         */
+        JobPostingMatchOut: {
+            /** Catalog Job Id */
+            catalog_job_id?: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Org
+             * @default
+             */
+            org: string;
+            /** Posted At */
+            posted_at?: string | null;
+            /** Ref */
+            ref: string;
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /**
+             * Source
+             * @default catalog
+             * @enum {string}
+             */
+            source: "semantic" | "catalog";
+            /** Status */
+            status: string;
+            /** Title */
+            title: string;
+        };
+        /**
+         * JobPostingsOut
+         * @description A page of live postings for a job plus the degradation reason.
+         */
+        JobPostingsOut: {
+            /** Degraded */
+            degraded?: string | null;
+            /** Items */
+            items?: components["schemas"]["JobPostingMatchOut"][];
+            /**
+             * Source
+             * @default catalog
+             * @enum {string}
+             */
+            source: "semantic" | "catalog";
         };
         /** JobProposalApplyIn */
         JobProposalApplyIn: {
@@ -16566,6 +16663,12 @@ export interface components {
          */
         ReconcileRequest: {
             /**
+             * Auto Continue
+             * @description enqueue the next bounded batch when this one is partial
+             * @default true
+             */
+            auto_continue: boolean;
+            /**
              * Batch Size
              * @default 10
              */
@@ -16593,6 +16696,12 @@ export interface components {
              * @default 200
              */
             limit: number;
+            /**
+             * Scan Limit
+             * @description source rows per keyset batch
+             * @default 500
+             */
+            scan_limit: number;
             /**
              * Since
              * @description ISO timestamp — only rows updated since
@@ -17442,6 +17551,53 @@ export interface components {
          * @enum {string}
          */
         ShiftTolerance: "none" | "occasional" | "regular";
+        /**
+         * SimilarJobOut
+         * @description One similar catalog job from the job↔job match (plan 50 §7.3).
+         */
+        SimilarJobOut: {
+            /** Code */
+            code: string;
+            /** Family Key */
+            family_key?: string | null;
+            /** Family Label */
+            family_label?: string | null;
+            /** Per View */
+            per_view?: {
+                [key: string]: number;
+            };
+            /**
+             * Score
+             * @default 0
+             */
+            score: number;
+            /**
+             * Source
+             * @default skill_overlap
+             * @enum {string}
+             */
+            source: "semantic" | "skill_overlap";
+            /** Title */
+            title: string;
+        };
+        /**
+         * SimilarJobsOut
+         * @description A page of similar jobs plus the honest degradation reason, if any.
+         */
+        SimilarJobsOut: {
+            /** Degraded */
+            degraded?: string | null;
+            /** Items */
+            items?: components["schemas"]["SimilarJobOut"][];
+            /**
+             * Source
+             * @default skill_overlap
+             * @enum {string}
+             */
+            source: "semantic" | "skill_overlap";
+            /** Space Key */
+            space_key?: string | null;
+        };
         /**
          * SkillBulkFailure
          * @description One id the bulk call could not act on, and why (verbatim reason).
@@ -29513,6 +29669,40 @@ export interface operations {
             };
         };
     };
+    job_live_postings_api_v1_jobs__ref__postings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobPostingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     publish_job_api_v1_jobs__ref__publish_post: {
         parameters: {
             query?: never;
@@ -29562,6 +29752,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RelationOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    similar_jobs_api_v1_jobs__ref__similar_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                ref: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarJobsOut"];
                 };
             };
             /** @description Validation Error */

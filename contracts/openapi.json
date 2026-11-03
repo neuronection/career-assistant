@@ -2578,6 +2578,17 @@
               }
             ],
             "title": "Job Proposals"
+          },
+          "semantic_rescue": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Rescue"
           }
         },
         "title": "CatalogMappingSettingsIn",
@@ -10807,7 +10818,7 @@
             "type": "boolean"
           },
           "kind": {
-            "description": "source kind: posting | skill | profile",
+            "description": "source kind: posting | job | skill | profile",
             "title": "Kind",
             "type": "string"
           },
@@ -11766,6 +11777,113 @@
           "created_at"
         ],
         "title": "JobOut",
+        "type": "object"
+      },
+      "JobPostingMatchOut": {
+        "description": "One live posting ranked against a catalog job (plan 50 \u00a77.3).",
+        "properties": {
+          "catalog_job_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Catalog Job Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "org": {
+            "default": "",
+            "title": "Org",
+            "type": "string"
+          },
+          "posted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Posted At"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "string"
+          },
+          "score": {
+            "default": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "default": "catalog",
+            "enum": [
+              "semantic",
+              "catalog"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ref",
+          "title",
+          "status"
+        ],
+        "title": "JobPostingMatchOut",
+        "type": "object"
+      },
+      "JobPostingsOut": {
+        "description": "A page of live postings for a job plus the degradation reason.",
+        "properties": {
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobPostingMatchOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "source": {
+            "default": "catalog",
+            "enum": [
+              "semantic",
+              "catalog"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "title": "JobPostingsOut",
         "type": "object"
       },
       "JobProposalApplyIn": {
@@ -21091,6 +21209,113 @@
         "title": "ShiftTolerance",
         "type": "string"
       },
+      "SimilarJobOut": {
+        "description": "One similar catalog job from the job\u2194job match (plan 50 \u00a77.3).",
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "family_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Key"
+          },
+          "family_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family Label"
+          },
+          "per_view": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Per View",
+            "type": "object"
+          },
+          "score": {
+            "default": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "source": {
+            "default": "skill_overlap",
+            "enum": [
+              "semantic",
+              "skill_overlap"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "title"
+        ],
+        "title": "SimilarJobOut",
+        "type": "object"
+      },
+      "SimilarJobsOut": {
+        "description": "A page of similar jobs plus the honest degradation reason, if any.",
+        "properties": {
+          "degraded": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SimilarJobOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "source": {
+            "default": "skill_overlap",
+            "enum": [
+              "semantic",
+              "skill_overlap"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "space_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Space Key"
+          }
+        },
+        "title": "SimilarJobsOut",
+        "type": "object"
+      },
       "SkillBulkFailure": {
         "description": "One id the bulk call could not act on, and why (verbatim reason).",
         "properties": {
@@ -26330,7 +26555,7 @@
     },
     "/api/v1/admin/catalog-mapping/settings": {
       "get": {
-        "description": "The mapping run controls (plan 185 S6.3): the job-proposal switch,\nread per decision \u2014 effective on the next decision, no restart.",
+        "description": "The mapping run controls (plan 185 S6.3): the job-proposal and\nsemantic-rescue switches, read per decision \u2014 effective on the next\ndecision, no restart (plan 50 P2a restored the rescue on the family\nvector store).",
         "operationId": "catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get",
         "responses": {
           "200": {
@@ -41090,6 +41315,73 @@
         ]
       }
     },
+    "/api/v1/jobs/{ref}/postings": {
+      "get": {
+        "description": "Live postings ranked against this catalog job (visibility-filtered).",
+        "operationId": "job_live_postings_api_v1_jobs__ref__postings_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 500,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobPostingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Job Live Postings",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
     "/api/v1/jobs/{ref}/publish": {
       "post": {
         "description": "Publish an AI/user draft job.",
@@ -41175,6 +41467,73 @@
           }
         },
         "summary": "Suggest Job Relations",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/v1/jobs/{ref}/similar": {
+      "get": {
+        "description": "Similar published catalog jobs (semantic, skill-overlap fallback).",
+        "operationId": "similar_jobs_api_v1_jobs__ref__similar_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ref",
+            "required": true,
+            "schema": {
+              "title": "Ref",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "maximum": 500,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarJobsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Similar Jobs",
         "tags": [
           "jobs"
         ]

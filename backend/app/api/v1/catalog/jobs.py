@@ -7,7 +7,15 @@ from app.core.database import get_db
 from app.core.errors import DomainError
 from app.models.enums import BackgroundJobType, RelationType
 from app.schemas.common import Message
-from app.schemas.job import JobCreate, JobGraph, JobOut, JobUpdate, RelationOut
+from app.schemas.job import (
+    JobCreate,
+    JobGraph,
+    JobOut,
+    JobPostingsOut,
+    JobUpdate,
+    RelationOut,
+    SimilarJobsOut,
+)
 from app.services.catalog.job_service import JobService
 from app.services.deps import get_current_user
 from app.services.job_worker import enqueue
@@ -153,6 +161,9 @@ async def publish_job(
     await service.notify_published(job)
     await service._refit_job(job.id)
     await service._refresh_transferability()
+    from app.services.catalog.job_service import enqueue_job_index
+
+    await enqueue_job_index(db, job)
     from app.services.catalog.localized_view import job_out, resolve_locale
 
     return await job_out(db, job, await resolve_locale(db, user))
@@ -218,6 +229,46 @@ async def get_job(
     from app.services.catalog.localized_view import job_out, resolve_locale
 
     return await job_out(db, job, await resolve_locale(db, user))
+
+
+@router.get("/{ref}/similar", response_model=SimilarJobsOut)
+async def similar_jobs(
+    ref: str,
+    limit: int = Query(default=10, ge=1, le=50),
+    offset: int = Query(default=0, ge=0, le=500),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SimilarJobsOut:
+    """Similar published catalog jobs (semantic, skill-overlap fallback)."""
+    try:
+        job = await JobService(db).require_job(ref)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    from app.services.catalog.job_match_service import JobMatchService
+
+    payload = await JobMatchService(db).similar_jobs(job, limit=limit, offset=offset)
+    return SimilarJobsOut.model_validate(payload)
+
+
+@router.get("/{ref}/postings", response_model=JobPostingsOut)
+async def job_live_postings(
+    ref: str,
+    limit: int = Query(default=10, ge=1, le=50),
+    offset: int = Query(default=0, ge=0, le=500),
+    user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> JobPostingsOut:
+    """Live postings ranked against this catalog job (visibility-filtered)."""
+    try:
+        job = await JobService(db).require_job(ref)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    from app.services.catalog.job_match_service import JobMatchService
+
+    payload = await JobMatchService(db).live_postings(
+        job, user_id=user.id, limit=limit, offset=offset
+    )
+    return JobPostingsOut.model_validate(payload)
 
 
 @router.put("/{ref}", response_model=JobOut)

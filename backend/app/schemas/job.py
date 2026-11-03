@@ -294,3 +294,49 @@ class GraphEdge(BaseModel):
 class JobGraph(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class SimilarJobOut(BaseModel):
+    """One similar catalog job from the job↔job match (plan 50 §7.3)."""
+
+    code: str
+    title: str
+    family_key: str | None = None
+    family_label: str | None = None
+    score: float = 0.0
+    #: Per-view cosines behind the score (semantic hits only).
+    per_view: dict[str, float] = Field(default_factory=dict)
+    #: ``semantic`` (vector match) or ``skill_overlap`` (lexical fallback).
+    source: Literal["semantic", "skill_overlap"] = "skill_overlap"
+
+
+class SimilarJobsOut(BaseModel):
+    """A page of similar jobs plus the honest degradation reason, if any."""
+
+    items: list[SimilarJobOut] = Field(default_factory=list)
+    source: Literal["semantic", "skill_overlap"] = "skill_overlap"
+    degraded: str | None = None
+    space_key: str | None = None
+
+
+class JobPostingMatchOut(BaseModel):
+    """One live posting ranked against a catalog job (plan 50 §7.3)."""
+
+    id: UUID
+    ref: str
+    title: str
+    org: str = ""
+    posted_at: datetime | None = None
+    status: str
+    catalog_job_id: UUID | None = None
+    score: float = 0.0
+    #: ``semantic`` (vector match) or ``catalog`` (the mapped postings).
+    source: Literal["semantic", "catalog"] = "catalog"
+
+
+class JobPostingsOut(BaseModel):
+    """A page of live postings for a job plus the degradation reason."""
+
+    items: list[JobPostingMatchOut] = Field(default_factory=list)
+    source: Literal["semantic", "catalog"] = "catalog"
+    degraded: str | None = None

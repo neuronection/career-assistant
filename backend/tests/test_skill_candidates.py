@@ -169,7 +169,7 @@ async def test_scheduler_provisions_and_runs_the_reconcile_job(db):
     assert schedule is not None, "the reconcile slot is boot-provisioned"
     assert schedule.task == BackgroundJobType.VECTOR_RECONCILE.value
     assert schedule.trigger["type"] == "daily_at"
-    assert schedule.payload["kinds"] == ["posting", "profile", "skill"]
+    assert schedule.payload["kinds"] == ["posting", "job", "profile", "skill"]
 
     await _skill(db, "rust-lang", "Rust")
     await db.commit()
