@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — the Audit observation tab, 2026-11-03)
+- **Audit → Retrieval is the read-only observation tab**: URL-addressable
+  sections (`?section=overview|spaces|runs|quality|query-health|failures|usage|changes`)
+  cover spaces and backend/model, coverage, query latency and degradation,
+  run stage/progress/result counters with bounded failed ids and truncation,
+  the versioned golden-query compare and bad-match ids/scores, failure groups
+  by embed/indexing/cutover/maintenance, embed usage and budget versus usage,
+  and the `vector.*` change trail. `?detail=<id>` opens the matching run,
+  space, golden-query or failure drawer.
+- **Retrieval adds a 90d window preset** without widening the existing audit
+  endpoints; the change trail caps at 30d and says so. The AI ledger task
+  filter is URL-synced (`?tab=ai&task=embed`) for alert and quality deep
+  links.
+- **Notification-kind rows now expose their existing `manage_url`** as a
+  link, so retrieval alerts point at the exact Tools/Audit section instead
+  of a second preference UI. The tab is strictly read-only: cancel, retry,
+  reindex and lifecycle hand off to Tools → Retrieval.
+
 ### Added (retrieval operations — the Tools management surface, 2026-11-03)
 - **Tools → Retrieval is the vector-index management surface**: an active
   space card (honest backend label, model/dimension, health, coverage and

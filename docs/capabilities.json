@@ -428,14 +428,15 @@
     {
       "id": "retrieval-operations",
       "verb": "Keep semantic retrieval healthy as the index grows",
-      "summary": "An admin surface for the vector index: the active space, backend and model, coverage and quality gates, bounded reindex runs, space lifecycle, maintenance and an aggregate status export.",
+      "summary": "An admin surface for the vector index: the active space, backend and model, coverage and quality gates, bounded reindex runs, space lifecycle, maintenance, an aggregate status export plus a read-only Audit tab.",
       "category": "analyze",
       "status": "shipped",
       "proofs": [
         "Active space reports the honest backend label, model/dimension, store health, coverage and the coverage/quality gates",
         "Bounded reindex by kind, view and since timestamp with a token budget and document limit; queued runs are shown as queued, never as finished",
         "Build a new space to change models, activate only after coverage and the golden-query compare pass, then retire or drop it with a typed name",
-        "Index rebuild, vacuum, orphan sweep and failed-document retry with dry-run; the status export carries aggregates only, never raw text"
+        "Index rebuild, vacuum, orphan sweep and failed-document retry with dry-run; the status export carries aggregates only, never raw text",
+        "Read-only Audit → Retrieval tab: spaces, runs, quality, query health, failures, usage, changes, with detail drawers and Tools hand-off"
       ],
       "links": [
         {

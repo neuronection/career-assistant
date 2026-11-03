@@ -85,8 +85,10 @@ supported. **Quality** scores the versioned golden-query set for a candidate
 against its baseline and shows recall, precision and the gate. The **danger
 zone** exports the status JSON (aggregates, counts, ids and scores only —
 never document, query or prompt text) and offers typed-confirmation deletion
-of retired spaces. Observation lives in Audit → Retrieval (the read-only tab
-arrives with the following slice).
+of retired spaces. Observation lives in Audit → Retrieval: a read-only tab
+with overview, spaces, runs, quality, query-health, failures, usage and
+changes sections, each deep-linkable and every action handing off to this
+Tools surface.
 
 **Sources** hosts the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and
@@ -203,7 +205,7 @@ they are saved. See
 ## Audit & monitoring (`/settings/audit`)
 
 The observability surface for administrators — on desktop the owner is
-their instance's admin, so the page is always reachable there. Seven
+their instance's admin, so the page is always reachable there. Eight
 tabs over the system's audit streams; the overview, security and
 failures views share a 24h/7d/30d or custom range:
 
@@ -247,13 +249,31 @@ failures views share a 24h/7d/30d or custom range:
   posting mutations (sync runs, extractions, re-tags, manual edits) and
   skill lifecycle events (created, promoted, deprecated, merged, deleted)
   with actor and outcome filters.
+- **Retrieval** — the read-only observation surface for the vector index,
+  with URL-addressable sections (`?section=`): an overview (spaces,
+  backend, model/dimension, coverage and stale/failed counts, query
+  latency, degraded and zero-result share, embed calls/tokens, last
+  reindex and recent `vector.*` changes), the spaces table, reindex /
+  cutover / maintenance runs with a per-run drawer (stage, progress,
+  result counters, bounded failed ids with a truncation marker, scope,
+  heartbeat and error), the versioned golden-query quality compare and
+  bad-match drawer (ids and scores only), query health (p50/p95,
+  candidates, per-view and degraded distribution, zero-result and
+  never-sampled states), failure groups by embed provider, indexing,
+  cutover gate and maintenance, embed usage by day/space/kind with budget
+  versus usage and untagged calls, and the `vector.*` change trail. The
+  tab adds a 90d window preset; the audit event trail itself caps at 30d.
+  Nothing here writes: cancel, retry, reindex, compare and space
+  lifecycle actions link to Tools → Retrieval. A `?detail=<id>` deep
+  link opens the matching run, space, golden-query or failure drawer.
 
-Every tab can narrow to a custom date range, the overview supports an
-auto-refresh toggle (30-second cadence), and the AI activity, security,
-jobs (including source runs) and data-changes views export the current
-filtered ledger as CSV (capped at 10,000 rows). All aggregation happens server-side and works
-identically on PostgreSQL (web/self-host) and the SQLite desktop
-profile.
+The shared overview/security/failures range also accepts custom dates
+and Retrieval adds a 90d preset; the overview supports an auto-refresh
+toggle (30-second cadence), and the AI activity, security, jobs
+(including source runs) and data-changes views export the current
+filtered ledger as CSV (capped at 10,000 rows). All aggregation happens
+server-side and works identically on PostgreSQL (web/self-host) and the
+SQLite desktop profile.
 
 ## Related
 
