@@ -95,6 +95,7 @@ SCHEDULE_TASKS = {
     "demand_import",
     "skill_relation_learn",
     "vector_reconcile",
+    "retrieval_alert_sweep",
 }
 
 CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [

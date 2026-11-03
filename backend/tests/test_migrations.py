@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0090"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0091"], (
         "revision chain stays linear on one head"
     )
 
@@ -3681,6 +3681,26 @@ def test_0076_alert_manage_urls_roundtrip():
             await engine.dispose()
 
     asyncio.run(_cleanup())
+
+
+def test_0091_retrieval_alert_sweep_roundtrip():
+    """The alert sweep schedule widens the mirrored CHECKs and folds back."""
+    config = _configured()
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_retrieval_alerts" in checks["kind_allowed"]
+    assert "retrieval_alert_sweep" in checks["task_allowed"]
+
+    command.downgrade(config, "0090")
+    checks = _schedules_checks()
+    assert "system_retrieval_alerts" not in checks["kind_allowed"]
+    assert "retrieval_alert_sweep" not in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    checks = _schedules_checks()
+    assert "system_retrieval_alerts" in checks["kind_allowed"]
+    assert "retrieval_alert_sweep" in checks["task_allowed"]
 
 
 def test_0086_embeddings_reconcile_task_roundtrip():
