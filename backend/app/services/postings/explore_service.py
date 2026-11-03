@@ -12,6 +12,7 @@ sidebar badges stay live when a facet is active.
 
 import base64
 import json
+import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -34,6 +35,9 @@ from app.models.posting_model import (
 )
 from app.models.taxonomy_model import Skill
 from app.services.analytics.time_buckets import POSTED_WINDOWS, window_clause
+from app.services.hybrid_search import rrf_merge as hybrid_rrf
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from app.services.postings.posting_fit_service import FitOverrides
@@ -915,50 +919,49 @@ def smart_score(fit: float, affinity: float, *, seen: bool) -> float:
 
 
 async def _apply_smart_affinity(db: AsyncSession, user_id: UUID, entries: list[dict]) -> None:
-    """Interest affinity per window entry: cosine(profile, posting) —
-    semantic as a RANKING signal only (ADR-0012 §13): it reorders the
-    hard-filtered window, never gates it.
+    """Interest affinity per window entry: the user's indexed profile document
+    against the posting documents — semantic as a RANKING signal only
+    (ADR-0012 §13, plan 50 §7): it reorders the hard-filtered window, never
+    gates it.
 
-    All degrade lands on the neutral term without failing the request:
-    missing profile/posting embedding, dim mismatch, and gateway embed
-    failures (unconfigured AI — the production default — limiter
-    exhaustion, provider timeout). The unconfigured case is pre-flighted
-    through the resolver so it never reaches the gateway; a limiter
-    rejection happens before the gateway's audit write; a provider
-    failure leaves the gateway's own audit row to the caller's commit
-    (the explore read path never commits, so nothing persists there).
+    The profile is composed and embedded by the vector index job, not inside
+    this read path, so the sort costs zero embeddings per request. All
+    degrade lands on the neutral term without failing the request: a fresh
+    profile that is not indexed yet, an unprovisioned space, a missing
+    posting vector and any storage failure. A posting without a vector keeps
+    the neutral tier — it is never dropped.
     """
     for entry in entries:
         entry["affinity"] = SMART_AFFINITY_NEUTRAL
     if not entries:
         return
     try:
-        from app.ai.providers.resolution import resolve_task_model
-        from app.models.enums import AITaskType
-
-        if await resolve_task_model(db, AITaskType.EMBED.value, user_id) is None:
-            return
-        from app.services.embedding_service import KIND_POSTING, EmbeddingService, cosine
-
-        service = EmbeddingService(db)
-        profile_row = await service.upsert_profile_embedding(user_id, commit=False)
-        if profile_row is None:
-            return
-        await db.commit()
-        profile_vector = profile_row.vector or []
-        profile_dim = len(profile_vector)
-        if not profile_dim:
-            return
-        stored = await service.embeddings_by_ids(
-            KIND_POSTING, [entry["posting"].id for entry in entries]
+        from app.services.vector_retrieval_service import (
+            AFFINITY_VIEW_WEIGHTS,
+            VectorRetrievalService,
         )
+        from app.storage.vector_backends import filter_scope
+
+        result = await VectorRetrievalService(db).similar_documents(
+            source_kind="profile",
+            source_id=str(user_id),
+            target_kind="posting",
+            view_weights=AFFINITY_VIEW_WEIGHTS,
+            scope=filter_scope(
+                kinds=("posting",),
+                source_ids=[str(entry["posting"].id) for entry in entries],
+            ),
+            limit=len(entries),
+        )
+        scored = result.scores_by_source()
         for entry in entries:
-            row = stored.get(entry["posting"].id)
-            if row is None or not row.vector or len(row.vector) != profile_dim:
+            hit = scored.get(str(entry["posting"].id))
+            if hit is None:
                 continue
-            affinity = max(0.0, min(1.0, cosine(profile_vector, row.vector)))
+            affinity = max(0.0, min(1.0, hit.score))
             entry["affinity"] = round(affinity * 10.0, SMART_KEY_DECIMALS)
     except Exception:
+        logger.info("smart affinity degraded to the neutral term", exc_info=True)
         return
 
 
@@ -1111,34 +1114,42 @@ def _after_cursor(entry: dict, sort: str, after_key: Any, after_id: UUID) -> boo
 
 
 async def _apply_hybrid_relevance(db: AsyncSession, entries: list[dict], q: str) -> None:
-    """RRF-merge the lexical relevance ranking with the semantic cosine
-    ranking of the SAME candidate set. The candidate list
-    is already hard-filtered — semantic only re-ranks inside it, and
-    any failure degrades to the lexical order without breaking search.
+    """RRF-merge the lexical relevance ranking with the semantic ranking of
+    the SAME candidate set. The candidate list is already hard-filtered —
+    semantic only re-ranks inside it, and any failure (no provider, no
+    index, a missing posting vector) degrades to the lexical order without
+    breaking search.
+
+    ``relevance`` carries the fused RRF score (higher is better), so the
+    descending sort below puts the item both rankings agree on first.
     """
     if not entries or not q:
         return
     try:
-        from app.services.embedding_service import KIND_POSTING, EmbeddingService
+        from app.services.vector_retrieval_service import VectorRetrievalService
+        from app.storage.vector_backends import filter_scope
 
-        semantic = await EmbeddingService(db).search_similar(
-            q, kind=KIND_POSTING, limit=max(len(entries) * 3, 20)
+        result = await VectorRetrievalService(db).search_text(
+            q,
+            kind="posting",
+            scope=filter_scope(
+                kinds=("posting",),
+                source_ids=[str(entry["posting"].id) for entry in entries],
+            ),
+            limit=max(len(entries), 1),
         )
     except Exception:
         return
-    semantic_order = [item["entity_id"] for item in semantic]
+    semantic_order = result.source_ids
     if not semantic_order:
         return
-    from app.services.hybrid_search import hybrid_candidate_order
-
     lexical_order = [
         str(entry["posting"].id)
         for entry in sorted(entries, key=lambda e: e.get("relevance") or 0.0, reverse=True)
     ]
-    merged = hybrid_candidate_order(lexical_order, semantic_order)
-    scores = {item_id: rank for rank, item_id in enumerate(merged, start=1)}
+    fused = hybrid_rrf([lexical_order, semantic_order])
     for entry in entries:
-        entry["relevance"] = float(scores.get(str(entry["posting"].id), 0.0))
+        entry["relevance"] = float(fused.get(str(entry["posting"].id), 0.0))
 
 
 def _sort_entries(entries: list[dict], filters: dict, sort: str) -> list[dict]:

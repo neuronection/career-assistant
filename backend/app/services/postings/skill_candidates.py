@@ -5,12 +5,12 @@ the existing skills each label might belong to before one batched
 pass-2 resolver call adjudicates ``match_key | new`` per label. The
 pipeline is layered and deterministic: exact ``_taxonomy_index`` hit
 (score 1.0, terminal, plan-138 precedence law honored) → trigram
-similarity over key/label/aliases → embedding cosine ranking over the
-same candidate set. Semantic order is a ranking signal only — missing
-or failed vectors degrade to the lexical (trigram) order, never gate
-which candidates are offered. Deprecated rows participate as fallback
-exact matches only (never shadows); proposed + active rows are full
-candidates.
+similarity over key/label/aliases → the indexed skill document's cosine
+ranking over the same candidate set (plan 50's vector store). Semantic
+order is a ranking signal only — missing or failed vectors degrade to the
+lexical (trigram) order, never gate which candidates are offered. Deprecated
+rows participate as fallback exact matches only (never shadows); proposed +
+active rows are full candidates.
 """
 
 from dataclasses import dataclass
@@ -19,10 +19,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.embedding_model import AIEmbedding
 from app.models.taxonomy_model import Skill
 from app.services.catalog.organization_service import trigram_similarity
-from app.services.embedding_service import KIND_SKILL, cosine
 from app.services.postings.postings_service import _norm, _taxonomy_index_rows
 
 
@@ -48,14 +46,30 @@ def _match_texts(skill: Skill) -> list[str]:
     return [part for part in parts if part]
 
 
-async def _query_vector(db: AsyncSession, label: str) -> list[float] | None:
-    """Embed the label once; any failure degrades to lexical order."""
-    try:
-        from app.ai.gateway import embed_texts
+async def _semantic_scores(db: AsyncSession, label: str, *, k: int) -> dict[UUID, float]:
+    """Cosine scores from the indexed skill documents; empty when degraded.
 
-        return (await embed_texts(db, [label]))[0]
+    The retrieval service owns the provider pre-flight, the query embedding
+    and every failure mode, so an unconfigured provider, a missing index or a
+    failed call simply leaves the lexical (trigram) order intact.
+    """
+    from app.services.vector_retrieval_service import VectorRetrievalService
+
+    try:
+        result = await VectorRetrievalService(db).search_text(
+            label, kind="skill", views=("summary",), limit=max(k * 3, k)
+        )
     except Exception:
-        return None
+        return {}
+    scores: dict[UUID, float] = {}
+    for hit in result.hits:
+        if hit.score <= 0.0:
+            continue
+        try:
+            scores[UUID(hit.source_id)] = float(hit.score)
+        except (TypeError, ValueError):  # pragma: no cover - non-UUID source ids
+            continue
+    return scores
 
 
 async def candidate_skills(
@@ -63,19 +77,19 @@ async def candidate_skills(
 ) -> list[Candidate]:
     """Top-k existing skills a raw label might resolve to (plan 153).
 
-    Deterministic on every dialect: the candidate pool is ranked by
-    cosine (same-dim stored vectors only) with the trigram score as the
-    tiebreak, so absent/degraded vectors leave the lexical order intact.
-    An exact index hit is terminal and returns exactly one candidate. A
-    label unrelated to the whole taxonomy still yields k lexical
-    candidates scored 0.0 — pass 2 adjudicates ``new``; a 0.0 score is
-    "no signal", never a weak match.
+    Deterministic on every dialect: the candidate pool is ranked by the
+    indexed skill document's cosine (plan 50's space) with the trigram score
+    as the tiebreak, so absent/degraded vectors leave the lexical order
+    intact. An exact index hit is terminal and returns exactly one candidate.
+    A label unrelated to the whole taxonomy still yields k lexical candidates
+    scored 0.0 — pass 2 adjudicates ``new``; a 0.0 score is "no signal", never
+    a weak match.
 
-    ``active_only`` is the auto-promote dedup gate's lane (plan 153
-    slice 3): exact claims and candidates both restrict to active rows,
-    so a proposed twin never shadows an active near-duplicate and a
-    contested token can only ever block (never silently pick a winner
-    this gate relies on — plan-153 §7).
+    ``active_only`` is the auto-promote dedup gate's lane (plan 153 slice 3):
+    exact claims and candidates both restrict to active rows, so a proposed
+    twin never shadows an active near-duplicate and a contested token can
+    only ever block (never silently pick a winner this gate relies on —
+    plan-153 §7).
     """
     label = (label or "").strip()
     if not label or k <= 0:
@@ -106,38 +120,25 @@ async def candidate_skills(
         )
         for skill in pool
     }
-    embedding_rows = (
-        (await db.execute(select(AIEmbedding).where(AIEmbedding.entity_kind == KIND_SKILL)))
-        .scalars()
-        .all()
-    )
-    query_vector = await _query_vector(db, label) if embedding_rows else None
-    cosines: dict[UUID, float] = {}
-    if query_vector:
-        stored = {
-            row.entity_id: row.vector
-            for row in embedding_rows
-            if row.dim == len(query_vector) and row.vector
-        }
-        for skill in pool:
-            vector = stored.get(skill.id)
-            if vector is not None:
-                cosines[skill.id] = cosine(query_vector, vector)
+    semantic = await _semantic_scores(db, label, k=max(k, 1))
+    cosines = {
+        skill_id: score for skill_id, score in semantic.items() if skill_id in trigram_scores
+    }
 
     def rank_key(skill: Skill) -> tuple[float, float, str]:
         return (-cosines.get(skill.id, 0.0), -trigram_scores[skill.id], skill.key)
 
     candidates: list[Candidate] = []
     for skill in sorted(pool, key=rank_key)[:k]:
-        semantic = cosines.get(skill.id, 0.0)
-        if semantic > 0.0:
+        semantic_score = cosines.get(skill.id, 0.0)
+        if semantic_score > 0.0:
             candidates.append(
                 Candidate(
                     skill_id=skill.id,
                     key=skill.key,
                     label=skill.label,
                     status=skill.status,
-                    score=round(semantic, 4),
+                    score=round(semantic_score, 4),
                     signal="embedding",
                 )
             )

@@ -22,7 +22,7 @@ from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
-from sqlalchemy import Engine, delete, select
+from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.enums.retrieval import VectorScopeType
@@ -751,6 +751,50 @@ class VectorStoreService:
                 )
                 for document in session.scalars(statement)
             }
+
+    def document_hashes(
+        self,
+        space: VectorSpace | uuid.UUID | str,
+        *,
+        kind: str | None = None,
+    ) -> dict[str, str]:
+        """``source_id → stored source_hash`` for the space's documents.
+
+        The reconcile pass compares this to a fresh composition: an equal
+        hash costs zero embedding calls, a different one marks the document
+        stale.
+        """
+        canonical = self.resolve_space(space)
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            statement = select(VectorDocument.source_id, VectorDocument.source_hash).where(
+                VectorDocument.space_id == row.id
+            )
+            if kind is not None:
+                statement = statement.where(VectorDocument.kind == kind)
+            return {
+                str(source_id): str(source_hash)
+                for source_id, source_hash in session.execute(statement)
+            }
+
+    def count_documents(
+        self,
+        space: VectorSpace | uuid.UUID | str,
+        *,
+        kind: str | None = None,
+    ) -> int:
+        """How many documents of a kind the space holds."""
+        canonical = self.resolve_space(space)
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            statement = (
+                select(func.count())
+                .select_from(VectorDocument)
+                .where(VectorDocument.space_id == row.id)
+            )
+            if kind is not None:
+                statement = statement.where(VectorDocument.kind == kind)
+            return int(session.scalar(statement) or 0)
 
     def document_vectors(
         self, space: VectorSpace | uuid.UUID | str, *, document_id: uuid.UUID | str

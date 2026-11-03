@@ -5,6 +5,7 @@ guaranteed must-terms, semantic + graph recall, replan), isolation and the
 no-apply invariant."""
 
 import json
+from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -12,11 +13,18 @@ import pytest
 from langgraph.checkpoint.memory import InMemorySaver
 from sqlalchemy import select
 
+from app.ai.gateway import MOCK_EMBED_DIM
 from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
 from app.models.enums import BackgroundJobType, ScheduleKind
 from app.services.growth.autopilot_service import AutopilotService
 from app.services.scheduler.runner import KIND_TASKS
 from tests.conftest import session_headers
+from tests.vector_harness import (
+    ContentIndexer,
+    content_indexer,
+    create_native_engine,
+    drop_space,
+)
 
 
 @pytest.fixture
@@ -1267,7 +1275,7 @@ async def test_migration_head_is_linear():
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0087"]
+    assert script.get_heads() == ["0088"]
 
 
 # --------------------------------------------------- S1 planner grounding
@@ -1535,19 +1543,28 @@ def _narrow_planner(extra: dict | None = None):
     return scripted
 
 
-async def _embed_for(db, posting, text: str) -> None:
-    """Store the deterministic mock embedding of `text` on one posting."""
+@pytest.fixture
+def semantic_vectors() -> Iterator[ContentIndexer]:
+    """A `content` space for the semantic-sweep tests (dropped after each)."""
+    engine = create_native_engine()
+    indexer = content_indexer(engine, dim=MOCK_EMBED_DIM)
+    try:
+        yield indexer
+    finally:
+        drop_space(indexer.harness)
+        engine.dispose()
+
+
+async def _embed_for(db, posting, text: str, vectors: ContentIndexer) -> None:
+    """Index one posting document with the deterministic mock embedding."""
     from app.ai.gateway import embed_texts
-    from app.services.embedding_service import KIND_POSTING, EmbeddingService
 
     vector = (await embed_texts(db, [text]))[0]
-    await EmbeddingService(db).upsert_embedding(
-        KIND_POSTING, posting.id, f"embedding fixture for {posting.ref}", vector=vector
-    )
+    vectors.index("posting", str(posting.id), tuple(vector))
 
 
 async def test_semantic_sweep_surfaces_a_posting_no_variant_matches(
-    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock, semantic_vectors
 ):
     """Embedding recall adds postings the lexical variants cannot see
     (plan 158 S3.1/S3.4)."""
@@ -1564,7 +1581,7 @@ async def test_semantic_sweep_surfaces_a_posting_no_variant_matches(
         skills_raw=[],
         raw={"description": "Wrangling striped animals at the hotel lobby."},
     )
-    await _embed_for(db, posting, goal_text)
+    await _embed_for(db, posting, goal_text, semantic_vectors)
 
     created = await _goal(client, auth_headers, goal_text=goal_text, constraints={})
     service, user_id = _service(db, auth_headers)
@@ -1605,11 +1622,11 @@ async def test_semantic_sweep_degrades_without_embeddings(
 async def test_semantic_sweep_degrades_on_a_dim_mismatch(
     client, auth_headers, db, search_fixtures, source, autopilot_mock
 ):
-    """A stored vector of another dimension is skipped, not fatal: the
-    sweep returns no semantic candidates, notes the skip and the lexical
-    run completes (plan 158 S3.2)."""
-    from app.services.embedding_service import KIND_POSTING, EmbeddingService
+    """A space whose dimension disagrees with the provider's embedding is a
+    structured degrade, not a crash: no semantic candidates, a note in the run
+    trace, and the lexical run completes (plan 50 §4.2)."""
     from tests.conftest import _make_posting
+    from tests.vector_harness import content_indexer, create_native_engine, drop_space
 
     autopilot_mock(_narrow_planner())
     posting = await _make_posting(
@@ -1621,31 +1638,31 @@ async def test_semantic_sweep_degrades_on_a_dim_mismatch(
         skills_raw=[],
         raw={"description": "Wrangling striped animals at the hotel lobby."},
     )
-    await EmbeddingService(db).upsert_embedding(
-        KIND_POSTING,
-        posting.id,
-        "embedding fixture with a foreign dimension",
-        vector=[0.1, 0.2, 0.3],
-    )
-    await db.commit()
+    engine = create_native_engine()
+    indexer = content_indexer(engine, dim=4)
+    try:
+        indexer.index("posting", str(posting.id), (1.0, 0.0, 0.0, 0.0))
 
-    created = await _goal(client, auth_headers)
-    service, user_id = _service(db, auth_headers)
-    result = await service.run_goal(UUID(created["id"]), user_id)
-    await db.commit()
+        created = await _goal(client, auth_headers)
+        service, user_id = _service(db, auth_headers)
+        result = await service.run_goal(UUID(created["id"]), user_id)
+        await db.commit()
 
-    sweep = next(
-        entry
-        for entry in result["searches"]
-        if entry.get("rationale") == "semantic sweep over stored posting embeddings"
-    )
-    assert sweep["found"] == 0
-    assert "dimension mismatch" in sweep["error"]
-    assert result["status"] == "completed"
+        sweep = next(
+            entry
+            for entry in result["searches"]
+            if entry.get("rationale") == "semantic sweep over stored posting embeddings"
+        )
+        assert sweep["found"] == 0
+        assert "dimension mismatch" in sweep["error"]
+        assert result["status"] == "completed"
+    finally:
+        drop_space(indexer.harness)
+        engine.dispose()
 
 
 async def test_semantic_sweep_skips_gated_postings(
-    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock
+    client, auth_headers, db, seeded_catalog, source, kinds, autopilot_mock, semantic_vectors
 ):
     """A seen posting is excluded from the sweep like everywhere else
     (plan 158 S3.4, S4.7)."""
@@ -1663,7 +1680,7 @@ async def test_semantic_sweep_skips_gated_postings(
         skills_raw=[],
         raw={"description": "Wrangling striped animals at the hotel lobby."},
     )
-    await _embed_for(db, posting, goal_text)
+    await _embed_for(db, posting, goal_text, semantic_vectors)
     db.add(
         PostingInteraction(
             user_id=_uid(auth_headers), posting_id=posting.id, seen_at=datetime.now(UTC)
@@ -2246,9 +2263,13 @@ async def test_run_steps_record_the_full_node_sequence(
 async def test_run_stages_land_on_ledger_rows(
     client, auth_headers, db, search_fixtures, autopilot_mock
 ):
-    """Every autopilot gateway call carries run_id + stage: plan, curate
-    and the semantic sweep out of the box, replan when it fires (plan 168
-    S1.1) — the existing /admin/audit run_id filter starts working."""
+    """Every autopilot gateway call carries run_id + stage: plan and curate
+    out of the box, replan when it fires (plan 168 S1.1) — the existing
+    /admin/audit run_id filter starts working.
+
+    The semantic sweep only calls the gateway when the retrieval index can
+    answer (plan 50 §6): with no space it degrades before embedding, so it
+    contributes no ledger row rather than a fake one."""
     from app.models.ai_model import AIGeneration
 
     created = await _goal(client, auth_headers)
@@ -2266,7 +2287,7 @@ async def test_run_stages_land_on_ledger_rows(
         .all()
     )
     stages = {row.run_stage for row in rows}
-    assert {"autopilot.plan", "autopilot.curate", "autopilot.semantic_sweep"} <= stages
+    assert {"autopilot.plan", "autopilot.curate"} <= stages
     assert all(row.run_id == UUID(result["run_id"]) for row in rows)
 
     autopilot_mock(_empty_then_broad())
