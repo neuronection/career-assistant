@@ -24,6 +24,11 @@ from app.models.enums import (
 from app.models.schedule_model import Schedule
 from app.services.postings.engagement_service import canonical_hash
 from app.services.scheduler import triggers as trigger_registry
+from app.services.vector_reconcile_service import (
+    DEFAULT_BUDGET,
+    DEFAULT_LIMIT,
+    RECONCILE_KINDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +46,7 @@ KIND_TASKS = {
     ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
     ScheduleKind.SYSTEM_EXTENSION_RECONCILE.value: BackgroundJobType.EXTENSION_RECONCILE.value,
     ScheduleKind.SYSTEM_SKILL_RELATION_LEARN.value: (BackgroundJobType.SKILL_RELATION_LEARN.value),
-    ScheduleKind.SYSTEM_EMBEDDINGS_RECONCILE.value: (BackgroundJobType.EMBEDDINGS_RECONCILE.value),
+    ScheduleKind.SYSTEM_VECTOR_RECONCILE.value: BackgroundJobType.VECTOR_RECONCILE.value,
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
     ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
     ScheduleKind.USER_SMART_DIGEST.value: BackgroundJobType.SMART_DIGEST.value,
@@ -163,13 +168,13 @@ class SchedulerService:
                 MisfirePolicy.SKIP.value,
             ),
             (
-                ScheduleKind.SYSTEM_EMBEDDINGS_RECONCILE,
-                BackgroundJobType.EMBEDDINGS_RECONCILE.value,
+                ScheduleKind.SYSTEM_VECTOR_RECONCILE,
+                BackgroundJobType.VECTOR_RECONCILE.value,
                 {
                     "type": "daily_at",
                     "params": {"time": "04:15", "timezone": "UTC"},
                 },
-                {"limit": 200},
+                {"kinds": list(RECONCILE_KINDS), "limit": DEFAULT_LIMIT, "budget": DEFAULT_BUDGET},
                 MisfirePolicy.SKIP.value,
             ),
         ]

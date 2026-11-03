@@ -135,7 +135,6 @@ TABLES = [
     "chat_messages",
     "chat_sessions",
     "ai_skill_packs",
-    "ai_embeddings",
     "ai_mcp_servers",
     "ai_generations",
     "market_snapshots",
@@ -212,6 +211,55 @@ def restore_kit_config() -> Iterator[None]:
     original = kit.config
     yield
     kit.config = original
+
+
+@pytest.fixture(autouse=True)
+def clean_vector_store() -> Iterator[None]:
+    """Drop vector-store state left behind by a previous test's sync writes.
+
+    The Postgres lane rolls the app session back, but the vector store is
+    written through its own sync engine (provisioning/jobs), so a test that
+    fails before its cleanup would otherwise leave an ``active`` space whose
+    name collides with the next test's fixture. SQLite already truncates
+    ``TABLES`` per test.
+    """
+    if IS_SQLITE:
+        yield
+        return
+    from sqlalchemy import delete as sql_delete
+    from sqlalchemy import inspect, text
+
+    from app.core.database import sync_engine
+    from app.models.vector_model import (
+        RetrievalCoverageSnapshot,
+        RetrievalQueryRollup,
+        VectorDocument,
+        VectorRecord,
+    )
+    from app.models.vector_model import VectorSpace as VectorSpaceRow
+    from app.storage.vector_backends import reset_backend_cache
+
+    reset_backend_cache()
+
+    try:
+        with sync_engine.begin() as connection:
+            tables = set(inspect(connection).get_table_names())
+            if "vector_spaces" in tables:
+                for table in [
+                    name for name in tables if name.startswith("vec_") and len(name) == 12
+                ]:
+                    connection.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+                for model in (
+                    RetrievalQueryRollup,
+                    RetrievalCoverageSnapshot,
+                    VectorRecord,
+                    VectorDocument,
+                    VectorSpaceRow,
+                ):
+                    connection.execute(sql_delete(model))
+    except Exception:  # a mid-chain migration test legitimately has no schema
+        pass
+    yield
 
 
 @pytest.fixture(autouse=True)

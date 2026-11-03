@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0087"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0088"], (
         "revision chain stays linear on one head"
     )
 
@@ -3684,11 +3684,15 @@ def test_0076_alert_manage_urls_roundtrip():
 
 
 def test_0086_embeddings_reconcile_task_roundtrip():
-    """Both `schedules` CHECKs admit the reconcile job at head and narrow
-    back on downgrade — the mirrored-vocabulary discipline of 0067/0068."""
+    """Both `schedules` CHECKs admit the reconcile job at 0086 and narrow
+    back on downgrade — the mirrored-vocabulary discipline of 0067/0068.
+
+    0088 retires that vocabulary for the store-wide vector reconcile, so this
+    test pins the *0086 revision* by downgrading exactly to it."""
     config = _configured()
 
     command.upgrade(config, "head")
+    command.downgrade(config, "0086")
     checks = _schedules_checks()
     assert "system_embeddings_reconcile" in checks["kind_allowed"]
     assert "embeddings_reconcile" in checks["task_allowed"]
@@ -3698,10 +3702,11 @@ def test_0086_embeddings_reconcile_task_roundtrip():
     assert "system_embeddings_reconcile" not in checks["kind_allowed"]
     assert "embeddings_reconcile" not in checks["task_allowed"]
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "0086")
     checks = _schedules_checks()
     assert "system_embeddings_reconcile" in checks["kind_allowed"], "re-upgrade restores it"
     assert "embeddings_reconcile" in checks["task_allowed"], "re-upgrade restores it"
+    command.upgrade(config, "head")
 
 
 _VECTOR_TABLES = (
@@ -3840,6 +3845,61 @@ def test_0087_vector_retrieval_roundtrip():
 
     command.upgrade(config, "head")
     assert _vector_shape()[1] == set(_VECTOR_TABLES), "re-upgrade restores the store"
+
+
+def _schema_probe(tables: tuple[str, ...]) -> dict[str, bool]:
+    """Table presence at the current revision (dialect-safe)."""
+
+    async def run() -> dict[str, bool]:
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                names = await conn.run_sync(
+                    lambda sync_conn: set(inspect(sync_conn).get_table_names())
+                )
+            return {table: table in names for table in tables}
+        finally:
+            await engine.dispose()
+
+    import asyncio
+
+    return asyncio.run(run())
+
+
+def test_0088_drop_ai_embeddings_roundtrip():
+    """Plan 50 P1d: the legacy store is dropped, the schedule vocabulary
+    swaps to the store-wide reconcile, and both revert on downgrade."""
+    config = _configured()
+
+    command.upgrade(config, "head")
+    command.downgrade(config, "0087")
+    assert _schema_probe(("ai_embeddings",))["ai_embeddings"], "the legacy store exists at 0087"
+    assert "system_embeddings_reconcile" in _schedules_checks()["kind_allowed"]
+
+    command.upgrade(config, "head")
+    assert not _schema_probe(("ai_embeddings",))["ai_embeddings"], (
+        "0088 drops the legacy embeddings store"
+    )
+    checks = _schedules_checks()
+    assert "system_embeddings_reconcile" not in checks["kind_allowed"]
+    assert "system_vector_reconcile" in checks["kind_allowed"]
+    assert "embeddings_reconcile" not in checks["task_allowed"]
+    assert "vector_reconcile" in checks["task_allowed"]
+
+    command.downgrade(config, "0087")
+    assert _schema_probe(("ai_embeddings",))["ai_embeddings"], "downgrade recreates the table"
+    checks = _schedules_checks()
+    assert "system_embeddings_reconcile" in checks["kind_allowed"]
+    assert "system_vector_reconcile" not in checks["kind_allowed"]
+    assert "embeddings_reconcile" in checks["task_allowed"]
+
+    command.upgrade(config, "head")
+    assert not _schema_probe(("ai_embeddings",))["ai_embeddings"], "re-upgrade drops it again"
 
 
 def _vector_constraint_probe(name: str) -> dict[str, bool]:

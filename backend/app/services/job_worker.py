@@ -896,14 +896,49 @@ async def _run_skill_relation_learn(
     return await run_skill_relation_learn(db, run_id=job.id, cancelled=cancelled)
 
 
-async def _run_embeddings_reconcile(db: AsyncSession, job: BackgroundJob, **_kw) -> dict:
-    """Skill-embedding reconcile batch (plan 153): missing/stale rows,
-    one batched embed; an unconfigured provider no-ops, never fails."""
-    from app.services.embedding_service import EmbeddingService
+async def _run_vector_reconcile(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """Backfill/reconcile the vector store (plan 50 §5.7, P1d).
 
-    limit = (job.payload or {}).get("limit")
-    limit = 200 if limit is None else int(limit)
-    return await EmbeddingService(db).recompute_skills(limit=max(1, min(limit, 200)))
+    Payload: ``{kinds?, limit?, budget?, batch_size?, since?, force?}``.
+    System budget: no ``user_id`` reaches the gateway, so the embed calls are
+    attributed to the system path — an admin-triggered run is never charged
+    to that admin's personal budget. Deferred work stays missing/stale for
+    the next run; cancellation between documents returns a partial result and
+    the worker marks the job cancelled.
+    """
+    from app.ai.gateway import RunRef
+    from app.services.vector_reconcile_service import (
+        VectorReconcileService,
+        parse_kinds,
+        parse_since,
+    )
+
+    payload = job.payload or {}
+    try:
+        kinds = parse_kinds(payload.get("kinds"))
+        since = parse_since(payload.get("since"))
+    except ValueError as exc:
+        raise DomainError(str(exc)) from exc
+    service = VectorReconcileService(
+        db,
+        kinds=kinds,
+        limit=int(payload.get("limit") or 200),
+        budget=int(payload.get("budget") or 2000),
+        batch_size=int(payload.get("batch_size") or 10),
+        since=since,
+        force=bool(payload.get("force")),
+        run=RunRef(id=job.id, stage="vector_reconcile"),
+    )
+    result = await service.run(progress=progress, cancelled=cancelled)
+    if result.cancelled:
+        await progress(95, "cancelled")
+    return result.as_dict()
 
 
 async def _run_vector_index(
@@ -978,8 +1013,8 @@ HANDLERS: dict[str, Handler] = {
     "notification_delivery": _run_notification_delivery,
     "demand_import": _run_demand_import,
     "skill_relation_learn": _run_skill_relation_learn,
-    "embeddings_reconcile": _run_embeddings_reconcile,
     "vector_index": _run_vector_index,
+    "vector_reconcile": _run_vector_reconcile,
 }
 
 

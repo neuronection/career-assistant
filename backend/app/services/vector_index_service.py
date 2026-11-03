@@ -19,12 +19,13 @@ module is only reached from a job/CLI — never a request path.
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import AINotConfiguredError
@@ -38,10 +39,17 @@ from app.services.vector_composers import (
     compose_profile_views,
     compose_skill_views,
 )
-from app.storage.vector_backends import ResolvedEmbedding, VectorSpaceNotFound
+from app.storage.vector_backends import (
+    BACKEND_LINEAR,
+    ResolvedEmbedding,
+    VectorIndexMissing,
+    VectorSpaceNotFound,
+)
 from app.storage.vector_contract import DegradedReason, IndexRecord, VectorSpace
 from app.storage.vector_provisioning import provision_space
 from app.storage.vector_store import TextRef, VectorStoreService
+
+logger = logging.getLogger(__name__)
 
 CONTENT_SPACE = "content"
 EMBED_BATCH_SIZE = 64
@@ -124,6 +132,74 @@ class LoadedSource:
 def record_id_for(document_id: str, view: str, chunk_index: int) -> str:
     """Stable record id for one document key (reindex keeps the identity)."""
     return str(uuid.uuid5(VECTOR_RECORD_NAMESPACE, f"{document_id}:{view}:{chunk_index}"))
+
+
+@dataclass(frozen=True)
+class SourceRow:
+    """One indexable source row (the reconcile pass's scan unit)."""
+
+    source_id: str
+    updated_at: Any = None
+
+
+_SOURCE_MODELS: dict[str, Any] = {}
+
+
+def _source_model(kind: str) -> Any:
+    if not _SOURCE_MODELS:
+        from app.models.posting_model import JobPosting
+        from app.models.taxonomy_model import Skill
+        from app.models.user_model import User
+
+        _SOURCE_MODELS.update({"posting": JobPosting, "skill": Skill, "profile": User})
+    try:
+        return _SOURCE_MODELS[kind]
+    except KeyError:
+        raise ValueError(f"kind {kind!r} has no vector composer in P1c") from None
+
+
+async def list_sources(
+    db: AsyncSession,
+    kind: str,
+    *,
+    since: Any = None,
+    after: Any = None,
+    limit: int | None = None,
+) -> list[SourceRow]:
+    """The kind's source rows in a stable ``(updated_at, id)`` order.
+
+    This is the reconcile scan: an id list and its version stamp, never the
+    composed text. ``since`` narrows to rows touched at/after a moment
+    (``updated_at``); ``after`` is an exclusive keyset cursor as
+    ``(updated_at, id)``.
+    """
+    model = _source_model(kind)
+    statement = select(model.id, model.updated_at).order_by(model.updated_at, model.id)
+    if since is not None:
+        statement = statement.where(model.updated_at >= since)
+    if after is not None:
+        after_updated, after_id = after
+        statement = statement.where(
+            or_(
+                model.updated_at > after_updated,
+                and_(model.updated_at == after_updated, model.id > after_id),
+            )
+        )
+    if limit is not None:
+        statement = statement.limit(int(limit))
+    return [
+        SourceRow(source_id=str(source_id), updated_at=updated_at)
+        for source_id, updated_at in (await db.execute(statement)).all()
+    ]
+
+
+async def count_sources(db: AsyncSession, kind: str, *, since: Any = None) -> int:
+    """How many source rows this kind holds (the coverage denominator)."""
+    model = _source_model(kind)
+    statement = select(func.count()).select_from(model)
+    if since is not None:
+        statement = statement.where(model.updated_at >= since)
+    return int((await db.execute(statement)).scalar() or 0)
 
 
 def gateway_embedder(
@@ -331,6 +407,11 @@ class VectorIndexService:
             space, precomputed = await self._create_space(composed, profile, progress)
             if space is None:
                 return self._degraded(kind, source_id, composed)
+        else:
+            healthy = self._ensure_index(space)
+            if healthy is None:
+                return self._degraded(kind, source_id, composed, DegradedReason.INDEX_MISSING)
+            space = healthy
 
         existing_document = self.store.find_document(space, kind=kind, source_id=source_id)
         existing = (
@@ -422,14 +503,55 @@ class VectorIndexService:
             pruned=pruned,
         )
 
-    def _degraded(self, kind: str, source_id: str, composed: ComposedDocument) -> IndexOutcome:
+    def _degraded(
+        self,
+        kind: str,
+        source_id: str,
+        composed: ComposedDocument,
+        reason: DegradedReason = DegradedReason.PROVIDER_UNASSIGNED,
+    ) -> IndexOutcome:
         return IndexOutcome(
             kind=kind,
             source_id=source_id,
             space=self.space_name,
             scanned=len(composed.records),
-            degraded=DegradedReason.PROVIDER_UNASSIGNED.value,
+            degraded=reason.value,
         )
+
+    def _ensure_index(self, space: VectorSpace) -> VectorSpace | None:
+        """Heal an active space that has no usable physical index.
+
+        An existing space can carry ``index_table=None`` after a failed or
+        legacy provision (or a desktop install that gained sqlite-vec later).
+        The first write is the last chance to fix it off the request path:
+        re-provision idempotently and continue with the refreshed handle, or
+        report ``index_missing`` instead of writing into nothing and failing
+        every retry forever.
+        """
+        needs_provision = space.index_table is None and self.store.backend.name != BACKEND_LINEAR
+        if not needs_provision:
+            try:
+                self.store.ensure_space(space)
+                return space
+            except VectorIndexMissing:
+                needs_provision = True
+        if not needs_provision:
+            return space
+        try:
+            with self.store.session_factory() as session:
+                row = session.get(VectorSpaceRow, uuid.UUID(str(space.space_id)))
+                if row is None:  # pragma: no cover - the space was just resolved
+                    return None
+                provision_space(session, row, backend=self._provision_backend)
+                session.refresh(row)
+            healed = self.store.resolve_space(str(row.id))
+            self.store.ensure_space(healed)
+            return healed
+        except Exception:  # a broken provision is a degraded write, not a crash
+            logger.warning(
+                "vector space %r could not be provisioned", self.space_name, exc_info=True
+            )
+            return None
 
     async def _resolve_profile(self) -> EmbeddingProfile | None:
         if self._profile is not None:
@@ -506,8 +628,11 @@ __all__ = [
     "EmbeddingProfile",
     "IndexOutcome",
     "LoadedSource",
+    "SourceRow",
     "VectorIndexService",
+    "count_sources",
     "gateway_embedder",
+    "list_sources",
     "load_source",
     "record_id_for",
 ]

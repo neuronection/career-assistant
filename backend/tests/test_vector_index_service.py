@@ -457,3 +457,87 @@ async def test_job_worker_executes_a_vector_index_job(
     assert job.status == "succeeded"
     assert job.progress == 100
     assert job.result["embedded"] > 0
+
+
+async def test_an_active_space_without_an_index_is_reprovisioned_before_the_write(
+    db, engine, source, seeded_catalog
+):
+    """The P1c retry trap: an active space whose ``index_table`` is NULL (a
+    failed or legacy provision) must heal on the first write, not fail
+    forever against a missing index."""
+    from app.models.vector_model import VectorSpace as VectorSpaceRow
+    from app.storage.vector_backends import (
+        BACKEND_SQLITE_VEC,
+        SqliteVecBackend,
+        sqlite_vec_available,
+    )
+
+    if not sqlite_vec_available(engine):  # pragma: no cover - desktop extra absent
+        pytest.skip("sqlite-vec is not loadable in this interpreter")
+
+    async def embedder(texts):
+        from app.ai.gateway import _mock_embedding
+
+        return [_mock_embedding(text) for text in texts]
+
+    posting = await _make_posting(db, source, external_id="vec-heal")
+    store = VectorStoreService(engine, backend=SqliteVecBackend(engine))  # type: ignore[arg-type]
+    space = store.create_space(
+        name=CONTENT_SPACE,
+        provider="mock",
+        model="mock-embed",
+        dim=MOCK_EMBED_DIM,
+    )
+    assert space.index_table is None, "an active space can exist unprovisioned"
+
+    service = VectorIndexService(
+        db,
+        store=store,
+        provision_backend=BACKEND_SQLITE_VEC,
+        embedder=embedder,
+        profile=vis.EmbeddingProfile(provider="mock", model="mock-embed"),
+    )
+    outcome = await service.index_document(kind="posting", source_id=str(posting.id))
+
+    assert outcome.degraded is None, "the write heals the space instead of degrading"
+    healed = store.active_space(CONTENT_SPACE)
+    assert healed.index_table is not None, "the first write provisioned the index"
+    with Session(engine) as session:
+        assert session.get(VectorSpaceRow, uuid.UUID(str(healed.space_id))) is not None
+
+
+async def test_a_space_that_cannot_be_provisioned_reports_index_missing(
+    db, engine, source, seeded_catalog, monkeypatch
+):
+    """A heal that cannot succeed degrades the write honestly — it never
+    loops on a missing table."""
+    from app.storage.vector_backends import SqliteVecBackend, sqlite_vec_available
+
+    if not sqlite_vec_available(engine):  # pragma: no cover - desktop extra absent
+        pytest.skip("sqlite-vec is not loadable in this interpreter")
+
+    posting = await _make_posting(db, source, external_id="vec-nofix")
+    store = VectorStoreService(engine, backend=SqliteVecBackend(engine))  # type: ignore[arg-type]
+    store.create_space(name=CONTENT_SPACE, provider="mock", model="mock-embed", dim=MOCK_EMBED_DIM)
+
+    def broken_provision(*_args, **_kwargs):
+        raise RuntimeError("provisioning is unavailable")
+
+    monkeypatch.setattr(vis, "provision_space", broken_provision)
+
+    async def embedder(texts):
+        from app.ai.gateway import _mock_embedding
+
+        return [_mock_embedding(text) for text in texts]
+
+    service = VectorIndexService(
+        db,
+        store=store,
+        embedder=embedder,
+        profile=vis.EmbeddingProfile(provider="mock", model="mock-embed"),
+    )
+    outcome = await service.index_document(kind="posting", source_id=str(posting.id))
+
+    assert outcome.degraded == "index_missing"
+    assert outcome.written == 0
+    assert store.active_space(CONTENT_SPACE).index_table is None

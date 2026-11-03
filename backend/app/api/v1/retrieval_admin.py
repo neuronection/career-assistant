@@ -22,13 +22,21 @@ from app.core.errors import ValidationError
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
 from app.services.deps import require_admin
+from app.services.vector_reconcile_service import (
+    DEFAULT_BATCH_SIZE,
+    DEFAULT_BUDGET,
+    DEFAULT_LIMIT,
+    RECONCILE_KINDS,
+    parse_kinds,
+    parse_since,
+)
 from app.services.vector_status import read_health, read_space_statuses
 
 router = APIRouter(
     prefix="/admin/retrieval", tags=["retrieval-admin"], dependencies=[Depends(require_admin)]
 )
 
-INDEXABLE_KINDS = ("posting", "skill", "profile")
+INDEXABLE_KINDS = RECONCILE_KINDS
 
 
 class IndexRequest(BaseModel):
@@ -38,6 +46,19 @@ class IndexRequest(BaseModel):
     source_id: str = Field(..., description="source row id (UUID)")
     space: str | None = Field(default=None, description="space name; defaults to content")
     force: bool = Field(default=False, description="re-embed even unchanged records")
+
+
+class ReconcileRequest(BaseModel):
+    """One backfill/reconcile run (a resumable, budget-capped batch)."""
+
+    kinds: list[str] | None = Field(
+        default=None, description="source kinds to reconcile; default all supported"
+    )
+    limit: int = Field(default=DEFAULT_LIMIT, ge=1, le=5000, description="documents per run")
+    budget: int = Field(default=DEFAULT_BUDGET, ge=0, le=100_000, description="embed units per run")
+    batch_size: int = Field(default=DEFAULT_BATCH_SIZE, ge=1, le=200)
+    since: str | None = Field(default=None, description="ISO timestamp — only rows updated since")
+    force: bool = Field(default=False, description="re-embed even unchanged content")
 
 
 @router.get("/status")
@@ -83,6 +104,55 @@ async def enqueue_index(
     job = await enqueue(
         db,
         BackgroundJobType.VECTOR_INDEX.value,
+        payload,
+        user_id=user.id,
+    )
+    return {
+        "job_id": str(job.id),
+        "job_type": job.job_type,
+        "status": job.status,
+        "payload": payload,
+    }
+
+
+@router.post("/reconcile")
+async def enqueue_reconcile(
+    request: ReconcileRequest,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Enqueue a ``VECTOR_RECONCILE`` run (backfill / drift repair).
+
+    Thin enqueue: the handler owns composing, classification, the embed
+    budget and the coverage snapshots, so the run is a ``background_jobs``
+    row (plan 51's Runs view reads it) and the embed spend lands on the system
+    path rather than the requesting admin's budget.
+    """
+    from app.services.job_worker import enqueue
+
+    try:
+        payload: dict[str, Any] = {
+            "limit": request.limit,
+            "budget": request.budget,
+            "batch_size": request.batch_size,
+            "force": bool(request.force),
+        }
+        kinds = parse_kinds(request.kinds)
+        if kinds is not None:
+            unknown = [kind for kind in kinds if kind not in INDEXABLE_KINDS]
+            if unknown:
+                raise ValidationError(
+                    f"Unknown retrieval kind(s): {unknown} (expected {sorted(INDEXABLE_KINDS)})"
+                )
+            payload["kinds"] = list(kinds)
+        since = parse_since(request.since)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    if since is not None:
+        payload["since"] = since.isoformat()
+    job = await enqueue(
+        db,
+        BackgroundJobType.VECTOR_RECONCILE.value,
         payload,
         user_id=user.id,
     )

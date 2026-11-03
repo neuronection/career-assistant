@@ -38,6 +38,8 @@ from app.storage.vector_provisioning import space_status
 from app.storage.vector_store import VectorStoreService, canonical_space
 
 VECTOR_INDEX_JOB = "vector_index"
+VECTOR_RECONCILE_JOB = "vector_reconcile"
+VECTOR_JOB_TYPES = (VECTOR_INDEX_JOB, VECTOR_RECONCILE_JOB)
 DEFAULT_SPACE = "content"
 _RECENT_JOBS = 25
 
@@ -140,7 +142,7 @@ def _last_jobs(session: Session, space_name: str) -> tuple[dict[str, Any] | None
     jobs = list(
         session.scalars(
             select(BackgroundJob)
-            .where(BackgroundJob.job_type == VECTOR_INDEX_JOB)
+            .where(BackgroundJob.job_type.in_(VECTOR_JOB_TYPES))
             .order_by(BackgroundJob.created_at.desc())
             .limit(_RECENT_JOBS)
         )
@@ -152,6 +154,7 @@ def _last_jobs(session: Session, space_name: str) -> tuple[dict[str, Any] | None
             continue
         summary = {
             "job_id": str(job.id),
+            "job_type": job.job_type,
             "status": job.status,
             "stage": job.stage,
             "progress": job.progress,

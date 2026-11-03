@@ -1,8 +1,9 @@
-"""Admin retrieval reads and the index trigger (plan 50 §11, P1c).
+"""Admin retrieval reads and the two enqueues (plan 50 §11, P1c/P1d).
 
-Admin scoping, the status/health response shapes and the one action this
-slice ships: enqueue a ``VECTOR_INDEX`` run. It must never run the pipeline
-inline (the worker owns provisioning and embedding).
+Admin scoping, the status/health response shapes and the actions this slice
+ships: enqueue one ``VECTOR_INDEX`` run, and enqueue a resumable
+``VECTOR_RECONCILE`` (backfill/drift repair). Neither runs the pipeline inline
+— the worker owns provisioning, embedding and the coverage snapshots.
 """
 
 from __future__ import annotations
@@ -128,3 +129,50 @@ async def test_index_trigger_validates_kind_and_source_id(client, db):
     )
     assert bad_id.status_code == 400
     assert "vector_index" in HANDLERS
+
+
+async def test_reconcile_trigger_enqueues_a_bounded_run(client, db):
+    admin, user = await _admin_and_user(client, db)
+    response = await client.post(
+        "/api/v1/admin/retrieval/reconcile",
+        headers=admin,
+        json={"kinds": ["posting", "skill"], "limit": 25, "budget": 100},
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["job_type"] == BackgroundJobType.VECTOR_RECONCILE.value
+    assert body["payload"]["kinds"] == ["posting", "skill"]
+    assert body["payload"]["limit"] == 25
+    assert body["payload"]["budget"] == 100
+
+    job = await db.get(BackgroundJob, uuid.UUID(body["job_id"]))
+    assert job is not None
+    assert job.status == "queued", "the trigger never runs the sweep inline"
+    assert job.user_id is not None, "the requester is recorded on the job"
+
+    assert (
+        await client.post("/api/v1/admin/retrieval/reconcile", headers=user, json={})
+    ).status_code == 403
+    assert "vector_reconcile" in HANDLERS
+
+
+async def test_reconcile_trigger_validates_the_payload(client, db):
+    admin, _user = await _admin_and_user(client, db)
+    bad_kind = await client.post(
+        "/api/v1/admin/retrieval/reconcile",
+        headers=admin,
+        json={"kinds": ["material"]},
+    )
+    assert bad_kind.status_code == 400
+    bad_since = await client.post(
+        "/api/v1/admin/retrieval/reconcile",
+        headers=admin,
+        json={"since": "yesterday"},
+    )
+    assert bad_since.status_code == 400
+    bounded = await client.post(
+        "/api/v1/admin/retrieval/reconcile",
+        headers=admin,
+        json={"limit": 0},
+    )
+    assert bounded.status_code == 422, "the schema bounds the caps"

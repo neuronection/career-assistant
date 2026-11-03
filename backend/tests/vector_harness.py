@@ -28,7 +28,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.models.vector_model import VectorDocument, VectorRecord
+from app.models.vector_model import (
+    RetrievalCoverageSnapshot,
+    RetrievalQueryRollup,
+    VectorDocument,
+    VectorRecord,
+)
 from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.storage import vector_contract as vc
 from app.storage.vector_backends import (
@@ -66,7 +71,13 @@ def create_sqlite_engine(path: Path) -> Engine:
     event.listen(engine, "connect", _sqlite_foreign_keys)
     metadata = MetaData()
     Table("profiles", metadata, Column("id", Uuid, primary_key=True))
-    for model in (VectorSpaceRow, VectorDocument, VectorRecord):
+    for model in (
+        VectorSpaceRow,
+        VectorDocument,
+        VectorRecord,
+        RetrievalCoverageSnapshot,
+        RetrievalQueryRollup,
+    ):
         model.__table__.to_metadata(metadata)
     metadata.create_all(engine)
     return engine
@@ -235,35 +246,140 @@ def create_space(
 
 
 def drop_space(harness: Harness) -> None:
+    """Drop one test space; best-effort on PostgreSQL.
+
+    A test session may still hold a key-share lock on the space row while its
+    own transaction is open (the harness is torn down before the session in
+    some fixtures), so the delete waits a bounded time and gives up — the
+    suite-wide ``clean_vector_store`` fixture removes the residue before the
+    next test either way.
+    """
     table = harness.space.index_table
     with Session(harness.engine) as session:
-        if table is not None:
-            if harness.engine.dialect.name == "sqlite":
-                session.execute(text(f"DROP TABLE IF EXISTS {table}"))
-                space_id = uuid.UUID(harness.space.space_id or "")
-                record_ids = [
-                    str(value)
-                    for value in session.scalars(
-                        select(VectorRecord.id).where(VectorRecord.space_id == space_id)
-                    )
-                ]
-                if record_ids:
+        if harness.engine.dialect.name == "postgresql":
+            session.execute(text("SET LOCAL lock_timeout = '3s'"))
+        try:
+            if table is not None:
+                if harness.engine.dialect.name == "sqlite":
+                    session.execute(text(f"DROP TABLE IF EXISTS {table}"))
+                    space_id = uuid.UUID(harness.space.space_id or "")
+                    record_ids = [
+                        str(value)
+                        for value in session.scalars(
+                            select(VectorRecord.id).where(VectorRecord.space_id == space_id)
+                        )
+                    ]
+                    if record_ids:
+                        session.execute(
+                            text("DELETE FROM vector_entry_ids WHERE record_id IN :ids").bindparams(
+                                bindparam("ids", expanding=True)
+                            ),
+                            {"ids": record_ids},
+                        )
+                    session.execute(delete(VectorRecord).where(VectorRecord.space_id == space_id))
                     session.execute(
-                        text("DELETE FROM vector_entry_ids WHERE record_id IN :ids").bindparams(
-                            bindparam("ids", expanding=True)
-                        ),
-                        {"ids": record_ids},
+                        delete(VectorDocument).where(VectorDocument.space_id == space_id)
                     )
-                session.execute(delete(VectorRecord).where(VectorRecord.space_id == space_id))
-                session.execute(delete(VectorDocument).where(VectorDocument.space_id == space_id))
-            else:
-                session.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
-        session.execute(
-            delete(VectorSpaceRow).where(
-                VectorSpaceRow.id == uuid.UUID(harness.space.space_id or "")
+                else:
+                    session.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
+            session.execute(
+                delete(VectorSpaceRow).where(
+                    VectorSpaceRow.id == uuid.UUID(harness.space.space_id or "")
+                )
             )
+            session.commit()
+        except Exception:  # pragma: no cover - the suite-wide cleaner retries
+            session.rollback()
+
+
+class ContentIndexer:
+    """A ``content`` space for tests that stub the read path's store.
+
+    Call-site tests (explore, autopilot, skill candidates) need the exact
+    vectors the ranking math sees, so they write documents directly instead of
+    going through the composers/providers. One helper keeps the setup honest:
+    every write goes through :class:`VectorStoreService`, exactly like the job.
+    """
+
+    def __init__(self, harness: Harness) -> None:
+        self.harness = harness
+        self.engine = harness.engine
+        self.space = harness.space
+        self.service = harness.service
+        self._count = 0
+
+    def document(
+        self,
+        kind: str,
+        source_id: str,
+        *,
+        scope_type: str = "global",
+        scope_id: str | None = None,
+    ) -> str:
+        self._count += 1
+        registered = self.service.register_document(
+            self.space,
+            kind=kind,
+            source_id=str(source_id),
+            scope_type=scope_type,
+            scope_id=scope_id,
+            source_hash=f"{self._count:064d}",
+            schema_version=1,
         )
-        session.commit()
+        self.harness.documents[f"{kind}-{self._count}"] = uuid.UUID(registered.document_id)
+        return registered.document_id
+
+    def index(
+        self,
+        kind: str,
+        source_id: str,
+        vector: tuple[float, ...],
+        *,
+        view: str = "summary",
+        chunk_index: int = 0,
+        scope_type: str = "global",
+    ) -> str:
+        return self.index_many(
+            kind,
+            source_id,
+            [(view, chunk_index, vector)],
+            scope_type=scope_type,
+        )
+
+    def index_many(
+        self,
+        kind: str,
+        source_id: str,
+        records: list[tuple[str, int, tuple[float, ...]]],
+        *,
+        scope_type: str = "global",
+    ) -> str:
+        document_id = self.document(kind, source_id, scope_type=scope_type)
+        self.service.upsert_document(
+            self.space,
+            document_id=document_id,
+            records=[
+                vc.IndexRecord(
+                    record_id=str(uuid.uuid4()),
+                    document_id=document_id,
+                    view=view,
+                    chunk_index=chunk_index,
+                    embedding=tuple(vector),
+                    content_hash="hash",
+                )
+                for view, chunk_index, vector in records
+            ],
+            prune=False,
+        )
+        return document_id
+
+    def remove(self, document_id: str) -> None:
+        self.service.delete_document(self.space, document_id)
+
+
+def content_indexer(engine: Engine, *, dim: int = DIM) -> ContentIndexer:
+    """A provisioned ``content`` space (the name the app resolves)."""
+    return ContentIndexer(create_space(engine, name="content", dim=dim))
 
 
 def table_exists(engine: Engine, table: str) -> bool:
