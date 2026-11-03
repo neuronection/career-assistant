@@ -22,7 +22,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
 | `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
 | `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store; `vector_reconcile` accepts an explicit `space_id` for a building space (plan 50) |
-| `posting_remap` | Re-decide semantic catalog mappings after a space cutover (plan 50 P2b) |
+| `posting_remap` | Re-decide semantic catalog mappings after a space cutover (batch) or finish one posting's deferred semantic pass (plan 50 P2b/P2c.3) |
 | `data_export` | Exports |
 
 The plan-138 learn job is the one handler that lives in the catalog —
@@ -134,6 +134,20 @@ cursor. The space lifecycle's `activate_space` calls the hook after the new
 space is active (plan 51's HTTP action wraps that service); there is
 deliberately no second sweep. The run result carries
 `{remapped, failed, skipped, next_after_id, space_key}`.
+
+The same job type also runs the **single-posting deferred semantic pass**
+(plan 50 P2c.3). The request paths — `map_posting`/sync, the extract
+post-processing and the admin remap — call
+`decide_catalog(defer_semantic=True)`, compute the deterministic decision and
+queue `{posting_id, auto_continue: false, semantic_redecision: true}` in the
+caller's transaction (`enqueue(..., commit=False)`, deduped across
+queued/running rows). The handler loads that one posting, skips
+`manual`/terminal rows, **bypasses the `REMAP_METHODS` filter** (a
+deterministic row is being refined), calls
+`decide_catalog(..., defer_semantic=False)`, commits the result and writes the
+final `mapping_signals`; it never creates a continuation and never queues
+another pass. When both semantic switches are off, or no stage would run, the
+request path queues nothing.
 
 ### The failed-jobs lifecycle (plan 184)
 

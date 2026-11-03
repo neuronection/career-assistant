@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (catalog matching — the semantic pass moves off the request path, 2026-11-03)
+- **Ingest, extract, retag and admin remap now decide deterministically and
+  defer the semantic rerank/rescue to one background pass per posting.** The
+  request path no longer embeds or matches a posting: it writes the
+  deterministic verdict, records `mapping_signals.semantic_pending` with the
+  reason, and queues one single-posting `POSTING_REMAP` job in the same
+  transaction (deduplicated across queued/running jobs). The worker re-decides
+  with both semantic stages and overwrites the trace; it never queues another
+  pass. With both semantic switches off — or when no stage would run — no
+  marker, job, embed, index or match happens, and the deterministic decision
+  is unchanged. Manual and terminal postings are never queued or overwritten,
+  and the cutover batch mode of `POSTING_REMAP` is unchanged.
+- **A committed local benchmark proves the switch-off path is zero-cost**:
+  over 40 request decisions, 0 index/match calls and 0 jobs with both switches
+  off, and 0 index/match calls with exactly one deduped job when the stages
+  are needed. Local timings (2.21 ms p50 / 2.46 ms p95 off, 2.66 ms p50 /
+  3.56 ms p95 on) are deterministic fixture timings, not provider latency.
+
 ### Added (catalog matching — rerank kill switch, calibration sweep and expanded golden set, 2026-11-03)
 - **The bounded semantic rerank is now behind its own per-decision kill
   switch, `catalog.semantic_rerank`, default OFF.** It is independent of

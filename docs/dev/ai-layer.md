@@ -513,17 +513,18 @@ never touches `PostingSkill` rows). The method + `retag` journal make every
 map auditable and admin-overridable (manual map endpoint,
 `POST /admin/postings/{id}/remap` re-runs the join without the extract).
 
-The **bounded semantic rerank** runs first where the deterministic outcome
-is ambiguous — best below `AUTO_MAP_THRESHOLD` or a runner-up margin under
-`δ = 0.08` (plan 164 S4.4, `app/services/postings/semantic_rerank.py`). It
-scores **only the stage-2 candidates** the deterministic scorer produced
-(`K = 25`), using the same stored-vector job↔posting match, and applies the
-pinned blend `0.75·deterministic + 0.25·semantic`. A rerank is accepted only
-when its top candidate clears `τ_job = 0.34` with the `δ` margin (and, when
-the deterministic winner already cleared `τ_job`, only if the top-1 changes);
-it records `semantic_rerank`, never silently replaces the deterministic
-score, and never introduces a candidate. The plan-185 rescue below still
-handles the below-threshold case the rerank could not lift.
+The **bounded semantic rerank** runs in the deferred semantic pass (off the
+request path, see below) where the deterministic outcome is ambiguous — best
+below `AUTO_MAP_THRESHOLD` or a runner-up margin under `δ = 0.08` (plan 164
+S4.4, `app/services/postings/semantic_rerank.py`). It scores **only the
+stage-2 candidates** the deterministic scorer produced (`K = 25`), using the
+same stored-vector job↔posting match, and applies the pinned blend
+`0.75·deterministic + 0.25·semantic`. A rerank is accepted only when its top
+candidate clears `τ_job = 0.34` with the `δ` margin (and, when the
+deterministic winner already cleared `τ_job`, only if the top-1 changes); it
+records `semantic_rerank`, never silently replaces the deterministic score,
+and never introduces a candidate. The plan-185 rescue below still handles the
+below-threshold case the rerank could not lift.
 
 Both semantic stages are **independent, per-decision switches** stored as
 `app_settings` rows and read on every `decide_catalog` call (effective on the
@@ -534,6 +535,29 @@ off there is no rerank call and no rerank candidate/provenance beyond the
 deterministic trace — the decision is bit-identical to the pre-rerank path.
 The admin mapping-settings GET/PUT payload exposes both switches; this slice
 adds no UI card.
+
+**P2c.3 moves both semantic stages off the request path.** The retag/map
+path (`map_posting`), the extract post-processing and the admin remap call
+`decide_catalog(defer_semantic=True)`: the deterministic verdict is computed
+exactly as the switch-off path, and the trace records
+`mapping_signals.semantic_pending: true` plus
+`semantic_pending_reason` (`ambiguous deterministic outcome` and/or
+`overlap below threshold`). When skills are present and at least one stage
+would actually run (`rerank on ∧ ambiguous`, or `rescue on ∧ overlap below
+threshold`), exactly one single-posting `POSTING_REMAP` job
+(`{posting_id, auto_continue: false, semantic_redecision: true}`) is queued
+**in the caller's transaction** via `enqueue(..., commit=False)`; the job row
+dedupes against queued/running passes for the same posting. Both switches
+off, no skills, or a cleared/unambiguous overlap ⇒ no marker, no job, no
+embed/index/match call. The worker re-decides with `defer_semantic=False`,
+overwrites `mapping_signals` with the final trace and cannot queue another
+pass; `manual` and terminal (`expired`/`hidden`) postings are never queued or
+overwritten. The cutover batch/cursor mode of the same handler is unchanged.
+The committed local benchmark (`tests/test_semantic_deferral.py`) measures
+~2.2 ms p50 / ~2.5 ms p95 for the switch-off request decision and ~2.7 ms
+p50 / ~3.6 ms p95 for the deferred-needed path over 40 decisions, with zero
+vector-layer calls either way; those are local deterministic timings, not
+production provider latency.
 
 The **P2c.2 calibration sweep** (`tests/posting_mapping_calibration.py`, a
 pure in-memory model validated case-for-case against the real DB path in
@@ -548,16 +572,16 @@ is the recommended point. The recommendation is advisory: the live constants
 do not move until the owner ratifies them.
 
 The **semantic rescue** fires only where that overlap misses (plan 50 P2,
-`app/services/postings/semantic_rescue.py`): the posting is indexed through
-the sanctioned synchronous writer (unchanged content costs zero embeds; the
-space must already exist — a fresh install records `index_missing` until the
-index/reconcile job provisions it, because no ingest request ever issues
-DDL), its stored views are matched against the `job` documents, and a
-candidate may map
-only when it clears `SEMANTIC_MAP_THRESHOLD` **and** shares ≥1 resolved skill
-with the posting — the same deterministic evidence the overlap uses. Draft
-jobs are filtered when candidates are hydrated, so they are never proposed.
-The trace lands in `posting_facts["mapping_signals"]`:
+`app/services/postings/semantic_rescue.py`) — in the same deferred pass. The
+posting is indexed through the sanctioned synchronous writer (unchanged
+content costs zero embeds; the space must already exist — a fresh install
+records `index_missing` until the index/reconcile job provisions it, because
+no ingest request ever issues DDL), its stored views are matched against the
+`job` documents, and a candidate may map only when it clears
+`SEMANTIC_MAP_THRESHOLD` **and** shares ≥1 resolved skill with the posting —
+the same deterministic evidence the overlap uses. Draft jobs are filtered
+when candidates are hydrated, so they are never proposed. The trace lands in
+`posting_facts["mapping_signals"]`:
 `overlap {score, runner_up}` plus
 `semantic {top, threshold, candidates[{code, score, shared_skills, per_view}],
 space_key, degraded}` and `rerank {ran, top, accepted, margin, space_key,

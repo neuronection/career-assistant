@@ -37,7 +37,7 @@
         "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
         "Rich structured attributes per job: skills, salary bands, demand outlook, education",
         "AI-generated jobs map onto the existing taxonomy — two-posting labels auto-promote unless a near-duplicate active skill blocks them",
-        "Postings map to catalog jobs by weighted skill overlap, a switchable semantic rerank and a gated rescue, audit-journaled"
+        "Postings map by weighted skill overlap plus a switchable rerank and gated rescue, resolved in a deferred pass and audit-journaled"
       ],
       "links": [
         {
