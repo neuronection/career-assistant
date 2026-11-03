@@ -1591,8 +1591,7 @@
           "replayRun": "Auflösung wiederholen",
           "replayReport": "Eingereiht {{queued}} · übersprungen {{skipped}} · fehlend {{missing}}",
           "reconcile": "Skill-Embeddings abgleichen",
-          "reconcileReport": "{{embedded}} von {{candidates}} Skills eingebettet",
-          "reconcileDegraded": "Embed-Anbieter nicht konfiguriert — Abgleich übersprungen"
+          "reconcileQueued": "Abgleich eingereiht — er läuft im Hintergrund weiter"
         }
       }
     },
@@ -1669,13 +1668,6 @@
     "draft": "Entwurf",
     "embeddings": {
       "sectionTitle": "Embeddings & Zuordnung",
-      "empty": "Noch keine Embeddings gespeichert.",
-      "bucket": "Dim {{dim}} · {{count}} Vektoren",
-      "recomputePosting": "Anzeigen neu einbetten",
-      "recomputeJob": "Katalogjobs neu einbetten",
-      "recomputeDone": "{{kind}}-Recompute hat {{count}} Zeilen eingebettet.",
-      "semanticRescue": "Semantische Rettung",
-      "semanticRescueHint": "Ordnet per Kosinus nur dort, wo die Skill-Überschneidung versagt hat (≥ 0,6 + gemeinsamer Skill)",
       "jobProposalsSwitch": "Stellenvorschläge",
       "jobProposalsHint": "Nicht zugeordnete Anzeigen schlagen eine Katalogposition zur Prüfung vor",
       "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."

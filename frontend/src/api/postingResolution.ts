@@ -54,10 +54,10 @@ export interface ResolutionReplayReport {
   requested: number;
 }
 
-export interface EmbeddingReconcileReport {
-  candidates: number;
-  embedded: number;
-  degraded?: string;
+export interface ReconcileQueuedReport {
+  job_id: string;
+  job_type: string;
+  status: string;
 }
 
 export async function fetchResolutionThresholds(): Promise<ResolutionThresholds> {
@@ -95,11 +95,14 @@ export async function replayPostingResolution(
   return data;
 }
 
+/** Enqueue the store-wide reconcile for the skill documents (plan 50 P1d);
+ * the worker embeds and reports through the job row, never inline. */
 export async function reconcileSkillEmbeddings(
   limit: number,
-): Promise<EmbeddingReconcileReport> {
-  const { data } = await api.post<EmbeddingReconcileReport>("/ai/embeddings/recompute", null, {
-    params: { kind: "skill", limit },
+): Promise<ReconcileQueuedReport> {
+  const { data } = await api.post<ReconcileQueuedReport>("/admin/retrieval/reconcile", {
+    kinds: ["skill"],
+    limit,
   });
   return data;
 }

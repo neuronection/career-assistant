@@ -3,7 +3,7 @@
  * observability & tuning surface inside the admin Taxonomy page's
  * Relations tab: last-run + rolling KPIs from the POSTING_EXTRACT job
  * results, the `posting_resolve.thresholds` editor, and the wave
- * controls (bulk replay, skill-embedding reconcile; scheduler failures
+ * controls (bulk replay, skill-index reconcile; scheduler failures
  * only deep-link into /settings/automations — plan-152 D6, no second
  * scheduler UI).
  */
@@ -21,7 +21,7 @@ import {
   reconcileSkillEmbeddings,
   replayPostingResolution,
   saveResolutionThresholds,
-  type EmbeddingReconcileReport,
+  type ReconcileQueuedReport,
   type ResolutionReplayReport,
   type ResolutionStats,
   type ResolutionThresholds,
@@ -59,7 +59,7 @@ export function ResolutionSection() {
   const [error, setError] = useState("");
   const [replayIds, setReplayIds] = useState("");
   const [replayReport, setReplayReport] = useState<ResolutionReplayReport | null>(null);
-  const [reconcileReport, setReconcileReport] = useState<EmbeddingReconcileReport | null>(null);
+  const [reconcileReport, setReconcileReport] = useState<ReconcileQueuedReport | null>(null);
 
   const load = useCallback(
     async (activeWindow: string) => {
@@ -355,12 +355,7 @@ export function ResolutionSection() {
                   className="text-xs text-[var(--as-muted-fg)]"
                   data-testid="resolution-reconcile-report"
                 >
-                  {reconcileReport.degraded
-                    ? t("taxonomy.relations.resolution.controls.reconcileDegraded")
-                    : t("taxonomy.relations.resolution.controls.reconcileReport", {
-                        embedded: reconcileReport.embedded,
-                        candidates: reconcileReport.candidates,
-                      })}
+                  {t("taxonomy.relations.resolution.controls.reconcileQueued")}
                 </p>
               )}
             </div>

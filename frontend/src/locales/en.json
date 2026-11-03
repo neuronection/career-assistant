@@ -1591,8 +1591,7 @@
           "replayRun": "Replay resolution",
           "replayReport": "Queued {{queued}} · skipped {{skipped}} · missing {{missing}}",
           "reconcile": "Reconcile skill embeddings",
-          "reconcileReport": "Embedded {{embedded}} of {{candidates}} skills",
-          "reconcileDegraded": "Embed provider unconfigured — reconcile skipped"
+          "reconcileQueued": "Queued a reconcile run — it finishes in the background"
         }
       }
     },
@@ -1669,13 +1668,6 @@
     "draft": "Draft",
     "embeddings": {
       "sectionTitle": "Embeddings & mapping",
-      "empty": "No embeddings stored yet.",
-      "bucket": "dim {{dim}} · {{count}} vectors",
-      "recomputePosting": "Recompute postings",
-      "recomputeJob": "Recompute catalog jobs",
-      "recomputeDone": "{{kind}} recompute embedded {{count}} rows.",
-      "semanticRescue": "Semantic rescue",
-      "semanticRescueHint": "Maps with cosine only where the skill overlap missed (≥ 0.6 + a shared skill)",
       "jobProposalsSwitch": "Job proposals",
       "jobProposalsHint": "Unmatched postings propose a catalog job for review",
       "switchNote": "Saved — effective on the next decision."

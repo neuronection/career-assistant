@@ -17,7 +17,6 @@ import {
 export function TaxonomyEmbeddingsCard() {
   const { t } = useTranslation();
   const [settings, setSettings] = useState<CatalogMappingSettings | null>(null);
-  const [busy, setBusy] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
@@ -35,14 +34,11 @@ export function TaxonomyEmbeddingsCard() {
   }, [load]);
 
   const flip = async (key: "job_proposals", enabled: boolean) => {
-    setBusy(key);
     try {
       setSettings(await putCatalogMappingSettings({ [key]: enabled }));
       setNote(t("taxonomy.embeddings.switchNote"));
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy("");
     }
   };
 

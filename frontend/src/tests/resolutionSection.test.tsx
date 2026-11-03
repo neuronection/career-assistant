@@ -151,10 +151,11 @@ describe("ResolutionSection", () => {
     expect(await screen.findByTestId("resolution-replay-report")).toBeTruthy();
   });
 
-  it("fires the skill-embedding reconcile and renders the report", async () => {
+  it("enqueues the skill reconcile and reports the queued run", async () => {
     mocked.reconcileSkillEmbeddings.mockResolvedValue({
-      candidates: 12,
-      embedded: 3,
+      job_id: "job-1",
+      job_type: "vector_reconcile",
+      status: "queued",
     });
     renderSection();
     fireEvent.click(await screen.findByTestId("resolution-reconcile"));
