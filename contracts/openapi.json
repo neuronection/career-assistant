@@ -30261,6 +30261,135 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/coverage": {
+      "get": {
+        "description": "Latest coverage snapshot per kind; a cold space is ``never_reconciled``.",
+        "operationId": "retrieval_coverage_api_v1_admin_retrieval_coverage_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": true,
+            "schema": {
+              "description": "vector space id or name",
+              "title": "Space",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Coverage Api V1 Admin Retrieval Coverage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Coverage",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/failures": {
+      "get": {
+        "description": "Failure groups: embed provider, indexing, cutover gate, maintenance.",
+        "operationId": "retrieval_failures_api_v1_admin_retrieval_failures_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vector space id or name",
+              "title": "Space"
+            }
+          },
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(embed_provider|indexing|cutover_gate|maintenance)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Failures Api V1 Admin Retrieval Failures Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Failures",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/health": {
       "get": {
         "description": "Backend, extension version, capability caps and per-space health.",
@@ -30329,6 +30458,201 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/overview": {
+      "get": {
+        "description": "Instance-wide retrieval KPIs: spaces, coverage, queries, embed usage.",
+        "operationId": "retrieval_overview_api_v1_admin_retrieval_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Overview Api V1 Admin Retrieval Overview Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Overview",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/quality": {
+      "get": {
+        "description": "The versioned golden-query set; ``not_sampled`` until a compare exists.",
+        "operationId": "retrieval_quality_api_v1_admin_retrieval_quality_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vector space id or name",
+              "title": "Space"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Quality Api V1 Admin Retrieval Quality Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Quality",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/query-health": {
+      "get": {
+        "description": "Latency/candidate/zero-result/degraded aggregates from the rollups.",
+        "operationId": "retrieval_query_health_api_v1_admin_retrieval_query_health_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vector space id or name",
+              "title": "Space"
+            }
+          },
+          {
+            "description": "source kind",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "source kind",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Query Health Api V1 Admin Retrieval Query Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Query Health",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/reconcile": {
       "post": {
         "description": "Enqueue a ``VECTOR_RECONCILE`` run (backfill / drift repair).\n\nThin enqueue: the handler owns composing, classification, the embed\nbudget and the coverage snapshots, so the run is a ``background_jobs``\nrow (plan 51's Runs view reads it) and the embed spend lands on the system\npath rather than the requesting admin's budget.",
@@ -30373,6 +30697,198 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/runs": {
+      "get": {
+        "description": "Reindex/backfill/cutover/maintenance runs from ``background_jobs``.",
+        "operationId": "retrieval_runs_api_v1_admin_retrieval_runs_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vector space id or name",
+              "title": "Space"
+            }
+          },
+          {
+            "description": "run scope source kind",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "run scope source kind",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(queued|running|succeeded|failed|cancelled)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Runs Api V1 Admin Retrieval Runs Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Runs",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/runs/{run_id}": {
+      "get": {
+        "description": "One run's stage/progress/result counters and bounded ``failed_ids``.",
+        "operationId": "retrieval_run_api_v1_admin_retrieval_runs__run_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "run_id",
+            "required": true,
+            "schema": {
+              "title": "Run Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Run Api V1 Admin Retrieval Runs  Run Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Run",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/spaces": {
+      "get": {
+        "description": "One row per persisted space with counts, coverage and backend label.",
+        "operationId": "retrieval_spaces_api_v1_admin_retrieval_spaces_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Spaces Api V1 Admin Retrieval Spaces Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Retrieval Spaces",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/status": {
       "get": {
         "description": "Per-space documents/records, coverage snapshot and last reindex.",
@@ -30395,6 +30911,89 @@
           }
         },
         "summary": "Retrieval Status",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/usage": {
+      "get": {
+        "description": "Embed calls/tokens by day, space and kind, plus the token budget.",
+        "operationId": "retrieval_usage_api_v1_admin_retrieval_usage_get",
+        "parameters": [
+          {
+            "description": "vector space id or name",
+            "in": "query",
+            "name": "space",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "vector space id or name",
+              "title": "Space"
+            }
+          },
+          {
+            "description": "source kind",
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "source kind",
+              "title": "Kind"
+            }
+          },
+          {
+            "in": "query",
+            "name": "window",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "pattern": "^(24h|7d|30d|90d)$",
+              "title": "Window",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Usage Api V1 Admin Retrieval Usage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Usage",
         "tags": [
           "retrieval-admin"
         ]

@@ -4,6 +4,27 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — the admin read API and its data checkpoint, 2026-11-03)
+- **The admin retrieval surface now has a composed read API** under
+  `/admin/retrieval` (admin-only, desktop owner included): instance
+  `overview`, per-space `spaces` and `coverage`, `runs` and `runs/{id}`,
+  `quality`, `query-health`, `failures` and `usage`. Every response is an
+  explicit state — `ok`, `empty`, `never_reconciled`, `not_sampled` or
+  `no_golden_set` — so a space that was never reconciled reports “never
+  reconciled” instead of a fake 0 %/100 %.
+- **`ai_generations` now carries caller-supplied retrieval tags**
+  (`metadata` plus a schema-version sibling): embed calls record the space,
+  kind, view and chunk index they served, and embeddings are attributable in
+  the usage and query-health reads. No prompt, document or query text is
+  selected or returned by any retrieval read.
+- **`background_jobs` now has `idempotency_key` and `lock_key`** with
+  active-status partial unique indexes — the database-level request-replay
+  and one-active-run-per-space invariants the Q1b action API will use.
+  Migration `0090`.
+- The vendored family retrieval-operations contract
+  (`app/storage/retrieval_ops.py` + its fixture table) is now in the tree,
+  byte-identical to the dev canonical and covered by a contract test.
+
 ### Added (job detail — similar jobs and live postings, 2026-11-03)
 - **`/jobs/:code` now shows two read-only rails: similar catalog jobs and
   live postings for this job.** Each card opens a per-view drawer with the

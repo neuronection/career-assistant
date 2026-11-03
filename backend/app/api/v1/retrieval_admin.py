@@ -1,10 +1,13 @@
-"""Minimal admin reads and the one index trigger for retrieval (plan 50 §11).
+"""Admin retrieval reads and the plan-50 enqueues.
 
-Plan 50 ships the reads and the ``VECTOR_INDEX`` job; the action surface,
-Runs view, dashboards, alerts and quality gates are plan 51 and deliberately
-absent here. The trigger only enqueues the job — the handler owns composing,
-provisioning and embedding, so every mutation is a ``background_jobs`` row
-and no request path issues DDL.
+Plan 50 ships the status/health reads and the ``VECTOR_INDEX`` /
+``VECTOR_RECONCILE`` triggers; plan 51 Q1a composes the full
+audit/operations read model (overview, spaces, coverage, runs, run detail,
+quality, query health, failures, usage) under the same admin-only
+``/admin/retrieval`` namespace. The Q1b action API (reindex, cancel/retry,
+space lifecycle, maintenance, quality compare), the audit emitter and the
+alerts are deliberately absent here: every new endpoint in this module only
+reads.
 """
 
 from __future__ import annotations
@@ -12,7 +15,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -21,6 +24,7 @@ from app.core.database import get_db, sync_engine
 from app.core.errors import ValidationError
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.services import retrieval_ops_reads as reads
 from app.services.deps import require_admin
 from app.services.vector_reconcile_service import (
     DEFAULT_BATCH_SIZE,
@@ -32,12 +36,31 @@ from app.services.vector_reconcile_service import (
     parse_since,
 )
 from app.services.vector_status import read_health, read_space_statuses
+from app.storage import retrieval_ops as ops
 
 router = APIRouter(
     prefix="/admin/retrieval", tags=["retrieval-admin"], dependencies=[Depends(require_admin)]
 )
 
 INDEXABLE_KINDS = RECONCILE_KINDS
+
+WINDOW_QUERY = Query(default=reads.DEFAULT_WINDOW, pattern="^(24h|7d|30d|90d)$")
+SPACE_QUERY = Query(default=None, description="vector space id or name")
+RUN_STATUS_QUERY = Query(default=None, pattern="^(queued|running|succeeded|failed|cancelled)$")
+FAILURE_KIND_QUERY = Query(
+    default=None, pattern="^(embed_provider|indexing|cutover_gate|maintenance)$"
+)
+
+
+def _guarded(payload: dict[str, Any]) -> dict[str, Any]:
+    """Every read payload passes the family no-raw-text rule before it leaves."""
+    return ops.assert_no_raw_text(payload)
+
+
+async def _space_or_none(db: AsyncSession, space: str | None):
+    if space is None:
+        return await reads.default_space(db)
+    return await reads.resolve_space(db, space)
 
 
 class IndexRequest(BaseModel):
@@ -70,6 +93,108 @@ class ReconcileRequest(BaseModel):
         default=True,
         description="enqueue the next bounded batch when this one is partial",
     )
+
+
+@router.get("/overview")
+async def retrieval_overview(
+    window: str = WINDOW_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Instance-wide retrieval KPIs: spaces, coverage, queries, embed usage."""
+    return _guarded(await reads.read_overview(db, window=window))
+
+
+@router.get("/spaces")
+async def retrieval_spaces(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
+    """One row per persisted space with counts, coverage and backend label."""
+    return _guarded(await reads.read_spaces(db))
+
+
+@router.get("/coverage")
+async def retrieval_coverage(
+    space: str = Query(..., description="vector space id or name"),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Latest coverage snapshot per kind; a cold space is ``never_reconciled``."""
+    row = await reads.resolve_space(db, space)
+    return _guarded(await reads.read_coverage(db, row))
+
+
+@router.get("/runs")
+async def retrieval_runs(
+    space: str | None = SPACE_QUERY,
+    kind: str | None = Query(default=None, description="run scope source kind"),
+    status: str | None = RUN_STATUS_QUERY,
+    window: str = WINDOW_QUERY,
+    limit: int = Query(default=reads.RUN_PAGE_LIMIT, ge=1, le=reads.RUN_PAGE_MAX),
+    offset: int = Query(default=0, ge=0),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Reindex/backfill/cutover/maintenance runs from ``background_jobs``."""
+    row = await reads.resolve_space(db, space) if space is not None else None
+    return _guarded(
+        await reads.read_runs(
+            db, space=row, kind=kind, status=status, window=window, limit=limit, offset=offset
+        )
+    )
+
+
+@router.get("/runs/{run_id}")
+async def retrieval_run(
+    run_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """One run's stage/progress/result counters and bounded ``failed_ids``."""
+    return _guarded(await reads.read_run(db, run_id))
+
+
+@router.get("/quality")
+async def retrieval_quality(
+    space: str | None = SPACE_QUERY,
+    window: str = WINDOW_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The versioned golden-query set; ``not_sampled`` until a compare exists."""
+    row = await _space_or_none(db, space)
+    if row is None:
+        raise ValidationError("no vector space to score; pass ?space=<id|name>")
+    return _guarded(await reads.read_quality(db, space=row, window=window))
+
+
+@router.get("/query-health")
+async def retrieval_query_health(
+    space: str | None = SPACE_QUERY,
+    kind: str | None = Query(default=None, description="source kind"),
+    window: str = WINDOW_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Latency/candidate/zero-result/degraded aggregates from the rollups."""
+    row = await _space_or_none(db, space)
+    return _guarded(await reads.read_query_health(db, space=row, kind=kind, window=window))
+
+
+@router.get("/failures")
+async def retrieval_failures(
+    space: str | None = SPACE_QUERY,
+    kind: str | None = FAILURE_KIND_QUERY,
+    window: str = WINDOW_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Failure groups: embed provider, indexing, cutover gate, maintenance."""
+    row = await reads.resolve_space(db, space) if space is not None else None
+    return _guarded(await reads.read_failures(db, space=row, kind=kind, window=window))
+
+
+@router.get("/usage")
+async def retrieval_usage(
+    space: str | None = SPACE_QUERY,
+    kind: str | None = Query(default=None, description="source kind"),
+    window: str = WINDOW_QUERY,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Embed calls/tokens by day, space and kind, plus the token budget."""
+    row = await reads.resolve_space(db, space) if space is not None else None
+    return _guarded(await reads.read_usage(db, space=row, kind=kind, window=window))
 
 
 @router.get("/status")
