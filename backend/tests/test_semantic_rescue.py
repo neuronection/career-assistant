@@ -134,6 +134,12 @@ async def _posting(
     )
     assert posting is not None
     await db.flush()
+    # P2c.3: the request path defers the rescue; settle the same posting
+    # through the single-posting worker so the policy assertions read the
+    # final decision.
+    from app.services.postings.mapping_remap import run_posting_remap
+
+    await run_posting_remap(db, {"posting_id": str(posting.id), "auto_continue": False})
     return posting
 
 
@@ -553,8 +559,9 @@ async def test_both_signals_weak_stays_in_moderation(db, source, stub_signal):
 
 async def test_the_rescue_costs_at_most_one_embed_batch(db, source):
     """The sanctioned ingest-time exception, measured: a weak-overlap posting
-    embeds through the writer once and spends no other AI (no structured
-    call), so the mapping path stays embedding-only."""
+    is indexed through the writer once by the deferred semantic pass (P2c.3,
+    off the request path) and spends no other AI (no structured call), so the
+    mapping path stays embedding-only."""
     sql = await _skill(db, "sql")
     family = JobFamily(key="ai-family", label="AI", path="ai-family")
     db.add(family)

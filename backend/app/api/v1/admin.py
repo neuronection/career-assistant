@@ -1618,6 +1618,7 @@ async def remap_posting(
     from app.models.enums import MappingMethod
     from app.models.posting_model import JobPosting, PostingSkill
     from app.services.postings.change_journal import RETAG_FIELDS, snapshot
+    from app.services.postings.mapping_remap import TERMINAL_POSTING_STATUSES
     from app.services.postings.postings_service import decide_catalog
 
     posting = (
@@ -1630,6 +1631,11 @@ async def remap_posting(
             status.HTTP_409_CONFLICT,
             "This posting was mapped manually — use the manual map endpoint to override",
         )
+    if posting.status in TERMINAL_POSTING_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This posting is expired or hidden — terminal postings are not re-decided",
+        )
     skill_ids = set(
         (
             await db.execute(
@@ -1640,7 +1646,7 @@ async def remap_posting(
         .all()
     )
     before = snapshot(posting, RETAG_FIELDS)
-    await decide_catalog(db, posting, skill_ids)
+    await decide_catalog(db, posting, skill_ids, defer_semantic=True)
     await db.commit()
     return {
         "id": str(posting.id),

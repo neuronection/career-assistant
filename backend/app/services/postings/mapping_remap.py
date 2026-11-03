@@ -42,6 +42,10 @@ logger = logging.getLogger(__name__)
 REMAP_METHODS = (MappingMethod.SEMANTIC.value, MappingMethod.SEMANTIC_RERANK.value)
 DEFAULT_REMAP_BATCH = 50
 TERMINAL_POSTING_STATUSES = ("expired", "hidden")
+#: Single-posting payload markers (plan 50 P2c.3): the request path defers the
+#: rerank/rescue, and this one job re-decides exactly that posting.
+SEMANTIC_REDECISION = "semantic_redecision"
+SEMANTIC_POSTING_KEY = "posting_id"
 
 ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelledCb = Callable[[], Awaitable[bool]]
@@ -49,6 +53,49 @@ CancelledCb = Callable[[], Awaitable[bool]]
 
 def _continuation_key(*, space_key: str | None, all_postings: bool, after_id: str | None) -> str:
     return f"{space_key or '*'}|{'all' if all_postings else 'space'}|{after_id or 'start'}"
+
+
+def _semantic_continuation_key(posting_id: str) -> str:
+    return f"posting|{posting_id}"
+
+
+async def has_pending_semantic_redecision(db: AsyncSession, posting_id: uuid.UUID | str) -> bool:
+    """True when this posting already has a queued/running deferred pass."""
+    rows = await db.execute(
+        select(BackgroundJob.id).where(
+            BackgroundJob.job_type == BackgroundJobType.POSTING_REMAP.value,
+            BackgroundJob.status.in_(
+                [BackgroundJobStatus.QUEUED.value, BackgroundJobStatus.RUNNING.value]
+            ),
+            BackgroundJob.payload[SEMANTIC_POSTING_KEY].as_string() == str(posting_id),
+        )
+    )
+    return rows.scalars().first() is not None
+
+
+async def enqueue_semantic_redecision(
+    db: AsyncSession,
+    posting_id: uuid.UUID | str,
+    *,
+    commit: bool = False,
+) -> BackgroundJob | None:
+    """Queue one per-posting semantic pass in the caller's transaction.
+
+    Deduplicated against queued/running jobs for the same posting, so a
+    repeated write of one posting cannot fan out. ``commit=False`` is the
+    request-path contract: the caller's commit makes the row durable.
+    """
+    if await has_pending_semantic_redecision(db, posting_id):
+        return None
+    from app.services.job_worker import enqueue
+
+    payload: dict[str, Any] = {
+        SEMANTIC_POSTING_KEY: str(posting_id),
+        SEMANTIC_REDECISION: True,
+        "auto_continue": False,
+        "continuation_key": _semantic_continuation_key(str(posting_id)),
+    }
+    return await enqueue(db, BackgroundJobType.POSTING_REMAP.value, payload, commit=commit)
 
 
 async def has_pending_remap(db: AsyncSession, continuation_key: str) -> bool:
@@ -121,7 +168,17 @@ async def run_posting_remap(
     progress: ProgressCb | None = None,
     cancelled: CancelledCb | None = None,
 ) -> dict[str, Any]:
-    """One bounded remap batch; returns the job result and the next cursor."""
+    """One bounded remap batch; returns the job result and the next cursor.
+
+    With ``posting_id`` in the payload the same vehicle runs the deferred
+    single-posting semantic pass (plan 50 P2c.3): one posting, no
+    ``REMAP_METHODS`` filter (a deterministic row is being refined), no
+    continuation. The cutover batch/cursor mode is unchanged.
+    """
+    posting_id = _parse_uuid(payload.get(SEMANTIC_POSTING_KEY))
+    if posting_id is not None:
+        return await _run_single_posting(db, posting_id, run_id=run_id, progress=progress)
+
     from app.services.postings.postings_service import decide_catalog
 
     space_key = payload.get("space_key")
@@ -182,7 +239,7 @@ async def run_posting_remap(
         )
         try:
             async with db.begin_nested():
-                await decide_catalog(db, posting, skill_ids, run_id=run_id)
+                await decide_catalog(db, posting, skill_ids, run_id=run_id, defer_semantic=False)
             remapped += 1
         except Exception:
             failed += 1
@@ -223,12 +280,71 @@ def _parse_uuid(value: Any) -> uuid.UUID | None:
         return None
 
 
+async def _run_single_posting(
+    db: AsyncSession,
+    posting_id: uuid.UUID,
+    *,
+    run_id: uuid.UUID | None = None,
+    progress: ProgressCb | None = None,
+) -> dict[str, Any]:
+    """Re-decide one posting with the semantic stages enabled (P2c.3)."""
+    from app.services.postings.postings_service import decide_catalog
+
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
+    )
+    result: dict[str, Any] = {
+        "remapped": 0,
+        "failed": 0,
+        "skipped": 0,
+        "next_after_id": None,
+        "posting_id": str(posting_id),
+        "space_key": None,
+        "cancelled": False,
+    }
+    if (
+        posting is None
+        or posting.mapping_method == MappingMethod.MANUAL.value
+        or posting.status in TERMINAL_POSTING_STATUSES
+    ):
+        result["skipped"] = 1
+        if progress is not None:
+            await progress(100, "skipped")
+        return result
+    if progress is not None:
+        await progress(10, "re-deciding posting")
+    skill_ids = set(
+        (
+            await db.execute(
+                select(PostingSkill.skill_id).where(PostingSkill.posting_id == posting.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    try:
+        await decide_catalog(db, posting, skill_ids, run_id=run_id, defer_semantic=False)
+        await db.commit()
+        result["remapped"] = 1
+    except Exception:
+        await db.rollback()
+        logger.info("semantic re-decision failed for %s", posting.id, exc_info=True)
+        raise
+    if progress is not None:
+        await progress(100, "remapped")
+    return result
+
+
 __all__ = [
     "DEFAULT_REMAP_BATCH",
     "REMAP_METHODS",
+    "SEMANTIC_POSTING_KEY",
+    "SEMANTIC_REDECISION",
     "TERMINAL_POSTING_STATUSES",
     "enqueue_posting_remap",
+    "enqueue_semantic_redecision",
     "has_pending_remap",
+    "has_pending_semantic_redecision",
     "invalidate_mapping_space",
     "run_posting_remap",
 ]

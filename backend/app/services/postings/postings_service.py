@@ -722,7 +722,7 @@ async def map_posting(
         after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
     )
 
-    await decide_catalog(db, posting, set(skills), run_id=run_id)
+    await decide_catalog(db, posting, set(skills), run_id=run_id, defer_semantic=True)
 
 
 async def decide_catalog(
@@ -731,8 +731,9 @@ async def decide_catalog(
     skill_ids: set[UUID],
     *,
     run_id=None,
+    defer_semantic: bool = False,
 ) -> MappingMethod | None:
-    """The catalog decision seam (plan 185 + plan 50 P2b).
+    """The catalog decision seam (plan 185 + plan 50 P2b/P2c.3).
 
     The deterministic weighted skill overlap stays the gate and the primary
     decision. Two semantic stages are bounded by it:
@@ -751,6 +752,17 @@ async def decide_catalog(
     bit-identical to the pre-rerank path (no rerank call, no rerank
     candidates beyond the deterministic trace).
 
+    ``defer_semantic=True`` is the request-path form (plan 50 P2c.3): the
+    deterministic decision is computed exactly as if both switches were off,
+    BUT a needed semantic stage is recorded as
+    ``posting_facts["mapping_signals"]["semantic_pending"]`` and one
+    single-posting ``POSTING_REMAP`` job is queued **in the caller's
+    transaction** to finish the decision off the request path. No
+    embed/index/match call happens here. The worker re-runs this seam with
+    ``defer_semantic=False`` and overwrites ``mapping_signals`` with the
+    final trace; because that call cannot defer again, the loop terminates
+    after one pass.
+
     Semantic never introduces a candidate into the rerank and never
     resurrects a gated-out row. Writes the mapping fields + status, the
     versioned ``mapping_features`` provenance payload and ``mapping_version``,
@@ -765,7 +777,9 @@ async def decide_catalog(
 
     A ``manual`` mapping is a human decision: the seam returns without
     touching any field, so no automatic path (rerank, rescue, remap) can
-    overwrite it even when a caller forgets the guard.
+    overwrite it even when a caller forgets the guard. Terminal postings
+    (``expired``/``hidden``) are frozen the same way — never re-decided,
+    never queued.
     """
     if posting.mapping_method == MappingMethod.MANUAL.value:
         return None
@@ -784,6 +798,10 @@ async def decide_catalog(
     )
     from app.services.postings.mapping_candidates import catalog_candidates
     from app.services.postings.mapping_features import build_mapping_features
+    from app.services.postings.mapping_remap import (
+        TERMINAL_POSTING_STATUSES,
+        enqueue_semantic_redecision,
+    )
     from app.services.postings.semantic_rerank import (
         RERANK_BLEND_DETERMINISTIC,
         RERANK_BLEND_SEMANTIC,
@@ -798,6 +816,9 @@ async def decide_catalog(
         not_run_signal,
         semantic_catalog_signal,
     )
+
+    if posting.status in TERMINAL_POSTING_STATUSES:
+        return None
 
     before = {
         **snapshot(posting, RETAG_FIELDS),
@@ -824,18 +845,26 @@ async def decide_catalog(
 
     rescue_enabled = await semantic_rescue_enabled(db)
     rerank_enabled = await semantic_rerank_enabled(db)
+    pending_stages: list[str] = []
+    if rerank_enabled and ambiguous:
+        pending_stages.append("rerank")
+    if rescue_enabled and not overlap_cleared:
+        pending_stages.append("rescue")
+    deferred = bool(skill_ids) and bool(pending_stages) and defer_semantic
+
     rerank = not_run_rerank(threshold=AUTO_MAP_THRESHOLD)
     semantic = not_run_signal()
-    if skill_ids and ambiguous and rerank_enabled:
-        rerank = await semantic_rerank_signal(
-            db,
-            posting,
-            candidates,
-            threshold=AUTO_MAP_THRESHOLD,
-            margin=RERANK_MARGIN,
-        )
-    if skill_ids and not overlap_cleared and rescue_enabled and not rerank.accepted:
-        semantic = await semantic_catalog_signal(db, posting, skill_ids)
+    if not defer_semantic:
+        if skill_ids and ambiguous and rerank_enabled:
+            rerank = await semantic_rerank_signal(
+                db,
+                posting,
+                candidates,
+                threshold=AUTO_MAP_THRESHOLD,
+                margin=RERANK_MARGIN,
+            )
+        if skill_ids and not overlap_cleared and rescue_enabled and not rerank.accepted:
+            semantic = await semantic_catalog_signal(db, posting, skill_ids)
 
     if not skill_ids:
         mapped: MappingMethod | None = None
@@ -927,6 +956,14 @@ async def decide_catalog(
         "semantic": semantic_payload,
         "rerank": rerank_payload,
     }
+    if deferred:
+        reasons = []
+        if "rerank" in pending_stages:
+            reasons.append("ambiguous deterministic outcome")
+        if "rescue" in pending_stages:
+            reasons.append("overlap below threshold")
+        signals_payload["semantic_pending"] = True
+        signals_payload["semantic_pending_reason"] = "; ".join(reasons)
     facts = {**(posting.posting_facts or {})}
     facts["mapping_signals"] = signals_payload
     posting.posting_facts = facts
@@ -972,6 +1009,10 @@ async def decide_catalog(
         before=before,
         after={**snapshot(posting, RETAG_FIELDS), "skills": await skills_state(db, posting.id)},
     )
+    if deferred:
+        # Same transaction as the decision: the caller's commit makes the
+        # job durable, a rollback drops it with the posting write.
+        await enqueue_semantic_redecision(db, posting.id, commit=False)
     return mapped
 
 

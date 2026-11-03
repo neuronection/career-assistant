@@ -135,6 +135,12 @@ async def _posting(
     )
     assert posting is not None
     await db.flush()
+    # P2c.3: the ingest path defers the semantic stages; settle that same
+    # posting through the single-posting worker so the policy assertions
+    # below read the final decision, not the pending one.
+    from app.services.postings.mapping_remap import run_posting_remap
+
+    await run_posting_remap(db, {"posting_id": str(posting.id), "auto_continue": False})
     return posting
 
 

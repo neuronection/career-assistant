@@ -2,11 +2,10 @@
 deterministic weighted skill overlap and records the join trace in
 ``posting_facts["mapping_signals"]``.
 
-The semantic rescue that used to run beside it lived on the retired
-``ai_embeddings`` store (plan 50 P1d); the long-text job↔posting matcher
-replaces it on the family vector store in plan 50 P2. Until then the semantic
-block of the trace stays empty and the overlap decides alone — semantic is
-never a gate.
+The semantic rescue and rerank run on the family vector store (plan 50 P2),
+but the request path defers them to one per-posting ``POSTING_REMAP`` job
+(P2c.3): the decision here is deterministic, the trace carries
+``semantic_pending`` and the single-posting worker settles it.
 """
 
 from sqlalchemy import func, select
@@ -149,15 +148,27 @@ async def test_weak_overlap_stays_new_with_the_trace(db, source):
     assert (
         f"best overlap {signals['overlap']['score']:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
     ) == posting.mapping_reason
-    # The rescue ran (overlap missed) but no content space exists yet — a
+    # P2c.3: the request path decides deterministically and defers the rescue
+    # to one per-posting job; no embedding/index work happens here.
+    assert signals["semantic_pending"] is True
+    assert "overlap below threshold" in signals["semantic_pending_reason"]
+    assert signals["semantic"]["threshold"] is None
+    assert signals["semantic"]["candidates"] == []
+
+    # The deferred worker runs the rescue. No content space exists yet — a
     # fresh deployment reports the reason instead of provisioning one inside
-    # the ingest request.
-    semantic = signals["semantic"]
+    # the decision.
+    from app.services.postings.mapping_remap import run_posting_remap
+
+    result = await run_posting_remap(db, {"posting_id": str(posting.id), "auto_continue": False})
+    assert result["remapped"] == 1
+    semantic = posting.posting_facts["mapping_signals"]["semantic"]
     assert semantic["top"] is None
     assert semantic["threshold"] == SEMANTIC_MAP_THRESHOLD
     assert semantic["candidates"] == []
     assert semantic["space_key"] is None
     assert semantic["degraded"] == "index_missing"
+    assert "semantic_pending" not in posting.posting_facts["mapping_signals"]
 
 
 async def test_a_cleared_overlap_spends_no_ai(db, source):

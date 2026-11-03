@@ -40,8 +40,16 @@ async def enqueue(
     payload: dict,
     user_id: uuid.UUID | None = None,
     max_attempts: int = 2,
+    *,
+    commit: bool = True,
 ) -> BackgroundJob:
-    """Queue a job for the worker pool."""
+    """Queue a job for the worker pool.
+
+    ``commit=False`` is the request-path form: the row is ``add``ed and
+    ``flush``ed only, so it becomes durable with the caller's own commit and
+    disappears if the caller rolls back. The committing form stays the norm
+    everywhere else.
+    """
     job = BackgroundJob(
         user_id=user_id,
         job_type=job_type,
@@ -49,8 +57,11 @@ async def enqueue(
         max_attempts=max_attempts,
     )
     db.add(job)
-    await db.commit()
-    await db.refresh(job)
+    if commit:
+        await db.commit()
+        await db.refresh(job)
+    else:
+        await db.flush()
     return job
 
 
