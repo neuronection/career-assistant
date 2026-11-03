@@ -473,6 +473,20 @@ never re-embedded unchanged (content-hash dedupe).
   backfills/reconciles the store in bounded keyset batches (resumable cursor,
   budget-capped, coverage snapshots only when a kind's chain completes). Both
   write through `app/storage/vector_store.py`, never dialect SQL.
+- **Space lifecycle.** A model/dim/prefix change is a new space, never an
+  in-place rewrite. `app/services/vector_space_lifecycle.py` owns
+  build → backfill → activate → retire → drop: `build_space` creates a
+  `building` row beside the active one and provisions its physical table
+  (service/CLI/job only, never a request), `backfill_space` drives the same
+  bounded `VectorReconcileService` writer against the **building** space id
+  (a `VECTOR_RECONCILE` payload may carry `space_id`), and `activate_space`
+  verifies the physical index plus the latest coverage snapshot of every
+  selected kind, flips the pointer in one transaction, retires the old row
+  and calls the single `POSTING_REMAP` hook for its key. `scripts/vector_spaces.py`
+  exposes `list/status/build/backfill/activate/retire/drop`; `backfill`
+  only enqueues the job, and `drop` requires a retired space, the grace
+  period or `--force --confirm <name>`. The HTTP action surface and the
+  full Runs/quality view remain plan 51.
 - **Read path.** `app/services/vector_retrieval_service.py` embeds the query
   once, searches each view under the caller's opaque scope, aggregates chunks
   into a document score and fuses lexical rankings with weighted RRF
@@ -536,10 +550,12 @@ keys and per-view scores, the pinned policy thresholds, the embedding
 `space_key` and the degradation reason. A space cutover therefore has a
 recorded dependency: `app/services/postings/mapping_remap.py` enqueues one
 bounded `POSTING_REMAP` sweep over rows whose method is
-`semantic`/`semantic_rerank` (never `manual`); plan 51's retirement action
-calls `invalidate_mapping_space(space_key=retired.key)` after the new space
-is active. The sweep re-runs `decide_catalog` only — it never rewrites
-`PostingSkill` rows and never alerts.
+`semantic`/`semantic_rerank` (never `manual`). The lifecycle service's
+`activate_space` calls `invalidate_mapping_space(space_key=retired.key)`
+after the new space is active (a first build has no old key and enqueues
+nothing); plan 51's HTTP action wraps that same service. The sweep re-runs
+`decide_catalog` only — it never rewrites `PostingSkill` rows and never
+alerts.
 
 Every embedding failure (unconfigured provider, gateway error, dim
 mismatch) degrades to the overlap-only decision — the RRF discipline

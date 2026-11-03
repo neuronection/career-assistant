@@ -4,6 +4,27 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (vector retrieval — embedding-space lifecycle and the real cutover, 2026-11-03)
+- **A model or dimension change is now an operable cutover, not an in-place
+  rewrite.** `VectorSpaceLifecycleService`
+  (`backend/app/services/vector_space_lifecycle.py`) builds a `building`
+  space beside the active one, provisions its physical table off the request
+  path, backfills it through the ordinary bounded reconcile writer (a
+  `VECTOR_RECONCILE` payload now accepts `space_id`, and coverage snapshots
+  are stamped against that space), and activates it only after the physical
+  index and the latest coverage snapshot of every selected kind clear the
+  configurable gate (default 99.5%). Activation flips active/retired in one
+  transaction, enforces one active space per name and, when there was a
+  previous space, calls `invalidate_mapping_space` with the retired key —
+  the `POSTING_REMAP` hook is no longer dead. Manual and terminal mappings
+  stay untouched.
+- **Non-interactive space operations.** `scripts/vector_spaces.py` exposes
+  `list`, `status`, `build`, `backfill`, `activate`, `retire` and `drop`.
+  `backfill` only enqueues the job; `drop` only accepts a retired space,
+  after a seven-day grace period or with `--force --confirm <name>`, and an
+  active space can never be dropped. The plan-51 HTTP action API wraps this
+  service rather than duplicating it.
+
 ### Added (catalog matching — bounded semantic rerank and mapping provenance, 2026-11-03)
 - **Ambiguous catalog decisions get a bounded semantic rerank.** The
   deterministic weighted skill overlap remains the gate and the only

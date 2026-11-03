@@ -21,7 +21,7 @@ a type (`BackgroundJobType`) and a handler in the `HANDLERS` map:
 | `digest` / `followup_sweep` | Digests and application follow-ups |
 | `market_history_capture` / `proposal_sweep` / `checkpoint_prune` | Maintenance sweeps |
 | `skill_relation_learn` | Skill-relation edge discovery + tree catch-up (plan 138): propose typed edges from evidence, and fill empty `parent_id` from approved `is_a` rows (reported as `backfilled` on the run ledger) |
-| `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store (plan 50) |
+| `vector_index` / `vector_reconcile` | Index one document / backfill and reconcile the family vector store; `vector_reconcile` accepts an explicit `space_id` for a building space (plan 50) |
 | `posting_remap` | Re-decide semantic catalog mappings after a space cutover (plan 50 P2b) |
 | `data_export` | Exports |
 
@@ -90,6 +90,36 @@ so every run is a `background_jobs` row. Publishing or editing a catalog job
 queues a `VECTOR_INDEX` for it rather than embedding in the request. The full
 Runs/Retrieval surface is plan 51.
 
+### The space lifecycle (plan 50 P2c.1)
+
+`app/services/vector_space_lifecycle.py` owns the embedding-space cutover:
+
+1. `build_space(name, provider, model, dim, …)` creates a `building` row
+   beside the active one and provisions its physical table (CLI/service/job
+   only). The active pointer is untouched; at most one building space per
+   name (a second, different configuration is refused until retired).
+2. `backfill_space(space_id, kinds, limit/budget/scan_limit)` drives the
+   ordinary `VectorReconcileService` with an explicit `space_id`, so
+   documents and `retrieval_coverage_snapshots` land on the building space.
+   The job path is the same: `scripts/vector_spaces.py backfill` enqueues a
+   `VECTOR_RECONCILE` payload with `space_id` (and `space`), and a
+   continuation keeps it.
+3. `activate_space(space_id, coverage_gate=0.995)` verifies the physical
+   index and the latest coverage snapshot of every selected kind, refuses
+   below the gate, then flips active/retired in one transaction (the partial
+   unique index backs one active row per name). After commit it calls
+   `invalidate_mapping_space(space_key=old_key)`; a first build has no old
+   key and enqueues no remap.
+4. `retire_space` refuses the active space; `drop_space` accepts only a
+   retired space, after the 7-day grace period or with
+   `--force --confirm <name>` (a typed name, never a TTY prompt). An active
+   space can never be dropped.
+
+CLI: `scripts/vector_spaces.py list | status | build | backfill | activate |
+retire | drop`. Activate/retire/drop print a JSON result; `backfill` only
+enqueues (optionally `--wait` for the first batch). Plan 51's
+`/admin/retrieval/*` actions wrap this service and must not duplicate it.
+
 ### The posting remap after a space cutover (plan 50 P2b)
 
 A semantic mapping depends on the embedding space it was decided in:
@@ -100,9 +130,10 @@ enqueues a bounded `POSTING_REMAP` job. The handler selects only
 `mapping_method IN ('semantic','semantic_rerank')` rows (never `manual`),
 skips terminal statuses, re-runs `decide_catalog` without touching
 `PostingSkill` rows, and pages by posting id with one auto-continuation
-cursor. Plan 51's retrieval-management action calls the hook after the new
-space is active; there is deliberately no second sweep. The run result
-carries `{remapped, failed, skipped, next_after_id, space_key}`.
+cursor. The space lifecycle's `activate_space` calls the hook after the new
+space is active (plan 51's HTTP action wraps that service); there is
+deliberately no second sweep. The run result carries
+`{remapped, failed, skipped, next_after_id, space_key}`.
 
 ### The failed-jobs lifecycle (plan 184)
 
