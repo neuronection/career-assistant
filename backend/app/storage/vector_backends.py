@@ -1,21 +1,31 @@
 """App-side vector backend adapters and the one-per-process factory
-(plan 50 §4, P1a).
+(plan 50 §4, P1b).
 
 The shared contract (DTOs, protocol, cosine, capabilities) is the vendored
-``app.storage.vector_contract`` module. This module owns the SQL: the
-linear fallback implemented over ``vector_records.embedding`` now; the
-pgvector and sqlite-vec adapters land in plan 50 P1b. The factory never
-fakes ANN: when the extension/driver is absent — or the ANN adapters are
-not enabled yet — it returns the linear backend and publishes its honest
-capabilities.
+``app.storage.vector_contract`` module. This module owns the SQL for the
+three engines:
 
-The protocol is synchronous (one shape for all three engines); the async
-service layer calls these adapters from a worker thread. Writes own one
-short transaction per call.
+* :class:`LinearBackend` — exact cosine over ``vector_records.embedding``;
+* :class:`PgVectorBackend` — one HNSW table per space, scope joined into the
+  ANN query, ``ef_search``/iterative scan tuned per query;
+* :class:`SqliteVecBackend` — a ``vec0`` table plus the ``vector_entry_ids``
+  rowid map, over-fetch then bounded post-filter.
+
+Metadata (``vector_spaces``/``vector_documents``/``vector_records``) belongs
+to :class:`app.storage.vector_store.VectorStoreService`. The session-bound
+``*_index`` hooks below let the service write metadata and the physical index
+in one transaction without any backend writing metadata itself. The public
+``upsert``/``delete_document`` methods are the contract shape for standalone
+use and wrap the same hooks in their own short transaction.
+
+The factory selects the engine once per process; it never fakes ANN. If the
+extension/driver is absent the linear backend is returned and publishes
+``ann=False``.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import uuid
 from array import array
@@ -23,22 +33,18 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Engine, delete, false, func, select, text
+from sqlalchemy import Engine, bindparam, false, func, select, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models.vector_model import (
-    INDEX_TABLE_PATTERN,
-    VectorDocument,
-    VectorRecord,
-)
-from app.models.vector_model import (
-    VectorSpace as VectorSpaceRow,
-)
+from app.models.vector_model import VectorDocument, VectorRecord
 from app.storage.vector_contract import (
     BACKEND_CAPS,
     BACKEND_LINEAR,
     BACKEND_PGVECTOR,
     BACKEND_SQLITE_VEC,
+    CANDIDATE_MULTIPLIER,
+    EF_SEARCH_DEFAULT,
+    EXACT_SCAN_THRESHOLD,
     BackendCaps,
     BackendHealth,
     DegradedReason,
@@ -50,14 +56,9 @@ from app.storage.vector_contract import (
     cosine,
     normalize_text,
 )
+from app.storage.vector_schema import validate_index_table
 
 logger = logging.getLogger(__name__)
-
-# The ANN adapters are P1b work. Until they ship, the factory selects the
-# linear backend on every deployment even where pgvector/sqlite-vec loads —
-# never expose a backend that would silently return approximate results it
-# cannot produce.
-ANN_READY = False
 
 SCOPE_ALL = "all"
 SCOPE_DOCUMENTS = "documents"
@@ -69,6 +70,13 @@ _SCOPE_COLUMNS = {
     "scope_types": VectorDocument.scope_type,
     "scope_ids": VectorDocument.scope_id,
     "profile_ids": VectorDocument.profile_id,
+}
+_SCOPE_SQL = {
+    "document_ids": "r.document_id",
+    "kinds": "d.kind",
+    "scope_types": "d.scope_type",
+    "scope_ids": "d.scope_id",
+    "profile_ids": "d.profile_id",
 }
 _UUID_FILTERS = {"document_ids", "scope_ids", "profile_ids"}
 
@@ -85,8 +93,16 @@ class VectorDocumentNotFound(VectorBackendError):
     """An upsert referenced a document that is not registered in the space."""
 
 
+class VectorRecordNotFound(VectorBackendError):
+    """An upsert referenced a record that has no metadata row."""
+
+
 class VectorRecordIdentityMismatch(VectorBackendError):
     """The contract record id changed for the same (document, view, chunk)."""
+
+
+class VectorIndexMissing(VectorBackendError):
+    """The physical index (or its extension/driver) is absent or unusable."""
 
 
 class VectorSpaceMismatch(VectorBackendError, ValueError):
@@ -110,8 +126,8 @@ class VectorBackendOverCap(VectorBackendError):
     degraded = DegradedReason.OVER_CAP
 
 
-class BackendNotImplemented(VectorBackendError, NotImplementedError):
-    """The ANN adapter is scheduled for plan 50 P1b."""
+class VectorRowidCollision(VectorBackendError):
+    """A sqlite-vec rowid already belongs to a different record id."""
 
 
 @dataclass(frozen=True)
@@ -132,16 +148,6 @@ class ResolvedEmbedding:
 
 def _prefix_value(value: str | None) -> str:
     return normalize_text(value or "")
-
-
-def index_table_name(space_id: str | uuid.UUID) -> str:
-    """Derive the physical ANN table name from the space UUID (no DDL).
-
-    The provisioning seam (migration or ``scripts/vector_spaces.py``, P1b)
-    owns the ``CREATE TABLE``; this helper is the single naming rule the
-    model CHECK, provisioning and tests share.
-    """
-    return f"{INDEX_TABLE_PATTERN}{uuid.UUID(str(space_id)).hex[:8]}"
 
 
 def writer_mismatch_reason(space: VectorSpace, resolved: ResolvedEmbedding) -> str | None:
@@ -193,6 +199,16 @@ def filter_scope(**filters: Collection[str]) -> ScopeSpec:
     return ScopeSpec(kind=SCOPE_FILTERS, predicate=dict(filters))
 
 
+def rowid_for(record_id: str | uuid.UUID, *, salt: int = 0) -> int:
+    """The study rowid rule: a positive signed 64-bit BLAKE2b of the id."""
+    payload = str(record_id).encode("utf-8")
+    if salt:
+        payload += f":{salt}".encode()
+    return int.from_bytes(hashlib.blake2b(payload, digest_size=8).digest(), "big") & (
+        0x7FFF_FFFF_FFFF_FFFF
+    )
+
+
 def _pack(embedding: Sequence[float]) -> bytes:
     return array("f", (float(value) for value in embedding)).tobytes()
 
@@ -203,6 +219,10 @@ def _unpack(blob: bytes | None) -> tuple[float, ...]:
     values = array("f")
     values.frombytes(blob)
     return tuple(values)
+
+
+def _vector_literal(embedding: Sequence[float]) -> str:
+    return "[" + ",".join(repr(float(value)) for value in embedding) + "]"
 
 
 def _as_uuid(value: Any, *, field: str) -> uuid.UUID:
@@ -256,7 +276,124 @@ def _scope_clauses(scope: ScopeSpec) -> list[Any] | None:
     raise ValueError(f"unsupported scope kind: {scope.kind!r}")
 
 
-class LinearBackend(VectorBackend):
+def _scope_sql(scope: ScopeSpec) -> tuple[str, list[Any], dict[str, Any]]:
+    """The PostgreSQL form of the scope: SQL text, expanding binds, values."""
+    if not isinstance(scope, ScopeSpec):
+        raise TypeError("scope must be a contract ScopeSpec")
+    if scope.kind == SCOPE_ALL:
+        if scope.predicate not in (None, {}):
+            raise ValueError("the 'all' scope takes no predicate")
+        return "", [], {}
+    if scope.kind == SCOPE_DOCUMENTS:
+        values = _as_values("document_ids", scope.predicate)
+        if not values:
+            return "AND 1=0", [], {}
+        return (
+            "AND r.document_id IN :document_ids",
+            [bindparam("document_ids", expanding=True)],
+            {"document_ids": [_as_uuid(value, field="document_id") for value in values]},
+        )
+    if scope.kind == SCOPE_FILTERS:
+        if not isinstance(scope.predicate, Mapping):
+            raise ValueError("the 'filters' scope takes a mapping")
+        unknown = set(scope.predicate) - set(_SCOPE_SQL)
+        if unknown:
+            raise ValueError(f"unknown scope filter(s): {sorted(unknown)}")
+        fragments: list[str] = []
+        params: list[Any] = []
+        values_by_name: dict[str, Any] = {}
+        for name, raw in scope.predicate.items():
+            values = _as_values(name, raw)
+            if not values:
+                return "AND 1=0", [], {}
+            bound = (
+                [_as_uuid(value, field=name) for value in values]
+                if name in _UUID_FILTERS
+                else list(values)
+            )
+            fragments.append(f"AND {_SCOPE_SQL[name]} IN :{name}")
+            params.append(bindparam(name, expanding=True))
+            values_by_name[name] = bound
+        if not fragments:
+            raise ValueError("the 'filters' scope must carry at least one filter")
+        return " ".join(fragments), params, values_by_name
+    raise ValueError(f"unsupported scope kind: {scope.kind!r}")
+
+
+def _make_sessionmaker(bind: Engine | sessionmaker[Session]) -> sessionmaker[Session]:
+    return sessionmaker(bind=bind, expire_on_commit=False) if isinstance(bind, Engine) else bind
+
+
+class SessionBackedBackend:
+    """Shared transaction ownership; subclasses implement the index hooks."""
+
+    name: str
+    capabilities: BackendCaps
+
+    def __init__(self, bind: Engine | sessionmaker[Session]) -> None:
+        self._session_factory = _make_sessionmaker(bind)
+
+    @staticmethod
+    def _space_id(space: VectorSpace) -> uuid.UUID:
+        if space.space_id is None:
+            raise VectorSpaceNotFound(
+                f"vector space {space.name!r} has no space_id — "
+                "resolve it through VectorStoreService"
+            )
+        return _as_uuid(space.space_id, field="space_id")
+
+    def _index_table(self, space: VectorSpace) -> str:
+        if space.index_table is None:
+            raise VectorIndexMissing(
+                f"space {space.name!r} has no physical index; provision it first"
+            )
+        return validate_index_table(space.index_table)
+
+    def ensure_space(self, space: VectorSpace) -> None:
+        raise NotImplementedError
+
+    def upsert_index(
+        self, session: Session, space: VectorSpace, records: Sequence[IndexRecord]
+    ) -> None:
+        raise NotImplementedError
+
+    def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
+        raise NotImplementedError
+
+    def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
+        """Write index rows in one short transaction (contract shape)."""
+        if not records:
+            return
+        with self._session_factory() as session:
+            self.upsert_index(session, space, records)
+            session.commit()
+
+    def delete_document(self, space: VectorSpace, document_id: str) -> None:
+        """Delete this backend's index rows for one document."""
+        with self._session_factory() as session:
+            self.delete_document_index(session, space, document_id)
+            session.commit()
+
+    def search(
+        self,
+        space: VectorSpace,
+        query: Sequence[float],
+        *,
+        views: Sequence[str],
+        scope: ScopeSpec,
+        limit: int,
+        ef_search: int | None = None,
+    ) -> list[IndexHit]:
+        raise NotImplementedError
+
+    def count(self, space: VectorSpace) -> int:
+        raise NotImplementedError
+
+    def health(self, space: VectorSpace) -> BackendHealth:
+        raise NotImplementedError
+
+
+class LinearBackend(SessionBackedBackend, VectorBackend):
     """Exact cosine scan over ``vector_records.embedding`` (plan 50 §2.3).
 
     The fallback store for deployments without pgvector/sqlite-vec: honest
@@ -267,147 +404,52 @@ class LinearBackend(VectorBackend):
     """
 
     name = BACKEND_LINEAR
-    capabilities: BackendCaps = BACKEND_CAPS[BACKEND_LINEAR]
+    capabilities = BACKEND_CAPS[BACKEND_LINEAR]
 
-    def __init__(self, bind: Engine | sessionmaker[Session]) -> None:
-        self._session_factory: sessionmaker[Session] = (
-            sessionmaker(bind=bind, expire_on_commit=False) if isinstance(bind, Engine) else bind
-        )
-
-    def _space_row(self, session: Session, space: VectorSpace) -> VectorSpaceRow:
-        if space.space_id is not None:
-            row = session.get(VectorSpaceRow, _as_uuid(space.space_id, field="space_id"))
-            if row is None:
-                raise VectorSpaceNotFound(f"vector space id {space.space_id!r} has no row")
-        else:
-            row = session.scalars(
-                select(VectorSpaceRow)
-                .where(
-                    VectorSpaceRow.name == space.name,
-                    VectorSpaceRow.status == str(space.status),
-                )
-                .order_by(VectorSpaceRow.created_at.desc())
-                .limit(1)
-            ).first()
-            if row is None:
-                raise VectorSpaceNotFound(f"vector space {space.name!r} has no row")
-        self._assert_row_matches(space, row)
-        return row
-
-    @staticmethod
-    def _assert_row_matches(space: VectorSpace, row: VectorSpaceRow) -> None:
-        """The persisted space is the trusted configuration; a stale DTO is refused."""
-        reason = writer_mismatch_reason(
-            space,
-            ResolvedEmbedding(
-                provider=row.provider,
-                model=row.model,
-                dim=row.dim,
-                normalize=row.normalize,
-                query_prefix=row.query_prefix,
-                document_prefix=row.document_prefix,
-            ),
-        )
-        if reason is not None:
-            raise VectorSpaceMismatch(f"space DTO disagrees with the persisted row — {reason}")
-        if row.status != str(space.status):
+    def _assert_linear(self, space: VectorSpace) -> None:
+        if space.index_table is not None:
             raise VectorSpaceMismatch(
-                f"space status mismatch — row={row.status!r}, dto={str(space.status)!r}"
+                f"space {space.name!r} declares physical index {space.index_table!r}; "
+                "the linear backend owns no index table"
             )
 
     def ensure_space(self, space: VectorSpace) -> None:
-        """Verify the metadata row; never issue DDL (provisioning is a job/migration)."""
-        with self._session_factory() as session:
-            self._space_row(session, space)
+        self._space_id(space)
+        self._assert_linear(space)
 
-    def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
-        """Write records in place, one transaction per call.
-
-        The unique ``(document_id, view, chunk_index)`` key is the update
-        target: a changed content hash/embedding replaces the stored vector.
-        A record whose dimension disagrees with the space is a writer bug and
-        raises instead of writing an unscannable row.
-        """
-        if not records:
-            return
-        packed: list[tuple[IndexRecord, bytes]] = []
+    def upsert_index(
+        self, session: Session, space: VectorSpace, records: Sequence[IndexRecord]
+    ) -> None:
+        """Write only the embedding column — metadata rows are the service's."""
+        self._assert_linear(space)
+        space_id = self._space_id(space)
         for record in records:
             if len(record.embedding) != space.dim:
                 raise VectorSpaceMismatch(
                     f"record {record.record_id} has dim {len(record.embedding)}, "
                     f"space {space.name!r} expects {space.dim}"
                 )
-            packed.append((record, _pack(record.embedding)))
-
-        document_ids = {_as_uuid(record.document_id, field="document_id") for record, _ in packed}
-        with self._session_factory() as session:
-            space_row = self._space_row(session, space)
-            documents = {
-                document.id: document
-                for document in session.scalars(
-                    select(VectorDocument).where(
-                        VectorDocument.id.in_(document_ids),
-                        VectorDocument.space_id == space_row.id,
-                    )
-                )
-            }
-            missing = document_ids - set(documents)
-            if missing:
-                raise VectorDocumentNotFound(
-                    f"{len(missing)} document(s) are not registered in space {space.name!r}"
-                )
-            for record, blob in packed:
-                record_id = _as_uuid(record.record_id, field="record_id")
-                document = documents[_as_uuid(record.document_id, field="document_id")]
-                stored = session.scalars(
-                    select(VectorRecord).where(
-                        VectorRecord.document_id == document.id,
-                        VectorRecord.view == record.view,
-                        VectorRecord.chunk_index == record.chunk_index,
-                    )
-                ).first()
-                if stored is None:
-                    session.add(
-                        VectorRecord(
-                            id=record_id,
-                            document_id=document.id,
-                            space_id=space_row.id,
-                            view=record.view,
-                            chunk_index=record.chunk_index,
-                            char_start=record.char_start,
-                            char_end=record.char_end,
-                            content_hash=record.content_hash,
-                            embedding=blob,
-                        )
-                    )
-                else:
-                    if stored.id != record_id:
-                        raise VectorRecordIdentityMismatch(
-                            "record identity changed for "
-                            f"({document.id}, {record.view}, {record.chunk_index})"
-                        )
-                    stored.space_id = space_row.id
-                    stored.char_start = record.char_start
-                    stored.char_end = record.char_end
-                    stored.content_hash = record.content_hash
-                    stored.embedding = blob
-            session.commit()
-
-    def delete_document(self, space: VectorSpace, document_id: str) -> None:
-        """Delete this backend's records for one document.
-
-        The metadata row is the service layer's (it cascades); the backend
-        only clears the index entries it owns.
-        """
-        with self._session_factory() as session:
-            space_row = self._space_row(session, space)
-            session.execute(
-                delete(VectorRecord).where(
-                    VectorRecord.space_id == space_row.id,
-                    VectorRecord.document_id == _as_uuid(document_id, field="document_id"),
+        record_ids = [_as_uuid(record.record_id, field="record_id") for record in records]
+        stored = {
+            row.id: row
+            for row in session.scalars(
+                select(VectorRecord).where(
+                    VectorRecord.id.in_(record_ids),
+                    VectorRecord.space_id == space_id,
                 )
             )
-            session.commit()
+        }
+        for record in records:
+            row = stored.get(_as_uuid(record.record_id, field="record_id"))
+            if row is None:
+                raise VectorRecordNotFound(
+                    f"record {record.record_id} has no metadata row in space {space.name!r}"
+                )
+            row.embedding = _pack(record.embedding)
+
+    def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
+        """No separate index: the record rows (and their embeddings) cascade."""
+        del session, space, document_id
 
     def search(
         self,
@@ -431,14 +473,16 @@ class LinearBackend(VectorBackend):
                 space.dim,
             )
             return []
+        self._assert_linear(space)
+        space_id = self._space_id(space)
         with self._session_factory() as session:
-            space_row = self._space_row(session, space)
             statement = (
                 select(VectorRecord, VectorDocument)
                 .join(VectorDocument, VectorRecord.document_id == VectorDocument.id)
                 .where(
-                    VectorRecord.space_id == space_row.id,
+                    VectorRecord.space_id == space_id,
                     VectorRecord.view.in_(list(views)),
+                    VectorRecord.embedding.is_not(None),
                 )
             )
             scope_clauses = _scope_clauses(scope)
@@ -472,40 +516,27 @@ class LinearBackend(VectorBackend):
         return hits[:limit]
 
     def count(self, space: VectorSpace) -> int:
+        self._assert_linear(space)
+        space_id = self._space_id(space)
         with self._session_factory() as session:
-            space_row = self._space_row(session, space)
             return int(
                 session.scalar(
                     select(func.count())
                     .select_from(VectorRecord)
-                    .where(VectorRecord.space_id == space_row.id)
+                    .where(
+                        VectorRecord.space_id == space_id,
+                        VectorRecord.embedding.is_not(None),
+                    )
                 )
                 or 0
             )
 
     def health(self, space: VectorSpace) -> BackendHealth:
         try:
-            with self._session_factory() as session:
-                space_row = self._space_row(session, space)
-                records = int(
-                    session.scalar(
-                        select(func.count())
-                        .select_from(VectorRecord)
-                        .where(VectorRecord.space_id == space_row.id)
-                    )
-                    or 0
-                )
-                index_table = space_row.index_table
+            self._assert_linear(space)
+            records = self.count(space)
         except VectorBackendError as exc:
             return BackendHealth(ok=False, detail=str(exc))
-        if index_table is not None:
-            return BackendHealth(
-                ok=False,
-                detail=(
-                    f"space {space.name!r} declares physical index {index_table!r}; "
-                    "the linear backend owns no index table"
-                ),
-            )
         if records > self.capabilities.max_recommended_rows:
             return BackendHealth(
                 ok=True,
@@ -517,26 +548,151 @@ class LinearBackend(VectorBackend):
         return BackendHealth(ok=True, detail=f"linear scan, {records} vector(s)")
 
 
-class PgVectorBackend(VectorBackend):
-    """pgvector/HNSW adapter — plan 50 P1b (skeleton, never selected yet)."""
+def _version_tuple(version: str | None) -> tuple[int, ...]:
+    if not version:
+        return ()
+    parts: list[int] = []
+    for part in version.split("."):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        if not digits:
+            break
+        parts.append(int(digits))
+    return tuple(parts)
+
+
+class PgVectorBackend(SessionBackedBackend, VectorBackend):
+    """pgvector/HNSW adapter (plan 50 §3.4, §4).
+
+    The scope predicate is part of the ANN query's WHERE clause (never a
+    Python post-filter); ``hnsw.ef_search`` and ``hnsw.iterative_scan`` are
+    set per query with ``SET LOCAL``. At or below
+    ``EXACT_SCAN_THRESHOLD`` scoped candidates the scan is forced exact so
+    small installs and parity tests stay deterministic.
+    """
 
     name = BACKEND_PGVECTOR
-    capabilities: BackendCaps = BACKEND_CAPS[BACKEND_PGVECTOR]
+    capabilities = BACKEND_CAPS[BACKEND_PGVECTOR]
 
     def __init__(self, bind: Engine | sessionmaker[Session]) -> None:
-        self._bind = bind
+        super().__init__(bind)
+        self._extension_version: str | None = None
+        self._version_probed = False
 
-    def _todo(self) -> BackendNotImplemented:
-        return BackendNotImplemented("PgVectorBackend ships with plan 50 P1b")
+    def _probe_version(self, session: Session) -> str | None:
+        if not self._version_probed:
+            version = session.execute(
+                text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+            ).scalar()
+            if version is not None:
+                self._extension_version = str(version)
+                self._version_probed = True
+        return self._extension_version
+
+    def _require_extension(self, session: Session) -> str:
+        version = self._probe_version(session)
+        if version is None:
+            raise VectorIndexMissing(
+                "pgvector is not installed — semantic search is unavailable on PostgreSQL"
+            )
+        return str(version)
+
+    @staticmethod
+    def _table_dim(session: Session, table: str) -> int | None:
+        declared = session.execute(
+            text(
+                "SELECT format_type(a.atttypid, a.atttypmod) "
+                "FROM pg_attribute a "
+                "WHERE a.attrelid = CAST(:table AS regclass) "
+                "AND a.attname = 'embedding' AND NOT a.attisdropped"
+            ),
+            {"table": table},
+        ).scalar()
+        if declared is None:
+            return None
+        prefix = "vector("
+        text_value = str(declared)
+        if not text_value.startswith(prefix) or not text_value.endswith(")"):
+            raise VectorIndexMissing(f"index {table!r} has unexpected embedding type {declared!r}")
+        return int(text_value[len(prefix) : -1])
 
     def ensure_space(self, space: VectorSpace) -> None:
-        raise self._todo()
+        table = self._index_table(space)
+        with self._session_factory() as session:
+            self._require_extension(session)
+            if not session.execute(
+                text("SELECT to_regclass(CAST(:table AS text))"), {"table": table}
+            ).scalar():
+                raise VectorIndexMissing(
+                    f"index table {table!r} does not exist; provision it first"
+                )
+            declared = self._table_dim(session, table)
+            if declared != space.dim:
+                raise VectorSpaceMismatch(
+                    f"index {table!r} is vector({declared}), space {space.name!r} expects "
+                    f"vector({space.dim})"
+                )
 
-    def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
-        raise self._todo()
+    def upsert_index(
+        self, session: Session, space: VectorSpace, records: Sequence[IndexRecord]
+    ) -> None:
+        table = self._index_table(space)
+        self._require_extension(session)
+        for record in records:
+            if len(record.embedding) != space.dim:
+                raise VectorSpaceMismatch(
+                    f"record {record.record_id} has dim {len(record.embedding)}, "
+                    f"space {space.name!r} expects {space.dim}"
+                )
+        statement = text(
+            f"INSERT INTO {table} (record_id, embedding) "
+            "VALUES (:record_id, CAST(:embedding AS vector)) "
+            "ON CONFLICT (record_id) DO UPDATE SET embedding = EXCLUDED.embedding"
+        )
+        for record in records:
+            session.execute(
+                statement,
+                {
+                    "record_id": _as_uuid(record.record_id, field="record_id"),
+                    "embedding": _vector_literal(record.embedding),
+                },
+            )
 
-    def delete_document(self, space: VectorSpace, document_id: str) -> None:
-        raise self._todo()
+    def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
+        table = self._index_table(space)
+        session.execute(
+            text(
+                f"DELETE FROM {table} WHERE record_id IN ("
+                "SELECT id FROM vector_records "
+                "WHERE document_id = :document_id AND space_id = :space_id)"
+            ),
+            {
+                "document_id": _as_uuid(document_id, field="document_id"),
+                "space_id": self._space_id(space),
+            },
+        )
+
+    def _scoped_count(
+        self, session: Session, space: VectorSpace, views: Sequence[str], scope: ScopeSpec
+    ) -> int:
+        statement = (
+            select(func.count())
+            .select_from(VectorRecord)
+            .join(VectorDocument, VectorRecord.document_id == VectorDocument.id)
+            .where(
+                VectorRecord.space_id == self._space_id(space),
+                VectorRecord.view.in_(list(views)),
+            )
+        )
+        clauses = _scope_clauses(scope)
+        if clauses is not None:
+            statement = statement.where(*clauses)
+        return int(session.scalar(statement) or 0)
+
+    def _set_tuning(self, session: Session, version: str, ef_search: int) -> None:
+        session.execute(text("SELECT CAST('[1]' AS vector)"))
+        session.execute(text(f"SET LOCAL hnsw.ef_search = {int(ef_search)}"))
+        if _version_tuple(version) >= (0, 8, 0):
+            session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
 
     def search(
         self,
@@ -548,35 +704,296 @@ class PgVectorBackend(VectorBackend):
         limit: int,
         ef_search: int | None = None,
     ) -> list[IndexHit]:
-        raise self._todo()
+        if limit <= 0 or not views or not query:
+            return []
+        if len(query) != space.dim:
+            logger.warning(
+                "pgvector search query dim %s != space %r dim %s — refusing",
+                len(query),
+                space.name,
+                space.dim,
+            )
+            return []
+        table = self._index_table(space)
+        scope_sql, scope_params, scope_values = _scope_sql(scope)
+        with self._session_factory() as session:
+            version = self._require_extension(session)
+            if not session.execute(
+                text("SELECT to_regclass(CAST(:table AS text))"), {"table": table}
+            ).scalar():
+                raise VectorIndexMissing(f"index table {table!r} does not exist")
+            scoped_count = self._scoped_count(session, space, views, scope)
+            if scoped_count > self.capabilities.max_recommended_rows:
+                raise VectorBackendOverCap(
+                    f"{scoped_count} scoped candidates exceed the pgvector cap "
+                    f"({self.capabilities.max_recommended_rows}) — serve lexical instead"
+                )
+            if scoped_count == 0:
+                return []
+            exact = scoped_count <= EXACT_SCAN_THRESHOLD
+            self._set_tuning(session, version, max(int(ef_search or EF_SEARCH_DEFAULT), 1))
+            if exact:
+                session.execute(text("SET LOCAL enable_indexscan = off"))
+                session.execute(text("SET LOCAL enable_bitmapscan = off"))
+                scan_limit = min(limit, scoped_count)
+            else:
+                scan_limit = min(max(limit * CANDIDATE_MULTIPLIER, limit), scoped_count)
+            statement = text(
+                f"""
+                SELECT v.record_id AS record_id,
+                       r.document_id AS document_id,
+                       r.view AS view,
+                       (v.embedding <=> CAST(:query AS vector)) AS distance
+                FROM {table} v
+                JOIN vector_records r ON r.id = v.record_id
+                JOIN vector_documents d ON d.id = r.document_id
+                WHERE r.space_id = :space_id
+                  AND r.view IN :views
+                  {scope_sql}
+                ORDER BY distance ASC
+                LIMIT :limit
+                """
+            ).bindparams(bindparam("views", expanding=True), *scope_params)
+            rows = session.execute(
+                statement,
+                {
+                    "query": _vector_literal(query),
+                    "space_id": self._space_id(space),
+                    "views": list(views),
+                    "limit": scan_limit,
+                    **scope_values,
+                },
+            ).all()
+        hits = [
+            IndexHit(
+                record_id=str(row.record_id),
+                document_id=str(row.document_id),
+                view=str(row.view),
+                distance=float(row.distance),
+                similarity=1.0 - float(row.distance),
+                backend=self.name,
+            )
+            for row in rows
+        ]
+        hits.sort(key=lambda hit: (hit.distance, hit.document_id, hit.record_id))
+        return hits[:limit]
 
     def count(self, space: VectorSpace) -> int:
-        raise self._todo()
+        table = self._index_table(space)
+        with self._session_factory() as session:
+            self._require_extension(session)
+            return int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
 
     def health(self, space: VectorSpace) -> BackendHealth:
-        raise self._todo()
+        table = space.index_table
+        if table is None:
+            return BackendHealth(ok=False, detail="space has no physical index (linear backend)")
+        try:
+            validate_index_table(table)
+            with self._session_factory() as session:
+                version = self._probe_version(session)
+                if version is None:
+                    return BackendHealth(ok=False, detail="pgvector extension is not installed")
+                if not session.execute(
+                    text("SELECT to_regclass(CAST(:table AS text))"), {"table": table}
+                ).scalar():
+                    return BackendHealth(ok=False, detail=f"index table {table!r} is missing")
+                declared = self._table_dim(session, table)
+                if declared != space.dim:
+                    return BackendHealth(
+                        ok=False,
+                        detail=(
+                            f"index {table!r} is vector({declared}), expected vector({space.dim})"
+                        ),
+                    )
+                index_present = (
+                    session.execute(
+                        text(
+                            "SELECT 1 FROM pg_indexes WHERE tablename = :table "
+                            "AND indexname = :index"
+                        ),
+                        {"table": table, "index": f"ix_{table}_hnsw"},
+                    ).scalar()
+                    is not None
+                )
+                rows = int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
+        except VectorBackendError as exc:
+            return BackendHealth(ok=False, detail=str(exc))
+        except Exception as exc:  # pragma: no cover - a broken DB is not "healthy"
+            return BackendHealth(ok=False, detail=f"pgvector health probe failed: {exc}")
+        if not index_present:
+            return BackendHealth(ok=False, detail=f"index {table!r} has no HNSW cosine index")
+        return BackendHealth(
+            ok=True,
+            detail=f"pgvector {version}, {table} vector({space.dim}), {rows} row(s)",
+        )
 
 
-class SqliteVecBackend(VectorBackend):
-    """sqlite-vec ``vec0`` adapter — plan 50 P1b (skeleton, never selected yet)."""
+class SqliteVecBackend(SessionBackedBackend, VectorBackend):
+    """sqlite-vec ``vec0`` adapter (plan 50 §3.4, §4).
+
+    Uses a per-record rowid map so hydration is one indexed lookup. Scope is
+    over-fetched then post-filtered against metadata; the safety invariant
+    holds after truncation because the allowed-record set comes from SQL,
+    never from the ANN result itself.
+    """
 
     name = BACKEND_SQLITE_VEC
-    capabilities: BackendCaps = BACKEND_CAPS[BACKEND_SQLITE_VEC]
+    capabilities = BACKEND_CAPS[BACKEND_SQLITE_VEC]
 
-    def __init__(self, bind: Engine | sessionmaker[Session]) -> None:
-        self._bind = bind
+    @staticmethod
+    def _load(session: Session) -> Any:
+        try:
+            import sqlite_vec
+        except ImportError as exc:  # pragma: no cover - desktop extra absent
+            raise VectorIndexMissing("sqlite-vec is not installed") from exc
+        try:
+            raw = session.connection().connection.driver_connection
+            if raw is None:
+                raise VectorIndexMissing("sqlite connection has no driver connection")
+            raw.enable_load_extension(True)
+            sqlite_vec.load(raw)
+            session.connection().exec_driver_sql("SELECT vec_version()").scalar()
+        except Exception as exc:
+            raise VectorIndexMissing(f"sqlite-vec could not be loaded: {exc}") from exc
+        return sqlite_vec
 
-    def _todo(self) -> BackendNotImplemented:
-        return BackendNotImplemented("SqliteVecBackend ships with plan 50 P1b")
+    @staticmethod
+    def _table_dim(session: Session, table: str) -> int | None:
+        sql = session.execute(
+            text("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = :name"),
+            {"name": table},
+        ).scalar()
+        if sql is None:
+            return None
+        marker = "float["
+        text_value = str(sql)
+        start = text_value.find(marker)
+        if start < 0:
+            raise VectorIndexMissing(f"index {table!r} has no float[dim] embedding column")
+        end = text_value.find("]", start)
+        return int(text_value[start + len(marker) : end])
 
     def ensure_space(self, space: VectorSpace) -> None:
-        raise self._todo()
+        table = self._index_table(space)
+        with self._session_factory() as session:
+            self._load(session)
+            declared = self._table_dim(session, table)
+            if declared is None:
+                raise VectorIndexMissing(
+                    f"index table {table!r} does not exist; provision it first"
+                )
+            if declared != space.dim:
+                raise VectorSpaceMismatch(
+                    f"index {table!r} is float[{declared}], space {space.name!r} expects "
+                    f"float[{space.dim}]"
+                )
+            if not session.execute(
+                text(
+                    "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'vector_entry_ids'"
+                )
+            ).scalar():
+                raise VectorIndexMissing("the vector_entry_ids rowid map is missing")
 
-    def upsert(self, space: VectorSpace, records: Sequence[IndexRecord]) -> None:
-        raise self._todo()
+    def upsert_index(
+        self, session: Session, space: VectorSpace, records: Sequence[IndexRecord]
+    ) -> None:
+        sqlite_vec = self._load(session)
+        table = self._index_table(space)
+        for record in records:
+            if len(record.embedding) != space.dim:
+                raise VectorSpaceMismatch(
+                    f"record {record.record_id} has dim {len(record.embedding)}, "
+                    f"space {space.name!r} expects {space.dim}"
+                )
+            record_id = str(_as_uuid(record.record_id, field="record_id"))
+            rowid = rowid_for(record_id)
+            mapped = session.execute(
+                text("SELECT record_id FROM vector_entry_ids WHERE record_rowid = :rowid"),
+                {"rowid": rowid},
+            ).scalar()
+            if mapped is not None and str(mapped) != record_id:
+                raise VectorRowidCollision(
+                    f"rowid {rowid} already maps to record {mapped!r}, not {record_id!r}"
+                )
+            if mapped is None:
+                session.execute(
+                    text(
+                        "INSERT INTO vector_entry_ids (record_rowid, record_id) "
+                        "VALUES (:rowid, :record_id)"
+                    ),
+                    {"rowid": rowid, "record_id": record_id},
+                )
+            payload = sqlite_vec.serialize_float32(list(record.embedding))
+            present = session.execute(
+                text(f"SELECT 1 FROM {table} WHERE record_rowid = :rowid"), {"rowid": rowid}
+            ).scalar()
+            if present is None:
+                session.execute(
+                    text(
+                        f"INSERT INTO {table} (record_rowid, embedding) VALUES (:rowid, :embedding)"
+                    ),
+                    {"rowid": rowid, "embedding": payload},
+                )
+            else:
+                session.execute(
+                    text(f"UPDATE {table} SET embedding = :embedding WHERE record_rowid = :rowid"),
+                    {"rowid": rowid, "embedding": payload},
+                )
 
-    def delete_document(self, space: VectorSpace, document_id: str) -> None:
-        raise self._todo()
+    def delete_document_index(self, session: Session, space: VectorSpace, document_id: str) -> None:
+        self._load(session)
+        table = self._index_table(space)
+        record_ids = [
+            str(value)
+            for value in session.scalars(
+                select(VectorRecord.id).where(
+                    VectorRecord.document_id == _as_uuid(document_id, field="document_id"),
+                    VectorRecord.space_id == self._space_id(space),
+                )
+            )
+        ]
+        if not record_ids:
+            return
+        rowids = [rowid_for(value) for value in record_ids]
+        for start in range(0, len(rowids), 500):
+            chunk = rowids[start : start + 500]
+            session.execute(
+                text(f"DELETE FROM {table} WHERE record_rowid IN :rowids").bindparams(
+                    bindparam("rowids", expanding=True)
+                ),
+                {"rowids": chunk},
+            )
+            session.execute(
+                text("DELETE FROM vector_entry_ids WHERE record_rowid IN :rowids").bindparams(
+                    bindparam("rowids", expanding=True)
+                ),
+                {"rowids": chunk},
+            )
+
+    def _allowed_records(
+        self,
+        session: Session,
+        space: VectorSpace,
+        record_ids: Sequence[uuid.UUID],
+        views: Sequence[str],
+        scope: ScopeSpec,
+    ) -> dict[uuid.UUID, tuple[uuid.UUID, str]]:
+        if not record_ids:
+            return {}
+        statement = (
+            select(VectorRecord.id, VectorRecord.document_id, VectorRecord.view)
+            .join(VectorDocument, VectorRecord.document_id == VectorDocument.id)
+            .where(
+                VectorRecord.id.in_(list(record_ids)),
+                VectorRecord.space_id == self._space_id(space),
+                VectorRecord.view.in_(list(views)),
+            )
+        )
+        clauses = _scope_clauses(scope)
+        if clauses is not None:
+            statement = statement.where(*clauses)
+        return {row[0]: (row[1], row[2]) for row in session.execute(statement)}
 
     def search(
         self,
@@ -588,13 +1005,130 @@ class SqliteVecBackend(VectorBackend):
         limit: int,
         ef_search: int | None = None,
     ) -> list[IndexHit]:
-        raise self._todo()
+        del ef_search  # vec0 has no per-query ef_search knob
+        if limit <= 0 or not views or not query:
+            return []
+        if len(query) != space.dim:
+            logger.warning(
+                "sqlite-vec search query dim %s != space %r dim %s — refusing",
+                len(query),
+                space.name,
+                space.dim,
+            )
+            return []
+        table = self._index_table(space)
+        with self._session_factory() as session:
+            sqlite_vec = self._load(session)
+            total = int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
+            if total == 0:
+                return []
+            if total > self.capabilities.max_recommended_rows:
+                raise VectorBackendOverCap(
+                    f"{total} vectors exceed the sqlite-vec cap "
+                    f"({self.capabilities.max_recommended_rows}) — serve lexical instead"
+                )
+            payload = sqlite_vec.serialize_float32(list(query))
+            k = min(max(limit * CANDIDATE_MULTIPLIER, limit), total)
+            hits: list[IndexHit] = []
+            while True:
+                rows = session.execute(
+                    text(
+                        f"SELECT record_rowid, distance FROM {table} "
+                        "WHERE embedding MATCH :query AND k = :k"
+                    ),
+                    {"query": payload, "k": k},
+                ).all()
+                rowids = [int(row.record_rowid) for row in rows]
+                mapped = (
+                    {
+                        int(row.record_rowid): str(row.record_id)
+                        for row in session.execute(
+                            text(
+                                "SELECT record_rowid, record_id FROM vector_entry_ids "
+                                "WHERE record_rowid IN :rowids"
+                            ).bindparams(bindparam("rowids", expanding=True)),
+                            {"rowids": rowids},
+                        )
+                    }
+                    if rowids
+                    else {}
+                )
+                record_ids = [_as_uuid(value, field="record_id") for value in mapped.values()]
+                allowed = self._allowed_records(session, space, record_ids, views, scope)
+                by_id = {str(key): value for key, value in allowed.items()}
+                hits = []
+                for row in rows:
+                    record_id = mapped.get(int(row.record_rowid))
+                    if record_id is None or record_id not in by_id:
+                        continue
+                    document_id, view = by_id[record_id]
+                    distance = float(row.distance)
+                    hits.append(
+                        IndexHit(
+                            record_id=record_id,
+                            document_id=str(document_id),
+                            view=view,
+                            distance=distance,
+                            similarity=1.0 - distance,
+                            backend=self.name,
+                        )
+                    )
+                if len(hits) >= limit or k >= total:
+                    break
+                k = min(k * 2, total)
+            if len(hits) < limit and k >= total:
+                logger.info(
+                    "sqlite-vec scope post-filter returned %s of %s requested hit(s) for space %r",
+                    len(hits),
+                    limit,
+                    space.name,
+                )
+        hits.sort(key=lambda hit: (hit.distance, hit.document_id, hit.record_id))
+        return hits[:limit]
 
     def count(self, space: VectorSpace) -> int:
-        raise self._todo()
+        table = self._index_table(space)
+        with self._session_factory() as session:
+            self._load(session)
+            return int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
 
     def health(self, space: VectorSpace) -> BackendHealth:
-        raise self._todo()
+        table = space.index_table
+        if table is None:
+            return BackendHealth(ok=False, detail="space has no physical index (linear backend)")
+        try:
+            validate_index_table(table)
+            with self._session_factory() as session:
+                self._load(session)
+                declared = self._table_dim(session, table)
+                if declared is None:
+                    return BackendHealth(ok=False, detail=f"index table {table!r} is missing")
+                if declared != space.dim:
+                    return BackendHealth(
+                        ok=False,
+                        detail=(
+                            f"index {table!r} is float[{declared}], expected float[{space.dim}]"
+                        ),
+                    )
+                if not session.execute(
+                    text(
+                        "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+                        "AND name = 'vector_entry_ids'"
+                    )
+                ).scalar():
+                    return BackendHealth(
+                        ok=False, detail="the vector_entry_ids rowid map is missing"
+                    )
+                rows = int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar() or 0)
+                version = session.connection().exec_driver_sql("SELECT vec_version()").scalar()
+        except VectorBackendError as exc:
+            return BackendHealth(ok=False, detail=str(exc))
+        except Exception as exc:  # pragma: no cover - a broken DB is not "healthy"
+            return BackendHealth(ok=False, detail=f"sqlite-vec health probe failed: {exc}")
+        return BackendHealth(
+            ok=True,
+            detail=f"sqlite-vec {version}, {table} float[{space.dim}], {rows} row(s)",
+        )
 
 
 def pgvector_available(bind: Engine) -> bool:
@@ -615,28 +1149,79 @@ def pgvector_available(bind: Engine) -> bool:
 
 
 def sqlite_vec_available(bind: Engine) -> bool:
-    """True when ``vec_version()`` answers on a plain connection of this engine."""
+    """True when ``vec_version()`` answers after a defensive extension load."""
     if bind.dialect.name != "sqlite":
         return False
     try:
+        import sqlite_vec
+
         with bind.connect() as connection:
+            raw = connection.connection.driver_connection
+            if raw is None:
+                return False
+            raw.enable_load_extension(True)
+            sqlite_vec.load(raw)
             connection.exec_driver_sql("SELECT vec_version()").scalar()
         return True
     except Exception:
         return False
 
 
-def choose_backend(bind: Engine, *, ann_ready: bool = ANN_READY) -> VectorBackend:
-    """Select the backend once per process, honestly degrading to linear.
+def choose_backend(bind: Engine) -> VectorBackend:
+    """Select the backend once, honestly degrading to linear.
 
-    ``ann_ready`` is the P1b switch: until the pgvector/sqlite-vec adapters
-    are implemented, no deployment selects them and the linear backend
-    publishes ``ann=False``. Once enabled, the extension/driver probe decides
-    — an unavailable ANN engine still yields the linear fallback.
+    No deployment ever receives an ANN backend whose extension/driver probe
+    failed; the linear fallback publishes ``ann=False``.
     """
     dialect = bind.dialect.name
-    if ann_ready and dialect == "postgresql" and pgvector_available(bind):
+    if dialect == "postgresql" and pgvector_available(bind):
         return PgVectorBackend(bind)
-    if ann_ready and dialect == "sqlite" and sqlite_vec_available(bind):
+    if dialect == "sqlite" and sqlite_vec_available(bind):
         return SqliteVecBackend(bind)
     return LinearBackend(bind)
+
+
+_backend_cache: dict[int, VectorBackend] = {}
+
+
+def get_backend(bind: Engine) -> VectorBackend:
+    """One backend per process (keyed by engine identity), no per-request probes."""
+    key = id(bind)
+    backend = _backend_cache.get(key)
+    if backend is None:
+        backend = choose_backend(bind)
+        _backend_cache[key] = backend
+    return backend
+
+
+def reset_backend_cache() -> None:
+    """Test hook: forget cached selections (engines are process-scoped in prod)."""
+    _backend_cache.clear()
+
+
+__all__ = [
+    "LinearBackend",
+    "PgVectorBackend",
+    "ResolvedEmbedding",
+    "SessionBackedBackend",
+    "SqliteVecBackend",
+    "VectorBackendError",
+    "VectorBackendOverCap",
+    "VectorDocumentNotFound",
+    "VectorIndexMissing",
+    "VectorRecordIdentityMismatch",
+    "VectorRecordNotFound",
+    "VectorRowidCollision",
+    "VectorSpaceMismatch",
+    "VectorSpaceNotFound",
+    "assert_writer_matches_space",
+    "choose_backend",
+    "document_scope",
+    "filter_scope",
+    "get_backend",
+    "pgvector_available",
+    "reset_backend_cache",
+    "rowid_for",
+    "sqlite_vec_available",
+    "writer_mismatch_reason",
+]

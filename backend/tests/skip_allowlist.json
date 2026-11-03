@@ -36,6 +36,18 @@
       "reason_contains": "optional server PDF engine not installed",
       "when": "conditional",
       "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_scope_safety_under_sqlite_over_fetch_truncation*",
+      "reason_contains": "over-fetch expansion is the sqlite-vec path",
+      "when": "always",
+      "why": "sqlite-vec is the only backend that post-filters scope after over-fetch; the Postgres case is covered by the ANN scope test"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_sqlite_rowid_collision_fails_loudly*",
+      "reason_contains": "rowid map is sqlite-vec only",
+      "when": "always",
+      "why": "the rowid map is a sqlite-vec extension object; the Postgres parity/scope tests cover the pgvector adapter"
     }
   ],
   "sqlite": [
@@ -98,6 +110,12 @@
       "reason_contains": "optional server PDF engine not installed",
       "when": "conditional",
       "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_pg_and_sqlite_exact_topk_parity",
+      "reason_contains": "pgvector is not installed in this environment",
+      "when": "always",
+      "why": "the cross-dialect parity case needs a live pgvector engine; the SQLite lane runs the exact top-k against the contract and the pgvector lane proves the cross-engine identity"
     }
   ]
 }

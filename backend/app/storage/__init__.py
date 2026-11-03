@@ -2,6 +2,9 @@
 
 ``vector_contract`` is the vendored family contract (ADR-0031/ADR-0051,
 byte-identical to ``dev/contracts/vector_contract.py`` — never edit it
-here); ``vector_backends`` holds the app-side SQL adapters and the
-one-per-process backend factory.
+here); ``vector_schema`` owns the physical-index naming and the Alembic
+autogenerate exemption; ``vector_provisioning`` creates a space's physical
+index off the request path; ``vector_backends`` holds the PostgreSQL,
+sqlite-vec and linear SQL adapters plus the one-per-process factory; and
+``vector_store`` is the metadata-owning service.
 """
