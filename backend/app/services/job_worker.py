@@ -1188,6 +1188,25 @@ async def _run_vector_cutover(
     )
 
 
+async def _run_retrieval_alert_sweep(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """One bounded retrieval-alert evaluation pass (plan 51 Q1c)."""
+    from app.services.retrieval_alerts import evaluate_retrieval_alerts
+
+    del job
+    await progress(10, "evaluating retrieval alerts")
+    if await cancelled():
+        raise DomainError("Cancelled")
+    result = await evaluate_retrieval_alerts(db)
+    await progress(100, "retrieval alerts evaluated")
+    return result
+
+
 HANDLERS: dict[str, Handler] = {
     "document_parse": _run_document_parse,
     "job_generate": _run_job_generate,
@@ -1224,6 +1243,7 @@ HANDLERS: dict[str, Handler] = {
     "vector_reconcile": _run_vector_reconcile,
     "vector_maintenance": _run_vector_maintenance,
     "vector_cutover": _run_vector_cutover,
+    "retrieval_alert_sweep": _run_retrieval_alert_sweep,
     "posting_remap": _run_posting_remap,
 }
 

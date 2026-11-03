@@ -53,6 +53,7 @@ class BackgroundJobType(StrEnum):
     # Plan 51 Q1b: maintenance runs and synchronous cutover/gate evaluations.
     VECTOR_MAINTENANCE = "vector_maintenance"
     VECTOR_CUTOVER = "vector_cutover"
+    RETRIEVAL_ALERT_SWEEP = "retrieval_alert_sweep"
     POSTING_REMAP = "posting_remap"
 
 
@@ -69,6 +70,7 @@ class ScheduleKind(StrEnum):
     SYSTEM_EXTENSION_RECONCILE = "system_extension_reconcile"
     SYSTEM_SKILL_RELATION_LEARN = "system_skill_relation_learn"
     SYSTEM_VECTOR_RECONCILE = "system_vector_reconcile"
+    SYSTEM_RETRIEVAL_ALERTS = "system_retrieval_alerts"
     USER_SAVED_SEARCH = "user_saved_search"
     USER_RADAR_DIGEST = "user_radar_digest"
     USER_SMART_DIGEST = "user_smart_digest"
