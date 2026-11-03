@@ -35,6 +35,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job_model import Job, JobSkill
+from app.storage.vector_backends import VectorBackendError
 from app.storage.vector_contract import DegradedReason
 
 logger = logging.getLogger(__name__)
@@ -115,13 +116,23 @@ async def _ensure_posting_indexed(
     """Index the posting through the sanctioned writer; a reason or ``None``.
 
     Returns the structured degradation reason when the document could not be
-    written (no provider, broken index, over cap), ``None`` on success. An
-    unchanged posting is a zero-embed no-op.
+    written (no space yet, no provider, broken index, over cap), ``None`` on
+    success. An unchanged posting is a zero-embed no-op.
+
+    The space must already exist: provisioning is the migration/CLI/job's
+    job and never runs inside an ingest request (plan 50 §3.4). A fresh
+    deployment reports ``index_missing`` until the first index/reconcile run
+    creates the space — explicit in the trace, never a silent no-op, and
+    never request-time DDL.
     """
     if indexer is None:
         from app.services.vector_index_service import VectorIndexService
 
         indexer = VectorIndexService(db)
+    try:
+        indexer.store.active_space(indexer.space_name)
+    except VectorBackendError:
+        return DegradedReason.INDEX_MISSING.value
     outcome = await indexer.index_document(kind="posting", source_id=str(posting.id))
     return outcome.degraded
 
@@ -191,7 +202,6 @@ async def semantic_catalog_signal(
     posting,
     skill_ids: set[uuid.UUID],
     *,
-    run_id: Any = None,
     indexer: Any = None,
     retriever: Any = None,
     window: int = SEMANTIC_SCAN_WINDOW,

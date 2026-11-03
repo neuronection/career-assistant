@@ -500,8 +500,11 @@ map auditable and admin-overridable (manual map endpoint,
 
 The **semantic rescue** fires only where that overlap misses (plan 50 P2,
 `app/services/postings/semantic_rescue.py`): the posting is indexed through
-the sanctioned synchronous writer (unchanged content costs zero embeds), its
-stored views are matched against the `job` documents, and a candidate may map
+the sanctioned synchronous writer (unchanged content costs zero embeds; the
+space must already exist — a fresh install records `index_missing` until the
+index/reconcile job provisions it, because no ingest request ever issues
+DDL), its stored views are matched against the `job` documents, and a
+candidate may map
 only when it clears `SEMANTIC_MAP_THRESHOLD` **and** shares ≥1 resolved skill
 with the posting — the same deterministic evidence the overlap uses. Draft
 jobs are filtered when candidates are hydrated, so they are never proposed.

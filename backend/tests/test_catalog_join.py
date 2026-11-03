@@ -149,14 +149,15 @@ async def test_weak_overlap_stays_new_with_the_trace(db, source):
     assert (
         f"best overlap {signals['overlap']['score']:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
     ) == posting.mapping_reason
-    # The rescue ran (overlap missed) and found no indexed job to propose:
-    # the trace still carries the space it asked and the pinned threshold.
+    # The rescue ran (overlap missed) but no content space exists yet — a
+    # fresh deployment reports the reason instead of provisioning one inside
+    # the ingest request.
     semantic = signals["semantic"]
     assert semantic["top"] is None
     assert semantic["threshold"] == SEMANTIC_MAP_THRESHOLD
     assert semantic["candidates"] == []
-    assert semantic["space_key"], "the rescue indexed the posting into the space"
-    assert semantic["degraded"] is None
+    assert semantic["space_key"] is None
+    assert semantic["degraded"] == "index_missing"
 
 
 async def test_a_cleared_overlap_spends_no_ai(db, source):

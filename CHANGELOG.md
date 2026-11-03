@@ -20,7 +20,9 @@ All notable changes to **Career Assistant** are documented here.
   reruns record `top`, `threshold`, `space_key` and the per-view candidate
   scores in `posting_facts.mapping_signals.semantic`. The posting is indexed
   through the sanctioned synchronous writer first (one embed batch only when
-  its content changed), and any embedding/index failure degrades to the
+  its content changed; a fresh install records `index_missing` until the
+  index/reconcile job provisions the space — provisioning never runs inside
+  an ingest request), and any embedding/index failure degrades to the
   overlap-only decision — a posting write never fails because of embeddings.
   The `catalog.semantic_rescue` run switch is back on the catalog-mapping
   settings endpoint (default ON, effective on the next decision).

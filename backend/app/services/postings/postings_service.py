@@ -785,7 +785,7 @@ async def decide_catalog(
     )
     semantic = not_run_signal()
     if skill_ids and not overlap_cleared and await semantic_rescue_enabled(db):
-        semantic = await semantic_catalog_signal(db, posting, skill_ids, run_id=run_id)
+        semantic = await semantic_catalog_signal(db, posting, skill_ids)
 
     if not skill_ids:
         mapped: MappingMethod | None = None

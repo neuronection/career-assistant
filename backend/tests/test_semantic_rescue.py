@@ -132,6 +132,7 @@ async def _posting(
             raw={"description": description} if description else {},
         ),
     )
+    assert posting is not None
     await db.flush()
     return posting
 
@@ -224,6 +225,36 @@ async def test_the_signal_ranks_a_published_gated_job_above_the_rest(db, source)
     assert all(candidate.shared_skills >= 1 for candidate in signal.candidates)
     assert signal.candidates[0].per_view, "per-view scores ride the trace"
     assert signal.top == pytest.approx(signal.candidates[0].score)
+
+
+async def test_the_ingest_path_never_provisions_a_space(db, source):
+    """No request-time DDL: with no content space the rescue reports
+    ``index_missing`` and embeds nothing — provisioning belongs to the
+    migration/CLI/job, never the posting write."""
+    family = JobFamily(key="no-space-family", label="NoSpace", path="no-space-family")
+    db.add(family)
+    await db.flush()
+    python = await _skill(db, "python")
+    await _job(db, "no-space-role", family, [(python, 8, "core")])
+    posting = await _posting(db, source, "rescue-no-space", ["python"])
+    embedder = TokenEmbedder()
+
+    signal = await semantic_catalog_signal(
+        db, posting, {python.id}, indexer=VectorIndexService(db, embedder=embedder)
+    )
+
+    assert signal.degraded == "index_missing"
+    assert signal.candidates == ()
+    assert embedder.calls == 0, "no space ⇒ no embedding, no DDL"
+    from app.core.database import sync_engine
+    from app.storage.vector_backends import VectorSpaceNotFound
+
+    try:
+        VectorStoreService(sync_engine).active_space("content")
+    except VectorSpaceNotFound:
+        pass
+    else:  # pragma: no cover - the assertion is the absence
+        pytest.fail("the ingest path must not create a vector space")
 
 
 async def test_the_signal_indexes_the_posting_before_the_match(db, source):
@@ -479,6 +510,10 @@ async def test_the_rescue_costs_at_most_one_embed_batch(db, source):
     db.add(family)
     await db.flush()
     await _weak_job(db, family, sql)
+    job = (await db.execute(select(Job).where(Job.code == "weak-overlap-role"))).scalars().one()
+    # A real deployment's reconcile/backfill created the content space.
+    indexed = await VectorIndexService(db).index_document(kind="job", source_id=str(job.id))
+    assert indexed.degraded is None
     before = (
         (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "embed")))
         .scalars()
