@@ -116,6 +116,21 @@ const statusVariant = (
   return "secondary";
 };
 
+function actionResultText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  result: RetrievalActionResponse,
+): string {
+  if (result.action === "maintenance" && result.dry_run) {
+    return t("retrieval.result.dryRun");
+  }
+  if (result.action === "quality_compare") {
+    return result.quality?.passed
+      ? t("retrieval.result.qualityPassed")
+      : t("retrieval.result.qualityFailed");
+  }
+  return t(`retrieval.result.${result.action}`, { defaultValue: result.message });
+}
+
 function ActionNotice({ notice }: { notice: Notice | null }) {
   const { t } = useTranslation();
   if (!notice) return null;
@@ -133,6 +148,9 @@ function ActionNotice({ notice }: { notice: Notice | null }) {
       role={notice.tone === "error" ? "alert" : "status"}
     >
       <p>{notice.text}</p>
+      {result?.message && result.message !== notice.text && (
+        <p className="mt-0.5 text-[var(--as-muted-fg)]">{result.message}</p>
+      )}
       {result?.run_id && (
         <p className="mt-1 text-[var(--as-muted-fg)]" data-testid="retrieval-queued-run">
           {t("retrieval.action.queuedRun", {
@@ -584,7 +602,7 @@ export function RetrievalManagementSection() {
       }),
     );
     if (result) {
-      setNotice({ card: "reindex", tone: "ok", text: result.message, result });
+      setNotice({ card: "reindex", tone: "ok", text: actionResultText(t, result), result });
       refresh();
     }
   };
@@ -604,7 +622,7 @@ export function RetrievalManagementSection() {
     try {
       const result = await busyWith("spaces", () => buildRetrievalSpace(payload));
       if (result) {
-        setNotice({ card: "spaces", tone: "ok", text: result.message, result });
+        setNotice({ card: "spaces", tone: "ok", text: actionResultText(t, result), result });
         setBuildOpen(false);
         setBuildDraft({
           name: "",
@@ -625,7 +643,7 @@ export function RetrievalManagementSection() {
     try {
       const result = await busyWith("spaces", () => activateRetrievalSpace(space.space_id));
       if (result) {
-        setNotice({ card: "spaces", tone: "ok", text: result.message, result });
+        setNotice({ card: "spaces", tone: "ok", text: actionResultText(t, result), result });
         refresh();
       }
     } catch (err) {
@@ -645,7 +663,7 @@ export function RetrievalManagementSection() {
         }),
       );
       if (result) {
-        setNotice({ card: "maintenance", tone: "ok", text: result.message, result });
+        setNotice({ card: "maintenance", tone: "ok", text: actionResultText(t, result), result });
         refresh();
       }
     } catch (err) {
@@ -667,7 +685,7 @@ export function RetrievalManagementSection() {
         setNotice({
           card: "quality",
           tone: result.quality?.passed ? "ok" : "error",
-          text: result.message,
+          text: actionResultText(t, result),
           result,
         });
         refresh();
@@ -690,7 +708,7 @@ export function RetrievalManagementSection() {
       setNotice({
         card: action === "retire" ? "spaces" : "danger",
         tone: "ok",
-        text: result.message,
+        text: actionResultText(t, result),
         result,
       });
       setTypedIntent(null);
@@ -712,7 +730,7 @@ export function RetrievalManagementSection() {
     try {
       const result = await busyWith("reindex", () => cancelRetrievalRun(run.run_id));
       if (result) {
-        setNotice({ card: "reindex", tone: "ok", text: result.message, result });
+        setNotice({ card: "reindex", tone: "ok", text: actionResultText(t, result), result });
         refresh();
       }
     } catch (err) {
@@ -724,7 +742,7 @@ export function RetrievalManagementSection() {
     try {
       const result = await busyWith("reindex", () => retryRetrievalRun(run.run_id));
       if (result) {
-        setNotice({ card: "reindex", tone: "ok", text: result.message, result });
+        setNotice({ card: "reindex", tone: "ok", text: actionResultText(t, result), result });
         refresh();
       }
     } catch (err) {

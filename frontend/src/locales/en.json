@@ -5952,6 +5952,20 @@
     "confirm": {
       "typedLabel": "Type the space name to confirm",
       "wrongName": "Type the exact space name to enable this action."
+    },
+    "result": {
+      "reindex": "Reindex queued — not finished.",
+      "cancel_run": "Cancellation requested.",
+      "retry_run": "Retry queued.",
+      "build_space": "Building space provisioned.",
+      "activate_space": "Space activated.",
+      "retire_space": "Space retired.",
+      "drop_space": "Space dropped.",
+      "maintenance": "Maintenance queued.",
+      "quality_compare": "Quality compare complete.",
+      "dryRun": "Dry run complete — nothing was queued.",
+      "qualityPassed": "Quality gate passed.",
+      "qualityFailed": "Quality gate failed — activation stays blocked."
     }
   }
 }

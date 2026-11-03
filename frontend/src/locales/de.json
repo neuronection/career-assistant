@@ -5951,6 +5951,20 @@
     "confirm": {
       "typedLabel": "Space-Namen zur Bestätigung eingeben",
       "wrongName": "Geben Sie den exakten Space-Namen ein, um diese Aktion zu aktivieren."
+    },
+    "result": {
+      "reindex": "Reindex eingereiht — noch nicht abgeschlossen.",
+      "cancel_run": "Abbruch angefordert.",
+      "retry_run": "Wiederholung eingereiht.",
+      "build_space": "Space im Aufbau bereitgestellt.",
+      "activate_space": "Space aktiviert.",
+      "retire_space": "Space stillgelegt.",
+      "drop_space": "Space gelöscht.",
+      "maintenance": "Wartung eingereiht.",
+      "quality_compare": "Qualitätsvergleich abgeschlossen.",
+      "dryRun": "Probelauf abgeschlossen — nichts wurde eingereiht.",
+      "qualityPassed": "Qualitäts-Gate bestanden.",
+      "qualityFailed": "Qualitäts-Gate nicht bestanden — Aktivierung bleibt blockiert."
     }
   }
 }
