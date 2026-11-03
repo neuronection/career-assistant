@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.job_model import Job, JobSkill
 from app.storage.vector_backends import VectorBackendError
-from app.storage.vector_contract import DegradedReason
+from app.storage.vector_contract import BACKEND_LINEAR, DegradedReason
 
 logger = logging.getLogger(__name__)
 
@@ -130,8 +130,13 @@ async def _ensure_posting_indexed(
 
         indexer = VectorIndexService(db)
     try:
-        indexer.store.active_space(indexer.space_name)
+        space = indexer.store.active_space(indexer.space_name)
     except VectorBackendError:
+        return DegradedReason.INDEX_MISSING.value
+    if space.index_table is None:
+        if indexer.store.backend.name != BACKEND_LINEAR:
+            return DegradedReason.INDEX_MISSING.value
+    elif not indexer.store.backend.health(space).ok:
         return DegradedReason.INDEX_MISSING.value
     outcome = await indexer.index_document(kind="posting", source_id=str(posting.id))
     return outcome.degraded
