@@ -30,3 +30,10 @@ posting_changes :: record
 skill_changes :: record
 # plan 179: the NL-search cache is TTL-pruned (7d) by the daily smart-digest job — cache data, never a record
 smart_query_cache :: transient
+# plan 50 P1: the vector store is derived/rebuildable; a retired space is kept only
+# for its purge grace period, and the two rollups are TTL-pruned aggregates (not ledgers)
+vector_spaces :: operational
+vector_documents :: operational
+vector_records :: operational
+retrieval_query_rollups :: operational
+retrieval_coverage_snapshots :: operational

@@ -72,9 +72,11 @@ from app.models.enums import (
     SkillRelationStatus,
     SkillRelationType,
     SourceKind,
+    VectorScopeType,
     WatchScopeKind,
     WebhookTarget,
 )
+from app.storage.vector_contract import V1_VIEWS, DegradedReason, SpaceStatus
 
 SCHEDULE_TASKS = {
     "posting_sync",
@@ -160,6 +162,11 @@ CHECKS: list[tuple[str, str, StrEnum | set[str]]] = [
     ("claims", "status_allowed", ClaimStatus),
     ("claim_events", "action_allowed", ClaimAction),
     ("econ_watchlist", "scope_kind_allowed", WatchScopeKind),
+    ("vector_spaces", "status_allowed", SpaceStatus),
+    ("vector_spaces", "metric_allowed", {"cosine"}),
+    ("vector_documents", "scope_type_allowed", VectorScopeType),
+    ("vector_records", "view_allowed", set(V1_VIEWS)),
+    ("retrieval_query_rollups", "degraded_reason_allowed", DegradedReason),
 ]
 
 

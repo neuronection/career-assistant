@@ -138,6 +138,7 @@ from app.models.enums.postings import SearchScope as SearchScope
 from app.models.enums.postings import SourceKind as SourceKind
 from app.models.enums.postings import SourceQueryMode as SourceQueryMode
 from app.models.enums.postings import WebhookTarget as WebhookTarget
+from app.models.enums.retrieval import VectorScopeType as VectorScopeType
 from app.models.enums.taxonomy import CareerStage as CareerStage
 from app.models.enums.taxonomy import EducationLevel as EducationLevel
 from app.models.enums.taxonomy import EducationLevelOrder as EducationLevelOrder
@@ -278,5 +279,6 @@ __all__ = [
     "UniversityType",
     "UserMetricSource",
     "UserSkillSource",
+    "VectorScopeType",
     "WebhookTarget",
 ]

@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0086"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0087"], (
         "revision chain stays linear on one head"
     )
 
@@ -3702,3 +3702,295 @@ def test_0086_embeddings_reconcile_task_roundtrip():
     checks = _schedules_checks()
     assert "system_embeddings_reconcile" in checks["kind_allowed"], "re-upgrade restores it"
     assert "embeddings_reconcile" in checks["task_allowed"], "re-upgrade restores it"
+
+
+_VECTOR_TABLES = (
+    "vector_spaces",
+    "vector_documents",
+    "vector_records",
+    "retrieval_query_rollups",
+    "retrieval_coverage_snapshots",
+)
+
+
+def _vector_shape() -> tuple[
+    set[str], set[str], dict[str, list[str]], dict[str, set[str]], dict[str, set[str]]
+]:
+    """Tables, their columns, CHECKs and indexes at the current revision."""
+
+    async def run():
+        from sqlalchemy import inspect
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+
+                def read(sync_conn):
+                    inspector = inspect(sync_conn)
+                    all_tables = set(inspector.get_table_names())
+                    present = {table for table in _VECTOR_TABLES if inspector.has_table(table)}
+                    columns = {
+                        table: [column["name"] for column in inspector.get_columns(table)]
+                        for table in present
+                    }
+                    checks = {
+                        table: {row["name"] for row in inspector.get_check_constraints(table)}
+                        for table in present
+                    }
+                    indexes = {
+                        table: {row["name"] for row in inspector.get_indexes(table)}
+                        for table in present
+                    }
+                    return all_tables, present, columns, checks, indexes
+
+                return await conn.run_sync(read)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def test_0087_vector_retrieval_roundtrip():
+    """Plan 50 P1a: the five portable tables exist, drop on downgrade and
+    return on re-upgrade. No physical `vec_*` table is created."""
+    config = _configured()
+    command.upgrade(config, "head")
+
+    all_tables, present, columns, checks, indexes = _vector_shape()
+    assert present == set(_VECTOR_TABLES), "all five tables exist at head"
+    assert not {table for table in all_tables if table.startswith("vec_")}, (
+        "no dynamic ANN table is provisioned by the migration"
+    )
+
+    assert {
+        "id",
+        "space_id",
+        "kind",
+        "source_id",
+        "scope_type",
+        "scope_id",
+        "profile_id",
+        "source_hash",
+        "schema_version",
+    } <= set(columns["vector_documents"])
+    assert {
+        "document_id",
+        "space_id",
+        "view",
+        "chunk_index",
+        "content_hash",
+        "text_ref",
+        "text_ref_schema_version",
+        "embedding",
+    } <= set(columns["vector_records"])
+    assert {
+        "name",
+        "provider",
+        "model",
+        "dim",
+        "metric",
+        "normalize",
+        "query_prefix",
+        "document_prefix",
+        "index_table",
+        "status",
+        "backfill_done",
+        "backfill_total",
+    } <= set(columns["vector_spaces"])
+    assert {
+        "space_id",
+        "kind",
+        "bucket_start",
+        "bucket_width",
+        "count",
+        "zero_results",
+        "candidates_sum",
+        "latency_buckets",
+    } <= set(columns["retrieval_query_rollups"])
+    assert {
+        "space_id",
+        "kind",
+        "as_of",
+        "total",
+        "missing",
+        "stale",
+        "failed",
+        "embedded",
+        "ann_recall",
+        "ann_recall_k",
+        "probe_size",
+    } <= set(columns["retrieval_coverage_snapshots"])
+
+    assert "ck_vector_spaces_status_allowed" in checks["vector_spaces"]
+    assert "ck_vector_spaces_metric_allowed" in checks["vector_spaces"]
+    assert "ck_vector_spaces_index_table_shape" in checks["vector_spaces"]
+    assert "ck_vector_documents_scope_type_allowed" in checks["vector_documents"]
+    assert "ck_vector_records_view_allowed" in checks["vector_records"]
+    assert "ck_retrieval_query_rollups_degraded_reason_allowed" in checks["retrieval_query_rollups"]
+    assert (
+        "ck_retrieval_coverage_snapshots_ann_recall_range" in checks["retrieval_coverage_snapshots"]
+    )
+    assert "uq_vector_spaces_name_active" in indexes["vector_spaces"]
+
+    command.downgrade(config, "0086")
+    assert _vector_shape()[1] == set(), "downgrade drops every table"
+
+    command.upgrade(config, "head")
+    assert _vector_shape()[1] == set(_VECTOR_TABLES), "re-upgrade restores the store"
+
+
+def _vector_constraint_probe(name: str) -> dict[str, bool]:
+    """Behavioral constraints on vector_spaces/retrieval_query_rollups."""
+
+    async def run() -> dict[str, bool]:
+        import uuid as _uuid
+
+        from sqlalchemy import text
+        from sqlalchemy.exc import IntegrityError
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from app.core.config import settings
+
+        engine = create_async_engine(settings.database_url)
+        is_postgres = engine.dialect.name == "postgresql"
+
+        def uuid_param(param: str) -> str:
+            return f"CAST(:{param} AS uuid)" if is_postgres else f":{param}"
+
+        async def attempt(statement: str, params: dict) -> bool:
+            try:
+                async with engine.begin() as conn:
+                    await conn.execute(text(statement), params)
+                return True
+            except IntegrityError:
+                return False
+
+        space_id = _uuid.uuid4()
+        other_id = _uuid.uuid4()
+        retired_id = _uuid.uuid4()
+        now = datetime.now(UTC)
+        space_columns = (
+            "INSERT INTO vector_spaces "
+            "(id, name, provider, model, dim, metric, normalize, chunker_version, "
+            "composer_version, index_table, status, created_at, updated_at) "
+            f"VALUES ({uuid_param('id')}, :name, 'openai', 'text-embedding-3-small', "
+            "4, 'cosine', true, '1', '1', :index_table, :status, :now, :now)"
+        )
+        rollup_columns = (
+            "INSERT INTO retrieval_query_rollups "
+            f"(id, space_id, kind, view, degraded_reason, bucket_start, bucket_width, "
+            '"count", zero_results, candidates_sum, created_at, updated_at) '
+            f"VALUES ({uuid_param('id')}, {uuid_param('space_id')}, :kind, NULL, NULL, "
+            ":bucket_start, 60, 0, 0, 0, :now, :now)"
+        )
+        results: dict[str, bool] = {}
+        try:
+            results["active"] = await attempt(
+                space_columns,
+                {
+                    "id": str(space_id),
+                    "name": name,
+                    "index_table": None,
+                    "status": "active",
+                    "now": now,
+                },
+            )
+            results["second_active"] = await attempt(
+                space_columns,
+                {
+                    "id": str(other_id),
+                    "name": name,
+                    "index_table": None,
+                    "status": "active",
+                    "now": now,
+                },
+            )
+            results["retired_same_name"] = await attempt(
+                space_columns,
+                {
+                    "id": str(retired_id),
+                    "name": name,
+                    "index_table": None,
+                    "status": "retired",
+                    "now": now,
+                },
+            )
+            results["index_table"] = await attempt(
+                space_columns,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "name": name,
+                    "index_table": "vec_aaaaaaaa",
+                    "status": "retired",
+                    "now": now,
+                },
+            )
+            results["duplicate_index_table"] = await attempt(
+                space_columns,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "name": name,
+                    "index_table": "vec_aaaaaaaa",
+                    "status": "retired",
+                    "now": now,
+                },
+            )
+            results["null_index_table"] = await attempt(
+                space_columns,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "name": name,
+                    "index_table": None,
+                    "status": "retired",
+                    "now": now,
+                },
+            )
+            results["rollup"] = await attempt(
+                rollup_columns,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "space_id": str(space_id),
+                    "kind": "posting",
+                    "bucket_start": now,
+                    "now": now,
+                },
+            )
+            results["duplicate_rollup"] = await attempt(
+                rollup_columns,
+                {
+                    "id": str(_uuid.uuid4()),
+                    "space_id": str(space_id),
+                    "kind": "posting",
+                    "bucket_start": now,
+                    "now": now,
+                },
+            )
+        finally:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text("DELETE FROM vector_spaces WHERE name = :name"), {"name": name}
+                )
+            await engine.dispose()
+        return results
+
+    return asyncio.run(run())
+
+
+def test_0087_vector_space_and_rollup_constraints():
+    """One active space per name (partial index); retired siblings allowed;
+    the rollup dimension key coalesces NULL view/reason so a duplicate
+    aggregate is rejected on both dialects."""
+    config = _configured()
+    command.upgrade(config, "head")
+    results = _vector_constraint_probe("vector-constraint-probe")
+    assert results["active"] is True
+    assert results["second_active"] is False, "one active space per name"
+    assert results["retired_same_name"] is True, "a retired sibling is allowed"
+    assert results["index_table"] is True
+    assert results["duplicate_index_table"] is False, "a physical index table is unique"
+    assert results["null_index_table"] is True, "NULL index tables coexist (linear spaces)"
+    assert results["rollup"] is True
+    assert results["duplicate_rollup"] is False, "the COALESCE dimension index dedupes"

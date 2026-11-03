@@ -44,6 +44,11 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "retrieval_query_rollups",
+    "retrieval_coverage_snapshots",
+    "vector_records",
+    "vector_documents",
+    "vector_spaces",
     "claim_events",
     "scenario_points",
     "econ_observations",

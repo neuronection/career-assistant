@@ -101,6 +101,13 @@ from app.models.university_model import (
     University,
 )
 from app.models.user_model import Profile, User, UserInterest, UserSkill
+from app.models.vector_model import (
+    RetrievalCoverageSnapshot,
+    RetrievalQueryRollup,
+    VectorDocument,
+    VectorRecord,
+    VectorSpace,
+)
 
 __all__ = [
     "AIEmbedding",
@@ -187,6 +194,8 @@ __all__ = [
     "Profile",
     "ProfileAchievement",
     "ProfileProposal",
+    "RetrievalCoverageSnapshot",
+    "RetrievalQueryRollup",
     "Scenario",
     "ScenarioPoint",
     "Schedule",
@@ -204,5 +213,8 @@ __all__ = [
     "UserPathFlag",
     "UserSkill",
     "UserToolGrant",
+    "VectorDocument",
+    "VectorRecord",
+    "VectorSpace",
     "WebhookEndpoint",
 ]

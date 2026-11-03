@@ -32,3 +32,5 @@ skill_changes.actor_ref :: keep-open ids-only actor links (user/posting/job refs
 skill_changes.detail :: keep-open capped field diffs / merge targets / corroboration counts (strings capped at 200 chars)
 autopilot_runs.run_steps :: keep-open durable per-node run trace (step/kind/iteration/timing + whitelisted args/output summaries — plan 168; a ledger, never checkpoint history)
 smart_query_cache.spec :: typed-out closed SmartSearchSpec projection (pydantic extra=forbid over the explore vocabulary — plan 179)
+vector_records.text_ref :: keep-open {table,id,field} pointer rehydrated under ACL (validated at the service boundary; no raw text)
+retrieval_query_rollups.latency_buckets :: keep-open latency histogram bucket-to-count map (plan 51 Q0 owns the boundaries; latency_bucket_schema_version is the sibling)
