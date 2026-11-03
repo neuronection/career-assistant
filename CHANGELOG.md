@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (retrieval operations UI — responsive and accessible, 2026-11-04)
+- **The Audit → Retrieval and Tools → Retrieval surfaces now hold up on a
+  phone**: the eight-section strips scroll instead of clipping their labels
+  (the selected section scrolls into view from a deep link), wide tables are
+  keyboard-focusable horizontal regions, and section-card actions stack under
+  the card header on narrow screens instead of squeezing the title/description.
+- **Clickable run, space and golden-query rows now expose a real labelled
+  button** for keyboard and screen-reader activation (row clicks still work),
+  drawers keep their accessible title/close label and return focus to the row
+  that opened them (or the active section for a `?detail=` deep link), and the
+  usage budget bar reports as a progressbar.
+- **The empty-store Quality section reports an honest “no vector space yet”
+  state** instead of surfacing the API's validation error, and notification
+  kind rows give each “Manage” link the kind's name as its accessible label.
+  The notification kind matrix keeps its first column readable on a phone.
+
 ### Added (retrieval operations — the Audit observation tab, 2026-11-03)
 - **Audit → Retrieval is the read-only observation tab**: URL-addressable
   sections (`?section=overview|spaces|runs|quality|query-health|failures|usage|changes`)
