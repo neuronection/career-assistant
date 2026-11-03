@@ -136,6 +136,9 @@ describe("settings-map contract", () => {
     expect(extensions!.definition).toMatch(/extension sources/i);
     expect(extensions!.home?.section).toBe("extensions");
     expect(extensions!.adopters?.["career-assistant"]).toMatch(/plan 186/);
+    // The retired combined domain must not come back while the section id
+    // stays transitional.
+    expect(domains.find((entry) => entry.id === "tools.sources")).toBeUndefined();
 
     const retrieval = domains.find((entry) => entry.id === "tools.retrieval");
     expect(retrieval).toBeDefined();
@@ -150,6 +153,8 @@ describe("settings-map contract", () => {
       "sources",
       "retrieval",
     ]);
+    const sourcesSection = declaredTools!.sections!.find((section) => section.id === "sources");
+    expect(sourcesSection!.domains).toEqual(["tools.job-sources", "tools.extensions"]);
     const retrievalSection = declaredTools!.sections!.find(
       (section) => section.id === "retrieval",
     );

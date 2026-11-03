@@ -264,6 +264,12 @@
               "file": "user/troubleshooting.md",
               "title": "Troubleshooting",
               "description": "Common problems and fixes — AI 503s, upload limits, desktop tray issues, PDF engine and export problems."
+            },
+            {
+              "id": "calendar-feed",
+              "file": "user/calendar-feed.md",
+              "title": "Calendar & RSS feeds",
+              "description": "Subscribe to your deadlines, interviews and review days from any calendar or feed reader. Signed tokens, shown once, rotate or revoke any time."
             }
           ]
         }
