@@ -937,9 +937,11 @@ async def _run_vector_reconcile(
     except ValueError as exc:
         raise DomainError(str(exc)) from exc
     space = str(payload.get("space") or CONTENT_SPACE)
+    space_id = payload.get("space_id")
     service = VectorReconcileService(
         db,
         space_name=space,
+        space_id=str(space_id) if space_id else None,
         kinds=kinds,
         limit=int(payload.get("limit") or 200),
         budget=int(payload.get("budget") or 2000),

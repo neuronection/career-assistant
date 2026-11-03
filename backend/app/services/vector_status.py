@@ -138,7 +138,7 @@ def _coverage(session: Session, space_id: uuid.UUID) -> dict[str, Any]:
     }
 
 
-def _last_jobs(session: Session, space_name: str) -> tuple[dict[str, Any] | None, str | None]:
+def _last_jobs(session: Session, row: VectorSpaceRow) -> tuple[dict[str, Any] | None, str | None]:
     jobs = list(
         session.scalars(
             select(BackgroundJob)
@@ -150,7 +150,11 @@ def _last_jobs(session: Session, space_name: str) -> tuple[dict[str, Any] | None
     jobs.sort(key=lambda job: (job.finished_at or job.created_at, job.created_at), reverse=True)
     for job in jobs:
         payload = job.payload or {}
-        if str(payload.get("space") or DEFAULT_SPACE) != space_name:
+        target_id = payload.get("space_id")
+        if target_id is not None:
+            if str(target_id) != str(row.id):
+                continue
+        elif str(payload.get("space") or DEFAULT_SPACE) != row.name:
             continue
         summary = {
             "job_id": str(job.id),
@@ -213,7 +217,7 @@ def read_space_statuses(session: Session) -> list[dict[str, Any]]:
             )
             or 0
         )
-        last_reindex, last_error = _last_jobs(session, row.name)
+        last_reindex, last_error = _last_jobs(session, row)
         statuses.append(
             {
                 "space_id": str(row.id),

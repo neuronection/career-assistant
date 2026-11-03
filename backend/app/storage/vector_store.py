@@ -228,42 +228,59 @@ class VectorStoreService:
         composer_version: str = "1",
         status: SpaceStatus = SpaceStatus.ACTIVE,
     ) -> VectorSpace:
-        """Get-or-create the active space for ``name`` with this configuration.
+        """Get-or-create a space for ``name`` with this configuration.
 
-        A matching active space is returned as-is; a different configuration
-        raises :class:`VectorSpaceMismatch` (a model/dim change is a new
-        ``building`` space and a cutover, never an in-place rewrite). The
-        physical index is *not* created here — provisioning owns DDL.
+        An ``active`` create returns a matching active space as-is; a
+        different configuration raises :class:`VectorSpaceMismatch` (a
+        model/dim change is a new ``building`` space and a cutover, never an
+        in-place rewrite). A ``building`` create is idempotent for the same
+        configuration and never touches the active pointer; a second
+        *different* building space for the same name is refused (at most one
+        active + one building per name). The physical index is *not* created
+        here — provisioning owns DDL.
         """
         if dim < 1:
             raise ValueError("dim must be positive")
+        resolved = ResolvedEmbedding(
+            provider=provider,
+            model=model,
+            dim=dim,
+            normalize=normalize,
+            query_prefix=query_prefix,
+            document_prefix=document_prefix,
+        )
         with self._session_factory() as session:
-            existing = session.scalars(
-                select(VectorSpaceRow)
-                .where(
-                    VectorSpaceRow.name == name,
-                    VectorSpaceRow.status == SpaceStatus.ACTIVE.value,
-                )
-                .order_by(VectorSpaceRow.created_at.desc())
-                .limit(1)
-            ).first()
-            if existing is not None:
-                mismatch = writer_mismatch_reason(
-                    canonical_space(existing),
-                    ResolvedEmbedding(
-                        provider=provider,
-                        model=model,
-                        dim=dim,
-                        normalize=normalize,
-                        query_prefix=query_prefix,
-                        document_prefix=document_prefix,
-                    ),
-                )
-                if mismatch is not None:
-                    raise VectorSpaceMismatch(
-                        f"active space {name!r} has a different configuration — {mismatch}"
+            existing_rows = list(
+                session.scalars(
+                    select(VectorSpaceRow)
+                    .where(
+                        VectorSpaceRow.name == name,
+                        VectorSpaceRow.status == status.value,
                     )
-                return canonical_space(existing)
+                    .order_by(VectorSpaceRow.created_at.desc())
+                )
+            )
+            if status is SpaceStatus.ACTIVE:
+                if existing_rows:
+                    existing = existing_rows[0]
+                    mismatch = writer_mismatch_reason(canonical_space(existing), resolved)
+                    if mismatch is not None:
+                        raise VectorSpaceMismatch(
+                            f"active space {name!r} has a different configuration — {mismatch}"
+                        )
+                    return canonical_space(existing)
+            elif existing_rows:
+                for candidate in existing_rows:
+                    if (
+                        writer_mismatch_reason(canonical_space(candidate), resolved) is None
+                        and candidate.chunker_version == chunker_version
+                        and candidate.composer_version == composer_version
+                    ):
+                        return canonical_space(candidate)
+                raise VectorSpaceMismatch(
+                    f"a different {status.value} space named {name!r} already exists; "
+                    "retire or drop it before building another"
+                )
             row = VectorSpaceRow(
                 name=name,
                 provider=provider,

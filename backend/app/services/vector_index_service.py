@@ -409,6 +409,7 @@ class VectorIndexService:
         *,
         store: VectorStoreService | None = None,
         space_name: str = CONTENT_SPACE,
+        space_id: str | uuid.UUID | None = None,
         embedder: Embedder | None = None,
         profile: EmbeddingProfile | None = None,
         provision_backend: str | None = None,
@@ -422,6 +423,10 @@ class VectorIndexService:
         self.db = db
         self.store = store
         self.space_name = space_name
+        # An explicit target bypasses the active pointer (a ``building``
+        # space's backfill). It never creates a space; the lifecycle service
+        # owns that decision.
+        self.space_id = str(space_id) if space_id is not None else None
         self._embedder = embedder or gateway_embedder(db, user_id=user_id, run=run)
         self._profile = profile
         self._provision_backend = provision_backend
@@ -472,6 +477,8 @@ class VectorIndexService:
         space: VectorSpace | None = self._find_space()
         precomputed: list[list[float]] | None = None
         if space is None:
+            if self.space_id is not None:
+                return self._degraded(kind, source_id, composed, DegradedReason.INDEX_MISSING)
             profile = await self._resolve_profile()
             if profile is None:
                 return self._degraded(kind, source_id, composed)
@@ -644,6 +651,8 @@ class VectorIndexService:
 
     def _find_space(self) -> VectorSpace | None:
         try:
+            if self.space_id is not None:
+                return self.store.resolve_space(self.space_id)
             return self.store.active_space(self.space_name)
         except VectorSpaceNotFound:
             return None

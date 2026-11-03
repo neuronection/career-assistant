@@ -107,6 +107,7 @@ class ReconcileResult:
     """The ``background_jobs.result`` payload of one reconcile run."""
 
     space: str
+    space_id: str | None = None
     kinds: tuple[KindCoverage, ...] = ()
     scanned: int = 0
     embedded: int = 0
@@ -130,6 +131,7 @@ class ReconcileResult:
     def as_dict(self) -> dict[str, Any]:
         return {
             "space": self.space,
+            "space_id": self.space_id,
             "kinds": [coverage.as_dict() for coverage in self.kinds],
             "scanned": self.scanned,
             "embedded": self.embedded,
@@ -164,6 +166,7 @@ class VectorReconcileService:
         *,
         store: VectorStoreService | None = None,
         space_name: str = CONTENT_SPACE,
+        space_id: str | uuid.UUID | None = None,
         kinds: Sequence[str] | None = None,
         limit: int = DEFAULT_LIMIT,
         budget: int = DEFAULT_BUDGET,
@@ -189,6 +192,7 @@ class VectorReconcileService:
         self.db = db
         self.store = store
         self.space_name = space_name
+        self.space_id = str(space_id) if space_id is not None else None
         self.kinds = selected
         self.limit = max(int(limit), 1)
         self.budget = max(int(budget), 0)
@@ -204,6 +208,7 @@ class VectorReconcileService:
             db,
             store=store,
             space_name=space_name,
+            space_id=space_id,
             embedder=embedder,
             provision_backend=provision_backend,
             run=run,
@@ -392,6 +397,7 @@ class VectorReconcileService:
         await self._report(progress, 100, "reconciled" if done else "batch reconciled")
         return ReconcileResult(
             space=self.space_name,
+            space_id=self.space_id,
             kinds=tuple(coverages),
             scanned=scanned,
             embedded=embedded,
@@ -417,6 +423,8 @@ class VectorReconcileService:
 
     def _space(self):
         try:
+            if self.space_id is not None:
+                return self.store.resolve_space(self.space_id)
             return self.store.active_space(self.space_name)
         except (VectorSpaceNotFound, VectorBackendError):
             return None
