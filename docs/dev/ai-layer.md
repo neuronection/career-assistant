@@ -525,6 +525,28 @@ it records `semantic_rerank`, never silently replaces the deterministic
 score, and never introduces a candidate. The plan-185 rescue below still
 handles the below-threshold case the rerank could not lift.
 
+Both semantic stages are **independent, per-decision switches** stored as
+`app_settings` rows and read on every `decide_catalog` call (effective on the
+next decision, no restart): `catalog.semantic_rescue` (default **ON**) and
+`catalog.semantic_rerank` (default **OFF** until the owner ratifies the P2c.2
+calibration). Turning one off never disables the other. With the rerank switch
+off there is no rerank call and no rerank candidate/provenance beyond the
+deterministic trace — the decision is bit-identical to the pre-rerank path.
+The admin mapping-settings GET/PUT payload exposes both switches; this slice
+adds no UI card.
+
+The **P2c.2 calibration sweep** (`tests/posting_mapping_calibration.py`, a
+pure in-memory model validated case-for-case against the real DB path in
+`test_posting_mapping_golden.py`) scores the full matrix
+`τ_job ∈ {0.34, 0.40, 0.45} × δ ∈ {0.05, 0.08, 0.10} × blend ∈
+{0.75/0.25, 0.70/0.30, 0.80/0.20}` with K=25 held fixed on the expanded
+164-case public/synthetic golden set (`posting_mapping_golden.json`). The
+committed report is `tests/fixtures/posting_mapping_calibration.json`; on
+that corpus the shipped 0.34/0.08/0.75-0.25 policy measures precision@1 1.0,
+family_recall@1 1.0, abstention 0.194 and candidate_recall@25/@200 1.0, and
+is the recommended point. The recommendation is advisory: the live constants
+do not move until the owner ratifies them.
+
 The **semantic rescue** fires only where that overlap misses (plan 50 P2,
 `app/services/postings/semantic_rescue.py`): the posting is indexed through
 the sanctioned synchronous writer (unchanged content costs zero embeds; the

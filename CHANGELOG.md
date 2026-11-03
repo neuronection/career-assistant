@@ -4,6 +4,33 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (catalog matching — rerank kill switch, calibration sweep and expanded golden set, 2026-11-03)
+- **The bounded semantic rerank is now behind its own per-decision kill
+  switch, `catalog.semantic_rerank`, default OFF.** It is independent of
+  `catalog.semantic_rescue`: turning rescue off leaves the rerank available
+  and turning the rerank off leaves the rescue available. With the rerank
+  switch off there is no rerank call and no rerank candidates/provenance
+  beyond the deterministic mapping, so an unconfigured deployment behaves
+  exactly as it did before the rerank landed. The switch is exposed in the
+  admin mapping-settings GET/PUT payload and generated OpenAPI/frontend
+  types; no UI card ships in this slice.
+- **The golden mapping corpus grew from 17 to 164 cases over 123 jobs and 13
+  families.** It keeps the P2b slice and adds synthetic clear matches, wrong
+  deterministic winners, below-threshold lifts, margin/threshold abstentions,
+  delta/blend boundary cases, misleading semantic signals, draft-gated
+  candidates, family-only (S3-pending) rows, no-shared-skill rows, manual rows
+  and terminal postings. All data is public/synthetic; no private-integration
+  or scraped personal data is present.
+- **A committed calibration sweep measures the full policy matrix**
+  (`τ_job ∈ {0.34, 0.40, 0.45}`, `δ ∈ {0.05, 0.08, 0.10}`, blend
+  `0.75/0.25`, `0.70/0.30`, `0.80/0.20`, K=25 fixed) on the expanded corpus,
+  with precision@1, family recall, abstention, candidate recall@25/@200 and
+  a compact failure breakdown. On the measured corpus the shipped
+  `0.34 / 0.08 / 0.75-0.25` point scores precision@1 1.0, family_recall@1
+  1.0, abstention 0.194 and candidate recall 1.0, and is the recommended
+  point. The recommendation is **advisory**: the live constants stay
+  unchanged until the owner ratifies them.
+
 ### Added (vector retrieval — embedding-space lifecycle and the real cutover, 2026-11-03)
 - **A model or dimension change is now an operable cutover, not an in-place
   rewrite.** `VectorSpaceLifecycleService`
