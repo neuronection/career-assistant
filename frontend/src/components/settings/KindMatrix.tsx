@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { Lock, RotateCcw } from "lucide-react";
 
 import { SwitchRow } from "@/components/ui/switch-row";
@@ -220,6 +221,15 @@ function KindRow({
                 {t("notifications.resetShort")}
               </button>
             </>
+          ) : null}
+          {kind.manage_url ? (
+            <Link
+              to={kind.manage_url}
+              className="rounded px-1 py-0.5 text-[11px] font-medium text-[var(--as-primary)] underline decoration-transparent transition-colors hover:decoration-current focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--as-focus-ring)]"
+              data-testid={`kind-${kind.key}-manage`}
+            >
+              {t("notifications.manage")} →
+            </Link>
           ) : null}
         </span>
       </td>

@@ -108,7 +108,7 @@ const matrix: PreferencesMatrix = {
       label: "New posting match",
       group: "postings",
       severity: "info",
-      manage_url: null,
+      manage_url: "/settings/audit?tab=retrieval&section=quality",
       mutable: true,
       default_channels: ["in_app", "email"],
       enabled: true,
@@ -360,6 +360,21 @@ describe("notification settings (plan 148)", () => {
     const row = await screen.findByTestId("kind-row-new_posting_match");
     await user.click(within(row).getByTestId("kind-new_posting_match-reset"));
     await waitFor(() => expect(resetKindPreference).toHaveBeenCalledWith("new_posting_match"));
+  });
+
+  it("links a kind to its existing manage surface when manage_url is set", async () => {
+    render(
+      <MemoryRouter>
+        <Notifications />
+      </MemoryRouter>
+    );
+    const row = await screen.findByTestId("kind-row-new_posting_match");
+    const link = within(row).getByTestId("kind-new_posting_match-manage");
+    expect(link).toHaveAttribute(
+      "href",
+      "/settings/audit?tab=retrieval&section=quality",
+    );
+    expect(screen.queryByTestId("kind-fit_threshold-manage")).toBeNull();
   });
 
   it("filters the matrix by label", async () => {
