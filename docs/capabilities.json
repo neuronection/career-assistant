@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-02",
+  "updated": "2026-11-03",
   "capabilities": [
     {
       "id": "update-checks",
@@ -200,6 +200,24 @@
       "order": 40
     },
     {
+      "id": "market-stats",
+      "verb": "See how the job market is moving, not just one opening",
+      "summary": "Statistics page and pulse rails over the live postings corpus: volume with previous-period comparison, rising skills with shares, career-family demand, per-currency salary bands, source freshness.",
+      "category": "discover",
+      "status": "beta",
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-stats"
+        }
+      ],
+      "order": 41
+    },
+    {
       "id": "radar-sourcing",
       "verb": "Tell your radar what you want — sources go search for it",
       "summary": "Posting sources can follow your job radar instead of their own static config: one focused role-group query per sync, rotating — traffic stays constant however many keywords you set.",
@@ -224,6 +242,27 @@
         "desktop"
       ],
       "order": 45
+    },
+    {
+      "id": "calendar-feed",
+      "verb": "Take your deadlines and interviews with you",
+      "summary": "Subscribe to a private calendar feed from Google, Outlook, Apple Calendar or any reader. Dates update in place when they change.",
+      "category": "integrate",
+      "status": "shipped",
+      "order": 46,
+      "proofs": [
+        "Admission and application deadlines, interviews and review days",
+        "Stable ids — a changed date updates the event, never duplicates",
+        "Rebuilt from live data on every request; never cached",
+        "Signed tokens shown once; only a hash is stored",
+        "Rotate or revoke the link at any time"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/calendar-feed"
+        }
+      ]
     },
     {
       "id": "university-pathways",
@@ -267,6 +306,31 @@
         "desktop"
       ],
       "order": 55
+    },
+    {
+      "id": "taxonomy-translations",
+      "verb": "Review every catalog translation before it renders",
+      "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Locale and status pills carry live counts; search matches the base label and the draft",
+        "Cards group by entity kind and always show the base label next to the draft — no blind approvals",
+        "Batch approve/reject reports per-item outcomes instead of failing the batch",
+        "Draft with AI fills the queue; only approved rows ever render on catalog, search or chat surfaces"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/skills-taxonomy"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 56
     },
     {
       "id": "taxonomy-relations",
@@ -321,31 +385,6 @@
         "desktop"
       ],
       "order": 58
-    },
-    {
-      "id": "taxonomy-translations",
-      "verb": "Review every catalog translation before it renders",
-      "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",
-      "category": "analyze",
-      "status": "shipped",
-      "proofs": [
-        "Locale and status pills carry live counts; search matches the base label and the draft",
-        "Cards group by entity kind and always show the base label next to the draft — no blind approvals",
-        "Batch approve/reject reports per-item outcomes instead of failing the batch",
-        "Draft with AI fills the queue; only approved rows ever render on catalog, search or chat surfaces"
-      ],
-      "links": [
-        {
-          "kind": "guide",
-          "href": "docs/career/user/skills-taxonomy"
-        }
-      ],
-      "platforms": [
-        "selfhosted",
-        "web",
-        "desktop"
-      ],
-      "order": 56
     },
     {
       "id": "connector-sdk",
@@ -423,24 +462,6 @@
         "desktop"
       ],
       "order": 70
-    },
-    {
-      "id": "market-stats",
-      "verb": "See how the job market is moving, not just one opening",
-      "summary": "Statistics page and pulse rails over the live postings corpus: volume with previous-period comparison, rising skills with shares, career-family demand, per-currency salary bands, source freshness.",
-      "category": "discover",
-      "status": "beta",
-      "platforms": [
-        "selfhosted",
-        "desktop"
-      ],
-      "links": [
-        {
-          "kind": "guide",
-          "href": "docs/career/user/market-stats"
-        }
-      ],
-      "order": 41
     }
   ],
   "useCases": [
