@@ -46,6 +46,7 @@ from app.services.postings.semantic_rerank import (
     RERANK_MARGIN,
     RerankCandidate,
     RerankSignal,
+    semantic_rerank_signal,
 )
 from app.services.vector_index_service import VectorIndexService
 
@@ -343,6 +344,53 @@ async def test_a_missing_index_degrades_to_the_deterministic_verdict(db, source)
     assert rerank["degraded"] == "index_missing"
     assert rerank["accepted"] is False
     assert posting.mapping_features["degraded"] == "index_missing"
+
+
+async def test_a_draft_candidate_can_never_win_the_rerank(db, source, monkeypatch):
+    """The deterministic list may contain drafts; the rerank filters them."""
+    from types import SimpleNamespace
+
+    import uuid as uuid_module
+
+    async def indexed(_db, _posting, *, indexer=None):
+        return None
+
+    monkeypatch.setattr(rescue_module, "_ensure_posting_indexed", indexed)
+    posting = await _posting(db, source, "rerank-draft-gate", ["python"])
+    draft_id = uuid_module.uuid4()
+    published_id = uuid_module.uuid4()
+    draft = CatalogCandidate(
+        job=SimpleNamespace(id=draft_id, code="draft-role", status="draft"),
+        score=0.90,
+        shared_skill_ids=(uuid_module.uuid4(),),
+    )
+    published = CatalogCandidate(
+        job=SimpleNamespace(id=published_id, code="published-role", status="published"),
+        score=0.30,
+        shared_skill_ids=(uuid_module.uuid4(),),
+    )
+
+    class Retriever:
+        async def match_documents(self, **_kwargs):
+            return SimpleNamespace(
+                hits=(
+                    SimpleNamespace(
+                        source_id=str(draft_id), score=0.99, per_view={"summary": 0.99}
+                    ),
+                    SimpleNamespace(
+                        source_id=str(published_id), score=0.55, per_view={"summary": 0.55}
+                    ),
+                ),
+                space_key="space-key",
+                degraded=None,
+            )
+
+    signal = await semantic_rerank_signal(
+        db, posting, [draft, published], threshold=AUTO_MAP_THRESHOLD, retriever=Retriever()
+    )
+
+    assert [candidate.code for candidate in signal.candidates] == ["published-role"]
+    assert signal.accepted is True
 
 
 async def test_the_candidate_set_is_bounded_and_published_only(db):

@@ -78,13 +78,12 @@ async def test_only_stale_semantic_rows_are_redecided(db, source):
         {"space_key": "old-space", "batch_size": 50, "all_postings": False},
     )
 
-    assert result["remapped"] == 2, "the new-space and legacy semantic rows"
-    assert result["skipped"] == 1, "the row already recorded the retired space"
+    assert result["remapped"] == 2, "the retired-space and legacy semantic rows"
+    assert result["skipped"] == 1, "the row already recorded the new space"
     assert result["failed"] == 0
-    assert stale.mapping_method == MappingMethod.SEMANTIC.value
-    assert stale.mapping_features["space_key"] == "old-space"
-    assert current.mapping_method is None
-    assert current.mapping_features["space_key"] is None
+    assert stale.mapping_method is None
+    assert current.mapping_method == MappingMethod.SEMANTIC.value
+    assert current.mapping_features["space_key"] == "new-space"
     assert legacy.mapping_method is None
     assert manual.mapping_method == MappingMethod.MANUAL.value
     assert manual.mapping_features["space_key"] == "old-space"
@@ -114,7 +113,7 @@ async def test_all_postings_ignores_the_recorded_space_key(db, source):
 async def test_a_partial_batch_enqueues_one_continuation_cursor(db, source):
     for index in range(3):
         posting = await _posting(db, source, f"remap-page-{index}")
-        _semantic(posting, "new-space")
+        _semantic(posting, "old-space")
     await db.flush()
 
     result = await run_posting_remap(

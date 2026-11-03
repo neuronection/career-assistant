@@ -174,6 +174,11 @@ async def semantic_rerank_signal(
     no-op) and every failure returns a degraded signal; the caller keeps the
     deterministic verdict.
     """
+    deterministic_candidates = [
+        candidate
+        for candidate in deterministic_candidates
+        if getattr(candidate.job, "status", None) == "published"
+    ]
     if not deterministic_candidates:
         return not_run_rerank(threshold=threshold)
 

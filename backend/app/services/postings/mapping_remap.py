@@ -100,9 +100,10 @@ async def invalidate_mapping_space(
     """The cutover hook: re-decide semantic mappings that depended on a space.
 
     Call after the new space is active and the old one is retired. A
-    ``space_key`` filters rows whose ``mapping_features.space_key`` differs
-    (legacy rows without features are remapped too); ``all_postings=True``
-    ignores the recorded key and re-decides every semantic row.
+    ``space_key`` selects rows recorded on that retired key (legacy rows
+    without features are re-decided too); rows already on a different key
+    are skipped. ``all_postings=True`` ignores the recorded key and
+    re-decides every semantic row.
     """
     return await enqueue_posting_remap(
         db,
@@ -162,7 +163,12 @@ async def run_posting_remap(
                 "cancelled": True,
             }
         recorded = (posting.mapping_features or {}).get("space_key")
-        if not all_postings and space_key is not None and recorded == space_key:
+        if (
+            not all_postings
+            and space_key is not None
+            and recorded is not None
+            and recorded != space_key
+        ):
             skipped += 1
             continue
         skill_ids = set(
