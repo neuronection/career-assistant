@@ -712,6 +712,7 @@ class VectorStoreService:
         *,
         source_ids: Sequence[str] | None = None,
         kind: str | None = None,
+        after_id: uuid.UUID | str | None = None,
         limit: int | None = None,
     ) -> dict[str, DocumentInfo]:
         """The product identity (kind + source id) of indexed documents.
@@ -738,6 +739,9 @@ class VectorStoreService:
                 )
             if kind is not None:
                 statement = statement.where(VectorDocument.kind == kind)
+            if after_id is not None:
+                statement = statement.where(VectorDocument.id > uuid.UUID(str(after_id)))
+            statement = statement.order_by(VectorDocument.id)
             if limit is not None:
                 statement = statement.limit(int(limit))
             return {

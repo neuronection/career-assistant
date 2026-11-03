@@ -640,6 +640,29 @@ async def test_a_deleted_source_removes_its_document(db, engine, monkeypatch):
         assert session.scalars(select(VectorRecord)).all() == []
 
 
+async def test_orphan_sweep_walks_every_page(db, engine, monkeypatch):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(3)]
+    _patch_sources(monkeypatch, postings)
+    store = _store(engine)
+    await VectorReconcileService(
+        db, store=store, provision_backend=vc.BACKEND_LINEAR, kinds=("posting",)
+    ).run()
+
+    _patch_sources(monkeypatch, postings[:1])  # two documents are now orphans
+    service = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=2,
+    )
+    result = await service.run()
+
+    assert result.orphans_removed == 2
+    with Session(engine) as session:
+        assert len(session.scalars(select(VectorDocument)).all()) == 1
+
+
 async def test_a_windowed_pass_never_sweeps(db, engine, monkeypatch):
     """A `since` window is not the population: it must not delete documents
     outside the window."""

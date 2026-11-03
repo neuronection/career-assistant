@@ -444,22 +444,38 @@ class VectorReconcileService:
         return {"updated_at": value, "id": str(source_id)}
 
     async def _sweep_orphans(self, kind: str) -> int:
-        """Delete a bounded page of documents whose source no longer resolves.
+        """Delete documents whose source no longer resolves, page by page.
 
         The polymorphic document has no FK to its source, so this is the
         safety net after a hard delete. It only runs after a full pass (never
-        on a partial batch) and inspects at most ``scan_limit`` documents, so
-        a completed pass does not load the whole document table. A windowed
-        (``since``) pass never sweeps: its source list is not the population.
+        on a partial batch), and each page holds at most ``scan_limit``
+        documents; the ``after_id`` cursor walks every page so an orphan past
+        the first page is still reached. A windowed (``since``) pass never
+        sweeps: its source list is not the population.
         """
         space = self._space()
         if space is None:
             return 0
         removed = 0
-        for info in self.store.lookup_documents(space, kind=kind, limit=self.scan_limit).values():
-            if await load_source(self.db, kind, info.source_id) is not None:
-                continue
-            removed += 1 if self.store.delete_document(space, info.document_id) else 0
+        after_id: str | None = None
+        while True:
+            page = list(
+                self.store.lookup_documents(
+                    space,
+                    kind=kind,
+                    after_id=after_id,
+                    limit=self.scan_limit,
+                ).values()
+            )
+            if not page:
+                break
+            for info in page:
+                if await load_source(self.db, kind, info.source_id) is not None:
+                    continue
+                removed += 1 if self.store.delete_document(space, info.document_id) else 0
+            after_id = page[-1].document_id
+            if len(page) < self.scan_limit:
+                break
         return removed
 
     async def _drop_orphan(self, kind: str, source_id: str) -> int:

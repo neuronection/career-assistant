@@ -49,28 +49,15 @@ BACKEND_DIR = next(
 if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
-from app.core.database import AsyncSessionLocal  # noqa: E402
-from app.models.background_job_model import BackgroundJob  # noqa: E402
-from app.models.enums import BackgroundJobStatus, BackgroundJobType  # noqa: E402
-from app.services.job_worker import enqueue  # noqa: E402
-from app.services.vector_reconcile_service import (  # noqa: E402
-    DEFAULT_BATCH_SIZE,
-    DEFAULT_BUDGET,
-    DEFAULT_LIMIT,
-    DEFAULT_SCAN_LIMIT,
-    RECONCILE_KINDS,
-    parse_kinds,
-    parse_since,
-)
-
-TERMINAL = (
-    BackgroundJobStatus.SUCCEEDED.value,
-    BackgroundJobStatus.FAILED.value,
-    BackgroundJobStatus.CANCELLED.value,
-)
-
-
 def _parser() -> argparse.ArgumentParser:
+    from app.services.vector_reconcile_service import (
+        DEFAULT_BATCH_SIZE,
+        DEFAULT_BUDGET,
+        DEFAULT_LIMIT,
+        DEFAULT_SCAN_LIMIT,
+        RECONCILE_KINDS,
+    )
+
     parser = argparse.ArgumentParser(
         description="Enqueue a resumable, budget-capped vector backfill/reconcile run."
     )
@@ -102,19 +89,32 @@ def _parser() -> argparse.ArgumentParser:
 
 
 async def _enqueue(payload: dict[str, Any]) -> str:
+    from app.core.database import AsyncSessionLocal
+    from app.models.enums import BackgroundJobType
+    from app.services.job_worker import enqueue
+
     async with AsyncSessionLocal() as db:
         job = await enqueue(db, BackgroundJobType.VECTOR_RECONCILE.value, payload)
         return str(job.id)
 
 
-async def _wait(job_id: str, timeout: int) -> BackgroundJob | None:
+async def _wait(job_id: str, timeout: int) -> Any:
     from uuid import UUID
 
+    from app.core.database import AsyncSessionLocal
+    from app.models.background_job_model import BackgroundJob
+    from app.models.enums import BackgroundJobStatus
+
+    terminal = (
+        BackgroundJobStatus.SUCCEEDED.value,
+        BackgroundJobStatus.FAILED.value,
+        BackgroundJobStatus.CANCELLED.value,
+    )
     deadline = time.monotonic() + timeout
     async with AsyncSessionLocal() as db:
         while time.monotonic() < deadline:
             job = await db.get(BackgroundJob, UUID(job_id))
-            if job is not None and job.status in TERMINAL:
+            if job is not None and job.status in terminal:
                 return job
             await asyncio.sleep(2.0)
     return None
@@ -135,6 +135,9 @@ def _summarize(result: dict[str, Any]) -> str:
 
 
 async def main(argv: list[str] | None = None) -> int:
+    from app.models.enums import BackgroundJobStatus, BackgroundJobType
+    from app.services.vector_reconcile_service import parse_kinds, parse_since
+
     args = _parser().parse_args(argv)
     try:
         kinds = parse_kinds(args.kinds)
