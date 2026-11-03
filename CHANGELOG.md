@@ -4,6 +4,38 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (catalog matching — bounded semantic rerank and mapping provenance, 2026-11-03)
+- **Ambiguous catalog decisions get a bounded semantic rerank.** The
+  deterministic weighted skill overlap remains the gate and the only
+  decision score; where its outcome is ambiguous (best below the job floor
+  or a runner-up margin under 0.08), the new stage-2 rerank scores only the
+  deterministic candidate set (top 25) against the posting with the
+  job↔posting match and applies plan 164's pinned
+  `0.75·deterministic + 0.25·semantic` blend. A rerank is accepted only when
+  its top candidate clears the job floor with the margin, so semantic can
+  reorder a decision but never introduce a candidate or map a gated-out
+  row. It is recorded as `semantic_rerank`, distinct from the existing
+  plan-185 `semantic` rescue; every embedding/index failure degrades to the
+  deterministic verdict.
+- **Every automatic mapping now records versioned provenance.**
+  `job_postings.mapping_version` and `mapping_features` (migration `0089`)
+  carry the top candidates with deterministic/semantic/blend scores, shared
+  taxonomy keys, per-view scores, the pinned policy thresholds, the
+  embedding `space_key` and any degradation reason — bounded to five
+  candidates and twenty shared skills, four decimals. The existing
+  `posting_facts.mapping_signals` trace is unchanged and gains a `rerank`
+  block.
+- **Space cutover invalidates semantic mappings through one seam.**
+  `invalidate_mapping_space(space_key=…)` enqueues a bounded
+  `POSTING_REMAP` job over rows whose method is `semantic`/`semantic_rerank`
+  (never `manual`, never terminal postings), re-running the catalog decision
+  without rewriting skill rows or firing alerts. Plan 51's space-retirement
+  action calls the hook; no second sweep exists.
+- **Golden mapping benchmark.** A versioned posting↔catalog fixture pins
+  `precision@1`, `family_recall@1`, abstention and
+  `candidate_recall@25/@200` for the deterministic baseline and the rerank,
+  with the measured floors recorded in the test.
+
 ### Added (catalog matching — the semantic rescue and the job match reads, 2026-11-03)
 - **Catalog jobs are indexed as documents, and postings are matched against
   them by long text.** A catalog job now composes the same views as a
