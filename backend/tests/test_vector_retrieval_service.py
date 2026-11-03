@@ -418,3 +418,44 @@ def test_document_scope_helper_still_admits_exact_documents(harness: Harness):
         assert records, "the record exists in the space"
     hits = harness.search((1.0, 0.0, 0.0, 0.0), scope=document_scope([str(harness.documents["a"])]))
     assert [hit.document_id for hit in hits] == [str(harness.documents["a"])]
+
+
+async def test_search_text_parity_across_backends(harness: Harness):
+    """Exact/linear parity: the same corpus and query produce the same order
+    and scores on the dialect backend and the linear fallback."""
+    corpus = {
+        "source-a": (1.0, 0.0, 0.0, 0.0),
+        "source-b": (0.7, 0.7, 0.0, 0.0),
+        "source-c": (0.0, 0.0, 1.0, 0.0),
+        "source-d": (-0.6, 0.8, 0.0, 0.0),
+    }
+    for index, (source_id, vector) in enumerate(corpus.items()):
+        harness.add_document(f"doc-{index}", source_id=source_id)
+        harness.index(f"doc-{index}", vector)
+
+    linear_harness = create_space(harness.engine, backend_name=vc.BACKEND_LINEAR, dim=DIM)
+    try:
+        for index, (source_id, vector) in enumerate(corpus.items()):
+            linear_harness.add_document(f"doc-{index}", source_id=source_id)
+            linear_harness.index(f"doc-{index}", vector)
+        query = [0.8, 0.2, 0.1, 0.0]
+        embedder = StubEmbedder({"data engineer": query})
+        native = await _service(harness, embedder=embedder).search_text(
+            "data engineer", kind="posting", views=("summary",), limit=10
+        )
+        linear = await VectorRetrievalService(
+            None,  # type: ignore[arg-type]
+            store=linear_harness.service,
+            space_name=linear_harness.space.name,
+            embedder=StubEmbedder({"data engineer": query}),
+        ).search_text("data engineer", kind="posting", views=("summary",), limit=10)
+
+        assert [hit.source_id for hit in native.hits] == [hit.source_id for hit in linear.hits], (
+            "identical top-k on every backend"
+        )
+        assert [hit.score for hit in native.hits] == pytest.approx(
+            [hit.score for hit in linear.hits], abs=1e-5
+        ), "float32 storage rounding is the only difference"
+        assert linear.backend == vc.BACKEND_LINEAR
+    finally:
+        drop_space(linear_harness)

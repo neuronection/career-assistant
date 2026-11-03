@@ -31,7 +31,9 @@ All notable changes to **Career Assistant** are documented here.
   rescue (plan 185) is temporarily removed with the old store — it returns
   with the long-text job↔posting matcher (plan 50 P2), so the mapping
   decision is the deterministic skill overlap until then and the trace keeps
-  its empty semantic block. The `TaxonomyEmbeddingsCard` keeps only the job
+  its empty semantic block. The `template` kind had no writer or reader in
+  this app (only served-kind labels in the retired status read), so it is
+  dropped with the store rather than migrated. The `TaxonomyEmbeddingsCard` keeps only the job
   proposals switch (the embeddings buckets/recompute are gone with the
   store). Explore's hybrid relevance ordering is now best-first (the fused
   score replaced the inverted rank-as-score assignment).

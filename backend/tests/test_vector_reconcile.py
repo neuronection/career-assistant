@@ -459,3 +459,80 @@ def test_result_payload_shape():
     assert payload["deferred"] == 0
     assert payload["failed_ids"] == ["posting:x"]
     assert payload["kinds"][0]["kind"] == "posting"
+
+
+async def test_a_profile_document_keeps_its_user_scope(db, engine, monkeypatch):
+    """Scope safety: a profile indexed by the reconcile pass is user-scoped, so
+    no other user's scope filter can see it."""
+    from app.models.enums.retrieval import VectorScopeType
+    from app.services.vector_composers import compose_profile_views
+    from app.storage.vector_backends import filter_scope
+
+    user_id = uuid.uuid4()
+    other_id = uuid.uuid4()
+
+    async def load_source(_db, kind, source_id):
+        if kind != "profile" or str(source_id) != str(user_id):
+            return None
+        return LoadedSource(
+            composed=compose_profile_views(
+                user_id=str(user_id),
+                profiles=[{"education": "MSc", "city": "Athens", "country": "GR"}],
+                interests=["data"],
+                skills=[{"label": "Python", "level": 7}],
+                experience_titles=["Analyst"],
+            ),
+            scope_type=VectorScopeType.USER.value,
+            scope_id=user_id,
+        )
+
+    async def list_sources(_db, kind, *, since=None, after=None, limit=None):
+        return [vis.SourceRow(source_id=str(user_id))] if kind == "profile" else []
+
+    async def count_sources(_db, kind, *, since=None):
+        return 1 if kind == "profile" else 0
+
+    import app.services.vector_reconcile_service as vrs
+
+    monkeypatch.setattr(vis, "load_source", load_source)
+    monkeypatch.setattr(vis, "list_sources", list_sources)
+    monkeypatch.setattr(vis, "count_sources", count_sources)
+    monkeypatch.setattr(vrs, "load_source", load_source)
+    monkeypatch.setattr(vrs, "list_sources", list_sources)
+    monkeypatch.setattr(vrs, "count_sources", count_sources)
+
+    store = _store(engine)
+    result = await VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("profile",),
+        embedder=_mock,
+    ).run()
+    assert result.embedded == 1
+
+    space = store.active_space(SPACE)
+    [info] = store.lookup_documents(space, kind="profile").values()
+    assert info.scope_type == "user"
+    assert info.scope_id == str(user_id)
+
+    document_vector = store.document_vectors(space, document_id=info.document_id)
+    assert document_vector
+    query = list(document_vector[0].vector)
+
+    own = store.search(
+        space,
+        query,
+        views=("summary",),
+        scope=filter_scope(scope_ids=[str(user_id)]),
+        limit=5,
+    )
+    assert [hit.document_id for hit in own] == [info.document_id]
+    stranger = store.search(
+        space,
+        query,
+        views=("summary",),
+        scope=filter_scope(scope_ids=[str(other_id)]),
+        limit=5,
+    )
+    assert stranger == [], "another user's scope can never see this profile document"
