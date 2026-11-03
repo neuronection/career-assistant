@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.errors import AINotConfiguredError
 from app.models.vector_model import VectorRecord
 from app.services.vector_retrieval_service import (
+    MAX_QUERY_CHUNKS,
     DocumentHit,
     RetrievalResult,
     VectorRetrievalService,
@@ -459,3 +460,282 @@ async def test_search_text_parity_across_backends(harness: Harness):
         assert linear.backend == vc.BACKEND_LINEAR
     finally:
         drop_space(linear_harness)
+
+
+# --------------------------------------------------------- document matching
+
+
+def _seed_job(harness: Harness) -> str:
+    """A job document with the four extracted views plus a body chunk."""
+    job_id = str(uuid.uuid4())
+    harness.add_document("job", kind="job", source_id=job_id)
+    harness.index_many(
+        [
+            harness.record("job", (1.0, 0.0, 0.0, 0.0), view="requirements"),
+            harness.record("job", (0.0, 1.0, 0.0, 0.0), view="responsibilities"),
+            harness.record("job", (0.0, 0.0, 1.0, 0.0), view="skills"),
+            harness.record("job", (0.0, 0.0, 0.0, 1.0), view="summary"),
+            harness.record("job", (1.0, 0.0, 0.0, 0.0), view="body"),
+        ]
+    )
+    return job_id
+
+
+async def test_match_documents_ranks_the_correct_job_per_view(harness: Harness):
+    job_id = _seed_job(harness)
+    harness.add_document("right", kind="job", source_id="right-job")
+    harness.add_document("wrong", kind="job", source_id="wrong-job")
+    harness.index_many(
+        [
+            harness.record("right", (1.0, 0.0, 0.0, 0.0), view="requirements"),
+            harness.record("right", (0.0, 1.0, 0.0, 0.0), view="responsibilities"),
+            harness.record("right", (0.0, 0.0, 1.0, 0.0), view="skills"),
+            harness.record("right", (0.0, 0.0, 0.0, 1.0), view="summary"),
+            harness.record("wrong", (0.6, 0.8, 0.0, 0.0), view="requirements"),
+            harness.record("wrong", (0.8, 0.6, 0.0, 0.0), view="responsibilities"),
+            harness.record("wrong", (0.0, 0.0, 0.6, 0.8), view="skills"),
+            harness.record("wrong", (0.0, 0.0, 0.8, 0.6), view="summary"),
+        ]
+    )
+
+    result = await _service(harness).match_documents(
+        source_kind="job",
+        source_id=job_id,
+        target_kind="job",
+        limit=5,
+    )
+
+    assert [hit.source_id for hit in result.hits] == ["right-job", "wrong-job"]
+    assert result.degraded is None
+    assert result.hits[0].per_view["requirements"] == pytest.approx(1.0)
+    assert result.hits[0].per_view["responsibilities"] == pytest.approx(1.0)
+    assert result.hits[0].score == pytest.approx(1.0)
+    assert result.hits[1].per_view["requirements"] == pytest.approx(0.6)
+    assert result.hits[1].score == pytest.approx(0.6, abs=1e-5)
+    assert result.hits[1].score < result.hits[0].score
+
+
+async def test_match_documents_maxsim_aggregates_query_chunks(harness: Harness):
+    posting_id = str(uuid.uuid4())
+    harness.add_document("posting", kind="posting", source_id=posting_id)
+    harness.index_many(
+        [
+            harness.record("posting", (1.0, 0.0, 0.0, 0.0), view="body", chunk_index=0),
+            harness.record("posting", (0.0, 1.0, 0.0, 0.0), view="body", chunk_index=1),
+        ]
+    )
+    harness.add_document("both", kind="job", source_id="both-views")
+    harness.add_document("one", kind="job", source_id="one-view")
+    harness.index_many(
+        [
+            harness.record("both", (1.0, 0.0, 0.0, 0.0), view="body", chunk_index=0),
+            harness.record("both", (0.0, 1.0, 0.0, 0.0), view="body", chunk_index=1),
+            harness.record("one", (1.0, 0.0, 0.0, 0.0), view="body", chunk_index=0),
+        ]
+    )
+
+    result = await _service(harness).match_documents(
+        source_kind="posting",
+        source_id=posting_id,
+        target_kind="job",
+        view_weights={("body", "body"): 1.0},
+        limit=5,
+    )
+
+    by_source = {hit.source_id: hit for hit in result.hits}
+    assert by_source["both-views"].per_view["body"] == pytest.approx(1.0)
+    assert by_source["one-view"].per_view["body"] == pytest.approx(0.5)
+    assert [hit.source_id for hit in result.hits] == ["both-views", "one-view"]
+
+
+async def test_match_documents_caps_query_chunks(harness: Harness):
+    posting_id = str(uuid.uuid4())
+    harness.add_document("posting", kind="posting", source_id=posting_id)
+    records = [
+        harness.record("posting", (1.0, 0.0, 0.0, 0.0), view="body", chunk_index=index)
+        for index in range(MAX_QUERY_CHUNKS + 2)
+    ]
+    records[-1] = harness.record(
+        "posting", (0.0, 1.0, 0.0, 0.0), view="body", chunk_index=MAX_QUERY_CHUNKS + 1
+    )
+    harness.index_many(records)
+    harness.add_document("late", kind="job", source_id="late-only")
+    harness.index("late", (0.0, 1.0, 0.0, 0.0), view="body")
+
+    result = await _service(harness).match_documents(
+        source_kind="posting",
+        source_id=posting_id,
+        target_kind="job",
+        view_weights={("body", "body"): 1.0},
+        limit=5,
+    )
+
+    assert result.hits == (), "the informative chunk sits past the query-chunk cap"
+
+
+async def test_match_documents_candidate_cap_bounds_the_scan(harness: Harness):
+    job_id = _seed_job(harness)
+    harness.add_document("near", kind="job", source_id="near")
+    harness.index("near", (1.0, 0.0, 0.0, 0.0), view="requirements")
+    limits: list[int] = []
+
+    class SpyStore:
+        def __init__(self, inner):
+            self._inner = inner
+            self.backend = inner.backend
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+        def search(self, *args, **kwargs):
+            limits.append(int(kwargs["limit"]))
+            return self._inner.search(*args, **kwargs)
+
+    service = VectorRetrievalService(
+        None,  # type: ignore[arg-type]
+        store=SpyStore(harness.service),  # type: ignore[arg-type]
+        space_name=SPACE,
+    )
+    await service.match_documents(
+        source_kind="job",
+        source_id=job_id,
+        target_kind="job",
+        view_weights={("requirements", "requirements"): 1.0},
+        candidate_cap=7,
+        limit=5,
+    )
+    assert limits == [7], "the candidate set is capped, never the corpus"
+
+
+async def test_match_documents_excludes_self_and_ties_break_on_source_id(harness: Harness):
+    job_id = str(uuid.uuid4())
+    harness.add_document("query", kind="job", source_id=job_id)
+    harness.index("query", (1.0, 0.0, 0.0, 0.0), view="requirements")
+    for name, source in (("b", "b-job"), ("a", "a-job")):
+        harness.add_document(name, kind="job", source_id=source)
+        harness.index(name, (1.0, 0.0, 0.0, 0.0), view="requirements")
+
+    result = await _service(harness).match_documents(
+        source_kind="job",
+        source_id=job_id,
+        target_kind="job",
+        view_weights={("requirements", "requirements"): 1.0},
+        limit=5,
+    )
+    assert [hit.source_id for hit in result.hits] == ["a-job", "b-job"]
+
+
+async def test_match_documents_scope_is_enforced_before_ranking(harness: Harness):
+    job_id = _seed_job(harness)
+    harness.add_document("allowed", kind="job", source_id="allowed")
+    harness.add_document("excluded", kind="job", source_id="excluded")
+    harness.index_many(
+        [
+            harness.record("allowed", (0.2, 0.2, 0.2, 0.2), view="requirements"),
+            harness.record("excluded", (1.0, 0.0, 0.0, 0.0), view="requirements"),
+        ]
+    )
+
+    result = await _service(harness).match_documents(
+        source_kind="job",
+        source_id=job_id,
+        target_kind="job",
+        view_weights={("requirements", "requirements"): 1.0},
+        scope=filter_scope(kinds=("job",), source_ids=["allowed"]),
+        limit=5,
+    )
+    assert [hit.source_id for hit in result.hits] == ["allowed"]
+
+
+async def test_match_documents_without_an_indexed_source_degrades(harness: Harness):
+    result = await _service(harness).match_documents(
+        source_kind="job", source_id=str(uuid.uuid4()), target_kind="posting"
+    )
+    assert result.hits == ()
+    assert result.degraded is vc.DegradedReason.INDEX_MISSING
+
+
+async def test_match_documents_without_an_active_space_degrades(engine):
+    result = await VectorRetrievalService(
+        None,  # type: ignore[arg-type]
+        store=VectorStoreService(engine, backend=LinearBackend(engine)),
+        space_name="missing-space",
+    ).match_documents(source_kind="job", source_id=str(uuid.uuid4()), target_kind="posting")
+    assert result.hits == ()
+    assert result.degraded is vc.DegradedReason.INDEX_MISSING
+
+
+async def test_match_documents_parity_across_backends(harness: Harness):
+    job_id = _seed_job(harness)
+    for name, vector in (("a", (1.0, 0.0, 0.0, 0.0)), ("b", (0.7, 0.7, 0.0, 0.0))):
+        harness.add_document(name, kind="job", source_id=f"{name}-job")
+        harness.index(name, vector, view="requirements")
+        harness.index(name, vector, view="summary")
+
+    linear = create_space(harness.engine, backend_name=vc.BACKEND_LINEAR, dim=DIM)
+    try:
+        linear.add_document("job", kind="job", source_id=job_id)
+        linear.index_many(
+            [
+                linear.record("job", (1.0, 0.0, 0.0, 0.0), view="requirements"),
+                linear.record("job", (0.0, 1.0, 0.0, 0.0), view="responsibilities"),
+                linear.record("job", (0.0, 0.0, 1.0, 0.0), view="skills"),
+                linear.record("job", (0.0, 0.0, 0.0, 1.0), view="summary"),
+                linear.record("job", (1.0, 0.0, 0.0, 0.0), view="body"),
+            ]
+        )
+        for name, vector in (("a", (1.0, 0.0, 0.0, 0.0)), ("b", (0.7, 0.7, 0.0, 0.0))):
+            linear.add_document(name, kind="job", source_id=f"{name}-job")
+            linear.index(name, vector, view="requirements")
+            linear.index(name, vector, view="summary")
+        native_result = await _service(harness).match_documents(
+            source_kind="job", source_id=job_id, target_kind="job", limit=5
+        )
+        linear_result = await VectorRetrievalService(
+            None,  # type: ignore[arg-type]
+            store=linear.service,
+            space_name=linear.space.name,
+        ).match_documents(source_kind="job", source_id=job_id, target_kind="job", limit=5)
+
+        assert [hit.source_id for hit in native_result.hits] == [
+            hit.source_id for hit in linear_result.hits
+        ]
+        assert [hit.score for hit in native_result.hits] == pytest.approx(
+            [hit.score for hit in linear_result.hits], abs=1e-5
+        )
+    finally:
+        drop_space(linear)
+
+
+async def test_match_text_embeds_once_and_searches_the_target_views(harness: Harness):
+    harness.add_document("job", kind="job", source_id="job-1")
+    harness.index_many(
+        [
+            harness.record("job", (1.0, 0.0, 0.0, 0.0), view="requirements"),
+            harness.record("job", (0.0, 1.0, 0.0, 0.0), view="body"),
+        ]
+    )
+    embedder = StubEmbedder({"Senior data engineer": [1.0, 0.0, 0.0, 0.0]})
+    result = await _service(harness, embedder=embedder).match_text(
+        "Senior data engineer",
+        target_kind="job",
+        view_weights={("requirements", "requirements"): 1.0, ("body", "body"): 1.0},
+        limit=5,
+    )
+    assert embedder.calls == 1
+    assert [hit.source_id for hit in result.hits] == ["job-1"]
+    assert result.hits[0].per_view["requirements"] == pytest.approx(1.0)
+    assert result.hits[0].per_view["body"] == pytest.approx(0.0)
+
+
+async def test_match_text_degrades_without_a_provider(harness: Harness):
+    harness.add_document("job", kind="job", source_id="job-1")
+    harness.index("job", (1.0, 0.0, 0.0, 0.0), view="requirements")
+    result = await VectorRetrievalService(
+        None,  # type: ignore[arg-type]
+        store=harness.service,
+        space_name=SPACE,
+        embedder=RaisingEmbedder(AINotConfiguredError("no provider")),
+    ).match_text("anything", target_kind="job")
+    assert result.hits == ()
+    assert result.degraded is vc.DegradedReason.PROVIDER_UNASSIGNED

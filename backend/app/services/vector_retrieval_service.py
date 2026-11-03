@@ -44,6 +44,7 @@ from app.storage.vector_backends import (
 )
 from app.storage.vector_contract import (
     CANDIDATE_MULTIPLIER,
+    MAXSIM_CANDIDATE_CAP,
     RRF_K,
     V1_VIEWS,
     DegradedReason,
@@ -67,6 +68,15 @@ SEMANTIC_VIEW_WEIGHTS: Mapping[str, float] = {
 }
 #: Profile↔posting affinity only compares the views both sides compose.
 AFFINITY_VIEW_WEIGHTS: Mapping[str, float] = {"summary": 1.5, "skills": 1.5, "body": 1.0}
+#: Job↔posting view pairs and their weights (plan 50 §7.2): the extracted
+#: facets lead, the chunked body is the sparse-extraction fallback.
+JOB_MATCH_VIEW_PAIRS: Mapping[tuple[str, str], float] = {
+    ("requirements", "requirements"): 1.5,
+    ("responsibilities", "responsibilities"): 1.5,
+    ("skills", "skills"): 1.25,
+    ("summary", "summary"): 1.0,
+    ("body", "body"): 0.5,
+}
 #: At most this many query chunks per view feed a document-as-query search.
 MAX_QUERY_CHUNKS = 4
 
@@ -328,6 +338,157 @@ class VectorRetrievalService:
             started=started,
         )
 
+    async def match_documents(
+        self,
+        *,
+        source_kind: str,
+        source_id: str,
+        target_kind: str | None = None,
+        view_weights: Mapping[tuple[str, str], float] | None = None,
+        scope: ScopeSpec | None = None,
+        limit: int = 20,
+        candidate_cap: int = MAXSIM_CANDIDATE_CAP,
+        exclude_self: bool = True,
+    ) -> RetrievalResult:
+        """Score a stored document against another kind, view pair by view pair.
+
+        The long-text counterpart of :meth:`similar_documents` (plan 50
+        §7.2): a job and a posting are compared on matching views —
+        requirements to requirements, responsibilities to
+        responsibilities, skills to skills, summary to summary, and the
+        chunked body as the sparse-extraction fallback.
+
+        The per-view similarity is the bounded **MaxSim** approximation:
+        each of the source's (capped) chunks is searched against the
+        candidate set, the best candidate chunk similarity is kept per
+        source chunk, and the mean over the source chunks bounds the value
+        in ``0..1``. Candidate records per query chunk are capped by
+        ``candidate_cap``; the expensive comparison never touches the
+        corpus.
+
+        No provider call: the query is the source document's stored vectors,
+        read back through the backend, so linear/pgvector/sqlite-vec all
+        work. A source that is not indexed yet returns ``index_missing`` and
+        the caller keeps its lexical fallback. ``scope`` is enforced by the
+        backend before scoring; an excluded row can never come back.
+        """
+        if limit <= 0:
+            return RetrievalResult(space=self.space_name)
+        started = time.perf_counter()
+        space = self._space()
+        if isinstance(space, DegradedReason):
+            return RetrievalResult(space=self.space_name, degraded=space)
+        try:
+            query_document = self.store.find_document(space, kind=source_kind, source_id=source_id)
+        except VectorBackendError:
+            query_document = None
+        if query_document is None:
+            return RetrievalResult(
+                space=space.name,
+                backend=self.store.backend.name,
+                degraded=DegradedReason.INDEX_MISSING,
+            )
+        stored = [
+            vector
+            for vector in self.store.document_vectors(space, document_id=query_document)
+            if vector.vector
+        ]
+        if not stored:
+            return RetrievalResult(
+                space=space.name,
+                backend=self.store.backend.name,
+                degraded=DegradedReason.INDEX_MISSING,
+            )
+        pairs = dict(view_weights or JOB_MATCH_VIEW_PAIRS)
+        source_chunks: dict[str, list[Any]] = {}
+        for vector in stored:
+            source_chunks.setdefault(str(vector.view), []).append(vector)
+        active = [
+            (source_view, target_view, float(weight))
+            for (source_view, target_view), weight in sorted(pairs.items())
+            if float(weight) > 0 and source_view in source_chunks
+        ]
+        if not active:
+            return RetrievalResult(space=space.name, backend=self.store.backend.name)
+        scoped = scope if scope is not None else self._kind_scope(target_kind)
+        combined: dict[str, dict[str, float]] = {}
+        weights: dict[str, float] = {}
+        backend = ""
+        for source_view, target_view, weight in active:
+            chunks = sorted(source_chunks[source_view], key=lambda item: item.chunk_index)[
+                :MAX_QUERY_CHUNKS
+            ]
+            weights[target_view] = weights.get(target_view, 0.0) + weight
+            summed: dict[str, float] = {}
+            for chunk in chunks:
+                hits, view_backend, degraded = self._search_views(
+                    space,
+                    list(chunk.vector),
+                    views=(target_view,),
+                    scope=scoped,
+                    limit=max(int(candidate_cap), 1),
+                    ef_search=None,
+                    candidate_multiplier=1,
+                    aggregation="max",
+                )
+                backend = backend or view_backend
+                if degraded is not None:
+                    return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+                for document_id, per_view in hits.items():
+                    similarity = max(float(per_view.get(target_view, 0.0)), 0.0)
+                    summed[document_id] = summed.get(document_id, 0.0) + similarity
+            for document_id, total in summed.items():
+                view_score = total / len(chunks)
+                if view_score <= 0.0:
+                    continue
+                current = combined.setdefault(document_id, {}).get(target_view)
+                if current is None or view_score > current:
+                    combined[document_id][target_view] = view_score
+        if exclude_self:
+            combined.pop(query_document, None)
+        return self._rank(
+            space,
+            combined,
+            weights,
+            limit=limit,
+            backend=backend,
+            started=started,
+            tie_break="source",
+        )
+
+    async def match_text(
+        self,
+        text: str,
+        *,
+        target_kind: str | None = None,
+        view_weights: Mapping[tuple[str, str], float] | None = None,
+        scope: ScopeSpec | None = None,
+        limit: int = 20,
+        lexical_ranked: Sequence[str] | None = None,
+        lexical_weight: float = 1.0,
+    ) -> RetrievalResult:
+        """The free-text counterpart of :meth:`match_documents`.
+
+        Used when the posting has no indexed document yet (or for a one-off
+        query): the text is embedded once through the gateway and searched
+        against every target view of the pair map. Same degradation
+        vocabulary, same scope enforcement, same weighted aggregation — the
+        only difference is where the query vector comes from.
+        """
+        weights = dict(view_weights or JOB_MATCH_VIEW_PAIRS)
+        target_views = tuple(dict.fromkeys(target for _, target in sorted(weights)))
+        return await self.search_text(
+            text,
+            kind=target_kind,
+            views=target_views,
+            view_weights={view: float(weights.get((view, view), 1.0)) for view in target_views},
+            scope=scope,
+            limit=limit,
+            candidate_multiplier=CANDIDATE_MULTIPLIER,
+            lexical_ranked=lexical_ranked,
+            lexical_weight=lexical_weight,
+        )
+
     # ----------------------------------------------------------- internals
 
     def _space(self) -> VectorSpace | DegradedReason:
@@ -416,8 +577,14 @@ class VectorRetrievalService:
         lexical_ranked: Sequence[str] | None = None,
         lexical_weight: float = 1.0,
         started: float | None = None,
+        tie_break: str = "document",
     ) -> RetrievalResult:
-        """Aggregate → fuse → truncate; ties break on the document id."""
+        """Aggregate → fuse → truncate; ties break on the document id.
+
+        ``tie_break="source"`` orders equal scores by the product's source id
+        instead — the job↔posting match reads a caller's entity, and that id
+        is stable across a reindex of the same store.
+        """
         lexical_sources = [str(value) for value in lexical_ranked or ()]
         if not scores and not lexical_sources:
             return RetrievalResult(space=space.name, backend=backend)
@@ -429,10 +596,15 @@ class VectorRetrievalService:
                 documents.update(self.store.lookup_documents(space, source_ids=missing))
         by_source = {info.source_id: document_id for document_id, info in documents.items()}
         lexical_documents = [by_source[value] for value in lexical_sources if value in by_source]
-        semantic_order = sorted(
-            scores,
-            key=lambda document_id: (-document_score(scores[document_id], weights), document_id),
-        )
+
+        def order_key(document_id: str) -> tuple:
+            score = -document_score(scores[document_id], weights)
+            info = documents.get(document_id)
+            if tie_break == "source" and info is not None:
+                return (score, info.source_id, document_id)
+            return (score, document_id)
+
+        semantic_order = sorted(scores, key=order_key)
         view_order: dict[str, list[str]] = {}
         for view in weights:
             ranked = sorted(
@@ -501,6 +673,7 @@ def _resolve_weights(
 __all__ = [
     "AFFINITY_VIEW_WEIGHTS",
     "CONTENT_SPACE",
+    "JOB_MATCH_VIEW_PAIRS",
     "MAX_QUERY_CHUNKS",
     "SEMANTIC_VIEW_WEIGHTS",
     "DocumentHit",
