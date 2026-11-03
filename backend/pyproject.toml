@@ -106,6 +106,7 @@ extend-exclude = [
     "app/extensions/search/providers_contract.py",
     "app/extensions/isolation.py",
     "app/ai/flow_events.py",
+    "app/storage/retrieval_ops.py",
     "app/storage/vector_contract.py",
 ]
 
@@ -138,6 +139,10 @@ extend-immutable-calls = [
 # scripts/sync-vector-contract.sh, byte-identical, never edited here —
 # ADR-0031/ADR-0051): lint findings belong in the dev canonical.
 "app/storage/vector_contract.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+# Vendored family retrieval-operations contract (dev/contracts canonical via
+# scripts/sync-retrieval-ops.sh, byte-identical, never edited here —
+# ADR-0031/ADR-0051): lint findings belong in the dev canonical.
+"app/storage/retrieval_ops.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 
 [tool.ruff.format]
 # The generated presets module (sync-ai-presets.mjs from the dev canonical)
@@ -151,6 +156,7 @@ exclude = [
   "app/extensions/polite_http.py",
   "app/extensions/contract.py",
   "app/extensions/conformance.py",
+  "app/storage/retrieval_ops.py",
   "app/storage/vector_contract.py",
 ]
 
@@ -184,7 +190,11 @@ files = [
     "app/shell.py",
     "app/storage",
 ]
-exclude = ["app/extensions/contract.py", "app/storage/vector_contract.py"]
+exclude = [
+    "app/extensions/contract.py",
+    "app/storage/retrieval_ops.py",
+    "app/storage/vector_contract.py",
+]
 ignore_missing_imports = true
 follow_imports = "silent"
 
