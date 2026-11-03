@@ -7,10 +7,14 @@ All notable changes to **Career Assistant** are documented here.
 ### Changed (internal — vector retrieval foundation, 2026-11-03)
 - **Groundwork for multi-view semantic retrieval.** The database now carries
   versioned embedding-space, document and record tables (plus two bounded
-  operational rollups), the app vendors the family vector contract, and an
-  exact-scan linear backend with a writer guard is in place. No existing
-  embedding call site, ranking surface or stored vector changes in this
-  step — the pgvector/sqlite-vec adapters and the read cutover land next.
+  operational rollups), the app vendors the family vector contract, and a
+  metadata-owning store service drives three physical backends: exact linear,
+  pgvector/HNSW and sqlite-vec. Provisioning creates the per-space index
+  (pgvector table + HNSW on web, `vec0` + rowid map on desktop) off the
+  request path, and Alembic ignores those extension-managed objects. The
+  sqlite-vec extension is now an explicit `sqlite`/`desktop` dependency.
+  No existing embedding call site, ranking surface or stored vector changes
+  in this step — composers, read cutover and the `VECTOR_*` jobs land next.
 
 ### Added (card entity menu on /postings, 2026-11-02)
 - **Filter straight from the cards.** On `/postings`, clicking or
