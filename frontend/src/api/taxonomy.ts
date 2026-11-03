@@ -90,8 +90,14 @@ export async function fetchJobProposals(): Promise<JobProposalRow[]> {
 }
 
 /** Re-run the catalog join for one posting without paying the extract
- * again (plan 185 S6.4). MANUAL postings are refused server-side. */
-export async function remapPosting(id: string): Promise<{ mapping_method: string | null }> {
+ * again (plan 185 S6.4). MANUAL postings are refused server-side. A
+ * deferred semantic pass reports itself, so the caller never claims it
+ * finished synchronously (plan 50 P2c.4). */
+export async function remapPosting(id: string): Promise<{
+  mapping_method: string | null;
+  semantic_pending: boolean;
+  semantic_pending_reason: string | null;
+}> {
   const { data } = await api.post(`/admin/postings/${id}/remap`);
   return data;
 }

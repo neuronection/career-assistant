@@ -639,6 +639,7 @@ export function Taxonomy() {
                 rows={jobProposals}
                 families={familyOptions}
                 onDone={reloadAfterModeration}
+                onRefresh={load}
               />
             )}
           </section>

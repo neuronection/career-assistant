@@ -12,6 +12,7 @@ import {
 } from "@/components/ui";
 import { applyJobProposal, dismissJobProposal, remapPosting } from "@/api/taxonomy";
 import type { JobProposalRow } from "@/api/taxonomy";
+import { apiDetail } from "@/api/client";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 
 interface FamilyOption {
@@ -23,8 +24,7 @@ interface FamilyOption {
 /** One signal candidate from the join trace (plan 185 S6.2): the admin's
  * "apply or write a better job" context — what the join already considered
  * and how close it landed. */
-function SignalCandidates({ row }: { row: JobProposalRow }) {
-  const { t } = useTranslation();
+function SignalCandidates({ row }: { row: JobProposalRow }) {  const { t } = useTranslation();
   const candidates = Array.isArray(
     (row.mapping_signals as { semantic?: { candidates?: unknown[] } } | null)?.semantic
       ?.candidates,
@@ -50,18 +50,68 @@ function SignalCandidates({ row }: { row: JobProposalRow }) {
   );
 }
 
+/** The rerank half of the final trace (plan 50 P2c.3): visible once the
+ * worker settles, so the decision's semantic pass is auditable on the row. */
+function RerankTrace({ row }: { row: JobProposalRow }) {
+  const { t } = useTranslation();
+  const signals = row.mapping_signals;
+  const rerank = signals?.rerank as
+    | {
+        ran?: boolean;
+        accepted?: boolean;
+        top?: number | null;
+        top_code?: string | null;
+      }
+    | undefined;
+  if (!rerank?.ran) return null;
+  return (
+    <p
+      className="text-[11px] text-[var(--as-muted-fg)]"
+      data-testid={`proposal-rerank-${row.id}`}
+    >
+      {t("taxonomy.jobProposals.rerankTrace", {
+        code: rerank.top_code ?? "—",
+        score: rerank.top != null ? Number(rerank.top).toFixed(2) : "—",
+        outcome: t(
+          rerank.accepted
+            ? "taxonomy.jobProposals.rerankAccepted"
+            : "taxonomy.jobProposals.rerankKept",
+        ),
+      })}
+    </p>
+  );
+}
+
+/** The deferred semantic pass marker the backend writes into
+ * ``posting_facts["mapping_signals"]`` (plan 50 P2c.3). */
+function pendingReasonOf(row: JobProposalRow): string | null {
+  const signals = row.mapping_signals;
+  if (!signals || signals.semantic_pending !== true) return null;
+  const reason = signals.semantic_pending_reason;
+  return typeof reason === "string" && reason ? reason : null;
+}
+
+const PENDING_REASON_KEYS: Record<string, string> = {
+  "ambiguous deterministic outcome": "ambiguous",
+  "overlap below threshold": "overlap",
+};
+
 /** Job proposals (plan 185 S4.4): the HITL "create the job" queue on the
  * Taxonomy settings tab, next to the enrichment cards — same moderation
  * grammar: apply merges immediately through the dialog, dismissal is
- * destructive and confirmed first. */
+ * destructive and confirmed first. A row whose decision was deferred to the
+ * semantic worker says so and offers a refresh, never a fake completion
+ * (plan 50 P2c.4). */
 export function TaxonomyJobProposalCards({
   rows,
   families,
   onDone,
+  onRefresh,
 }: {
   rows: JobProposalRow[];
   families: FamilyOption[];
   onDone: (note: string) => void;
+  onRefresh?: () => void | Promise<void>;
 }) {
   const { t } = useTranslation();
   const [applying, setApplying] = useState<JobProposalRow | null>(null);
@@ -71,7 +121,35 @@ export function TaxonomyJobProposalCards({
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [remapping, setRemapping] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [queued, setQueued] = useState<Set<string>>(() => new Set());
   const [error, setError] = useState("");
+
+  const pendingReasonText = (reason: string | null): string => {
+    if (!reason) return t("taxonomy.jobProposals.pendingReasonUnknown");
+    return reason
+      .split("; ")
+      .map((part) => {
+        const key = PENDING_REASON_KEYS[part];
+        return key
+          ? t(`taxonomy.jobProposals.pendingReasons.${key}`)
+          : part;
+      })
+      .join("; ");
+  };
+
+  const refresh = async () => {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    setError("");
+    try {
+      await onRefresh();
+    } catch (err) {
+      setError(apiDetail(err) || t("taxonomy.jobProposals.refreshFailed"));
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const openApply = (row: JobProposalRow) => {
     setApplying(row);
@@ -121,10 +199,19 @@ export function TaxonomyJobProposalCards({
     setRemapping(id);
     setError("");
     try {
-      await remapPosting(id);
-      onDone(t("taxonomy.jobProposals.remapNote"));
+      const result = await remapPosting(id);
+      if (result.semantic_pending) {
+        setQueued((previous) => new Set(previous).add(id));
+        onDone(
+          t("taxonomy.jobProposals.remapPendingNote", {
+            reason: pendingReasonText(result.semantic_pending_reason),
+          }),
+        );
+      } else {
+        onDone(t("taxonomy.jobProposals.remapNote"));
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("taxonomy.jobProposals.remapFailed"));
+      setError(apiDetail(err) || t("taxonomy.jobProposals.remapFailed"));
     } finally {
       setRemapping(null);
     }
@@ -136,6 +223,9 @@ export function TaxonomyJobProposalCards({
       {rows.map((row) => {
         const proposal = row.proposal ?? {};
         const relative = row.proposed_at ? formatRelativeTime(row.proposed_at) : null;
+        const pendingReason = pendingReasonOf(row);
+        const pending = pendingReason !== null;
+        const isQueued = queued.has(row.id);
         return (
           <div
             key={row.id}
@@ -167,12 +257,18 @@ export function TaxonomyJobProposalCards({
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={remapping === row.id}
+                  disabled={remapping === row.id || isQueued}
                   onClick={() => void redecide(row.id)}
                   title={t("taxonomy.jobProposals.remapTitle")}
                   data-testid={`proposal-remap-${row.id}`}
                 >
-                  {remapping === row.id ? <Spinner size="sm" /> : t("taxonomy.jobProposals.remap")}
+                  {remapping === row.id ? (
+                    <Spinner size="sm" />
+                  ) : isQueued ? (
+                    t("taxonomy.jobProposals.remapQueued")
+                  ) : (
+                    t("taxonomy.jobProposals.remap")
+                  )}
                 </Button>
                 <Button
                   size="sm"
@@ -184,6 +280,37 @@ export function TaxonomyJobProposalCards({
                 </Button>
               </div>
             </div>
+            {pending && (
+              <div
+                className="flex flex-wrap items-center gap-2 rounded-lg border border-[var(--as-border)] bg-[var(--as-muted)] px-2.5 py-1.5"
+                data-testid={`proposal-pending-${row.id}`}
+              >
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--as-surface-raised)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--as-fg)]">
+                  <Clock className="h-3 w-3" aria-hidden />
+                  {t("taxonomy.jobProposals.pendingChip")}
+                </span>
+                <span className="min-w-0 flex-1 text-[11px] text-[var(--as-muted-fg)]">
+                  {t("taxonomy.jobProposals.pendingNotice", {
+                    reason: pendingReasonText(pendingReason),
+                  })}
+                </span>
+                {onRefresh && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={refreshing}
+                    onClick={() => void refresh()}
+                    data-testid={`proposal-refresh-${row.id}`}
+                  >
+                    {refreshing ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      t("taxonomy.jobProposals.checkAgain")
+                    )}
+                  </Button>
+                )}
+              </div>
+            )}
             {proposal.short_description && (
               <p className="text-xs text-[var(--as-muted-fg)]">{proposal.short_description}</p>
             )}
@@ -208,6 +335,7 @@ export function TaxonomyJobProposalCards({
               )}
             </div>
             <SignalCandidates row={row} />
+            <RerankTrace row={row} />
           </div>
         );
       })}
