@@ -189,16 +189,11 @@ def test_reupsert_removes_stale_views_and_chunks(linear: Harness):
         linear.space, document_id=linear.documents["doc-a"], records=[summary]
     )
     assert linear.service.count(linear.space) == 1, "the document is a rebuild unit"
-    assert [hit.record_id for hit in linear.search((1.0, 0.0, 0.0, 0.0))] == [
-        summary.record_id
-    ]
+    assert [hit.record_id for hit in linear.search((1.0, 0.0, 0.0, 0.0))] == [summary.record_id]
     with Session(linear.engine) as session:
-        assert (
-            session.scalars(
-                select(VectorRecord).where(VectorRecord.document_id == linear.documents["doc-a"])
-            ).all()
-            == [session.get(VectorRecord, uuid.UUID(summary.record_id))]
-        )
+        assert session.scalars(
+            select(VectorRecord).where(VectorRecord.document_id == linear.documents["doc-a"])
+        ).all() == [session.get(VectorRecord, uuid.UUID(summary.record_id))]
 
 
 def test_upsert_requires_a_registered_document(linear: Harness):
@@ -396,3 +391,102 @@ def test_active_space_resolves_the_read_path_pointer(linear: Harness):
     resolved = linear.service.active_space(linear.space.name)
     assert resolved.space_id == linear.space.space_id
     assert resolved.status == vc.SpaceStatus.ACTIVE
+
+
+def test_text_ref_round_trips_and_stays_null_when_absent(linear: Harness, engine):
+    from app.storage.vector_store import TextRef
+
+    summary = linear.record("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary")
+    body = linear.record("doc-a", (0.0, 1.0, 0.0, 0.0), view="body")
+    linear.service.upsert_document(
+        linear.space,
+        document_id=linear.documents["doc-a"],
+        records=[summary, body],
+        text_refs={
+            ("summary", 0): TextRef(
+                {"table": "job_postings", "id": str(linear.documents["doc-a"]), "field": "title"},
+                1,
+            )
+        },
+    )
+    with Session(engine) as session:
+        stored = {
+            record.view: record
+            for record in session.scalars(
+                select(VectorRecord).where(VectorRecord.document_id == linear.documents["doc-a"])
+            )
+        }
+    assert stored["summary"].text_ref == {
+        "table": "job_postings",
+        "id": str(linear.documents["doc-a"]),
+        "field": "title",
+    }
+    assert stored["summary"].text_ref_schema_version == 1
+    assert stored["body"].text_ref is None
+    assert stored["body"].text_ref_schema_version is None
+
+    changed = linear.record(
+        "doc-a",
+        (1.0, 0.0, 0.0, 0.0),
+        view="summary",
+        content_hash="changed",
+        record_id=summary.record_id,
+    )
+    linear.service.upsert_document(
+        linear.space, document_id=linear.documents["doc-a"], records=[changed], prune=False
+    )
+    with Session(engine) as session:
+        assert session.get(VectorRecord, uuid.UUID(changed.record_id)).text_ref == {
+            "table": "job_postings",
+            "id": str(linear.documents["doc-a"]),
+            "field": "title",
+        }, "an upsert without text_refs leaves the pointer untouched"
+
+
+def test_partial_upsert_keeps_unchanged_records_then_prunes_the_stale_key(linear: Harness):
+    summary = linear.record("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary")
+    body = linear.record("doc-a", (0.0, 1.0, 0.0, 0.0), view="body", chunk_index=1)
+    linear.index_many([summary, body])
+    assert linear.service.count(linear.space) == 2
+
+    updated = linear.record(
+        "doc-a",
+        (1.0, 0.0, 0.0, 0.0),
+        view="summary",
+        content_hash="new",
+        record_id=summary.record_id,
+    )
+    partial = linear.service.upsert_document(
+        linear.space,
+        document_id=linear.documents["doc-a"],
+        records=[updated],
+        prune=False,
+    )
+    assert (partial.records, partial.written, partial.removed) == (1, 1, 0)
+    assert linear.service.count(linear.space) == 2, "the unchanged body record survives"
+
+    removed = linear.service.prune_records(
+        linear.space,
+        document_id=linear.documents["doc-a"],
+        keep_keys=[("summary", 0)],
+    )
+    assert removed == 1
+    assert linear.service.count(linear.space) == 1
+    with Session(linear.engine) as session:
+        assert {
+            (record.view, record.chunk_index)
+            for record in session.scalars(
+                select(VectorRecord).where(VectorRecord.document_id == linear.documents["doc-a"])
+            )
+        } == {("summary", 0)}
+
+
+def test_authoritative_upsert_reports_what_it_removed(linear: Harness):
+    summary = linear.record("doc-a", (1.0, 0.0, 0.0, 0.0), view="summary")
+    body = linear.record("doc-a", (0.0, 1.0, 0.0, 0.0), view="body")
+    linear.index_many([summary, body])
+    indexed = linear.service.upsert_document(
+        linear.space, document_id=linear.documents["doc-a"], records=[summary]
+    )
+    assert indexed.removed == 1
+    assert linear.service.count(linear.space) == 1

@@ -8,15 +8,17 @@ same session into the backend's index hooks so metadata and index rows for
 one document commit atomically.
 
 This module never issues DDL. Provisioning is
-:mod:`app.storage.vector_provisioning` (a migration or the P1c reindex job).
-Composers and call-site cutover are P1c; the service is already usable by
-them without further store work.
+:mod:`app.storage.vector_provisioning` (a migration or the P1c index job).
+Records carry their source pointer (``TextRef``) and the write path is
+two-step for incremental workers: ``upsert_document(..., prune=False)`` for
+the changed records, then ``prune_records`` for the keys that no longer
+compose. Call-site cutover remains P1d.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Collection, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import cast
 
@@ -65,6 +67,20 @@ class IndexedDocument:
     document_id: str
     records: int
     written: int
+    removed: int = 0
+
+
+@dataclass(frozen=True)
+class TextRef:
+    """A pointer at the source text of one record — never a copy of it.
+
+    Kept service-local on purpose: the vendored family contract's
+    ``IndexRecord`` stays a pure index DTO, and provenance is a product
+    concern (the contract only says records carry a reference).
+    """
+
+    ref: dict[str, str]
+    schema_version: int | None = None
 
 
 def _make_sessionmaker(bind: Engine | sessionmaker[Session]) -> sessionmaker[Session]:
@@ -171,6 +187,77 @@ class VectorStoreService:
     def backend(self) -> SessionBackedBackend:
         return self._backend
 
+    @property
+    def session_factory(self) -> sessionmaker[Session]:
+        """The store's session factory — for the provisioning/job seam only."""
+        return self._session_factory
+
+    def create_space(
+        self,
+        *,
+        name: str,
+        provider: str,
+        model: str,
+        dim: int,
+        normalize: bool = True,
+        query_prefix: str | None = None,
+        document_prefix: str | None = None,
+        chunker_version: str = "1",
+        composer_version: str = "1",
+        status: SpaceStatus = SpaceStatus.ACTIVE,
+    ) -> VectorSpace:
+        """Get-or-create the active space for ``name`` with this configuration.
+
+        A matching active space is returned as-is; a different configuration
+        raises :class:`VectorSpaceMismatch` (a model/dim change is a new
+        ``building`` space and a cutover, never an in-place rewrite). The
+        physical index is *not* created here — provisioning owns DDL.
+        """
+        if dim < 1:
+            raise ValueError("dim must be positive")
+        with self._session_factory() as session:
+            existing = session.scalars(
+                select(VectorSpaceRow)
+                .where(
+                    VectorSpaceRow.name == name,
+                    VectorSpaceRow.status == SpaceStatus.ACTIVE.value,
+                )
+                .order_by(VectorSpaceRow.created_at.desc())
+                .limit(1)
+            ).first()
+            if existing is not None:
+                mismatch = writer_mismatch_reason(
+                    canonical_space(existing),
+                    ResolvedEmbedding(
+                        provider=provider,
+                        model=model,
+                        dim=dim,
+                        normalize=normalize,
+                        query_prefix=query_prefix,
+                        document_prefix=document_prefix,
+                    ),
+                )
+                if mismatch is not None:
+                    raise VectorSpaceMismatch(
+                        f"active space {name!r} has a different configuration — {mismatch}"
+                    )
+                return canonical_space(existing)
+            row = VectorSpaceRow(
+                name=name,
+                provider=provider,
+                model=model,
+                dim=dim,
+                normalize=normalize,
+                query_prefix=query_prefix,
+                document_prefix=document_prefix,
+                chunker_version=chunker_version,
+                composer_version=composer_version,
+                status=status.value,
+            )
+            session.add(row)
+            session.commit()
+            return canonical_space(row)
+
     def resolve_space(self, space: VectorSpace | uuid.UUID | str) -> VectorSpace:
         """Validate an optional DTO against the persisted row and return it."""
         with self._session_factory() as session:
@@ -251,6 +338,31 @@ class VectorStoreService:
             session.commit()
         return RegisteredDocument(document_id=document_id, created=created, source_hash=source_hash)
 
+    def find_document(
+        self,
+        space: VectorSpace | uuid.UUID | str,
+        *,
+        kind: str,
+        source_id: str,
+    ) -> str | None:
+        """The registered document id for a source, or ``None`` when absent.
+
+        The index worker needs the id to compare content hashes *before* it
+        embeds; registering only after a successful embed keeps a degraded
+        run from advancing the document's ``source_hash``.
+        """
+        canonical = self.resolve_space(space)
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            found = session.scalars(
+                select(VectorDocument.id).where(
+                    VectorDocument.space_id == row.id,
+                    VectorDocument.kind == kind,
+                    VectorDocument.source_id == canonical_source_id(source_id),
+                )
+            ).first()
+            return str(found) if found is not None else None
+
     def _validate_records(
         self, space: VectorSpace, document_id: uuid.UUID, records: Sequence[IndexRecord]
     ) -> None:
@@ -280,8 +392,23 @@ class VectorStoreService:
         document_id: uuid.UUID | str,
         records: Sequence[IndexRecord],
         resolved: ResolvedEmbedding | None = None,
+        text_refs: Mapping[tuple[str, int], TextRef] | None = None,
+        prune: bool = True,
     ) -> IndexedDocument:
-        """Write metadata + physical index rows for one document atomically."""
+        """Write metadata + physical index rows for one document atomically.
+
+        Semantics — a worker writing only the records whose content changed
+        must pass ``prune=False`` (the default is authoritative: keys absent
+        from ``records`` are deleted from metadata *and* the physical index).
+        Call :meth:`prune_records` afterwards with the full composed key set
+        to drop keys that no longer exist; that two-step write never deletes
+        a record it did not re-embed.
+
+        ``text_refs`` maps a record key ``(view, chunk_index)`` to its source
+        pointer. When supplied it is authoritative for this write — a key
+        with no entry stores no pointer; when omitted, an existing pointer
+        is left untouched and a new record stores none.
+        """
         canonical = self.resolve_space(space)
         if resolved is not None:
             assert_writer_matches_space(canonical, resolved)
@@ -306,11 +433,11 @@ class VectorStoreService:
                 )
             }
             new_keys = {(record.view, record.chunk_index) for record in records}
-            stale_ids = [
-                stored.id
-                for key, stored in existing.items()
-                if key not in new_keys
-            ]
+            stale_ids = (
+                [stored.id for key, stored in existing.items() if key not in new_keys]
+                if prune
+                else []
+            )
             if stale_ids:
                 self._backend.delete_record_ids_index(session, canonical, stale_ids)
                 session.execute(delete(VectorRecord).where(VectorRecord.id.in_(stale_ids)))
@@ -319,6 +446,7 @@ class VectorStoreService:
                 key = (record.view, record.chunk_index)
                 stored = existing.get(key)
                 record_uuid = uuid.UUID(str(record.record_id))
+                pointer = text_refs.get(key) if text_refs is not None else None
                 if stored is None:
                     session.add(
                         VectorRecord(
@@ -330,6 +458,10 @@ class VectorStoreService:
                             char_start=record.char_start,
                             char_end=record.char_end,
                             content_hash=record.content_hash,
+                            text_ref=dict(pointer.ref) if pointer is not None else None,
+                            text_ref_schema_version=(
+                                pointer.schema_version if pointer is not None else None
+                            ),
                         )
                     )
                 else:
@@ -341,13 +473,59 @@ class VectorStoreService:
                     stored.char_start = record.char_start
                     stored.char_end = record.char_end
                     stored.content_hash = record.content_hash
+                    if text_refs is not None:
+                        stored.text_ref = dict(pointer.ref) if pointer is not None else None
+                        stored.text_ref_schema_version = (
+                            pointer.schema_version if pointer is not None else None
+                        )
                 written += 1
             session.flush()
             self._backend.upsert_index(session, canonical, records)
             session.commit()
         return IndexedDocument(
-            document_id=str(document_uuid), records=len(records), written=written
+            document_id=str(document_uuid),
+            records=len(records),
+            written=written,
+            removed=len(stale_ids),
         )
+
+    def prune_records(
+        self,
+        space: VectorSpace | uuid.UUID | str,
+        *,
+        document_id: uuid.UUID | str,
+        keep_keys: Collection[tuple[str, int]],
+    ) -> int:
+        """Delete records whose key is no longer composed (index included).
+
+        The companion of ``upsert_document(..., prune=False)``: the worker
+        writes only changed records, then prunes against the full composed
+        key set, so an unchanged record is never deleted and re-embedded.
+        """
+        canonical = self.resolve_space(space)
+        document_uuid = uuid.UUID(str(document_id))
+        keep = {(str(view), int(chunk)) for view, chunk in keep_keys}
+        with self._session_factory() as session:
+            row = resolve_space_row(session, canonical)
+            existing = list(
+                session.execute(
+                    select(VectorRecord.id, VectorRecord.view, VectorRecord.chunk_index).where(
+                        VectorRecord.document_id == document_uuid,
+                        VectorRecord.space_id == row.id,
+                    )
+                )
+            )
+            stale_ids = [
+                record_id
+                for record_id, view, chunk_index in existing
+                if (str(view), int(chunk_index)) not in keep
+            ]
+            if not stale_ids:
+                return 0
+            self._backend.delete_record_ids_index(session, canonical, stale_ids)
+            session.execute(delete(VectorRecord).where(VectorRecord.id.in_(stale_ids)))
+            session.commit()
+        return len(stale_ids)
 
     def records_to_embed(
         self,
@@ -356,7 +534,13 @@ class VectorStoreService:
         document_id: uuid.UUID | str,
         records: Sequence[IndexRecord],
     ) -> list[IndexRecord]:
-        """Drop records whose ``content_hash`` already matches (zero embed calls)."""
+        """Drop records whose ``content_hash`` already matches (zero embed calls).
+
+        Pair this with an incremental write: ``upsert_document(...,
+        prune=False)`` for the returned records, then ``prune_records`` with
+        every composed key. Feeding the filtered list to the default
+        authoritative upsert would delete the unchanged records.
+        """
         stored = self.existing_content_hashes(space, document_id=document_id)
         return [
             record
