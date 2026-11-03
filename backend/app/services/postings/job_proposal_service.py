@@ -451,4 +451,8 @@ class JobProposalService:
 
         await self.db.commit()
         await self.db.refresh(posting)
+        from app.services.catalog.job_service import enqueue_job_index
+
+        if job.status == "published":
+            await enqueue_job_index(self.db, job)
         return job

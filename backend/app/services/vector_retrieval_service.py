@@ -102,6 +102,7 @@ class RetrievalResult:
 
     hits: tuple[DocumentHit, ...] = ()
     space: str = CONTENT_SPACE
+    space_key: str = ""
     backend: str = ""
     degraded: DegradedReason | None = None
     timings: Mapping[str, float] = field(default_factory=dict)
@@ -219,6 +220,7 @@ class VectorRetrievalService:
         if len(vector) != space.dim:
             return RetrievalResult(
                 space=space.name,
+                space_key=space.key,
                 backend=self.store.backend.name,
                 degraded=DegradedReason.SPACE_MISMATCH,
             )
@@ -236,7 +238,9 @@ class VectorRetrievalService:
             aggregation=aggregation,
         )
         if degraded is not None:
-            return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+            return RetrievalResult(
+                space=space.name, space_key=space.key, backend=backend, degraded=degraded
+            )
         return self._rank(
             space,
             fetched,
@@ -319,7 +323,9 @@ class VectorRetrievalService:
                 )
                 backend = backend or view_backend
                 if degraded is not None:
-                    return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+                    return RetrievalResult(
+                        space=space.name, space_key=space.key, backend=backend, degraded=degraded
+                    )
                 for document_id, per_view in hits.items():
                     for similarity in per_view.values():
                         per_document[document_id] = max(
@@ -433,7 +439,9 @@ class VectorRetrievalService:
                 )
                 backend = backend or view_backend
                 if degraded is not None:
-                    return RetrievalResult(space=space.name, backend=backend, degraded=degraded)
+                    return RetrievalResult(
+                        space=space.name, space_key=space.key, backend=backend, degraded=degraded
+                    )
                 for document_id, per_view in hits.items():
                     similarity = max(float(per_view.get(target_view, 0.0)), 0.0)
                     summed[document_id] = summed.get(document_id, 0.0) + similarity
@@ -587,7 +595,7 @@ class VectorRetrievalService:
         """
         lexical_sources = [str(value) for value in lexical_ranked or ()]
         if not scores and not lexical_sources:
-            return RetrievalResult(space=space.name, backend=backend)
+            return RetrievalResult(space=space.name, space_key=space.key, backend=backend)
         documents = self.store.lookup_documents(space, list(scores)) if scores else {}
         if lexical_sources:
             known = {info.source_id for info in documents.values()}
@@ -648,6 +656,7 @@ class VectorRetrievalService:
         return RetrievalResult(
             hits=tuple(hits),
             space=space.name,
+            space_key=space.key,
             backend=backend,
             timings=timings,
         )

@@ -12,6 +12,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.settings_model import AppSetting
 
 JOB_PROPOSALS_KEY = "catalog.job_proposals"
+#: Plan 185's semantic-rescue switch, restored on the family vector store
+#: (plan 50 P2a). Absent row = shipped default ON: the rescue only fires where
+#: the deterministic overlap missed, under the shared-skill gate, and any
+#: embedding failure degrades to the overlap-only decision.
+SEMANTIC_RESCUE_KEY = "catalog.semantic_rescue"
 
 
 async def _switch_enabled(db: AsyncSession, key: str, default: bool = True) -> bool:
@@ -24,6 +29,11 @@ async def _switch_enabled(db: AsyncSession, key: str, default: bool = True) -> b
 
 async def job_proposals_enabled(db: AsyncSession) -> bool:
     return await _switch_enabled(db, JOB_PROPOSALS_KEY)
+
+
+async def semantic_rescue_enabled(db: AsyncSession) -> bool:
+    """The plan-185 rescue switch (default ON), read per decision."""
+    return await _switch_enabled(db, SEMANTIC_RESCUE_KEY)
 
 
 async def set_switch(db: AsyncSession, key: str, enabled: bool) -> None:

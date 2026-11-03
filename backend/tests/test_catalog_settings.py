@@ -242,9 +242,11 @@ async def test_retag_operation_carries_the_join_summary(
     operation = decision.operation
     assert operation["method"] == "skill_overlap"
     assert operation["overlap_score"] is not None
-    assert operation["semantic_top"] is None, "no semantic path runs in this slice"
+    assert operation["semantic_top"] is None, "a cleared overlap never runs the rescue"
     assert operation["mapping_signals"]["semantic"] == {
         "top": None,
         "threshold": None,
         "candidates": [],
+        "space_key": None,
+        "degraded": None,
     }

@@ -264,9 +264,7 @@ def test_job_records_point_at_the_catalog_row_never_at_text():
         assert record.text_ref["id"] == str(uuid.UUID(int=11))
         assert "text" not in record.text_ref
         assert record.text_ref_schema_version == TEXT_REF_SCHEMA_VERSION
-    body_refs = {
-        record.text_ref["field"] for record in composed.records if record.view == "body"
-    }
+    body_refs = {record.text_ref["field"] for record in composed.records if record.view == "body"}
     assert body_refs == {"short_description"}
 
 

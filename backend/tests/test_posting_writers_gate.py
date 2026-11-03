@@ -23,6 +23,7 @@ MODULES = {
     "postings_service": "app/services/postings/postings_service.py",
     "extract_service": "app/services/postings/extract_service.py",
     "job_proposal_service": "app/services/postings/job_proposal_service.py",
+    "semantic_rescue": "app/services/postings/semantic_rescue.py",
     "detail_service": "app/services/postings/detail_service.py",
     "organization_service": "app/services/catalog/organization_service.py",
     "company_triage_service": "app/services/catalog/company_triage_service.py",

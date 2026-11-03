@@ -21,6 +21,7 @@ from app.services.postings.postings_service import (
     decide_catalog,
     upsert_posting,
 )
+from app.services.postings.semantic_rescue import SEMANTIC_MAP_THRESHOLD
 
 
 async def _skill(db, key: str) -> Skill:
@@ -148,28 +149,36 @@ async def test_weak_overlap_stays_new_with_the_trace(db, source):
     assert (
         f"best overlap {signals['overlap']['score']:.2f} below {AUTO_MAP_THRESHOLD} — moderation"
     ) == posting.mapping_reason
-    assert signals["semantic"] == {"top": None, "threshold": None, "candidates": []}
+    # The rescue ran (overlap missed) and found no indexed job to propose:
+    # the trace still carries the space it asked and the pinned threshold.
+    semantic = signals["semantic"]
+    assert semantic["top"] is None
+    assert semantic["threshold"] == SEMANTIC_MAP_THRESHOLD
+    assert semantic["candidates"] == []
+    assert semantic["space_key"], "the rescue indexed the posting into the space"
+    assert semantic["degraded"] is None
 
 
-async def test_decision_makes_no_ai_call(db, source):
-    """The decision is deterministic: no embed, no gateway call, no audit row."""
+async def test_a_cleared_overlap_spends_no_ai(db, source):
+    """Overlap ≥ threshold decides bit-identically — the rescue never runs,
+    so not even the sanctioned embed is spent."""
     sql = await _skill(db, "sql")
+    python = await _skill(db, "python")
     family = JobFamily(key="join-family7", label="Join7", path="join-family7")
     db.add(family)
     await db.flush()
-    await _weak_job(db, family, sql)
+    await _job(db, "joined-role", family, [(sql, 7, "core"), (python, 5, "core")])
 
     before = int((await db.execute(select(func.count()).select_from(AIGeneration))).scalar_one())
-    posting = await _make_posting(db, source, "join-degrade", ["sql"])
+    posting = await _make_posting(db, source, "join-degrade", ["sql", "python"])
 
-    assert posting.mapping_method is None
-    assert posting.status == "new"
-    assert posting.mapping_reason == "best overlap 0.05 below 0.34 — moderation"
+    assert posting.mapping_method == "skill_overlap"
     signals = posting.posting_facts["mapping_signals"]
     assert signals["semantic"]["top"] is None
+    assert signals["semantic"]["threshold"] is None
     assert signals["semantic"]["candidates"] == []
     after = int((await db.execute(select(func.count()).select_from(AIGeneration))).scalar_one())
-    assert after == before, "the overlap-only decision spends no AI"
+    assert after == before, "a cleared overlap spends no AI at all"
 
 
 async def test_mapping_signals_merge_preserves_other_facts(db, source):

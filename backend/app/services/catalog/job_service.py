@@ -19,6 +19,24 @@ JOB_LOAD_OPTIONS = (
 )
 
 
+async def enqueue_job_index(db: AsyncSession, job: Job) -> None:
+    """Queue a ``VECTOR_INDEX`` run for one catalog job (plan 50 P2a).
+
+    Job writes never embed inside the request: the retrieval handler owns
+    composing and the gateway call, so a published or edited job reaches the
+    semantic rescue on the next worker pass. The nightly reconcile is the
+    backstop, never the only path.
+    """
+    from app.models.enums import BackgroundJobType
+    from app.services.job_worker import enqueue
+
+    await enqueue(
+        db,
+        BackgroundJobType.VECTOR_INDEX.value,
+        {"kind": "job", "source_id": str(job.id)},
+    )
+
+
 class JobService:
     """Catalog CRUD, tree/graph queries and filtering."""
 
@@ -219,6 +237,8 @@ class JobService:
         )
         if commit:
             await self.db.commit()
+            if status == "published":
+                await enqueue_job_index(self.db, job)
         return await self._get_with_family(job.id)
 
     async def _write_links(
@@ -312,6 +332,7 @@ class JobService:
             if not was_published:
                 await self.notify_published(job)
             await self._refit_job(job.id)
+            await enqueue_job_index(self.db, job)
         await self._refresh_transferability()
         return job
 
