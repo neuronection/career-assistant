@@ -41,6 +41,7 @@ all read.
 | Job radar (saved search config + explore integration; digests from 4b) | done | Per profile; salary floor on the normalized annual basis; nothing inferred |
 | Market statistics (stats page `/postings/stats` + pulse rails on /postings and /companies; **beta**) | beta | One effective posted date (`coalesce(posted_at, created_at)`) shared by explore/filter-search/RSS/stats — a rail chip's count equals the list it opens; explicit status basis (open vs all) per metric with equal-length predecessor deltas; deterministic insight cards, per-currency salary bands, demand by career family, source freshness; live bounded aggregation, no cache tables. Documented in `docs/user/market-stats.md`; registry key `/postings/stats` (beta) |
 | Semantic search (embeddings + hybrid RRF retrieval) | done | pgvector optional; semantic is a ranking signal, never a filter gate |
+| Retrieval operations (Tools → Retrieval + Audit → Retrieval) | done | Active space/backend/model, bounded reindex, coverage+quality cutover gate, maintenance, idempotent actions and alerts; the Audit tab is read-only. Operator runbook: `docs/dev/retrieval-ops.md` |
 | Career Autopilot (goal agent, budgets, explainable shortlists) | done | Scheduler cadence or on demand; never auto-applies |
 | Growth toolkit (roadmaps, near-miss radar, market snapshots, check-ins) | done | |
 | Engagement loop (discovery feed, history, bookmarks, alerts) | done | Threshold alerts via the notification funnel |

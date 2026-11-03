@@ -4,6 +4,22 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — operator runbook and doc links, 2026-11-04)
+- **The vector-index operations now have a developer runbook** at
+  `docs/dev/retrieval-ops.md`: where Tools → Retrieval and Audit →
+  Retrieval live, how to reindex by kind/view/since and read a run result,
+  the build → backfill → coverage+quality gate → activate → remap →
+  retire/drop sequence, the four maintenance actions, idempotency keys and
+  the one-active-run-per-space lock, stale-heartbeat recovery, the ten alert
+  kinds with their dedup/recovery and manage URLs, honest cold/degraded
+  states, the no-raw-text rule and a troubleshooting table. The family
+  contract remains `dev/guidelines/retrieval-ops.md`.
+- **The user settings page now deep-links the exact surfaces** —
+  `/settings/tools?section=retrieval` and
+  `/settings/audit?tab=retrieval&section=overview` — and names the cold and
+  degraded states (“never reconciled”, “not sampled”, lexical-fallback
+  reason) instead of leaving them implicit.
+
 ### Changed (retrieval operations UI — responsive and accessible, 2026-11-04)
 - **The Audit → Retrieval and Tools → Retrieval surfaces now hold up on a
   phone**: the eight-section strips scroll instead of clipping their labels

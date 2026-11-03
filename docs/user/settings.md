@@ -70,7 +70,9 @@ audit and the chat-tools GitHub credential. While the write switch is
 off, MCP clients see read tools only. See
 [MCP access](assistant-chat.md#mcp-access).
 
-**Retrieval** is the vector-index operations surface. The active-space card
+**Retrieval** is the vector-index operations surface at
+[`/settings/tools?section=retrieval`](/settings/tools?section=retrieval).
+The active-space card
 shows the honest backend label (PostgreSQL pgvector/HNSW, SQLite sqlite-vec,
 or the desktop-scale linear fallback), model and dimension, store health,
 coverage and the coverage/quality gates. **Coverage & reindex** queues a
@@ -85,10 +87,14 @@ supported. **Quality** scores the versioned golden-query set for a candidate
 against its baseline and shows recall, precision and the gate. The **danger
 zone** exports the status JSON (aggregates, counts, ids and scores only —
 never document, query or prompt text) and offers typed-confirmation deletion
-of retired spaces. Observation lives in Audit → Retrieval: a read-only tab
-with overview, spaces, runs, quality, query-health, failures, usage and
-changes sections, each deep-linkable and every action handing off to this
-Tools surface.
+of retired spaces. Observation lives in
+[Audit → Retrieval](/settings/audit?tab=retrieval&section=overview): a
+read-only tab with overview, spaces, runs, quality, query-health, failures,
+usage and changes sections, each deep-linkable and every action handing off
+to this Tools surface. A space that has never been reconciled says “never
+reconciled”, and ANN recall says “not sampled” until the probe runs; a
+degraded query reports its lexical-fallback reason instead of pretending the
+index served it.
 
 **Sources** hosts the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and

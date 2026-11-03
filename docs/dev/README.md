@@ -20,6 +20,7 @@ Read this page for the map, then jump into the page you need. The
 | Touching anything under `app/ai/` | [ai-layer.md](ai-layer.md) |
 | Writing a posting source | [the Connector SDK docs](sdk/overview.md) |
 | Working on periodic work or notifications | [scheduler-and-jobs.md](scheduler-and-jobs.md) |
+| Operating the vector index (reindex, cutover, maintenance) | [retrieval-ops.md](retrieval-ops.md) |
 | Working on CV generation, rendering or templates | [cv-engine.md](cv-engine.md) |
 | Building UI | [frontend.md](frontend.md) and [ui-conventions.md](ui-conventions.md) |
 | Writing or fixing tests | [testing.md](testing.md) |
@@ -40,6 +41,7 @@ Read this page for the map, then jump into the page you need. The
 | [ai-layer.md](ai-layer.md) | Gateway-only invocation, tasks, agents, graphs, tools, packs, embeddings, MCP |
 | [Connector SDK docs (`sdk/`)](sdk/overview.md) | The ten-chapter SDK doc set: quickstart, core concepts, authoring, recipes, reference — the extension home |
 | [scheduler-and-jobs.md](scheduler-and-jobs.md) | Job queue, job types, triggers, misfire policies, the notification funnel |
+| [retrieval-ops.md](retrieval-ops.md) | Vector-index operations: surfaces, reindex, space cutover, maintenance, locks, alerts, troubleshooting |
 | [cv-engine.md](cv-engine.md) | Block kinds, renderer, context/variants, PDF measurement, the polish loop |
 | [frontend.md](frontend.md) | Routing, stores, API client, assistant-ui, theming, i18n |
 | [ui-conventions.md](ui-conventions.md) | Workspace pattern, primitives, tokens, motion, drag, previews, testids |

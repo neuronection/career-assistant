@@ -366,6 +366,12 @@
               "description": "The background job queue, job types, scheduler triggers, misfire policies, and the notification funnel."
             },
             {
+              "id": "retrieval-ops",
+              "file": "dev/retrieval-ops.md",
+              "title": "Retrieval operations runbook",
+              "description": "Operating the vector index: the Tools/Audit surfaces, reindexing, space cutover, maintenance, locks, alerts and troubleshooting."
+            },
+            {
               "id": "cv-engine",
               "file": "dev/cv-engine.md",
               "title": "CV engine",
