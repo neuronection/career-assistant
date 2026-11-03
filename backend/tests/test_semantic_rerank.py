@@ -348,9 +348,8 @@ async def test_a_missing_index_degrades_to_the_deterministic_verdict(db, source)
 
 async def test_a_draft_candidate_can_never_win_the_rerank(db, source, monkeypatch):
     """The deterministic list may contain drafts; the rerank filters them."""
-    from types import SimpleNamespace
-
     import uuid as uuid_module
+    from types import SimpleNamespace
 
     async def indexed(_db, _posting, *, indexer=None):
         return None
