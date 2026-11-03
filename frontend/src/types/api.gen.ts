@@ -272,6 +272,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/catalog-mapping/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Catalog Mapping Settings
+         * @description The mapping run controls (plan 185 S6.3): the job-proposal switch,
+         *     read per decision — effective on the next decision, no restart.
+         */
+        get: operations["catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get"];
+        /** Put Catalog Mapping Settings */
+        put: operations["put_catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/companies/{key}": {
         parameters: {
             query?: never;
@@ -1338,6 +1360,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/postings/job-proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Job Proposal Queue
+         * @description Postings whose catalog join ended unmapped with a rich extract —
+         *     the HITL "create the job" queue (plan 185), enrichment-queue shaped:
+         *     the proposal plus the join's signals trace (the admin's "apply or
+         *     write a better job" context).
+         */
+        get: operations["job_proposal_queue_api_v1_admin_postings_job_proposals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/reextract": {
         parameters: {
             query?: never;
@@ -1408,6 +1453,55 @@ export interface paths {
          */
         post: operations["create_posting_source_api_v1_admin_postings_sources_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/sources/catalogs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sources Catalogs
+         * @description The stored ATS catalogs (instance-wide, admin-managed).
+         */
+        get: operations["list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/sources/catalogs/{catalog_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Upsert Sources Catalog
+         * @description Upsert one validated catalog document (envelope + import metadata).
+         *
+         *     A known id replaces in place (any tier); a new id counts against the
+         *     max-catalogs cap. Documents over the byte cap are rejected before
+         *     parsing (413).
+         */
+        put: operations["upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put"];
+        post?: never;
+        /**
+         * Delete Sources Catalog
+         * @description Remove a stored catalog (imported presets leave the gallery;
+         *     sources already added are kept).
+         */
+        delete: operations["delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1533,6 +1627,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/postings/{posting_id}/job-proposal/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Job Proposal
+         * @description Create the published catalog job from the proposal's extract, map
+         *     the posting MANUAL, clear the proposal and embed the new job — one
+         *     transaction (a mid-apply failure leaves no job row).
+         */
+        post: operations["apply_job_proposal_api_v1_admin_postings__posting_id__job_proposal_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/{posting_id}/job-proposal/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Job Proposal
+         * @description Discard the proposal: explicit JSON null + the audit timestamp.
+         */
+        post: operations["dismiss_job_proposal_api_v1_admin_postings__posting_id__job_proposal_dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/postings/{posting_id}/map": {
         parameters: {
             query?: never;
@@ -1547,6 +1683,114 @@ export interface paths {
          * @description Moderation fallback: human mapping wins (method=manual, never re-mapped).
          */
         post: operations["manual_map_posting_api_v1_admin_postings__posting_id__map_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/postings/{posting_id}/remap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Remap Posting
+         * @description Re-run the catalog join WITHOUT re-paying the extract LLM call
+         *     (plan 185 S6.4 — "a new job got published / embeddings recomputed,
+         *     judge me again"). A MANUAL mapping stands (the manual-map endpoint
+         *     stays the human override); the re-decision journals its own retag row.
+         */
+        post: operations["remap_posting_api_v1_admin_postings__posting_id__remap_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Health
+         * @description Backend, extension version, capability caps and per-space health.
+         */
+        get: operations["retrieval_health_api_v1_admin_retrieval_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue Index
+         * @description Enqueue a ``VECTOR_INDEX`` run for one document.
+         */
+        post: operations["enqueue_index_api_v1_admin_retrieval_index_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue Reconcile
+         * @description Enqueue a ``VECTOR_RECONCILE`` run (backfill / drift repair).
+         *
+         *     Thin enqueue: the handler owns composing, classification, the embed
+         *     budget and the coverage snapshots, so the run is a ``background_jobs``
+         *     row (plan 51's Runs view reads it) and the embed spend lands on the system
+         *     path rather than the requesting admin's budget.
+         */
+        post: operations["enqueue_reconcile_api_v1_admin_retrieval_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Status
+         * @description Per-space documents/records, coverage snapshot and last reindex.
+         */
+        get: operations["retrieval_status_api_v1_admin_retrieval_status_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2133,51 +2377,6 @@ export interface paths {
          * @description Effective model per task for the caller + management rights flag.
          */
         get: operations["config_summary_api_v1_ai_config_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ai/embeddings/recompute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Recompute Embeddings
-         * @description Embed stale/un-embedded entities of one served kind.
-         *
-         *     Admin-triggered batch pass; the gateway ``embed`` task carries the
-         *     provider config (DB-only) and the audit funnel. An unconfigured
-         *     embed provider degrades the skill kind to a no-op result, never an
-         *     error.
-         */
-        post: operations["recompute_embeddings_api_v1_ai_embeddings_recompute_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/ai/embeddings/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Embeddings Status
-         * @description Embedding store coverage per entity kind.
-         */
-        get: operations["embeddings_status_api_v1_ai_embeddings_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10156,6 +10355,58 @@ export interface components {
          * @enum {string}
          */
         CareerStage: "student" | "early_career" | "experienced" | "switching" | "returning";
+        /** CatalogMappingSettingsIn */
+        CatalogMappingSettingsIn: {
+            /** Job Proposals */
+            job_proposals?: boolean | null;
+        };
+        /**
+         * CatalogPresetIn
+         * @description One tenant preset — the existing JobSourcePreset shape (no logo).
+         */
+        CatalogPresetIn: {
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "ats" | "remote";
+            /** Config */
+            config?: {
+                [key: string]: string;
+            };
+            /** Connectorkey */
+            connectorKey: string;
+            /** Country */
+            country?: string | null;
+            /** Name */
+            name: string;
+            /** Openings */
+            openings?: number | null;
+            /** Provider */
+            provider: string;
+            /** Slug */
+            slug: string;
+            /** Verifiedat */
+            verifiedAt?: string | null;
+        };
+        /**
+         * CatalogProviderIn
+         * @description One provider connection hint (connector + URL template + countries).
+         */
+        CatalogProviderIn: {
+            /** Connectorkey */
+            connectorKey: string;
+            /** Countries */
+            countries?: string[];
+            /** Docsurl */
+            docsUrl?: string | null;
+            /** Id */
+            id: string;
+            /** Label */
+            label: string;
+            /** Urltemplate */
+            urlTemplate?: string | null;
+        };
         /** CatalogTravel */
         CatalogTravel: {
             /** Days Per Month */
@@ -10165,6 +10416,57 @@ export interface components {
              * @enum {string}
              */
             level: "none" | "occasional" | "frequent";
+        };
+        /**
+         * CatalogUpsertIn
+         * @description PUT body: the catalog envelope + the import metadata.
+         */
+        CatalogUpsertIn: {
+            /** Contenthash */
+            contentHash: string;
+            /** Etag */
+            etag?: string | null;
+            /**
+             * Fetchedat
+             * Format: date-time
+             */
+            fetchedAt: string;
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "career-ats-catalog";
+            /** Lastmodified */
+            lastModified?: string | null;
+            /** License */
+            license?: string | null;
+            /** Name */
+            name: string;
+            /** Presets */
+            presets?: components["schemas"]["CatalogPresetIn"][];
+            /** Providers */
+            providers?: components["schemas"]["CatalogProviderIn"][];
+            /** Revision */
+            revision: number;
+            /**
+             * Schemaversion
+             * @constant
+             */
+            schemaVersion: 1;
+            /** Signature */
+            signature?: null;
+            /**
+             * Tier
+             * @enum {string}
+             */
+            tier: "operator" | "community" | "user";
+            /**
+             * Updatedat
+             * Format: date-time
+             */
+            updatedAt: string;
+            /** Url */
+            url?: string | null;
         };
         /** CatalogWorkHours */
         CatalogWorkHours: {
@@ -13251,6 +13553,33 @@ export interface components {
             /** Weight */
             weight: number;
         };
+        /**
+         * IndexRequest
+         * @description One document to (re)index; ``space`` defaults to the content space.
+         */
+        IndexRequest: {
+            /**
+             * Force
+             * @description re-embed even unchanged records
+             * @default false
+             */
+            force: boolean;
+            /**
+             * Kind
+             * @description source kind: posting | skill | profile
+             */
+            kind: string;
+            /**
+             * Source Id
+             * @description source row id (UUID)
+             */
+            source_id: string;
+            /**
+             * Space
+             * @description space name; defaults to content
+             */
+            space?: string | null;
+        };
         /** IndustryMixOut */
         IndustryMixOut: {
             /** Count */
@@ -13617,6 +13946,17 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** Title */
             title: string;
+        };
+        /** JobProposalApplyIn */
+        JobProposalApplyIn: {
+            /** Code */
+            code?: string | null;
+            /** Family Key */
+            family_key: string;
+            /** Short Description */
+            short_description?: string | null;
+            /** Title */
+            title?: string | null;
         };
         /**
          * JobRequeueRequest
@@ -16219,6 +16559,45 @@ export interface components {
             score: number;
             /** Weight */
             weight: number;
+        };
+        /**
+         * ReconcileRequest
+         * @description One backfill/reconcile run (a resumable, budget-capped batch).
+         */
+        ReconcileRequest: {
+            /**
+             * Batch Size
+             * @default 10
+             */
+            batch_size: number;
+            /**
+             * Budget
+             * @description embed units per run
+             * @default 2000
+             */
+            budget: number;
+            /**
+             * Force
+             * @description re-embed even unchanged content
+             * @default false
+             */
+            force: boolean;
+            /**
+             * Kinds
+             * @description source kinds to reconcile; default all supported
+             */
+            kinds?: string[] | null;
+            /**
+             * Limit
+             * @description documents per run
+             * @default 200
+             */
+            limit: number;
+            /**
+             * Since
+             * @description ISO timestamp — only rows updated since
+             */
+            since?: string | null;
         };
         /** RegisterIn */
         RegisterIn: {
@@ -19118,6 +19497,63 @@ export interface operations {
             };
         };
     };
+    catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    put_catalog_mapping_settings_api_v1_admin_catalog_mapping_settings_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogMappingSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upsert_company_profile_api_v1_admin_companies__key__put: {
         parameters: {
             query?: never;
@@ -21005,6 +21441,39 @@ export interface operations {
             };
         };
     };
+    job_proposal_queue_api_v1_admin_postings_job_proposals_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     reextract_postings_by_ids_api_v1_admin_postings_reextract_post: {
         parameters: {
             query?: never;
@@ -21118,6 +21587,98 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sources_catalogs_api_v1_admin_postings_sources_catalogs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
+                };
+            };
+        };
+    };
+    upsert_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogUpsertIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_sources_catalog_api_v1_admin_postings_sources_catalogs__catalog_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                catalog_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -21350,6 +21911,76 @@ export interface operations {
             };
         };
     };
+    apply_job_proposal_api_v1_admin_postings__posting_id__job_proposal_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JobProposalApplyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_job_proposal_api_v1_admin_postings__posting_id__job_proposal_dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     manual_map_posting_api_v1_admin_postings__posting_id__map_post: {
         parameters: {
             query?: never;
@@ -21385,6 +22016,153 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remap_posting_api_v1_admin_postings__posting_id__remap_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                posting_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_health_api_v1_admin_retrieval_health_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    enqueue_index_api_v1_admin_retrieval_index_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enqueue_reconcile_api_v1_admin_retrieval_reconcile_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReconcileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_status_api_v1_admin_retrieval_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    }[];
                 };
             };
         };
@@ -22331,62 +23109,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ConfigSummary"];
-                };
-            };
-        };
-    };
-    recompute_embeddings_api_v1_ai_embeddings_recompute_post: {
-        parameters: {
-            query?: {
-                limit?: number;
-                kind?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    embeddings_status_api_v1_ai_embeddings_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    }[];
                 };
             };
         };

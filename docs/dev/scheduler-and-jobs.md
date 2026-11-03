@@ -46,13 +46,30 @@ compose file for a later worker split — there is no Celery in v1.
 The `posting_extract` job's contract is unchanged (one structured call +
 apply), but its transaction now carries the **catalog join** too: after
 `apply_extract` fills the skill levels, `decide_catalog` re-runs the
-two-signal mapping (weighted skill overlap first, semantic rescue second —
+deterministic weighted skill-overlap mapping (the semantic rescue returns with
+plan 50 P2 —
 [ai-layer.md](ai-layer.md#the-hybrid-catalog-mapping-plan-185)) and an
 unmapped-and-rich extract stores a `job_proposal` for the admin queue.
 A `MANUAL` mapping stands. Plan-184 interplay: requeued `posting_extract`
 jobs re-run this join through the same handler — a bulk reprocess can
 therefore upgrade mappings and mint fresh proposals; the proposal writer
 never clobbers a live pending proposal.
+
+### The vector reconcile (plan 50 P1d)
+
+`system_vector_reconcile` enqueues a `vector_reconcile` job daily (04:15
+UTC). The handler composes every source of the selected kinds and compares
+the composed hash with the stored document: unchanged content costs zero
+embedding calls, missing/stale documents are indexed through the same writer
+the `VECTOR_INDEX` job uses, and each pass writes a
+`retrieval_coverage_snapshots` row per kind. Two caps bound a run —
+`limit` (documents) and `budget` (embed units) — and whatever they defer stays
+missing/stale for the next run, so repeating the job resumes the backfill.
+Deleting a source row orphans its document; an unwindowed pass sweeps those.
+Embed spend goes through the gateway's **system** path (no admin's personal
+budget is charged); `POST /api/v1/admin/retrieval/reconcile` and
+`scripts/reindex_vectors.py` only enqueue the job, so every run is a
+`background_jobs` row. The full Runs/Retrieval surface is plan 51.
 
 ### The failed-jobs lifecycle (plan 184)
 

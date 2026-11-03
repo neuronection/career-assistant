@@ -43,7 +43,10 @@ def test_ai_layer_formula_matches_the_code():
         "the seen demotion is pinned by name and value"
     )
     assert f"`SMART_ORG_CAP` = {SMART_ORG_CAP}" in text
-    assert "clamp(cosine" in text, "the affinity clamp is documented, not implicit"
+    assert "clamp(score(profile" in text, (
+        "the affinity clamp is documented, not implicit - and it names the "
+        "document similarity (plan 50 P1d), not a per-request cosine"
+    )
     assert SMART_AFFINITY_WEIGHT == 0.35, "the blend weight stays pinned"
 
 
@@ -62,7 +65,7 @@ def test_ai_layer_diagram_is_a_flowchart_lr_naming_the_real_pieces():
     assert smart_blocks, "the smart discovery diagram exists"
     block = smart_blocks[-1]
     assert block.lstrip().startswith("flowchart LR")
-    for node in ("posting_fits cache", "ai_embeddings", "smart_query_cache", "smart_digest"):
+    for node in ("posting_fits cache", "vector_documents", "smart_query_cache", "smart_digest"):
         assert node in block, node
 
 

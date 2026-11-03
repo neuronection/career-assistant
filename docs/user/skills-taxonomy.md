@@ -213,10 +213,11 @@ without a deploy:
   skill claims the old label without re-extracting everything. The report
   counts queued, skipped (already queued or on an older extraction
   version) and missing ids; the bulk wave posts to
-  `/admin/postings/replay`. **Reconcile skill embeddings** refreshes the
-  vectors the matcher's semantic layer ranks with; without an embed
-  provider it reports that the reconcile was skipped and the matcher
-  falls back to wording.
+  `/admin/postings/replay`. Skill vectors (the matcher's semantic layer)
+  are refreshed by the retrieval index's reconcile pass — the daily
+  `vector_reconcile` job, or an operator running `scripts/reindex_vectors.py
+  --kinds skill`. Without an embed provider the pass reports the degradation
+  and the matcher falls back to wording.
 
 ## Paths & enrichment review
 

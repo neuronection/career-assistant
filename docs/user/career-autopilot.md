@@ -134,11 +134,11 @@ existed fall back to the search timeline — never an empty view. Everything is
 argument/output summaries: the full prompt text stays admin-only in the audit
 ledger.
 
-Semantic coverage grows as your postings get embedded: an admin re-runs the
-embeddings recompute today, so a fresh board's postings join the by-meaning
-pass only once they have an embedding. Keyword search and related-role
-expansion work immediately — an embedding failure, an unmapped board or a
-catalog without relations never breaks a run.
+Semantic coverage grows as your postings get indexed: the daily retrieval
+reconcile (or an operator's `scripts/reindex_vectors.py`) embeds them, so a
+fresh board's postings join the by-meaning pass only once they have a vector.
+Keyword search and related-role expansion work immediately — an embedding
+failure, an unmapped board or a catalog without relations never breaks a run.
 
 ## Cadence and budgets
 

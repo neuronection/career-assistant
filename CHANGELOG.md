@@ -4,6 +4,38 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (retrieval read cutover — semantic now runs on the family vector store, 2026-11-03)
+- **Semantic ranking moved onto the new retrieval store, and the old
+  embedding table is gone.** Explore's relevance fusion and smart-sort
+  interest affinity, the autopilot by-meaning sweep and the skill-candidate
+  matcher now read `vector_spaces`/`vector_documents`/`vector_records`
+  through one retrieval service (query embedding → per-view search → chunk
+  aggregation → weighted RRF), with pgvector/HNSW on web and sqlite-vec (or
+  the exact linear fallback) on desktop. The legacy `ai_embeddings` table is
+  dropped (migration `0088`): no dual read path remains. Every semantic
+  degrade — no provider, a failed embed, a missing space, a dimension
+  mismatch, an over-cap desktop store — falls back to the lexical/neutral
+  result with a structured reason instead of an error.
+- **A backfill/reconcile job fills and repairs the index.**
+  `VECTOR_RECONCILE` (daily at 04:15 UTC, `system_vector_reconcile`)
+  composes every posting, skill and profile, indexes only the documents whose
+  content changed (a rerun of unchanged content costs zero embedding calls),
+  sweeps orphans, and writes a per-kind coverage snapshot. Each run is
+  bounded by a document cap and an embed budget; the remainder is picked up
+  next run. Admins can enqueue one from `POST /api/v1/admin/retrieval/reconcile`;
+  operators run `scripts/reindex_vectors.py`. Embed spend lands on the system
+  budget, never an admin's personal one.
+- **Behavior notes.** The smart sort no longer embeds anything per request:
+  the affinity is a stored-document similarity, and a profile the index has
+  not reached yet keeps the neutral 7.0 affinity. The semantic catalog
+  rescue (plan 185) is temporarily removed with the old store — it returns
+  with the long-text job↔posting matcher (plan 50 P2), so the mapping
+  decision is the deterministic skill overlap until then and the trace keeps
+  its empty semantic block. The `TaxonomyEmbeddingsCard` keeps only the job
+  proposals switch (the embeddings buckets/recompute are gone with the
+  store). Explore's hybrid relevance ordering is now best-first (the fused
+  score replaced the inverted rank-as-score assignment).
+
 ### Added (internal — retrieval index pipeline, 2026-11-03)
 - **The retrieval store now fills itself.** Versioned, pure composers turn a
   posting, skill or profile into named views (summary, requirements,

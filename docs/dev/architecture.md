@@ -34,7 +34,7 @@ flowchart LR
         BG[Background tasks<br/>PDF parsing · AI generation]
         REG[Registries<br/>extensions · scheduler triggers<br/>chat tools · skill packs]
         MCP[MCP server<br/>/mcp · read-scope tools]
-        EMB[Embeddings<br/>ai_embeddings · hybrid retrieval]
+        EMB[Vector retrieval<br/>vector_* store · pgvector/sqlite-vec]
     end
     subgraph Data
         DB[(Postgres web / SQLite desktop<br/>typed columns + JSONB)]
@@ -296,14 +296,20 @@ There is no side door around it.
   registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py` (alignment R2). Bridge invocations are audited
   + budgeted as `mcp_tool_call`.
-- **Embeddings** flow through the `embed` task
-  (EMBEDDINGS capability) into `ai_embeddings` (`app/models/
-  embedding_model.py`, `app/services/embedding_service.py`) — packed
-  JSONB vectors are the single source of truth on every dialect;
-  pgvector is provisioned best-effort, never required. Hybrid retrieval
-  (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine rankings
-  over the hard-filtered candidate set in explore's relevance sort —
-  semantic is a ranking signal, never a filter gate.
+- **Vector retrieval** (plan 50) is one logical store with two deployment
+  backends: `vector_spaces` / `vector_documents` / `vector_records`
+  (`app/models/vector_model.py`) plus a per-space physical index —
+  pgvector + HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a
+  capped exact-linear fallback without either extension. Composers
+  (`app/services/vector_composers.py`) turn a posting, skill or profile
+  into named views; the `VECTOR_INDEX`/`VECTOR_RECONCILE` jobs embed only
+  changed content and write through `app/storage/vector_store.py`. Reads go
+  through `app/services/vector_retrieval_service.py` (query embedding →
+  per-view ANN → chunk aggregation → weighted RRF), and
+  `app/services/hybrid_search.py` keeps the lexical RRF math. Semantic is a
+  ranking signal, never a filter gate; every failure degrades to lexical with
+  a structured reason. The legacy `ai_embeddings` store is gone (migration
+  `0088`).
 - **Follow-up automation** is a scheduler slot
   (`system_followups` → `followup_sweep` job,
   `app/services/postings/followups_service.py`): a stateless sweep over applied
@@ -370,9 +376,9 @@ There is no side door around it.
   `/settings/taxonomy` **Relations → Resolution** section edits the
   `posting_resolve.thresholds` `AppSetting` (candidate floors, top-k,
   dedup bars, corroboration minimum/cap) and enqueues bulk replays
-  (`/admin/postings/replay`). Skill vectors live in the existing
-  `ai_embeddings` store as `entity_kind="skill"` (key+label+aliases;
-  content-hash reconciled in a batch, no pgvector dependency).
+  (`/admin/postings/replay`). Skill vectors live in the family vector store
+  (`vector_documents.kind="skill"`, key+label+aliases; content-hash
+  reconciled by the `VECTOR_RECONCILE` pass).
 
 ## Postings & Explore read path
 

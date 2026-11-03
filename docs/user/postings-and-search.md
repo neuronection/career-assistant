@@ -160,12 +160,13 @@ skills and experience (0.65 × fit + 0.35 × affinity, where the affinity
 runs 0–10). Postings you have already seen sink by a fixed penalty (they
 stay visible), and the first page shows at most two postings per
 employer so one company cannot occupy the whole screen. The smart sort
-is deterministic — no AI runs per request; the interest signal comes
-from a stored profile embedding that refreshes only when your profile
-changes. When interest data is missing (an empty profile or an
-unconfigured AI provider) the affinity part simply sits at its neutral
-value and the ranking degrades to the fit order; the request never
-fails. Cards carry a small **Smart** chip while the sort is active. One
+is deterministic — no AI runs per request; the interest signal is a
+similarity between your indexed profile document and the posting's
+document, refreshed by the retrieval index when your profile changes. When
+interest data is missing (an empty profile, a profile the index has not
+reached yet, or an install without a retrieval space) the affinity part
+simply sits at its neutral value and the ranking degrades to the fit order;
+the request never fails. Cards carry a small **Smart** chip while the sort is active. One
 honest quirk at this scale: an employer-capped posting that would have
 appeared on page one does not reappear on page two — paging continues
 below the page-one cutoff.

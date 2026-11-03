@@ -456,52 +456,61 @@ published bank pack per task; the gateway appends it to the system prompt and
 pins `pack_key`/`pack_version` on every `ai_generations` row. Packs steer
 **tone and structure only** — validators are untouched.
 
-## Embeddings
+## Vector retrieval
 
-Embeddings flow through the `embed` task (EMBEDDINGS capability) into
-`ai_embeddings` — **packed JSONB vectors are the single source of truth on
-every dialect**; pgvector is provisioned best-effort, never required. Hybrid
-retrieval (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine
-rankings over the hard-filtered candidate set in Explore's relevance sort —
-**semantic is a ranking signal, never a filter gate**.
+Embeddings still flow through the `embed` task (EMBEDDINGS capability), but
+they land in the **family vector store** (plan 50, ADR-0051):
+`vector_spaces` / `vector_documents` / `vector_records`
+(`app/models/vector_model.py`) plus a per-space physical index — pgvector +
+HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a capped exact-linear
+scan when neither extension loads. The retired `ai_embeddings` JSONB store is
+gone (migration `0088`); one text is embedded once per changed view/chunk and
+never re-embedded unchanged (content-hash dedupe).
+
+- **Write path.** Versioned pure composers (`app/services/vector_composers.py`)
+  turn a posting, skill or profile into named views; the `VECTOR_INDEX` job
+  indexes one document and the `VECTOR_RECONCILE` job backfills/reconciles the
+  whole store (resumable, budget-capped, coverage snapshots per kind). Both
+  write through `app/storage/vector_store.py`, never dialect SQL.
+- **Read path.** `app/services/vector_retrieval_service.py` embeds the query
+  once, searches each view under the caller's opaque scope, aggregates chunks
+  into a document score and fuses lexical rankings with weighted RRF
+  (`app/services/hybrid_search.py` keeps the RRF math). Explore's relevance
+  sort, the smart-sort affinity and the autopilot semantic sweep ride it.
+- **Degradation.** No provider, a failed embed, a missing space/index, a
+  dimension mismatch or an over-cap scan each return the contract's structured
+  reason and the caller falls back to the lexical/neutral path — **semantic is
+  a ranking signal, never a filter gate**, and never a 500.
 
 ## The hybrid catalog mapping (plan 185)
 
-The ingest decision is a **join of two signals** over the posting's
-resolved skills, evaluated at BOTH decision points (ingest sync and after
-the deep extract — the extract's join is `decide_catalog`'s second caller,
-`decide_catalog` never touches `PostingSkill` rows):
+The ingest decision is the **deterministic weighted skill overlap** over the
+posting's resolved skills (`_best_catalog_job` ≥ `AUTO_MAP_THRESHOLD` 0.34),
+evaluated at BOTH decision points (ingest sync and after the deep extract —
+the extract's join is `decide_catalog`'s second caller, and `decide_catalog`
+never touches `PostingSkill` rows). The method + `retag` journal make every
+map auditable and admin-overridable (manual map endpoint,
+`POST /admin/postings/{id}/remap` re-runs the join without the extract).
 
-1. **Deterministic weighted skill overlap** (`_best_catalog_job` ≥
-   `AUTO_MAP_THRESHOLD` 0.34) — unchanged verdicts; the join is
-   bit-identical where this already cleared.
-2. **Semantic rescue** — only where the overlap missed: the posting's
-   `KIND_POSTING` vector (lazily ensured/re-embedded through the caller's
-   transaction, hash-deduped) cosined against every `KIND_JOB` vector of
-   matching dim, hard-filtered to published jobs UPSTREAM of the ranking.
-   Fires at cosine ≥ `SEMANTIC_MAP_THRESHOLD` (0.6) AND ≥ 1 resolved skill
-   shared with the job (the deterministic evidence gate — fit scoring runs
-   on job_skills↔posting_skills links; a zero-link map would score blind).
-   ADR-0012 §4 note: the cutoff decides within a deterministically
-   hard-filtered candidate set, it never generates writes on its own; the
-   method + `retag` journal make every semantic map auditable and
-   admin-overridable (manual map endpoint, `POST /admin/postings/{id}/remap`
-   re-runs the join without the extract).
+The **semantic rescue** that used to fire where the overlap missed lived on
+the retired `ai_embeddings` store. It returns on the family vector store with
+the long-text job↔posting matcher (plan 50 P2: `compose_job_views`,
+`job_match`, the bounded 164 S4.4 rerank). Until then the
+`posting_facts["mapping_signals"].semantic` block stays empty
+(`{top: null, threshold: null, candidates: []}`) so the audit Changes drawer
+keeps its shape, and the overlap decides alone.
 
 Every embedding failure (unconfigured provider, gateway error, dim
 mismatch) degrades to the overlap-only decision — the RRF discipline
-applied to state. Both raw scores, runner-ups and the top-5 semantic
-candidates land in `posting_facts["mapping_signals"]` and in the `retag`
-journal row's operation payload (the audit Changes drawer renders them
-verbatim — that IS the join's trace; there is no LangGraph here to
-stream). The two run switches (`catalog.semantic_rescue`,
-`catalog.job_proposals` in `app_settings`) are read per decision —
-effective on the next decision, no restart.
+recorded in the `retag` journal row's operation payload (the audit Changes
+drawer renders it verbatim — that IS the join's trace; there is no LangGraph
+here to stream). The `catalog.job_proposals` run switch in `app_settings` is
+read per decision — effective on the next decision, no restart.
 
-A posting neither signal can place AND whose extract is rich enough
-(kept title + ≥ 3 kept skills) stores `posting_facts["job_proposal"]` —
-the HITL queue on the Taxonomy settings page; applying it creates the
-PUBLISHED catalog job + maps MANUAL + embeds the job in one transaction
+A posting the overlap cannot place AND whose extract is rich enough (kept
+title + ≥ 3 kept skills) stores `posting_facts["job_proposal"]` — the HITL
+queue on the Taxonomy settings page; applying it creates the PUBLISHED
+catalog job + maps MANUAL in one transaction
 (`docs/dev/scheduler-and-jobs.md` carries the flow).
 
 ## Smart discovery (plan 179)
@@ -510,26 +519,29 @@ Cost-tiered by design — LLM appears exactly once in the whole feature:
 
 | Component | LLM cost | When AI runs |
 |---|---|---|
-| `sort=smart` on /postings | **zero** | one `embed` per profile *change* (content-hash deduped, `KIND_PROFILE`), recomputed lazily inside the smart path |
+| `sort=smart` on /postings | **zero** | never — the profile document is embedded by the vector index/reconcile job |
 | NL smart search box | **one small `SMART_SEARCH` call per UNIQUE query**, cross-user cached (`smart_query_cache`, TTL 7d) | on submit only |
 | daily smart digest | **zero** | scheduler job per opted-in user, notifies only when ≥1 new match |
 
 The smart sort blends two deterministic signals over the ranked window:
-`smart = 0.65·fit + 0.35·affinity` with `affinity = clamp(cosine(profile
-embedding, posting embedding), 0, 1) · 10` (constants
+`smart = 0.65·fit + 0.35·affinity` with `affinity = clamp(score(profile
+document, posting document), 0, 1) · 10` (constants
 `SMART_FIT_WEIGHT`/`SMART_AFFINITY_WEIGHT`/`SMART_KEY_DECIMALS` in
 `app/services/postings/explore_service.py`), then the seen demotion
 (`SMART_SEEN_DEMOTION` = -1.5 — seen postings sink, never disappear) and a
 display-level org-diversity cap (`SMART_ORG_CAP` = 2 per organization, first
 page composition only; a displaced entry ranks above the page-1 cursor and
 skips later pages — documented session drift, the ranking itself is never
-mutated). Every degrade — missing profile/posting embedding, dim mismatch,
-unconfigured AI (pre-flighted through the resolver: no gateway call, no
-audit row), limiter exhaustion (rejected before the gateway's audit write),
-provider failure (the gateway's own audit row, discarded by the read-only
-explore request) — lands on the neutral affinity term 7.0
-(`SMART_AFFINITY_NEUTRAL`); the request never fails. Smart always ranks
-**canonical fits** (plan-169 goal overrides do not apply outside a goal).
+mutated).
+
+The affinity is a **store read, not a gateway call**: `similar_documents`
+uses the profile document's stored view vectors against the window's posting
+documents under a source-id scope, and per-view weights favour `summary` and
+`skills`. Every degrade — a profile the index job has not reached yet, no
+provisioned space, a posting without a vector, a backend over its cap — lands
+on the neutral affinity term 7.0 (`SMART_AFFINITY_NEUTRAL`); the request never
+fails and never spends AI. Smart always ranks **canonical fits** (plan-169
+goal overrides do not apply outside a goal).
 
 NL smart search (`POST /postings/smart-search`): normalize (casefold +
 whitespace collapse) → sha256 → cache hit returns the stored spec with
@@ -547,7 +559,7 @@ digest job.
 flowchart LR
     subgraph Smart["Smart sort (zero LLM)"]
         FIT["posting_fits cache"] --> B["0.65·fit + 0.35·affinity<br/>− seen demotion · org cap"]
-        PE[("ai_embeddings<br/>KIND_PROFILE + KIND_POSTING")] --> AFF["cosine affinity<br/>window-bounded"]
+        PE[("vector_documents<br/>profile + posting views")] --> AFF["document similarity<br/>window-bounded · zero AI"]
         AFF --> B
     end
     B --> EX["explore sort=smart<br/>cursor (smart_key, id)"]
@@ -608,8 +620,8 @@ When a connection/credit outage fails a window of AI jobs terminally
   (fresh budgets, possible duplicate notifications — the 175 feed dedupes).
   Payload-ignoring global sweeps (`query_curator`, `proposal_sweep`,
   `followup_sweep`, `checkpoint_prune`, `market_history_capture`) collapse
-  to ONE requeue per window. Non-queue maintenance (embeddings recompute)
-  keeps its existing admin surface and is linked, not rebuilt.
+  to ONE requeue per window. Non-queue maintenance (the vector reconcile
+  pass) keeps its existing admin surface and is linked, not rebuilt.
 - **Endpoints** live on the admin audit router: `GET
   /admin/audit/jobs/failures` (the grouped preview) and `POST
   /admin/audit/jobs/requeue` (without `confirm` → preview only, mutates
