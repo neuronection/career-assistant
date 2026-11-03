@@ -16,9 +16,12 @@ live-feed visibility predicate). Those filters can only *remove* rows, and
 a row that fails one is never returned — the same invariant the vector
 scope enforces, applied to the product columns the store does not carry.
 
-No provider call happens here: both paths use stored document vectors. A
-missing index, an unassigned provider, a dimension mismatch or an over-cap
-store returns the skill/catalog listing with ``degraded`` set — never a 500.
+The stored document vectors are the query, so the normal path makes no
+provider call. When the job itself is not indexed yet, its composed text is
+embedded once as the query (the plan 50 §7.3 fallback for a document missing
+from the store) and the same view pairs are searched. A missing index, an
+unassigned provider, a dimension mismatch or an over-cap store returns the
+skill/catalog listing with ``degraded`` set — never a 500.
 """
 
 from __future__ import annotations
@@ -34,7 +37,13 @@ from app.models.job_model import Job, JobSkill
 from app.models.posting_model import JobPosting, PostingInteraction
 from app.services.catalog.job_service import JOB_LOAD_OPTIONS
 from app.services.postings.fit.dimensions import IMPORTANCE_WEIGHT
-from app.services.vector_retrieval_service import JOB_MATCH_VIEW_PAIRS, VectorRetrievalService
+from app.services.vector_composers import compose_job_views
+from app.services.vector_retrieval_service import (
+    JOB_MATCH_VIEW_PAIRS,
+    RetrievalResult,
+    VectorRetrievalService,
+)
+from app.storage.vector_contract import DegradedReason
 
 #: Over-fetch factor for the eligibility filters applied at hydration.
 VISIBILITY_WINDOW_FACTOR = 3
@@ -60,16 +69,13 @@ class JobMatchService:
         return self._retriever
 
     async def similar_jobs(self, job: Job, *, limit: int = 10, offset: int = 0) -> dict[str, Any]:
-        """Published catalog jobs nearest ``job`` by long-text views."""
+        """Published catalog jobs nearest ``job`` by long-text views.
+
+        Stored document vectors first; the composed job text when the index
+        has not reached the job yet. Per-view cosines ride each item.
+        """
         window = max((int(limit) + int(offset)) * VISIBILITY_WINDOW_FACTOR, int(limit))
-        result = await self._service().match_documents(
-            source_kind="job",
-            source_id=str(job.id),
-            target_kind="job",
-            view_weights=JOB_MATCH_VIEW_PAIRS,
-            limit=window,
-            exclude_self=True,
-        )
+        result = await self._ranked(job, "job", window)
         if result.hits:
             ranked = await self._published_jobs([hit.source_id for hit in result.hits])
             items = []
@@ -110,16 +116,14 @@ class JobMatchService:
         limit: int = 10,
         offset: int = 0,
     ) -> dict[str, Any]:
-        """The live postings (``mapped``/``new``) nearest ``job`` by view."""
+        """The live postings (``mapped``/``new``) nearest ``job`` by view.
+
+        Visibility is applied when the ranked ids are hydrated, so a hidden
+        or closed posting can never come back. Degrades to the postings the
+        catalog already mapped to this job.
+        """
         window = max((int(limit) + int(offset)) * VISIBILITY_WINDOW_FACTOR, int(limit))
-        result = await self._service().match_documents(
-            source_kind="job",
-            source_id=str(job.id),
-            target_kind="posting",
-            view_weights=JOB_MATCH_VIEW_PAIRS,
-            limit=window,
-            exclude_self=True,
-        )
+        result = await self._ranked(job, "posting", window)
         if result.hits:
             ranked = await self._visible_postings(user_id, [hit.source_id for hit in result.hits])
             items = []
@@ -153,6 +157,37 @@ class JobMatchService:
         }
 
     # ----------------------------------------------------------- internals
+
+    async def _ranked(self, job: Job, target_kind: str, window: int) -> RetrievalResult:
+        """Stored document vectors first; the composed job text when absent.
+
+        A job the index has not reached yet still answers: the composed job
+        text is embedded once as the QUERY (the plan 50 §7.3 allowance for a
+        document missing from the store) and searched view by view. That is
+        the only provider call in these reads, and it disappears once the
+        job is indexed. A missing space/provider still degrades before any
+        embed.
+        """
+        result = await self._service().match_documents(
+            source_kind="job",
+            source_id=str(job.id),
+            target_kind=target_kind,
+            view_weights=JOB_MATCH_VIEW_PAIRS,
+            limit=window,
+            exclude_self=True,
+        )
+        if result.degraded is not DegradedReason.INDEX_MISSING:
+            return result
+        text = _composed_text(job)
+        if not text:
+            return result
+        textual = await self._service().match_text(
+            text,
+            target_kind=target_kind,
+            view_weights=JOB_MATCH_VIEW_PAIRS,
+            limit=window,
+        )
+        return textual if textual.hits else result
 
     async def _published_jobs(self, source_ids: list[str]) -> dict[str, Job]:
         ids: list[uuid.UUID] = []
@@ -299,6 +334,12 @@ class JobMatchService:
             }
             for posting in rows
         ]
+
+
+def _composed_text(job: Job) -> str:
+    """The job's embeddable text, for the query-embedding fallback."""
+    composed = compose_job_views(job)
+    return "\n".join(value for value in composed.views.values() if value)
 
 
 def match_view_weights() -> Mapping[tuple[str, str], float]:

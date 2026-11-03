@@ -149,6 +149,32 @@ async def test_unknown_job_is_a_404(client, auth_headers, seeded_catalog):
         assert response.status_code == 404
 
 
+async def test_similar_jobs_uses_the_job_text_when_the_document_is_missing(
+    client, auth_headers, db, seeded_catalog
+):
+    """The job the index has not reached still answers: its composed text is
+    embedded once as the query (plan 50 §7.3's documented allowance)."""
+    peer = (
+        (
+            await db.execute(
+                select(Job).where(Job.code != "software-developer", Job.status == "published")
+            )
+        )
+        .scalars()
+        .first()
+    )
+    assert peer is not None
+    await _index(db, "job", peer.id)  # the space exists; the query job does not
+
+    body = (
+        await client.get("/api/v1/jobs/software-developer/similar?limit=5", headers=auth_headers)
+    ).json()
+    assert body["source"] == "semantic"
+    assert body["degraded"] is None
+    assert [item["code"] for item in body["items"]] == [peer.code]
+    assert body["items"][0]["per_view"]
+
+
 # ----------------------------------------------------------- live postings
 
 

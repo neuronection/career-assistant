@@ -29,9 +29,10 @@ All notable changes to **Career Assistant** are documented here.
 - **Two job-detail reads.** `GET /api/v1/jobs/{ref}/similar` returns similar
   published catalog jobs and `GET /api/v1/jobs/{ref}/postings` the live
   postings ranked against the job, both with per-view scores and a
-  structured degradation reason; they fall back to the skill-overlap /
-  already-mapped lists when the vector store is unavailable, and the
-  posting read keeps the feed's visibility rules (live statuses, never a
+  structured degradation reason. A job the index has not reached yet answers
+  from its composed text embedded once as the query; when the vector store is
+  unavailable they fall back to the skill-overlap / already-mapped lists, and
+  the posting read keeps the feed's visibility rules (live statuses, never a
   hidden posting).
 
 ### Changed (retrieval read cutover — semantic now runs on the family vector store, 2026-11-03)

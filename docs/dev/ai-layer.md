@@ -482,7 +482,8 @@ never re-embedded unchanged (content-hash dedupe).
   another kind on pinned view pairs (requirements/responsibilities lead, the
   chunked body is the fallback) with a bounded MaxSim over capped query
   chunks and a capped candidate set — no provider call, no corpus comparison.
-  `match_text` is the same cascade for a posting that has no indexed document.
+  `match_text` is the same cascade fed by one query embedding, used by the
+  job-detail reads when the job itself has no indexed document yet.
 - **Degradation.** No provider, a failed embed, a missing space/index, a
   dimension mismatch or an over-cap scan each return the contract's structured
   reason and the caller falls back to the lexical/neutral path — **semantic is
