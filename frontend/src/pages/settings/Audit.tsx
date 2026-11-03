@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { Activity } from "lucide-react";
 import { SegmentedTabs } from "@/components/ui";
 import { SettingsPage } from "@/components/settings/SettingsPage";
-import { RangeFilter, rangeParams, type RangeValue } from "@/components/audit/RangeFilter";
+import {
+  RangeFilter,
+  RETRIEVAL_WINDOWS,
+  rangeParams,
+  type RangeValue,
+} from "@/components/audit/RangeFilter";
 import { OverviewTab } from "@/components/audit/OverviewTab";
 import { AiActivityTab } from "@/components/audit/AiActivityTab";
 import { SecurityTab } from "@/components/audit/SecurityTab";
@@ -12,6 +17,8 @@ import { JobsTab } from "@/components/audit/JobsTab";
 import { FailuresTab } from "@/components/audit/FailuresTab";
 import { ChangesTab } from "@/components/audit/ChangesTab";
 import { UsageTab } from "@/components/audit/UsageTab";
+import { RetrievalTab } from "@/components/audit/retrieval/RetrievalTab";
+import type { RetrievalWindow } from "@/api/retrieval";
 
 export type AuditTab =
   | "overview"
@@ -20,7 +27,8 @@ export type AuditTab =
   | "security"
   | "jobs"
   | "failures"
-  | "changes";
+  | "changes"
+  | "retrieval";
 
 // Exported for the tab-param tests (the repo-wide ?tab= pattern).
 export const AUDIT_TABS: readonly AuditTab[] = [
@@ -31,6 +39,7 @@ export const AUDIT_TABS: readonly AuditTab[] = [
   "jobs",
   "failures",
   "changes",
+  "retrieval",
 ];
 
 export function parseAuditTab(raw: string | null): AuditTab {
@@ -39,14 +48,17 @@ export function parseAuditTab(raw: string | null): AuditTab {
     : "overview";
 }
 
-export function parseAuditWindow(raw: string | null): RangeValue["window"] {
-  if (raw === "7d" || raw === "30d") return raw;
+export function parseAuditWindow(
+  raw: string | null,
+): Exclude<RangeValue["window"], "custom" | ""> {
+  if (raw === "7d" || raw === "30d" || raw === "90d") return raw;
   return "24h";
 }
 
 /** The audit & monitoring surface (plans 151-152): overview metrics, the
- * AI ledger, the security trail, jobs & runs and the data-change journal
- * — tabs URL-synced via `?tab=`. */
+ * AI ledger, the security trail, jobs & runs, the data-change journal and
+ * the read-only retrieval observation tab (plan 51 Q2b) — tabs URL-synced
+ * via `?tab=`, the retrieval sections via `?section=` and `?detail=`. */
 export function Audit() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -58,11 +70,26 @@ export function Audit() {
     to: "",
   });
 
+  // 90d is a retrieval-only preset and retrieval has no custom range; a
+  // tab that cannot express the stored window falls back to 24h without
+  // discarding the retrieval preference.
+  const effectiveWindow =
+    activeTab === "retrieval" && (range.window === "custom" || range.window === "")
+      ? "24h"
+      : activeTab !== "retrieval" && range.window === "90d"
+        ? "24h"
+        : range.window;
+  const effectiveRange: RangeValue =
+    effectiveWindow === range.window ? range : { ...range, window: effectiveWindow };
+
   useEffect(() => {
     const expectedTab = activeTab === "overview" ? null : activeTab;
     const expectedWindow =
-      range.window !== "24h" && range.window !== "custom" && activeTab !== "ai"
-        ? range.window
+      effectiveWindow !== "24h" &&
+      effectiveWindow !== "custom" &&
+      effectiveWindow !== "" &&
+      activeTab !== "ai"
+        ? effectiveWindow
         : null;
     if (tabFromUrl === expectedTab && searchParams.get("window") === expectedWindow) return;
     const next = new URLSearchParams(searchParams);
@@ -71,12 +98,13 @@ export function Audit() {
     if (expectedWindow) next.set("window", expectedWindow);
     else next.delete("window");
     setSearchParams(next, { replace: true });
-  }, [tabFromUrl, activeTab, range, searchParams, setSearchParams]);
+  }, [tabFromUrl, activeTab, effectiveWindow, searchParams, setSearchParams]);
 
   const setActive = (tab: AuditTab) => {
     const next = new URLSearchParams(searchParams);
     if (tab === "overview") next.delete("tab");
     else next.set("tab", tab);
+    next.delete("detail");
     setSearchParams(next, { replace: true });
   };
 
@@ -99,24 +127,40 @@ export function Audit() {
           />
           {(activeTab === "overview" ||
             activeTab === "security" ||
-            activeTab === "failures") && (
+            activeTab === "failures" ||
+            activeTab === "retrieval") && (
             <RangeFilter
-              value={range}
+              value={effectiveRange}
               onChange={setRange}
+              windows={
+                activeTab === "retrieval" ? RETRIEVAL_WINDOWS : undefined
+              }
+              allowCustom={activeTab !== "retrieval"}
               testId="audit-page-range"
             />
           )}
         </div>
 
-        {activeTab === "overview" && <OverviewTab range={rangeParams(range)} />}
+        {activeTab === "overview" && (
+          <OverviewTab range={rangeParams(effectiveRange)} />
+        )}
         {activeTab === "ai" && <AiActivityTab />}
-        {activeTab === "usage" && <UsageTab range={rangeParams(range)} />}
+        {activeTab === "usage" && <UsageTab range={rangeParams(effectiveRange)} />}
         {activeTab === "security" && (
-          <SecurityTab range={rangeParams(range)} />
+          <SecurityTab range={rangeParams(effectiveRange)} />
         )}
         {activeTab === "jobs" && <JobsTab />}
-        {activeTab === "failures" && <FailuresTab range={range} />}
+        {activeTab === "failures" && <FailuresTab range={effectiveRange} />}
         {activeTab === "changes" && <ChangesTab />}
+        {activeTab === "retrieval" && (
+          <RetrievalTab
+            window={
+              (effectiveRange.window === "custom" || effectiveRange.window === ""
+                ? "24h"
+                : effectiveRange.window) as RetrievalWindow
+            }
+          />
+        )}
       </section>
     </SettingsPage>
   );

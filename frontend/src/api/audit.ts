@@ -122,7 +122,7 @@ export async function fetchAuditBreakdown(
 }
 
 export interface AuditEventsParams {
-  group?: "all" | "auth" | "admin";
+  group?: "all" | "auth" | "admin" | "vector";
   outcome?: string;
   actor?: string;
   window?: AuditWindow;

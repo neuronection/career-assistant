@@ -104,6 +104,16 @@ export interface RetrievalCoverage {
   as_of: string | null;
 }
 
+export interface RetrievalQualityQueryResult {
+  query_id: string;
+  expected_document_ids: string[];
+  retrieved_document_ids: string[];
+  recall_at_k: number;
+  precision_at_k: number;
+  missing_document_ids: string[];
+  passed: boolean;
+}
+
 export interface RetrievalQualityBlock {
   space_id: string;
   set_version: number;
@@ -111,7 +121,7 @@ export interface RetrievalQualityBlock {
   recall_at_k: number;
   precision_at_k: number;
   passed: boolean;
-  queries: unknown[];
+  queries: RetrievalQualityQueryResult[];
   floor_recall: number;
   floor_precision: number;
   generated_at: string | null;
@@ -141,7 +151,7 @@ export interface RetrievalQualityCompare {
   floor_recall: number;
   floor_precision: number;
   required_for_activation: boolean;
-  queries: unknown[];
+  queries: RetrievalQualityQueryResult[];
   generated_at: string | null;
 }
 
@@ -246,6 +256,127 @@ export interface RetrievalOverview {
     }[];
   };
   window_end: string | null;
+}
+
+export interface RetrievalRunResult {
+  scanned: number;
+  embedded: number;
+  skipped: number;
+  failed: number;
+  failed_ids: string[];
+  failed_ids_truncated: boolean;
+  gate: RetrievalGate;
+}
+
+export interface RetrievalActivationGate {
+  space_id: string;
+  coverage: RetrievalGate;
+  quality: RetrievalGate;
+  allowed: boolean;
+  reasons: string[];
+}
+
+export interface RetrievalRunDetail {
+  run: RetrievalRun;
+  result: RetrievalRunResult | null;
+  duration_seconds: number | null;
+  action?: string;
+  activation_gate?: RetrievalActivationGate | null;
+  quality?: RetrievalQualityCompare | null;
+}
+
+export interface RetrievalRunDetailResponse {
+  state: "ok" | "degraded";
+  detail: RetrievalRunDetail;
+  result_state: "ok" | "absent" | "invalid";
+  failed_ids_limit: number;
+}
+
+export interface RetrievalQueryHealth {
+  space_id: string;
+  window_start: string;
+  window_end: string;
+  p50_ms: number | null;
+  p95_ms: number | null;
+  candidate_p50: number | null;
+  candidate_p95: number | null;
+  zero_result_rate: number | null;
+  degraded_rate: number | null;
+  degraded_reasons: Record<string, number>;
+  per_view_hits: Record<string, number>;
+  ann_recall: number | null;
+  ann_recall_k: number | null;
+  probe_size: number | null;
+  sampled: boolean;
+  sample_size: number;
+  query_count: number;
+}
+
+export interface RetrievalQueryHealthResponse {
+  state: "ok" | "empty" | "not_sampled";
+  reason?: string | null;
+  window: { preset: RetrievalWindow; start: string; end: string };
+  query_health: RetrievalQueryHealth | null;
+  candidates_avg: number | null;
+  candidate_percentiles: "unavailable" | "not_sampled";
+  latency_percentiles: "histogram_bucket_upper_bound" | "not_sampled";
+}
+
+export type RetrievalFailureKind =
+  | "embed_provider"
+  | "indexing"
+  | "cutover_gate"
+  | "maintenance";
+
+export interface RetrievalFailureGroup {
+  kind: RetrievalFailureKind;
+  space_id: string;
+  count: number;
+  last_seen: string | null;
+  document_ids: string[];
+  reason: string | null;
+  retryable: boolean;
+  run_id: string | null;
+}
+
+export interface RetrievalFailuresResponse {
+  state: "ok" | "empty";
+  window: { preset: RetrievalWindow; start: string; end: string };
+  groups: RetrievalFailureGroup[];
+  truncated: boolean;
+}
+
+export interface RetrievalUsageRow {
+  day: string;
+  space_id: string;
+  kind: string;
+  calls: number;
+  tokens_in: number;
+  tokens_out: number;
+  reindex_calls: number;
+}
+
+export interface RetrievalBudget {
+  window: string;
+  max_tokens: number;
+  used_tokens: number;
+}
+
+export interface RetrievalUsage {
+  window_start: string;
+  window_end: string;
+  rows: RetrievalUsageRow[];
+  budget: RetrievalBudget | null;
+}
+
+export interface RetrievalUsageResponse {
+  state: "ok" | "empty";
+  window: { preset: RetrievalWindow; start: string; end: string };
+  usage: RetrievalUsage;
+  untagged_calls: number;
+  groups_truncated: boolean;
+  budget: { name: string; exhausted: boolean } | null;
+  units: string;
 }
 
 export interface RetrievalActionResponse {
@@ -402,18 +533,68 @@ export async function fetchRetrievalCoverage(
 }
 
 export async function fetchRetrievalQuality(
-  space: string,
+  space?: string,
+  window?: RetrievalWindow,
 ): Promise<RetrievalQuality> {
   const { data } = await api.get<RetrievalQuality>("/admin/retrieval/quality", {
-    params: { space },
+    params: { ...(space ? { space } : {}), ...(window ? { window } : {}) },
   });
   return data;
 }
 
 export async function fetchRetrievalRuns(
-  params: { space?: string; limit?: number; offset?: number; window?: RetrievalWindow } = {},
+  params: {
+    space?: string;
+    kind?: string;
+    status?: RetrievalRunStatus;
+    limit?: number;
+    offset?: number;
+    window?: RetrievalWindow;
+  } = {},
 ): Promise<RetrievalRunsResponse> {
   const { data } = await api.get<RetrievalRunsResponse>("/admin/retrieval/runs", {
+    params,
+  });
+  return data;
+}
+
+export async function fetchRetrievalRun(
+  runId: string,
+): Promise<RetrievalRunDetailResponse> {
+  const { data } = await api.get<RetrievalRunDetailResponse>(
+    `/admin/retrieval/runs/${runId}`,
+  );
+  return data;
+}
+
+export async function fetchRetrievalQueryHealth(
+  params: { space?: string; kind?: string; window?: RetrievalWindow } = {},
+): Promise<RetrievalQueryHealthResponse> {
+  const { data } = await api.get<RetrievalQueryHealthResponse>(
+    "/admin/retrieval/query-health",
+    { params },
+  );
+  return data;
+}
+
+export async function fetchRetrievalFailures(
+  params: {
+    space?: string;
+    kind?: RetrievalFailureKind;
+    window?: RetrievalWindow;
+  } = {},
+): Promise<RetrievalFailuresResponse> {
+  const { data } = await api.get<RetrievalFailuresResponse>(
+    "/admin/retrieval/failures",
+    { params },
+  );
+  return data;
+}
+
+export async function fetchRetrievalUsage(
+  params: { space?: string; kind?: string; window?: RetrievalWindow } = {},
+): Promise<RetrievalUsageResponse> {
+  const { data } = await api.get<RetrievalUsageResponse>("/admin/retrieval/usage", {
     params,
   });
   return data;

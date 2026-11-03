@@ -123,8 +123,15 @@ function GenerationRow({
 export function AiActivityTab() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
-  const [applied, setApplied] = useState<Filters>(EMPTY_FILTERS);
+  const taskFromUrl = searchParams.get("task") ?? "";
+  const [filters, setFilters] = useState<Filters>(() => ({
+    ...EMPTY_FILTERS,
+    task: taskFromUrl,
+  }));
+  const [applied, setApplied] = useState<Filters>(() => ({
+    ...EMPTY_FILTERS,
+    task: taskFromUrl,
+  }));
   const [rows, setRows] = useState<AIGenerationRow[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -136,6 +143,16 @@ export function AiActivityTab() {
   const [exporting, setExporting] = useState(false);
   const [failedCalls, setFailedCalls] = useState(0);
   const detailId = searchParams.get("detail");
+
+  useEffect(() => {
+    setFilters((current) =>
+      current.task === taskFromUrl ? current : { ...current, task: taskFromUrl },
+    );
+    setApplied((current) =>
+      current.task === taskFromUrl ? current : { ...current, task: taskFromUrl },
+    );
+    setPage(0);
+  }, [taskFromUrl]);
 
   useEffect(() => {
     let live = true;
@@ -269,6 +286,13 @@ export function AiActivityTab() {
     setFilters(next);
     setApplied(next);
     setPage(0);
+    if (next.task !== applied.task) {
+      const params = new URLSearchParams(searchParams);
+      if (next.task) params.set("task", next.task);
+      else params.delete("task");
+      params.delete("detail");
+      setSearchParams(params, { replace: true });
+    }
   };
 
   const patch = (part: Partial<Filters>) => applyFilters({ ...filters, ...part });
@@ -317,6 +341,14 @@ export function AiActivityTab() {
           data-testid="audit-filter-task"
         >
           <option value="">{t("audit.ai.allTasks")}</option>
+          {filters.task &&
+            !taskFacets.some((facet) => facet.key === filters.task) && (
+              <option value={filters.task}>
+                {t(`aiSettings.task.${filters.task}`, {
+                  defaultValue: filters.task.replace(/_/g, " "),
+                })}
+              </option>
+            )}
           {taskFacets.map((facet) => (
             <option key={facet.key} value={facet.key}>
               {t(`aiSettings.task.${facet.key}`, {

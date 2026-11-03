@@ -292,7 +292,7 @@ function renderPage(initialEntry: string) {
 const probe = () => screen.getByTestId("location-probe").textContent;
 
 describe("audit tab helpers", () => {
-  it("AUDIT_TABS is overview-first with the failures tab", () => {
+  it("AUDIT_TABS is overview-first with the failures and retrieval tabs", () => {
     expect([...AUDIT_TABS]).toEqual([
       "overview",
       "ai",
@@ -301,6 +301,7 @@ describe("audit tab helpers", () => {
       "jobs",
       "failures",
       "changes",
+      "retrieval",
     ]);
   });
 
@@ -311,9 +312,10 @@ describe("audit tab helpers", () => {
     expect(parseAuditTab("bogus")).toBe("overview");
   });
 
-  it("parseAuditWindow only accepts presets", () => {
+  it("parseAuditWindow only accepts presets (retrieval adds 90d)", () => {
     expect(parseAuditWindow(null)).toBe("24h");
     expect(parseAuditWindow("7d")).toBe("7d");
+    expect(parseAuditWindow("90d")).toBe("90d");
     expect(parseAuditWindow("bogus")).toBe("24h");
   });
 });
@@ -453,6 +455,25 @@ describe("audit page tabs", () => {
       expect(screen.getByTestId("audit-gen-row-gen-mock")).toBeTruthy(),
     );
     expect(screen.getByTestId("audit-gen-drawer-prev")).toBeEnabled();
+  });
+
+  it("syncs the AI task filter with ?task=embed and clears it", async () => {
+    renderPage("/settings/audit?tab=ai&task=embed");
+    await screen.findByTestId("audit-ai-tab");
+    await waitFor(() =>
+      expect(fetchAuditGenerations).toHaveBeenLastCalledWith(
+        expect.objectContaining({ task: "embed", offset: 0 }),
+      ),
+    );
+    expect(screen.getByTestId("audit-filter-task")).toHaveValue("embed");
+
+    await userEvent.selectOptions(screen.getByTestId("audit-filter-task"), "");
+    await waitFor(() => expect(probe()).toBe("/settings/audit?tab=ai"));
+    await waitFor(() =>
+      expect(fetchAuditGenerations).toHaveBeenLastCalledWith(
+        expect.not.objectContaining({ task: expect.anything() }),
+      ),
+    );
   });
 
   it("resolves an off-page ?detail= row by id", async () => {

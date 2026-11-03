@@ -1,19 +1,37 @@
 import { useTranslation } from "react-i18next";
 import type { AuditWindow } from "@/api/audit";
 
+/** Every preset the shared control understands. Retrieval adds `90d`;
+ * the audit endpoints keep the original `24h|7d|30d` set. */
+export type RangePreset = AuditWindow | "90d";
+
 /** A window preset with an optional explicit custom range — the shape
  * every audit tab's time filter resolves to (`from`/`to` win over the
  * preset; `""` means all time where the endpoint allows it). */
 export interface RangeValue {
-  window: AuditWindow | "custom" | "";
+  window: RangePreset | "custom" | "";
   from: string;
   to: string;
 }
 
 export const EMPTY_RANGE: RangeValue = { window: "", from: "", to: "" };
 
-export function rangeParams(range: RangeValue): {
-  window?: AuditWindow;
+/** Presets offered by the legacy audit tabs (unchanged). */
+export const AUDIT_WINDOWS: readonly RangePreset[] = ["24h", "7d", "30d"];
+
+/** Presets offered by Audit → Retrieval (the Q1 read model accepts 90d). */
+export const RETRIEVAL_WINDOWS: readonly RangePreset[] = [
+  "24h",
+  "7d",
+  "30d",
+  "90d",
+];
+
+/** Resolve a range into query params. The generic defaults to the audit
+ * preset set so existing callers keep their exact param type; retrieval
+ * callers pass `rangeParams<RetrievalWindow>(range)` for 90d. */
+export function rangeParams<T extends string = AuditWindow>(range: RangeValue): {
+  window?: T;
   from?: string;
   to?: string;
 } {
@@ -27,23 +45,28 @@ export function rangeParams(range: RangeValue): {
     }
     return params;
   }
-  return range.window ? { window: range.window } : {};
+  return range.window ? { window: range.window as T } : {};
 }
 
 const selectClass =
   "rounded-lg border border-[var(--as-border)] bg-[var(--as-surface-raised)] px-3 py-2 text-sm text-[var(--as-fg)]";
 
 /** The shared time-window control (plan 152): presets, all-time (when
- * `allowAllTime`) and a custom `from`/`to` date pair. */
+ * `allowAllTime`), an optional custom `from`/`to` pair and a per-surface
+ * preset list (Retrieval adds 90d without widening the audit endpoints). */
 export function RangeFilter({
   value,
   onChange,
   allowAllTime = false,
+  allowCustom = true,
+  windows = AUDIT_WINDOWS,
   testId = "audit-range",
 }: {
   value: RangeValue;
   onChange: (next: RangeValue) => void;
   allowAllTime?: boolean;
+  allowCustom?: boolean;
+  windows?: readonly RangePreset[];
   testId?: string;
 }) {
   const { t } = useTranslation();
@@ -59,10 +82,14 @@ export function RangeFilter({
         data-testid={testId}
       >
         {allowAllTime && <option value="">{t("audit.ai.allTime")}</option>}
-        <option value="24h">{t("audit.window.24h")}</option>
-        <option value="7d">{t("audit.window.7d")}</option>
-        <option value="30d">{t("audit.window.30d")}</option>
-        <option value="custom">{t("audit.window.custom")}</option>
+        {windows.map((preset) => (
+          <option key={preset} value={preset}>
+            {t(`audit.window.${preset}`)}
+          </option>
+        ))}
+        {allowCustom && (
+          <option value="custom">{t("audit.window.custom")}</option>
+        )}
       </select>
       {value.window === "custom" && (
         <>
