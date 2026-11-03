@@ -881,7 +881,8 @@ def test_kind_parsing_bounds_the_vocabulary():
     assert parse_kinds(None) is None
     assert parse_kinds("posting,skill") == ("posting", "skill")
     assert parse_kinds(["profile"]) == ("profile",)
-    for bad in ("job", "", []):
+    assert parse_kinds(["job"]) == ("job",)
+    for bad in ("material", "", []):
         with pytest.raises(ValueError):
             parse_kinds(bad)
 
@@ -1012,3 +1013,29 @@ async def test_a_profile_document_keeps_its_user_scope(db, engine, monkeypatch):
         limit=5,
     )
     assert stranger == [], "another user's scope can never see this profile document"
+
+
+async def test_the_reconcile_indexes_catalog_jobs(db, engine, seeded_catalog):
+    """``job`` joined the reconcile kinds: the catalog backfill uses the same
+    bounded pass and publishes a ``job`` coverage snapshot like any other
+    kind."""
+    from sqlalchemy import func as sa_func
+
+    from app.models.job_model import Job
+
+    service = _service(db, engine, kinds=("job",), limit=1000, embedder=CountingEmbedder(_mock))
+    result = await service.run()
+
+    total = int((await db.execute(select(sa_func.count()).select_from(Job))).scalar() or 0)
+    assert total > 0
+    assert result.done is True
+    [coverage] = result.kinds
+    assert coverage.kind == "job"
+    assert coverage.total == total
+    assert coverage.missing == 0 and coverage.failed == 0
+    assert coverage.embedded == total
+    store = _store(engine)
+    space = store.active_space(SPACE)
+    assert store.count_documents(space, kind="job") == total
+    snapshots = _snapshots(engine)
+    assert [snapshot.kind for snapshot in snapshots] == ["job"]

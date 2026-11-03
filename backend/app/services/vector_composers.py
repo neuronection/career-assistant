@@ -36,6 +36,7 @@ BODY_CHUNK_OVERLAP_CHARS = 240
 SUMMARY_EXCERPT_CHARS = 600
 
 _PRIORITY_RANK = {"must_have": 0, "nice_to_have": 1}
+_IMPORTANCE_RANK = {"core": 0, "important": 1, "bonus": 2}
 
 
 @dataclass(frozen=True)
@@ -297,6 +298,160 @@ def compose_posting_views(posting) -> ComposedDocument:
     )
 
 
+def _job_skill_rows(job) -> list[dict]:
+    """The catalog job's skill links as normalized, deterministically ordered rows.
+
+    ``skills`` (the explicit, already-loaded projection) wins; otherwise the
+    relationship is read. Callers load it eagerly — a lazy load inside an
+    async session would be a ``MissingGreenlet``, which is why the composer
+    takes the projection as an option.
+    """
+    rows: list[dict] = []
+    for link in getattr(job, "skill_links", None) or []:
+        skill = getattr(link, "skill", None)
+        label = str(getattr(skill, "label", None) or getattr(link, "skill_id", "") or "").strip()
+        if not label:
+            continue
+        rows.append(
+            {
+                "label": label,
+                "key": str(getattr(skill, "key", "") or ""),
+                "importance": str(getattr(link, "importance", "") or ""),
+                "level": getattr(link, "required_level", None),
+            }
+        )
+    return rows
+
+
+def _job_responsibilities(job) -> str:
+    """The curated duties, when a job carries them (optional attributes field).
+
+    Catalog jobs ship no responsibilities today; a posting's extracted
+    duties still meet the job's ``summary``/``body`` in the matcher, and the
+    view stays empty rather than inventing one from unrelated attributes.
+    """
+    attributes = getattr(job, "attributes", None) or {}
+    lines: list[str] = []
+    for key in ("responsibilities", "duties"):
+        for row in attributes.get(key) or []:
+            if isinstance(row, Mapping):
+                text = str(row.get("text") or row.get("title") or "").strip()
+                detail = str(row.get("detail") or "").strip()
+                if text and detail:
+                    text = f"{text}: {detail}"
+            else:
+                text = str(row or "").strip()
+            if text:
+                lines.append(f"responsibility: {text}")
+        if lines:
+            break
+    return "\n".join(lines)
+
+
+def compose_job_views(
+    job,
+    *,
+    family_label: str | None = None,
+    skills: Sequence[Mapping] | None = None,
+) -> ComposedDocument:
+    """Compose a **catalog job's** views for long-text job↔posting matching.
+
+    The same closed view vocabulary as a posting, so the two sides compare
+    view to view (plan 50 §7.1): ``summary`` (title, family, short
+    description excerpt), ``requirements`` (skill label + importance +
+    level), ``responsibilities`` (the optional curated duties), ``skills``
+    (skill label + level) and the chunked ``body`` (the full short
+    description). ``family_label``/``skills`` are the caller's already-loaded
+    projections — a composer never triggers IO.
+    """
+    title = str(getattr(job, "title", "") or "").strip()
+    source_id = getattr(job, "id", None)
+    family = family_label
+    if family is None:
+        loaded_family = getattr(job, "family", None)
+        family = str(getattr(loaded_family, "label", None) or "").strip() or None
+    body = str(getattr(job, "short_description", "") or "").strip()
+    rows = list(skills) if skills is not None else _job_skill_rows(job)
+    ordered = sorted(
+        rows,
+        key=lambda row: (
+            _IMPORTANCE_RANK.get(str(row.get("importance") or ""), len(_IMPORTANCE_RANK)),
+            -int(row.get("level") or 0),
+            str(row.get("label") or ""),
+        ),
+    )
+
+    def requirement_line(skill: Mapping) -> str:
+        parts = [f"skill: {skill.get('label')}"]
+        if skill.get("importance"):
+            parts.append(str(skill["importance"]))
+        if skill.get("level") is not None:
+            parts.append(f"level {skill['level']}")
+        return " ".join(parts)
+
+    summary = _clean_lines([title, family, body[:SUMMARY_EXCERPT_CHARS] if body else None])
+    requirements = _clean_lines([requirement_line(skill) for skill in ordered])
+    responsibilities = _job_responsibilities(job)
+    skills_text = _clean_lines(
+        [
+            " ".join(
+                [
+                    f"skill: {skill.get('label')}",
+                    f"level {skill['level']}" if skill.get("level") is not None else "",
+                ]
+            ).strip()
+            for skill in ordered
+        ]
+    )
+
+    views = {
+        "summary": summary,
+        "requirements": requirements,
+        "responsibilities": responsibilities,
+        "skills": skills_text,
+        "body": body,
+    }
+    ref_fields = {
+        "summary": "title+family+short_description",
+        "requirements": "job_skills",
+        "responsibilities": "attributes.responsibilities",
+        "skills": "job_skills",
+    }
+    records: list[ComposedRecord] = []
+    for view in ("summary", "requirements", "responsibilities", "skills"):
+        text = views[view]
+        if not text:
+            continue
+        ref, version = _ref("jobs", source_id, ref_fields[view])
+        records.append(
+            ComposedRecord(
+                view=view,
+                text=text,
+                text_ref=ref,
+                text_ref_schema_version=version,
+            )
+        )
+    body_ref, body_version = _ref("jobs", source_id, "short_description")
+    for index, chunk in enumerate(chunk_text(body)):
+        records.append(
+            ComposedRecord(
+                view="body",
+                text=chunk.text,
+                chunk_index=index,
+                char_start=chunk.char_start,
+                char_end=chunk.char_end,
+                text_ref=body_ref,
+                text_ref_schema_version=body_version,
+            )
+        )
+    return ComposedDocument(
+        kind="job",
+        source_id=str(source_id or ""),
+        views=views,
+        records=tuple(records),
+    )
+
+
 def compose_profile_views(
     *,
     user_id: str | None,
@@ -411,6 +566,7 @@ __all__ = [
     "ComposedRecord",
     "TextChunk",
     "chunk_text",
+    "compose_job_views",
     "compose_posting_views",
     "compose_profile_views",
     "compose_skill_text",

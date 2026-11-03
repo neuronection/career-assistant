@@ -369,6 +369,51 @@ async def test_profile_kind_indexes_user_scoped_documents(db, engine, profile_re
         )
 
 
+async def test_job_kind_indexes_catalog_job_views(db, engine, seeded_catalog):
+    """A catalog job joins the same store as a posting: the same five views,
+    skill links with importance/level, and pointers at ``jobs``."""
+    from app.models.job_model import Job
+
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().one()
+    counter = CountingEmbedder(gateway_embedder(db))
+    outcome = await _service(db, engine, embedder=counter).index_document(
+        kind="job", source_id=str(job.id)
+    )
+    assert outcome.degraded is None
+    assert outcome.scanned == outcome.embedded == outcome.written > 0
+    assert counter.calls == 1
+    with Session(engine) as session:
+        document = session.scalars(select(VectorDocument)).one()
+        assert document.kind == "job"
+        assert document.source_id == str(job.id)
+        assert document.scope_type == "global"
+        records = session.scalars(select(VectorRecord)).all()
+        assert {"summary", "requirements", "skills"} <= {record.view for record in records}
+        for record in records:
+            assert record.text_ref["table"] == "jobs"
+            assert record.text_ref["id"] == str(job.id)
+
+    refreshed = await _service(db, engine, embedder=counter).index_document(
+        kind="job", source_id=str(job.id)
+    )
+    assert refreshed.embedded == 0
+    assert counter.calls == 1, "an unchanged job embeds nothing"
+
+
+async def test_a_draft_job_is_still_indexed(db, engine, seeded_catalog):
+    """The store carries no product status: drafts are indexed too, so
+    publishing needs no reindex. The published gate lives in the readers."""
+    from app.models.job_model import Job
+
+    job = (await db.execute(select(Job).limit(1))).scalars().one()
+    job.status = "draft"
+    await db.flush()
+    outcome = await _service(db, engine).index_document(kind="job", source_id=str(job.id))
+    assert outcome.degraded is None
+    with Session(engine) as session:
+        assert session.scalars(select(VectorDocument)).one().kind == "job"
+
+
 async def test_skill_kind_composes_one_short_vector(db, engine, seeded_catalog):
     from app.models.taxonomy_model import Skill
 

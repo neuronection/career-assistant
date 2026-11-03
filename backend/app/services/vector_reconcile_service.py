@@ -65,7 +65,7 @@ from app.storage.vector_store import VectorStoreService
 
 logger = logging.getLogger(__name__)
 
-RECONCILE_KINDS = ("posting", "profile", "skill")
+RECONCILE_KINDS = ("posting", "job", "profile", "skill")
 DEFAULT_LIMIT = 200
 DEFAULT_BUDGET = 2000
 DEFAULT_BATCH_SIZE = 10

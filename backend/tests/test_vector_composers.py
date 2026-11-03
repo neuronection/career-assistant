@@ -16,6 +16,7 @@ from app.services.vector_composers import (
     COMPOSER_VERSION,
     TEXT_REF_SCHEMA_VERSION,
     chunk_text,
+    compose_job_views,
     compose_posting_views,
     compose_profile_views,
     compose_skill_text,
@@ -196,3 +197,113 @@ def test_skill_text_is_stable_across_alias_order():
         "field": "key+label+aliases",
     }
     assert compose_skill_views(SimpleNamespace(id=None, key="", label="", aliases=[])).is_empty
+
+
+def _job(**overrides):
+    values = {
+        "id": uuid.UUID(int=11),
+        "title": "Data Engineer",
+        "short_description": "Build the pipelines that carry the warehouse.",
+        "families": None,
+        "attributes": {"responsibilities": ["Own the ingestion jobs"]},
+        "skill_links": [
+            SimpleNamespace(
+                importance="bonus",
+                required_level=3,
+                skill=SimpleNamespace(key="sql", label="SQL"),
+            ),
+            SimpleNamespace(
+                importance="core",
+                required_level=8,
+                skill=SimpleNamespace(key="python", label="Python"),
+            ),
+        ],
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def test_job_views_cover_the_closed_vocabulary():
+    composed = compose_job_views(_job(), family_label="Data & Analytics")
+    assert composed.kind == "job"
+    assert composed.composer_version == COMPOSER_VERSION
+    assert set(composed.views) == set(V1_VIEWS)
+    assert composed.views["summary"].splitlines() == [
+        "Data Engineer",
+        "Data & Analytics",
+        "Build the pipelines that carry the warehouse.",
+    ]
+    assert composed.views["requirements"].splitlines() == [
+        "skill: Python core level 8",
+        "skill: SQL bonus level 3",
+    ]
+    assert composed.views["skills"].splitlines() == ["skill: Python level 8", "skill: SQL level 3"]
+    assert composed.views["responsibilities"] == "responsibility: Own the ingestion jobs"
+    assert composed.views["body"] == "Build the pipelines that carry the warehouse."
+    assert {record.view for record in composed.records} == set(V1_VIEWS)
+
+
+def test_job_composition_is_deterministic_and_order_independent():
+    first = compose_job_views(_job(), family_label="Data & Analytics")
+    cleaned = _job(
+        skill_links=list(reversed(_job().skill_links)),
+    )
+    assert compose_job_views(cleaned, family_label="Data & Analytics") == first
+    assert compose_job_views(_job(), family_label="Data & Analytics").source_hash == (
+        first.source_hash
+    )
+    changed = compose_job_views(_job(title="Senior Data Engineer"), family_label="Data & Analytics")
+    assert changed.source_hash != first.source_hash
+
+
+def test_job_records_point_at_the_catalog_row_never_at_text():
+    composed = compose_job_views(_job(), family_label="Data & Analytics")
+    for record in composed.records:
+        assert record.text_ref is not None
+        assert record.text_ref["table"] == "jobs"
+        assert record.text_ref["id"] == str(uuid.UUID(int=11))
+        assert "text" not in record.text_ref
+        assert record.text_ref_schema_version == TEXT_REF_SCHEMA_VERSION
+    body_refs = {
+        record.text_ref["field"] for record in composed.records if record.view == "body"
+    }
+    assert body_refs == {"short_description"}
+
+
+def test_job_body_chunks_carry_char_ranges():
+    body = " ".join(f"duty{index}" for index in range(2000))
+    composed = compose_job_views(_job(short_description=body), family_label="Data")
+    chunks = [record for record in composed.records if record.view == "body"]
+    assert len(chunks) > 1
+    assert [record.chunk_index for record in chunks] == list(range(len(chunks)))
+    for record in chunks:
+        assert body[record.char_start : record.char_end] == record.text
+    assert len(chunks[0].text) <= BODY_CHUNK_CHARS
+
+
+def test_a_job_with_no_content_composes_nothing():
+    empty = _job(title="", short_description="", attributes={}, skill_links=[])
+    composed = compose_job_views(empty)
+    assert composed.records == ()
+    assert composed.is_empty
+    assert composed.views["responsibilities"] == ""
+
+
+def test_job_skills_may_be_passed_as_the_loaded_projection():
+    """The index loader hands over the eager projection; the composer never
+    needs a lazy relationship load."""
+    projection = [
+        {"label": "Python", "key": "python", "importance": "core", "level": 8},
+    ]
+    composed = compose_job_views(
+        SimpleNamespace(
+            id=uuid.UUID(int=12),
+            title="Data Engineer",
+            short_description="",
+            attributes={},
+            skill_links=[],
+        ),
+        family_label=None,
+        skills=projection,
+    )
+    assert composed.views["requirements"] == "skill: Python core level 8"

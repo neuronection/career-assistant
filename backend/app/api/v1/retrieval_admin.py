@@ -43,7 +43,7 @@ INDEXABLE_KINDS = RECONCILE_KINDS
 class IndexRequest(BaseModel):
     """One document to (re)index; ``space`` defaults to the content space."""
 
-    kind: str = Field(..., description="source kind: posting | skill | profile")
+    kind: str = Field(..., description="source kind: posting | job | skill | profile")
     source_id: str = Field(..., description="source row id (UUID)")
     space: str | None = Field(default=None, description="space name; defaults to content")
     force: bool = Field(default=False, description="re-embed even unchanged records")

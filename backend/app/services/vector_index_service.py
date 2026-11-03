@@ -35,6 +35,7 @@ from app.services.vector_composers import (
     CHUNKER_VERSION,
     COMPOSER_VERSION,
     ComposedDocument,
+    compose_job_views,
     compose_posting_views,
     compose_profile_views,
     compose_skill_views,
@@ -147,15 +148,16 @@ _SOURCE_MODELS: dict[str, Any] = {}
 
 def _source_model(kind: str) -> Any:
     if not _SOURCE_MODELS:
+        from app.models.job_model import Job
         from app.models.posting_model import JobPosting
         from app.models.taxonomy_model import Skill
         from app.models.user_model import User
 
-        _SOURCE_MODELS.update({"posting": JobPosting, "skill": Skill, "profile": User})
+        _SOURCE_MODELS.update({"posting": JobPosting, "job": Job, "skill": Skill, "profile": User})
     try:
         return _SOURCE_MODELS[kind]
     except KeyError:
-        raise ValueError(f"kind {kind!r} has no vector composer in P1c") from None
+        raise ValueError(f"kind {kind!r} has no vector composer") from None
 
 
 async def list_sources(
@@ -249,6 +251,54 @@ async def _load_posting(db: AsyncSession, source_id: str) -> LoadedSource | None
     )
 
 
+async def _load_job(db: AsyncSession, source_id: str) -> LoadedSource | None:
+    """Load a catalog job with its family and skill links eagerly loaded.
+
+    Every job is indexed — draft and published alike: the vector metadata
+    has no product-status column, so the *published* gate is applied where
+    the job is read back (the semantic rescue and the similar-jobs read
+    hydrate candidates against `Job.status`). Indexing a draft costs one
+    document and means publishing it needs no reindex before it can match.
+    """
+    from sqlalchemy.orm import selectinload
+
+    from app.models.job_model import Job, JobSkill
+
+    job = (
+        (
+            await db.execute(
+                select(Job)
+                .options(
+                    selectinload(Job.family),
+                    selectinload(Job.skill_links).selectinload(JobSkill.skill),
+                )
+                .where(Job.id == uuid.UUID(source_id))
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if job is None:
+        return None
+    skills = [
+        {
+            "label": link.skill.label if link.skill is not None else "",
+            "key": link.skill.key if link.skill is not None else "",
+            "importance": link.importance,
+            "level": link.required_level,
+        }
+        for link in job.skill_links
+    ]
+    return LoadedSource(
+        composed=compose_job_views(
+            job,
+            family_label=job.family.label if job.family is not None else None,
+            skills=skills,
+        ),
+        scope_type=VectorScopeType.GLOBAL.value,
+    )
+
+
 async def _load_skill(db: AsyncSession, source_id: str) -> LoadedSource | None:
     from app.models.taxonomy_model import Skill
 
@@ -332,6 +382,7 @@ async def _load_profile(db: AsyncSession, source_id: str) -> LoadedSource | None
 
 _LOADERS: dict[str, Callable[[AsyncSession, str], Awaitable[LoadedSource | None]]] = {
     "posting": _load_posting,
+    "job": _load_job,
     "skill": _load_skill,
     "profile": _load_profile,
 }
@@ -341,7 +392,7 @@ async def load_source(db: AsyncSession, kind: str, source_id: str) -> LoadedSour
     """Load and compose one source row; ``None`` when it no longer exists."""
     loader = _LOADERS.get(kind)
     if loader is None:
-        raise ValueError(f"kind {kind!r} has no vector composer in P1c")
+        raise ValueError(f"kind {kind!r} has no vector composer")
     try:
         canonical = str(uuid.UUID(str(source_id)))
     except (TypeError, ValueError) as exc:
