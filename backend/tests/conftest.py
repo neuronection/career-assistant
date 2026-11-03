@@ -220,12 +220,10 @@ def clean_vector_store() -> Iterator[None]:
     The Postgres lane rolls the app session back, but the vector store is
     written through its own sync engine (provisioning/jobs), so a test that
     fails before its cleanup would otherwise leave an ``active`` space whose
-    name collides with the next test's fixture. SQLite already truncates
-    ``TABLES`` per test.
+    name collides with the next test's fixture — and a per-space ``vec_*``
+    table, which the migration tests assume cannot exist. SQLite's deletion
+    isolation covers the rows but not the extension-owned tables.
     """
-    if IS_SQLITE:
-        yield
-        return
     from sqlalchemy import delete as sql_delete
     from sqlalchemy import inspect, text
 
@@ -241,14 +239,17 @@ def clean_vector_store() -> Iterator[None]:
 
     reset_backend_cache()
 
-    try:
+    def _clear_residue() -> None:
         with sync_engine.begin() as connection:
             tables = set(inspect(connection).get_table_names())
+            suffix = " CASCADE" if connection.dialect.name == "postgresql" else ""
+            for table in sorted(
+                name for name in tables if name.startswith("vec_") and len(name) >= 12
+            ):
+                connection.execute(text(f"DROP TABLE IF EXISTS {table}{suffix}"))
+            if "vector_entry_ids" in tables:
+                connection.execute(text("DELETE FROM vector_entry_ids"))
             if "vector_spaces" in tables:
-                for table in [
-                    name for name in tables if name.startswith("vec_") and len(name) == 12
-                ]:
-                    connection.execute(text(f"DROP TABLE IF EXISTS {table} CASCADE"))
                 for model in (
                     RetrievalQueryRollup,
                     RetrievalCoverageSnapshot,
@@ -257,8 +258,10 @@ def clean_vector_store() -> Iterator[None]:
                     VectorSpaceRow,
                 ):
                     connection.execute(sql_delete(model))
-    except Exception:  # a mid-chain migration test legitimately has no schema
-        pass
+
+    with contextlib.suppress(Exception):
+        # a mid-chain migration test legitimately has no schema
+        _clear_residue()
     yield
 
 
