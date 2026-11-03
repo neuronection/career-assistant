@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import { TaxonomyEmbeddingsCard } from "@/components/settings/TaxonomyEmbeddingsCard";
 
@@ -8,6 +9,8 @@ vi.mock("react-i18next", () => ({
     t: (key: string, params?: Record<string, unknown>) => {
       const templates: Record<string, string> = {
         "taxonomy.embeddings.switchNote": "Saved — effective on the next decision.",
+        "taxonomy.embeddings.retrievalLink": "Manage retrieval index",
+        "taxonomy.embeddings.retrievalHint": "coverage, reindex and space operations.",
       };
       let out = templates[key] ?? key;
       for (const [name, value] of Object.entries(params ?? {})) {
@@ -44,6 +47,14 @@ function settings(overrides: Partial<Record<string, boolean>> = {}) {
   };
 }
 
+function renderCard() {
+  return render(
+    <MemoryRouter>
+      <TaxonomyEmbeddingsCard />
+    </MemoryRouter>,
+  );
+}
+
 function setup(overrides: Partial<Record<string, boolean>> = {}) {
   apiGet.mockImplementation((url: string) => {
     if (url === "/admin/catalog-mapping/settings") {
@@ -56,7 +67,7 @@ function setup(overrides: Partial<Record<string, boolean>> = {}) {
 describe("TaxonomyEmbeddingsCard", () => {
   it("renders the three mapping switches from the API values", async () => {
     setup();
-    render(<TaxonomyEmbeddingsCard />);
+    renderCard();
     await waitFor(() =>
       expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy(),
     );
@@ -76,9 +87,20 @@ describe("TaxonomyEmbeddingsCard", () => {
     expect(screen.queryByTestId("embeddings-switch-semantic")).toBeNull();
   });
 
+  it("links the store operations to Tools → Retrieval and keeps behavior switches here", async () => {
+    setup();
+    renderCard();
+    await waitFor(() => expect(screen.getByTestId("embeddings-card")).toBeTruthy());
+    expect(screen.getByTestId("embeddings-retrieval-link").getAttribute("href")).toBe(
+      "/settings/tools?section=retrieval",
+    );
+    expect(screen.getByTestId("embeddings-switch-semantic-rescue")).toBeTruthy();
+    expect(screen.getByTestId("embeddings-switch-semantic-rerank")).toBeTruthy();
+  });
+
   it("shows the API's OFF rerank and ON rescue, never local defaults", async () => {
     setup({ semantic_rescue: false, semantic_rerank: true });
-    render(<TaxonomyEmbeddingsCard />);
+    renderCard();
     await waitFor(() =>
       expect(screen.getByTestId("embeddings-switch-semantic-rerank")).toBeTruthy(),
     );
@@ -97,7 +119,7 @@ describe("TaxonomyEmbeddingsCard", () => {
   it("flips the job proposals switch through the settings endpoint", async () => {
     setup();
     apiPut.mockResolvedValue({ data: settings({ job_proposals: false }) });
-    render(<TaxonomyEmbeddingsCard />);
+    renderCard();
     await waitFor(() =>
       expect(screen.getByTestId("embeddings-switch-proposals")).toBeTruthy(),
     );
@@ -115,7 +137,7 @@ describe("TaxonomyEmbeddingsCard", () => {
   it("flips semantic rescue independently", async () => {
     setup();
     apiPut.mockResolvedValue({ data: settings({ semantic_rescue: false }) });
-    render(<TaxonomyEmbeddingsCard />);
+    renderCard();
     await waitFor(() =>
       expect(screen.getByTestId("embeddings-switch-semantic-rescue")).toBeTruthy(),
     );
@@ -139,7 +161,7 @@ describe("TaxonomyEmbeddingsCard", () => {
   it("flips semantic rerank independently", async () => {
     setup();
     apiPut.mockResolvedValue({ data: settings({ semantic_rerank: true }) });
-    render(<TaxonomyEmbeddingsCard />);
+    renderCard();
     await waitFor(() =>
       expect(screen.getByTestId("embeddings-switch-semantic-rerank")).toBeTruthy(),
     );

@@ -488,7 +488,7 @@ export function FailuresTab({ range }: { range: RangeValue }) {
         <ul className="space-y-1.5 text-xs text-[var(--as-muted-fg)]">
           <li>
             <Link
-              to="/settings/ai"
+              to="/settings/tools?section=retrieval"
               className="font-medium text-[var(--as-fg)] underline-offset-2 hover:underline"
             >
               {t("audit.failures.maintenance.embeddings")}

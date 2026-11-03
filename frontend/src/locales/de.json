@@ -1719,7 +1719,9 @@
       "semanticRescueHint": "Greift nur, wo die deterministische Skill-Überschneidung nichts fand, unter dem Gemeinsame-Skills-Gate",
       "semanticRerankSwitch": "Semantisches Reranking",
       "semanticRerankHint": "Ein separater semantischer Durchlauf, außerhalb des Anfragepfads eingereiht; verbraucht Embeddings nur, wenn aktiviert",
-      "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung."
+      "switchNote": "Gespeichert — wirksam ab der nächsten Entscheidung.",
+      "retrievalLink": "Retrieval-Index verwalten",
+      "retrievalHint": "Abdeckung, Reindex und Space-Operationen liegen unter Tools → Retrieval."
     },
     "jobProposals": {
       "sectionTitle": "Stellenvorschläge",
@@ -1995,7 +1997,8 @@
     "section": {
       "web-search": "Websuche",
       "mcp": "MCP",
-      "sources": "Quellen"
+      "sources": "Quellen",
+      "retrieval": "Retrieval"
     },
     "webSearch": {
       "hint": "Geordnete Anbieterinstanzen, die die SUCH- und ABFRUFS-Recherchewerkzeuge verwenden — der erste, der antwortet, gewinnt. SearXNG nutzt den SSRF-geschützten Client; Anbieter mit Schlüssel (Tavily, Brave, Exa, Serper, Google PSE) nutzen den geschützten POST-Transport.",
@@ -5769,5 +5772,185 @@
       "unavailable": "Der Marktpuls ist gerade nicht verfügbar."
     },
     "exportAll": "Alle aktuellen Statistiken als CSV herunterladen"
+  },
+  "retrieval": {
+    "refresh": "Aktualisieren",
+    "auditLink": "Audit → Retrieval öffnen",
+    "loading": "Retrieval-Status wird geladen…",
+    "card": {
+      "active": {
+        "title": "Aktiver Space",
+        "description": "Backend, Modell, Abdeckung und Gates für den Space, der Abfragen bedient."
+      },
+      "reindex": {
+        "description": "Einen begrenzten Reindex einreihen und den Lauf verfolgen, ohne auf dessen Abschluss zu warten."
+      },
+      "spaces": {
+        "description": "Aktive, im Aufbau befindliche und stillgelegte Spaces. Modelle wechselt man durch einen neuen Space, nie durch In-Place-Umschreiben."
+      },
+      "maintenance": {
+        "description": "Index-Neuaufbau, Vacuum, Orphan-Sweep und erneuter Versuch fehlgeschlagener Dokumente."
+      },
+      "quality": {
+        "description": "Den versionierten Golden-Query-Satz für einen Kandidaten gegen seine Basis bewerten."
+      }
+    },
+    "active": {
+      "empty": "Noch kein Vector-Space",
+      "emptyBody": "Bauen Sie einen Space, um mit der Indexierung zu beginnen. Semantisches Retrieval bleibt aus, bis ein Space aktiv ist.",
+      "backend": "Backend",
+      "model": "Modell / Dimension",
+      "health": "Zustand",
+      "healthOk": "Gesund",
+      "healthFailed": "Ungesund",
+      "coverage": "Abdeckung",
+      "gate": "Abdeckungs-Gate",
+      "documents": "Dokumente",
+      "records": "Datensätze",
+      "lastReindex": "Letzter Reindex",
+      "spaceName": "Space",
+      "asOf": "Stand",
+      "stale": "Veraltet"
+    },
+    "state": {
+      "loading": "Wird geladen…",
+      "never_reconciled": "Nie abgeglichen",
+      "not_sampled": "Nicht beprobt",
+      "no_golden_set": "Kein Golden-Set",
+      "stale_compare": "Veralteter Vergleich"
+    },
+    "gate": {
+      "pass": "Bestanden",
+      "fail": "Nicht bestanden",
+      "unknown": "Unbekannt"
+    },
+    "gateLabel": {
+      "coverage": "Abdeckung",
+      "quality": "Qualität"
+    },
+    "status": {
+      "queued": "In Warteschlange",
+      "running": "Läuft",
+      "succeeded": "Erfolgreich",
+      "failed": "Fehlgeschlagen",
+      "cancelled": "Abgebrochen"
+    },
+    "spaceStatus": {
+      "active": "Aktiv",
+      "building": "Im Aufbau",
+      "retired": "Stillgelegt"
+    },
+    "kind": {
+      "all": "Alle Arten",
+      "posting": "Anzeigen",
+      "job": "Katalogberufe",
+      "profile": "Profile",
+      "skill": "Skills"
+    },
+    "view": {
+      "all": "Alle Ansichten",
+      "summary": "Zusammenfassung",
+      "requirements": "Anforderungen",
+      "responsibilities": "Aufgaben",
+      "skills": "Skills",
+      "body": "Volltext"
+    },
+    "runType": {
+      "VECTOR_REINDEX": "Reindex",
+      "VECTOR_CUTOVER": "Cutover / Gate",
+      "VECTOR_MAINTENANCE": "Wartung"
+    },
+    "maintenanceAction": {
+      "index-rebuild": "Index-Neuaufbau",
+      "vacuum": "Vacuum",
+      "orphan-sweep": "Orphan-Sweep",
+      "retry-failed": "Fehlgeschlagene Dokumente erneut versuchen"
+    },
+    "field": {
+      "space": "Space",
+      "kind": "Art",
+      "view": "Ansicht",
+      "since": "Seit (ISO-Zeitstempel)",
+      "sincePlaceholder": "2026-11-01T00:00:00Z",
+      "budget": "Embed-Budget (Tokens)",
+      "limit": "Dokumentlimit",
+      "force": "Unveränderte Dokumente erneut einbetten",
+      "dryRun": "Probelauf",
+      "name": "Name",
+      "provider": "Anbieter",
+      "model": "Modell",
+      "dim": "Dimension",
+      "queryPrefix": "Query-Präfix",
+      "documentPrefix": "Dokument-Präfix",
+      "baseline": "Basis-Space",
+      "candidate": "Kandidaten-Space",
+      "maintenanceAction": "Wartungsaktion",
+      "maintenanceLimit": "Dokumentlimit (optional)"
+    },
+    "action": {
+      "reindex": "Reindex einreihen",
+      "build": "Space bauen",
+      "buildNew": "Neuen Space bauen",
+      "hideBuild": "Bauformular ausblenden",
+      "activate": "Aktivieren",
+      "retire": "Stilllegen…",
+      "drop": "Löschen…",
+      "cancel": "Lauf abbrechen",
+      "retry": "Lauf wiederholen",
+      "maintenance": "Wartung einreihen",
+      "compare": "Qualitätsvergleich starten",
+      "export": "Status-JSON exportieren",
+      "close": "Schließen",
+      "cancelAction": "Abbrechen",
+      "confirm": "Bestätigen",
+      "queuedRun": "Lauf {{id}} · {{status}}",
+      "notFinished": "Eingereiht — das bedeutet nicht, dass der Reindex fertig ist. Verfolgen Sie ihn unter Audit → Retrieval → Runs.",
+      "deduplicated": "Wiederholung erkannt — kein zweiter Lauf wurde eingereiht.",
+      "exported": "Status-JSON exportiert — nur Aggregate, kein Dokument- oder Abfragetext."
+    },
+    "reindex": {
+      "heading": "Abdeckung & Reindex",
+      "recent": "Letzte Läufe",
+      "emptyRuns": "Noch keine Retrieval-Läufe für diesen Space.",
+      "showProgress": "Fortschritt {{progress}}%",
+      "scope": "Umfang"
+    },
+    "spaces": {
+      "heading": "Spaces",
+      "empty": "Noch keine Spaces.",
+      "documents": "{{count}} Dokumente · {{records}} Datensätze",
+      "buildHint": "Ein Build legt einen separaten Space an. Aktivieren Sie ihn erst, wenn Abdeckung und Golden-Query-Vergleich bestehen.",
+      "retireTitle": "{{name}} stilllegen?",
+      "retireBody": "Legen Sie den Space vor dem Löschen still. Der eingegebene Name muss exakt übereinstimmen.",
+      "dropTitle": "{{name}} löschen?",
+      "dropBody": "Dies löscht den stillgelegten Space und seine Vektoren dauerhaft. Geben Sie den exakten Space-Namen zur Bestätigung ein.",
+      "activeHint": "Der aktive Space bedient Abfragen. Bauen Sie für einen Modellwechsel einen neuen Space; schreiben Sie nie in-place um."
+    },
+    "maintenance": {
+      "heading": "Index-Wartung",
+      "hint": "Wartung läuft als Hintergrundjob. Ein Probelauf zeigt die Arbeit, wo die Aktion dies unterstützt.",
+      "retryHint": "Erneut versuchen reiht die fehlgeschlagenen Dokument-IDs aus dem neuesten fehlgeschlagenen Lauf wieder ein."
+    },
+    "quality": {
+      "heading": "Qualität",
+      "hint": "Bewerten Sie den versionierten Golden-Query-Satz für einen Kandidaten gegen die Basis. Die Aktivierung erfordert bestandene Abdeckung und Qualität.",
+      "recall": "Recall@k",
+      "precision": "Precision@k",
+      "setVersion": "Golden-Set v{{version}} · {{count}} Abfragen",
+      "candidateVsBaseline": "Kandidat {{candidate}} gegen Basis {{baseline}}",
+      "floor": "Untergrenze {{value}}"
+    },
+    "danger": {
+      "heading": "Gefahrenzone",
+      "description": "Exporte und unwiderrufliche Space-Löschung. Der Status-Export enthält nur Zähler, IDs, Scores und Gründe — nie Dokument-, Abfrage- oder Prompt-Text.",
+      "retired": "Stillgelegte Spaces",
+      "noRetired": "Keine stillgelegten Spaces zum Löschen.",
+      "exportHint": "Nur Aggregate. Sicher an einen Operator weiterzugeben.",
+      "dropButton": "Stillgelegten Space löschen…"
+    },
+    "confirm": {
+      "typedLabel": "Space-Namen zur Bestätigung eingeben",
+      "wrongName": "Geben Sie den exakten Space-Namen ein, um diese Aktion zu aktivieren."
+    }
   }
 }

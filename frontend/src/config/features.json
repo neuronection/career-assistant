@@ -71,6 +71,12 @@
       "state": "on",
       "since": "2026-10-30",
       "docs": "docs/user/settings.md"
+    },
+    {
+      "key": "/settings/tools",
+      "state": "on",
+      "since": "2026-11-03",
+      "docs": "docs/user/settings.md"
     }
   ]
 }

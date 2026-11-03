@@ -74,6 +74,7 @@ describe("resolveActiveId", () => {
       "/settings/audit",
       "/settings/companies",
       "/settings/taxonomy",
+      "/settings/tools",
     ]);
     // Postings and Companies graduate to shipped on 2026-10-30; the
     // remaining registered surfaces stay beta (un-gated 2026-10-21)

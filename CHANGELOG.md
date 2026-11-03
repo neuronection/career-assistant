@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval operations — the Tools management surface, 2026-11-03)
+- **Tools → Retrieval is the vector-index management surface**: an active
+  space card (honest backend label, model/dimension, health, coverage and
+  the coverage/quality gates), a bounded reindex form by kind/view/since
+  with budget and document limit, active/building/retired space rows with
+  build/activate/retire/drop (typed name), index maintenance with dry-run,
+  the golden-query quality compare, and a danger zone that exports aggregate
+  status JSON and deletes retired spaces. Every mutating action sends an
+  `Idempotency-Key`; a 409 gate refusal keeps its structured payload and
+  gate reasons. A queued reindex is reported as queued (never as finished)
+  and links observation to Audit → Retrieval.
+- **The Taxonomy embeddings card keeps only mapping-behavior switches** and
+  links the store operations to Tools → Retrieval; the Failures-tab
+  embeddings maintenance link now points there instead of the AI page.
+- **`tools.retrieval` is aligned in the family settings map** (career
+  products block + `TOOLS_TAB_SECTIONS` + the pinned conformance test), and
+  the canonical map is re-vendored byte-identically.
+
 ### Added (retrieval operations — the alert layer, 2026-11-03)
 - **The ten retrieval alerts now reach admins through the notification
   funnel**: coverage below the gate, failed and stalled runs, a quality

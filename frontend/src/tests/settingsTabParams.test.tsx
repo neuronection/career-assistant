@@ -52,6 +52,10 @@ vi.mock("@/components/settings/ConnectorsSection", () => ({
   ConnectorsSection: () => null,
 }));
 
+vi.mock("@/components/settings/RetrievalManagementSection", () => ({
+  RetrievalManagementSection: () => <div data-testid="retrieval-section-probe" />,
+}));
+
 function LocationProbe() {
   const location = useLocation();
   const navigationType = useNavigationType();
@@ -208,12 +212,23 @@ describe("tools sections (derived state)", () => {
     );
     expect(probe()).toBe("/settings/tools?section=sources");
   });
+
+  it("lands ?section=retrieval on the retrieval management view", () => {
+    renderPage("/settings/tools?section=retrieval", <ToolsConfig />);
+    expect(screen.getByRole("tab", { name: "Retrieval" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.getByTestId("retrieval-section-probe")).toBeTruthy();
+    expect(probe()).toBe("/settings/tools?section=retrieval");
+  });
 });
 
 describe("tools section parse helper", () => {
   it("falls back to web-search on missing or unknown values", () => {
     expect(parseToolsSection(null)).toBe("web-search");
     expect(parseToolsSection("connectors")).toBe("mcp");
+    expect(parseToolsSection("retrieval")).toBe("retrieval");
     expect(parseToolsSection("bogus")).toBe("web-search");
   });
 });

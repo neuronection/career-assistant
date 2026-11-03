@@ -5,8 +5,9 @@ import { SegmentedTabs } from "@/components/ui";
 import { WebSearchSection } from "@/components/settings/WebSearchSection";
 import { McpServerSection } from "@/components/settings/McpServerSection";
 import { SourcesSection } from "@/components/settings/SourcesSection";
+import { RetrievalManagementSection } from "@/components/settings/RetrievalManagementSection";
 
-type ToolsSection = "web-search" | "mcp" | "sources";
+type ToolsSection = "web-search" | "mcp" | "sources" | "retrieval";
 
 // Settings structure follows the family contract (contracts/settings-map.json,
 // ADR-0033): tools.* domains live in the tools tab, never under AI
@@ -14,10 +15,13 @@ type ToolsSection = "web-search" | "mcp" | "sources";
 // Plan 154: the former connectors section split into mcp (the MCP server
 // surface) and sources (job-source + extension ingestion); legacy
 // ?section=connectors deep links resolve to mcp.
+// Plan 51 Q2: tools.retrieval is the vector-store operations surface;
+// Audit → Retrieval (Q2b) stays the read-only observation tab.
 export const TOOLS_TAB_SECTIONS: readonly ToolsSection[] = [
   "web-search",
   "mcp",
   "sources",
+  "retrieval",
 ];
 
 export function parseToolsSection(raw: string | null): ToolsSection {
@@ -77,6 +81,7 @@ export function ToolsConfig() {
       {activeSection === "web-search" && <WebSearchSection />}
       {activeSection === "mcp" && <McpServerSection />}
       {activeSection === "sources" && <SourcesSection />}
+      {activeSection === "retrieval" && <RetrievalManagementSection />}
     </div>
   );
 }

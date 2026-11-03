@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
 import { Database } from "lucide-react";
 import { SwitchRow } from "@/components/ui";
 import {
@@ -88,6 +89,16 @@ export function TaxonomyEmbeddingsCard() {
           />
         </div>
       )}
+      <p className="text-xs text-[var(--as-muted-fg)]">
+        <Link
+          to="/settings/tools?section=retrieval"
+          className="font-medium text-[var(--as-fg)] underline-offset-2 hover:underline"
+          data-testid="embeddings-retrieval-link"
+        >
+          {t("taxonomy.embeddings.retrievalLink")}
+        </Link>{" "}
+        — {t("taxonomy.embeddings.retrievalHint")}
+      </p>
     </section>
   );
 }

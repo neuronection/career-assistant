@@ -1,0 +1,522 @@
+import axios from "axios";
+
+import { api, apiDetail } from "@/api/client";
+
+export type RetrievalWindow = "24h" | "7d" | "30d" | "90d";
+export type RetrievalGate = "pass" | "fail" | "unknown";
+export type RetrievalRunStatus =
+  | "queued"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
+export type RetrievalSpaceStatus = "active" | "building" | "retired";
+
+export interface RetrievalBackend {
+  name: string;
+  label: string;
+  dialect: string;
+  semantic_available: boolean;
+}
+
+export interface RetrievalSpace {
+  space_id: string;
+  name: string;
+  status: RetrievalSpaceStatus;
+  provider: string;
+  model: string;
+  dim: number;
+  backend: string;
+  metric: string;
+  index_table: string | null;
+  documents: number;
+  records: number;
+  coverage: number | null;
+  stale: number | null;
+  failed: number | null;
+  created_at: string | null;
+  activated_at: string | null;
+  retired_at: string | null;
+  last_reindex_at: string | null;
+  last_error: string | null;
+  gate: RetrievalGate;
+  as_of: string | null;
+}
+
+export interface RetrievalSpacesResponse {
+  state: "ok" | "empty";
+  count: number;
+  spaces: RetrievalSpace[];
+  backend: RetrievalBackend;
+}
+
+export interface RetrievalHealthSpace {
+  space_id: string;
+  name: string;
+  status: RetrievalSpaceStatus;
+  backend: string;
+  index_table: string | null;
+  differs_from_process_backend: boolean;
+  ok: boolean;
+  detail: string;
+}
+
+export interface RetrievalHealth {
+  ok: boolean;
+  dialect: string;
+  backend: string;
+  semantic_available: boolean;
+  extension: Record<string, unknown> | null;
+  capabilities: {
+    ann: boolean;
+    max_dim: number;
+    max_recommended_rows: number;
+    scope_enforcement: string;
+  };
+  spaces: RetrievalHealthSpace[];
+  detail: string;
+}
+
+export interface RetrievalCoverageStats {
+  space_id: string;
+  as_of: string | null;
+  total: number;
+  missing: number;
+  stale: number;
+  failed: number;
+  embedded: number;
+  coverage: number | null;
+  gate: RetrievalGate;
+  ann_recall: number | null;
+  ann_recall_k: number | null;
+  probe_size: number | null;
+}
+
+export interface RetrievalCoverage {
+  state: "never_reconciled" | "ok";
+  space_id: string;
+  name: string;
+  coverage: RetrievalCoverageStats;
+  kinds: { kind: string; coverage: RetrievalCoverageStats }[];
+  document_kinds: string[];
+  missing_kinds: string[];
+  ann_sampled: boolean;
+  as_of: string | null;
+}
+
+export interface RetrievalQualityBlock {
+  space_id: string;
+  set_version: number;
+  k: number;
+  recall_at_k: number;
+  precision_at_k: number;
+  passed: boolean;
+  queries: unknown[];
+  floor_recall: number;
+  floor_precision: number;
+  generated_at: string | null;
+}
+
+export interface RetrievalQualitySet {
+  space_id: string;
+  set_version: number;
+  k: number;
+  floor_recall: number;
+  floor_precision: number;
+  query_count: number;
+  query_ids: string[];
+  revision_key: string;
+}
+
+export interface RetrievalQualityCompare {
+  old_space_id: string;
+  new_space_id: string;
+  set_version: number;
+  k: number;
+  old_recall_at_k: number;
+  old_precision_at_k: number;
+  new_recall_at_k: number;
+  new_precision_at_k: number;
+  passed: boolean;
+  floor_recall: number;
+  floor_precision: number;
+  required_for_activation: boolean;
+  queries: unknown[];
+  generated_at: string | null;
+}
+
+export interface RetrievalQuality {
+  state: "ok" | "sampled" | "stale_compare" | "not_sampled" | "no_golden_set";
+  space_id: string;
+  name: string;
+  sampled: boolean;
+  set: RetrievalQualitySet | null;
+  quality: RetrievalQualityBlock | null;
+  compare?: RetrievalQualityCompare;
+  activation_gate?: RetrievalGate;
+  compare_run_id?: string;
+  compare_set_version?: number;
+  reason?: string;
+  window: { preset: RetrievalWindow; start: string; end: string };
+}
+
+export interface RetrievalRunScope {
+  kind: string | null;
+  view: string | null;
+  since: string | null;
+}
+
+export interface RetrievalRun {
+  run_id: string;
+  space_id: string;
+  job_type: "VECTOR_REINDEX" | "VECTOR_CUTOVER" | "VECTOR_MAINTENANCE";
+  status: RetrievalRunStatus;
+  progress: number;
+  stage: string | null;
+  scope: RetrievalRunScope;
+  budget_tokens: number | null;
+  created_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+  error: string | null;
+  cancel_requested: boolean;
+  idempotency_key: string | null;
+  lock_key: string | null;
+}
+
+export interface RetrievalRunsResponse {
+  state: "ok" | "empty";
+  window: { preset: RetrievalWindow; start: string; end: string };
+  total: number;
+  limit: number;
+  offset: number;
+  unattributed_runs: number;
+  scan_truncated: boolean;
+  runs: RetrievalRun[];
+}
+
+export interface RetrievalCoverageSnapshot {
+  state: "never_reconciled" | "snapshot";
+  coverage: number | null;
+  total: number;
+  embedded: number;
+  stale: number | null;
+  failed: number | null;
+  as_of: string | null;
+  ann_sampled: boolean;
+}
+
+export interface RetrievalOverview {
+  state: "ok" | "empty";
+  window: { preset: RetrievalWindow; start: string; end: string };
+  spaces: { total: number; active: number; building: number; retired: number };
+  backend: RetrievalBackend;
+  documents: number;
+  records: number;
+  coverage: RetrievalCoverageSnapshot;
+  queries: {
+    count: number;
+    p50_ms: number | null;
+    p95_ms: number | null;
+    zero_result_rate: number | null;
+    degraded_rate: number | null;
+    ann_sampled: boolean;
+    latency_percentiles: string;
+  };
+  embed: { calls: number; errors: number; tokens_in: number; tokens_out: number };
+  runs: {
+    total: number;
+    active: number;
+    unattributed: number;
+    scan_truncated: boolean;
+    last_reindex_at: string | null;
+    last_status: string | null;
+  };
+  changes: {
+    state: "ok" | "empty";
+    reason: string | null;
+    count: number;
+    recent: {
+      action: string;
+      actor: string;
+      resource: string;
+      outcome: string;
+      created_at: string | null;
+    }[];
+  };
+  window_end: string | null;
+}
+
+export interface RetrievalActionResponse {
+  action: string;
+  accepted: boolean;
+  audit_event: string;
+  http_status: number;
+  deduplicated: boolean;
+  run_id: string | null;
+  status: RetrievalRunStatus | null;
+  idempotency_key: string | null;
+  message: string;
+  space_id?: string | null;
+  target_run_id?: string;
+  target_status?: RetrievalRunStatus;
+  cancel_requested?: boolean;
+  retry_of?: string;
+  dry_run?: boolean;
+  retry_count?: number;
+  failed_ids_truncated?: boolean;
+  source_run_id?: string;
+  maintenance_action?: string;
+  space?: Record<string, unknown>;
+  quality?: RetrievalQualityCompare;
+  baseline_space_id?: string;
+  gate?: RetrievalGate;
+  activation_gate?: {
+    space_id: string;
+    coverage: RetrievalGate;
+    quality: RetrievalGate;
+    allowed: boolean;
+    reasons: string[];
+  };
+  coverage?: RetrievalCoverageStats;
+  already_active?: boolean;
+}
+
+export interface RetrievalRefusal {
+  action: string;
+  accepted: false;
+  audit_event: string;
+  http_status: number;
+  deduplicated: boolean;
+  run_id: string | null;
+  status: RetrievalRunStatus | null;
+  idempotency_key: string | null;
+  message: string;
+  activation_gate?: RetrievalActionResponse["activation_gate"];
+  quality?: RetrievalQualityCompare;
+  coverage?: RetrievalCoverageStats;
+}
+
+export interface RetrievalActionErrorInfo {
+  status: number;
+  detail: string;
+  payload: RetrievalRefusal | null;
+}
+
+export interface ReindexPayload {
+  space: string;
+  kind?: string;
+  view?: string;
+  since?: string;
+  budget?: number;
+  limit?: number;
+  batch_size?: number;
+  scan_limit?: number;
+  force?: boolean;
+  auto_continue?: boolean;
+}
+
+export interface BuildSpacePayload {
+  name: string;
+  provider: string;
+  model: string;
+  dim: number;
+  metric?: string;
+  normalize?: boolean;
+  query_prefix?: string;
+  document_prefix?: string;
+}
+
+export type MaintenanceAction =
+  | "index-rebuild"
+  | "vacuum"
+  | "orphan-sweep"
+  | "retry-failed";
+
+export interface MaintenancePayload {
+  space: string;
+  action: MaintenanceAction;
+  dry_run?: boolean;
+  limit?: number;
+}
+
+export interface QualityComparePayload {
+  space: string;
+  compare_space: string;
+}
+
+const IDEMPOTENT_HEADER = "Idempotency-Key";
+
+/** A client-generated replay key for one mutating action. */
+function newIdempotencyKey(): string {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `retrieval-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function idempotentConfig(): { headers: Record<string, string> } {
+  return { headers: { [IDEMPOTENT_HEADER]: newIdempotencyKey() } };
+}
+
+/** A 409 gate/state refusal carries the structured action payload; other
+ * failures only carry `{detail}`. */
+export function retrievalActionError(error: unknown): RetrievalActionErrorInfo {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status ?? 0;
+    const data = error.response?.data;
+    if (data && typeof data === "object" && "accepted" in data && "message" in data) {
+      const payload = data as RetrievalRefusal;
+      return { status, detail: payload.message, payload };
+    }
+    return { status, detail: apiDetail(error), payload: null };
+  }
+  return { status: 0, detail: String(error), payload: null };
+}
+
+export async function fetchRetrievalOverview(
+  window: RetrievalWindow = "24h",
+): Promise<RetrievalOverview> {
+  const { data } = await api.get<RetrievalOverview>("/admin/retrieval/overview", {
+    params: { window },
+  });
+  return data;
+}
+
+export async function fetchRetrievalSpaces(): Promise<RetrievalSpacesResponse> {
+  const { data } = await api.get<RetrievalSpacesResponse>("/admin/retrieval/spaces");
+  return data;
+}
+
+export async function fetchRetrievalHealth(): Promise<RetrievalHealth> {
+  const { data } = await api.get<RetrievalHealth>("/admin/retrieval/health");
+  return data;
+}
+
+export async function fetchRetrievalCoverage(
+  space: string,
+): Promise<RetrievalCoverage> {
+  const { data } = await api.get<RetrievalCoverage>("/admin/retrieval/coverage", {
+    params: { space },
+  });
+  return data;
+}
+
+export async function fetchRetrievalQuality(
+  space: string,
+): Promise<RetrievalQuality> {
+  const { data } = await api.get<RetrievalQuality>("/admin/retrieval/quality", {
+    params: { space },
+  });
+  return data;
+}
+
+export async function fetchRetrievalRuns(
+  params: { space?: string; limit?: number; offset?: number; window?: RetrievalWindow } = {},
+): Promise<RetrievalRunsResponse> {
+  const { data } = await api.get<RetrievalRunsResponse>("/admin/retrieval/runs", {
+    params,
+  });
+  return data;
+}
+
+export async function reindexRetrievalSpace(
+  payload: ReindexPayload,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    "/admin/retrieval/reindex",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function cancelRetrievalRun(
+  runId: string,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    `/admin/retrieval/runs/${runId}/cancel`,
+    {},
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function retryRetrievalRun(
+  runId: string,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    `/admin/retrieval/runs/${runId}/retry`,
+    {},
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function buildRetrievalSpace(
+  payload: BuildSpacePayload,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    "/admin/retrieval/spaces",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function activateRetrievalSpace(
+  spaceId: string,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    `/admin/retrieval/spaces/${spaceId}/activate`,
+    {},
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function retireRetrievalSpace(
+  spaceId: string,
+  confirmSpaceName: string,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    `/admin/retrieval/spaces/${spaceId}/retire`,
+    { confirm_space_name: confirmSpaceName },
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function dropRetrievalSpace(
+  spaceId: string,
+  confirmSpaceName: string,
+  force = false,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    `/admin/retrieval/spaces/${spaceId}/drop`,
+    { confirm_space_name: confirmSpaceName, force },
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function runRetrievalMaintenance(
+  payload: MaintenancePayload,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    "/admin/retrieval/maintenance",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function compareRetrievalQuality(
+  payload: QualityComparePayload,
+): Promise<RetrievalActionResponse> {
+  const { data } = await api.post<RetrievalActionResponse>(
+    "/admin/retrieval/quality/compare",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}

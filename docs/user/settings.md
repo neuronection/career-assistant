@@ -52,7 +52,7 @@ until an admin adds a provider.
 
 ## Tools (`/settings/tools`)
 
-Admin-only, three URL-addressable sections. **Web search** ships
+Admin-only, four URL-addressable sections. **Web search** ships
 SearXNG plus five keyed providers — Tavily, Brave, Exa, Serper and
 Google Programmable Search;
 the first enabled provider that answers wins. Each provider renders as a
@@ -69,6 +69,24 @@ catalog collapsed behind a searchable disclosure, the recent-call
 audit and the chat-tools GitHub credential. While the write switch is
 off, MCP clients see read tools only. See
 [MCP access](assistant-chat.md#mcp-access).
+
+**Retrieval** is the vector-index operations surface. The active-space card
+shows the honest backend label (PostgreSQL pgvector/HNSW, SQLite sqlite-vec,
+or the desktop-scale linear fallback), model and dimension, store health,
+coverage and the coverage/quality gates. **Coverage & reindex** queues a
+bounded run by kind, view and since timestamp with a token budget and
+document limit, then shows the queued run and its status — a queued run is
+not a finished reindex. **Spaces** lists active, building and retired
+spaces; changing models means building a new space (never an in-place
+rewrite), activating it only after coverage and the golden-query compare
+pass, then retiring the old one. **Index maintenance** queues an index
+rebuild, vacuum, orphan sweep or failed-document retry, with a dry run where
+supported. **Quality** scores the versioned golden-query set for a candidate
+against its baseline and shows recall, precision and the gate. The **danger
+zone** exports the status JSON (aggregates, counts, ids and scores only —
+never document, query or prompt text) and offers typed-confirmation deletion
+of retired spaces. Observation lives in Audit → Retrieval (the read-only tab
+arrives with the following slice).
 
 **Sources** hosts the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and

@@ -1719,7 +1719,9 @@
       "semanticRescueHint": "Only fills in where the deterministic skill overlap missed, under the shared-skill gate",
       "semanticRerankSwitch": "Semantic rerank",
       "semanticRerankHint": "A separate semantic pass, queued off the request path; spends embeddings only while enabled",
-      "switchNote": "Saved — effective on the next decision."
+      "switchNote": "Saved — effective on the next decision.",
+      "retrievalLink": "Manage retrieval index",
+      "retrievalHint": "coverage, reindex and space operations live in Tools → Retrieval."
     },
     "jobProposals": {
       "sectionTitle": "Job proposals",
@@ -1995,7 +1997,8 @@
     "section": {
       "web-search": "Web search",
       "mcp": "MCP",
-      "sources": "Sources"
+      "sources": "Sources",
+      "retrieval": "Retrieval"
     },
     "webSearch": {
       "hint": "Ordered provider instances the SEARCH and FETCH research tools use — the first one that answers wins. SearXNG rides the SSRF-guarded client; keyed providers (Tavily, Brave, Exa, Serper, Google PSE) ride the guarded POST transport.",
@@ -5770,5 +5773,185 @@
       "unavailable": "Market pulse is unavailable right now."
     },
     "exportAll": "Download all current statistics as CSV"
+  },
+  "retrieval": {
+    "refresh": "Refresh",
+    "auditLink": "Open Audit → Retrieval",
+    "loading": "Loading retrieval status…",
+    "card": {
+      "active": {
+        "title": "Active space",
+        "description": "Backend, model, coverage and gates for the space serving queries."
+      },
+      "reindex": {
+        "description": "Queue a bounded reindex and follow the run without waiting for it to finish."
+      },
+      "spaces": {
+        "description": "Active, building and retired spaces. Change models by building a new space, never by rewriting in place."
+      },
+      "maintenance": {
+        "description": "Index rebuild, vacuum, orphan sweep and failed-document retry."
+      },
+      "quality": {
+        "description": "Score the versioned golden-query set on a candidate against its baseline."
+      }
+    },
+    "active": {
+      "empty": "No vector space yet",
+      "emptyBody": "Build a space to start indexing. Semantic retrieval stays off until a space is active.",
+      "backend": "Backend",
+      "model": "Model / dimension",
+      "health": "Health",
+      "healthOk": "Healthy",
+      "healthFailed": "Unhealthy",
+      "coverage": "Coverage",
+      "gate": "Coverage gate",
+      "documents": "Documents",
+      "records": "Records",
+      "lastReindex": "Last reindex",
+      "spaceName": "Space",
+      "asOf": "as of",
+      "stale": "Stale"
+    },
+    "state": {
+      "loading": "Loading…",
+      "never_reconciled": "Never reconciled",
+      "not_sampled": "Not sampled",
+      "no_golden_set": "No golden set",
+      "stale_compare": "Stale compare"
+    },
+    "gate": {
+      "pass": "Pass",
+      "fail": "Fail",
+      "unknown": "Unknown"
+    },
+    "gateLabel": {
+      "coverage": "Coverage",
+      "quality": "Quality"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "succeeded": "Succeeded",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "spaceStatus": {
+      "active": "Active",
+      "building": "Building",
+      "retired": "Retired"
+    },
+    "kind": {
+      "all": "All kinds",
+      "posting": "Postings",
+      "job": "Catalog jobs",
+      "profile": "Profiles",
+      "skill": "Skills"
+    },
+    "view": {
+      "all": "All views",
+      "summary": "Summary",
+      "requirements": "Requirements",
+      "responsibilities": "Responsibilities",
+      "skills": "Skills",
+      "body": "Body"
+    },
+    "runType": {
+      "VECTOR_REINDEX": "Reindex",
+      "VECTOR_CUTOVER": "Cutover / gate",
+      "VECTOR_MAINTENANCE": "Maintenance"
+    },
+    "maintenanceAction": {
+      "index-rebuild": "Index rebuild",
+      "vacuum": "Vacuum",
+      "orphan-sweep": "Orphan sweep",
+      "retry-failed": "Retry failed documents"
+    },
+    "field": {
+      "space": "Space",
+      "kind": "Kind",
+      "view": "View",
+      "since": "Since (ISO timestamp)",
+      "sincePlaceholder": "2026-11-01T00:00:00Z",
+      "budget": "Embed budget (tokens)",
+      "limit": "Document limit",
+      "force": "Re-embed unchanged documents",
+      "dryRun": "Dry run",
+      "name": "Name",
+      "provider": "Provider",
+      "model": "Model",
+      "dim": "Dimension",
+      "queryPrefix": "Query prefix",
+      "documentPrefix": "Document prefix",
+      "baseline": "Baseline space",
+      "candidate": "Candidate space",
+      "maintenanceAction": "Maintenance action",
+      "maintenanceLimit": "Document limit (optional)"
+    },
+    "action": {
+      "reindex": "Queue reindex",
+      "build": "Build space",
+      "buildNew": "Build new space",
+      "hideBuild": "Hide build form",
+      "activate": "Activate",
+      "retire": "Retire…",
+      "drop": "Drop…",
+      "cancel": "Cancel run",
+      "retry": "Retry run",
+      "maintenance": "Queue maintenance",
+      "compare": "Run quality compare",
+      "export": "Export status JSON",
+      "close": "Close",
+      "cancelAction": "Cancel",
+      "confirm": "Confirm",
+      "queuedRun": "Run {{id}} · {{status}}",
+      "notFinished": "Queued — this does not mean the reindex finished. Track it in Audit → Retrieval → Runs.",
+      "deduplicated": "Replay detected — no second run was queued.",
+      "exported": "Status JSON exported — aggregates only, no document or query text."
+    },
+    "reindex": {
+      "heading": "Coverage & reindex",
+      "recent": "Recent runs",
+      "emptyRuns": "No retrieval runs for this space yet.",
+      "showProgress": "Progress {{progress}}%",
+      "scope": "Scope"
+    },
+    "spaces": {
+      "heading": "Spaces",
+      "empty": "No spaces yet.",
+      "documents": "{{count}} docs · {{records}} records",
+      "buildHint": "Building provisions a separate space. Activate only after coverage and the golden-query compare pass.",
+      "retireTitle": "Retire {{name}}?",
+      "retireBody": "Retire the space before dropping it. The typed name must match exactly.",
+      "dropTitle": "Drop {{name}}?",
+      "dropBody": "This permanently deletes the retired space and its vectors. Type the exact space name to confirm.",
+      "activeHint": "The active space serves queries. Build a new space to change models; never rewrite in place."
+    },
+    "maintenance": {
+      "heading": "Index maintenance",
+      "hint": "Maintenance runs as a background job. Dry run previews the work where the action supports it.",
+      "retryHint": "Retry re-enqueues the failed document ids from the newest failed run."
+    },
+    "quality": {
+      "heading": "Quality",
+      "hint": "Score the versioned golden-query set on a candidate against the baseline. Activation requires coverage and quality to pass.",
+      "recall": "Recall@k",
+      "precision": "Precision@k",
+      "setVersion": "Golden set v{{version}} · {{count}} queries",
+      "candidateVsBaseline": "Candidate {{candidate}} vs baseline {{baseline}}",
+      "floor": "floor {{value}}"
+    },
+    "danger": {
+      "heading": "Danger zone",
+      "description": "Exports and irreversible space deletion. The status export carries counts, ids, scores and reasons only — never document, query or prompt text.",
+      "retired": "Retired spaces",
+      "noRetired": "No retired spaces waiting to drop.",
+      "exportHint": "Aggregates only. Safe to share with an operator.",
+      "dropButton": "Drop retired space…"
+    },
+    "confirm": {
+      "typedLabel": "Type the space name to confirm",
+      "wrongName": "Type the exact space name to enable this action."
+    }
   }
 }

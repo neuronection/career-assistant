@@ -112,10 +112,12 @@ describe("settings-map contract", () => {
   // plan 32 Phase 1 (D17): the tools.connectors row broadened to job-source
   // connectors — the nav conformance pins the broadening so the row can
   // never silently shrink back to MCP-only.
-  // plan 154: the connectors domain narrowed to the MCP server surface
-  // and job-source ingestion split into its own tools.sources domain —
-  // both pinned so neither silently merges back or disappears.
-  it("tools.connectors is the MCP server surface; tools.sources covers job-source ingestion", () => {
+  // plan 154 split the connectors domain into the MCP server surface and
+  // job-source ingestion; plan 186 split the latter again into
+  // tools.job-sources + tools.extensions (one transitional "sources"
+  // section keeps INV-7 true until the UI split).
+  // plan 51 Q2 adds tools.retrieval as its own section.
+  it("tools connectors, sources and retrieval domains have their declared homes", () => {
     const domains = map.domains ?? [];
     const connectors = domains.find((entry) => entry.id === "tools.connectors");
     expect(connectors).toBeDefined();
@@ -123,18 +125,35 @@ describe("settings-map contract", () => {
     expect(connectors!.home?.tab).toBe("tools");
     expect(connectors!.home?.section).toBe("mcp");
 
-    const sources = domains.find((entry) => entry.id === "tools.sources");
-    expect(sources).toBeDefined();
-    expect(sources!.definition).toMatch(/job-source connector/i);
-    expect(sources!.home?.section).toBe("sources");
-    expect(sources!.adopters?.["career-assistant"]).toMatch(/plan 154/);
+    const jobSources = domains.find((entry) => entry.id === "tools.job-sources");
+    expect(jobSources).toBeDefined();
+    expect(jobSources!.definition).toMatch(/job-source connector/i);
+    expect(jobSources!.home?.section).toBe("job-sources");
+    expect(jobSources!.adopters?.["career-assistant"]).toMatch(/plan 154/);
+
+    const extensions = domains.find((entry) => entry.id === "tools.extensions");
+    expect(extensions).toBeDefined();
+    expect(extensions!.definition).toMatch(/extension sources/i);
+    expect(extensions!.home?.section).toBe("extensions");
+    expect(extensions!.adopters?.["career-assistant"]).toMatch(/plan 186/);
+
+    const retrieval = domains.find((entry) => entry.id === "tools.retrieval");
+    expect(retrieval).toBeDefined();
+    expect(retrieval!.definition).toMatch(/vector-store operations/i);
+    expect(retrieval!.home).toEqual({ tab: "tools", section: "retrieval" });
+    expect(retrieval!.adopters?.["career-assistant"]).toBe("aligned (plan 51 Q2)");
 
     const declaredTools = declared.find((tab) => tab.id === "tools");
     expect(declaredTools!.sections!.map((section) => section.id)).toEqual([
       "web-search",
       "mcp",
       "sources",
+      "retrieval",
     ]);
+    const retrievalSection = declaredTools!.sections!.find(
+      (section) => section.id === "retrieval",
+    );
+    expect(retrievalSection?.domains).toEqual(["tools.retrieval"]);
   });
 
   it("automations is declared in the automations group", () => {

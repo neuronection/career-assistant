@@ -669,7 +669,9 @@ describe("audit page tabs", () => {
     expect(screen.getByTestId("audit-failure-sweep")).toBeTruthy();
     const maintenance = screen.getByTestId("audit-failures-maintenance");
     expect(maintenance.getAttribute("href")).toBeNull();
-    expect(screen.getByText("Embeddings recompute").getAttribute("href")).toBe("/settings/ai");
+    expect(screen.getByText("Embeddings recompute").getAttribute("href")).toBe(
+      "/settings/tools?section=retrieval",
+    );
     expect(screen.getByText("Scheduled sweeps").getAttribute("href")).toBe(
       "/settings/automations",
     );

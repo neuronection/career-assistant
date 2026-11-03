@@ -1714,6 +1714,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Coverage
+         * @description Latest coverage snapshot per kind; a cold space is ``never_reconciled``.
+         */
+        get: operations["retrieval_coverage_api_v1_admin_retrieval_coverage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/failures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Failures
+         * @description Failure groups: embed provider, indexing, cutover gate, maintenance.
+         */
+        get: operations["retrieval_failures_api_v1_admin_retrieval_failures_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/health": {
         parameters: {
             query?: never;
@@ -1754,6 +1794,106 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Maintenance
+         * @description Queue one typed maintenance action (index-rebuild/vacuum/orphan/retry).
+         */
+        post: operations["retrieval_maintenance_api_v1_admin_retrieval_maintenance_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Overview
+         * @description Instance-wide retrieval KPIs: spaces, coverage, queries, embed usage.
+         */
+        get: operations["retrieval_overview_api_v1_admin_retrieval_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Quality
+         * @description The versioned golden-query set; ``not_sampled`` until a compare exists.
+         */
+        get: operations["retrieval_quality_api_v1_admin_retrieval_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/quality/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Quality Compare
+         * @description Run the versioned golden set on old vs new space; persist the result.
+         */
+        post: operations["retrieval_quality_compare_api_v1_admin_retrieval_quality_compare_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/query-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Query Health
+         * @description Latency/candidate/zero-result/degraded aggregates from the rollups.
+         */
+        get: operations["retrieval_query_health_api_v1_admin_retrieval_query_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/reconcile": {
         parameters: {
             query?: never;
@@ -1770,9 +1910,195 @@ export interface paths {
          *     Thin enqueue: the handler owns composing, classification, the embed
          *     budget and the coverage snapshots, so the run is a ``background_jobs``
          *     row (plan 51's Runs view reads it) and the embed spend lands on the system
-         *     path rather than the requesting admin's budget.
+         *     path rather than the requesting admin's budget. The legacy endpoint now
+         *     rides the same replay/lock/audit seam as ``POST /reindex``: an optional
+         *     key makes it replay-deduped, and the run always takes the space lock.
          */
         post: operations["enqueue_reconcile_api_v1_admin_retrieval_reconcile_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/reindex": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Reindex
+         * @description Queue the existing ``VECTOR_RECONCILE`` handler for one bounded run.
+         */
+        post: operations["retrieval_reindex_api_v1_admin_retrieval_reindex_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Runs
+         * @description Reindex/backfill/cutover/maintenance runs from ``background_jobs``.
+         */
+        get: operations["retrieval_runs_api_v1_admin_retrieval_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/runs/{run_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Run
+         * @description One run's stage/progress/result counters and bounded ``failed_ids``.
+         */
+        get: operations["retrieval_run_api_v1_admin_retrieval_runs__run_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/runs/{run_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Cancel Run
+         * @description Request cancellation; the running work observes the flag itself.
+         */
+        post: operations["retrieval_cancel_run_api_v1_admin_retrieval_runs__run_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/runs/{run_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Retry Run
+         * @description Bounded re-enqueue of a terminal run under a fresh idempotency scope.
+         */
+        post: operations["retrieval_retry_run_api_v1_admin_retrieval_runs__run_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/spaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Spaces
+         * @description One row per persisted space with counts, coverage and backend label.
+         */
+        get: operations["retrieval_spaces_api_v1_admin_retrieval_spaces_get"];
+        put?: never;
+        /**
+         * Retrieval Build Space
+         * @description Provision a ``building`` space through the lifecycle service.
+         */
+        post: operations["retrieval_build_space_api_v1_admin_retrieval_spaces_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/spaces/{space_id}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Activate Space
+         * @description Activate only when coverage **and** the golden-query quality gate pass.
+         */
+        post: operations["retrieval_activate_space_api_v1_admin_retrieval_spaces__space_id__activate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/spaces/{space_id}/drop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Drop Space
+         * @description Drop a retired space; the typed name is mandatory (never a boolean).
+         */
+        post: operations["retrieval_drop_space_api_v1_admin_retrieval_spaces__space_id__drop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/spaces/{space_id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Retire Space
+         * @description Retire a non-active space; the typed name must match exactly.
+         */
+        post: operations["retrieval_retire_space_api_v1_admin_retrieval_spaces__space_id__retire_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1791,6 +2117,26 @@ export interface paths {
          * @description Per-space documents/records, coverage snapshot and last reindex.
          */
         get: operations["retrieval_status_api_v1_admin_retrieval_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Usage
+         * @description Embed calls/tokens by day, space and kind, plus the token budget.
+         */
+        get: operations["retrieval_usage_api_v1_admin_retrieval_usage_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -9384,6 +9730,14 @@ export interface components {
             text: string;
         };
         /**
+         * ActionKeyRequest
+         * @description Body for path-addressed actions; the header is preferred.
+         */
+        ActionKeyRequest: {
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
+        /**
          * AddBlockOp
          * @description Append (or insert at a position) one registry-valid block.
          */
@@ -10336,6 +10690,36 @@ export interface components {
             user_id?: string | null;
             /** Window */
             window: string;
+        };
+        /**
+         * BuildSpaceRequest
+         * @description Provision a ``building`` space beside the active one.
+         */
+        BuildSpaceRequest: {
+            /** Dim */
+            dim: number;
+            /** Document Prefix */
+            document_prefix?: string | null;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Metric
+             * @default cosine
+             */
+            metric: string;
+            /** Model */
+            model: string;
+            /** Name */
+            name: string;
+            /**
+             * Normalize
+             * @default true
+             */
+            normalize: boolean;
+            /** Provider */
+            provider: string;
+            /** Query Prefix */
+            query_prefix?: string | null;
         };
         /** BulkJobActionIn */
         BulkJobActionIn: {
@@ -12559,6 +12943,19 @@ export interface components {
              */
             target_role: string;
         };
+        /** DropSpaceRequest */
+        DropSpaceRequest: {
+            /** Confirm Space Name */
+            confirm_space_name: string;
+            /**
+             * Force
+             * @description skip the retirement grace period; the typed name is still required
+             * @default false
+             */
+            force: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+        };
         /** EducationItemIn */
         EducationItemIn: {
             /** Department Id */
@@ -14291,6 +14688,31 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+        };
+        /**
+         * MaintenanceRequest
+         * @description One typed maintenance action (or a scoped retry of failed documents).
+         */
+        MaintenanceRequest: {
+            /**
+             * Action
+             * @description index-rebuild | vacuum | orphan-sweep | retry-failed
+             */
+            action: string;
+            /**
+             * Dry Run
+             * @default false
+             */
+            dry_run: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /** Limit */
+            limit?: number | null;
+            /**
+             * Space
+             * @description vector space id or name
+             */
+            space: string;
         };
         /** MarketMonthPointOut */
         MarketMonthPointOut: {
@@ -16480,6 +16902,24 @@ export interface components {
             /** Provider Type */
             provider_type?: string | null;
         };
+        /**
+         * QualityCompareRequest
+         * @description Score the versioned golden set on the old and new space.
+         */
+        QualityCompareRequest: {
+            /**
+             * Compare Space
+             * @description baseline/old space id or name
+             */
+            compare_space: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Space
+             * @description candidate/new space id or name
+             */
+            space: string;
+        };
         /** QuietHoursIn */
         QuietHoursIn: {
             /** End */
@@ -16692,6 +17132,11 @@ export interface components {
              */
             force: boolean;
             /**
+             * Idempotency Key
+             * @description optional replay key; the Idempotency-Key header also works
+             */
+            idempotency_key?: string | null;
+            /**
              * Kinds
              * @description source kinds to reconcile; default all supported
              */
@@ -16725,6 +17170,66 @@ export interface components {
             full_name: string;
             /** Password */
             password: string;
+        };
+        /**
+         * ReindexRequest
+         * @description One bounded reindex of a space (the plan-50 reconcile handler).
+         */
+        ReindexRequest: {
+            /**
+             * Auto Continue
+             * @default true
+             */
+            auto_continue: boolean;
+            /**
+             * Batch Size
+             * @default 10
+             */
+            batch_size: number;
+            /**
+             * Budget
+             * @description embed units
+             * @default 2000
+             */
+            budget: number;
+            /**
+             * Force
+             * @default false
+             */
+            force: boolean;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Kind
+             * @description one source kind; default all
+             */
+            kind?: string | null;
+            /**
+             * Limit
+             * @description documents per run
+             * @default 200
+             */
+            limit: number;
+            /**
+             * Scan Limit
+             * @default 500
+             */
+            scan_limit: number;
+            /**
+             * Since
+             * @description ISO timestamp — only rows updated since
+             */
+            since?: string | null;
+            /**
+             * Space
+             * @description vector space id or name
+             */
+            space: string;
+            /**
+             * View
+             * @description run-scope view label
+             */
+            view?: string | null;
         };
         /** RelationOut */
         RelationOut: {
@@ -18631,6 +19136,16 @@ export interface components {
             active_root_id?: string | null;
             /** Nodes */
             nodes?: components["schemas"]["TreeNodeOut"][];
+        };
+        /**
+         * TypedSpaceRequest
+         * @description Destructive lifecycle action: the typed space name is mandatory.
+         */
+        TypedSpaceRequest: {
+            /** Confirm Space Name */
+            confirm_space_name: string;
+            /** Idempotency Key */
+            idempotency_key?: string | null;
         };
         /** UniversityCreate */
         UniversityCreate: {
@@ -22215,6 +22730,76 @@ export interface operations {
             };
         };
     };
+    retrieval_coverage_api_v1_admin_retrieval_coverage_get: {
+        parameters: {
+            query: {
+                /** @description vector space id or name */
+                space: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_failures_api_v1_admin_retrieval_failures_get: {
+        parameters: {
+            query?: {
+                /** @description vector space id or name */
+                space?: string | null;
+                kind?: string | null;
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     retrieval_health_api_v1_admin_retrieval_health_get: {
         parameters: {
             query?: never;
@@ -22272,10 +22857,190 @@ export interface operations {
             };
         };
     };
+    retrieval_maintenance_api_v1_admin_retrieval_maintenance_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MaintenanceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_overview_api_v1_admin_retrieval_overview_get: {
+        parameters: {
+            query?: {
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_quality_api_v1_admin_retrieval_quality_get: {
+        parameters: {
+            query?: {
+                /** @description vector space id or name */
+                space?: string | null;
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_quality_compare_api_v1_admin_retrieval_quality_compare_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QualityCompareRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_query_health_api_v1_admin_retrieval_query_health_get: {
+        parameters: {
+            query?: {
+                /** @description vector space id or name */
+                space?: string | null;
+                /** @description source kind */
+                kind?: string | null;
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     enqueue_reconcile_api_v1_admin_retrieval_reconcile_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -22307,6 +23072,363 @@ export interface operations {
             };
         };
     };
+    retrieval_reindex_api_v1_admin_retrieval_reindex_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReindexRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_runs_api_v1_admin_retrieval_runs_get: {
+        parameters: {
+            query?: {
+                /** @description vector space id or name */
+                space?: string | null;
+                /** @description run scope source kind */
+                kind?: string | null;
+                status?: string | null;
+                window?: string;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_run_api_v1_admin_retrieval_runs__run_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_cancel_run_api_v1_admin_retrieval_runs__run_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ActionKeyRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_retry_run_api_v1_admin_retrieval_runs__run_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ActionKeyRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_spaces_api_v1_admin_retrieval_spaces_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    retrieval_build_space_api_v1_admin_retrieval_spaces_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BuildSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_activate_space_api_v1_admin_retrieval_spaces__space_id__activate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["ActionKeyRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_drop_space_api_v1_admin_retrieval_spaces__space_id__drop_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DropSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_retire_space_api_v1_admin_retrieval_spaces__space_id__retire_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path: {
+                space_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TypedSpaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     retrieval_status_api_v1_admin_retrieval_status_get: {
         parameters: {
             query?: never;
@@ -22325,6 +23447,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    retrieval_usage_api_v1_admin_retrieval_usage_get: {
+        parameters: {
+            query?: {
+                /** @description vector space id or name */
+                space?: string | null;
+                /** @description source kind */
+                kind?: string | null;
+                window?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
