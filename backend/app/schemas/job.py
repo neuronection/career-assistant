@@ -330,6 +330,8 @@ class JobPostingMatchOut(BaseModel):
     status: str
     catalog_job_id: UUID | None = None
     score: float = 0.0
+    #: Per-view cosines behind the score (semantic hits only).
+    per_view: dict[str, float] = Field(default_factory=dict)
     #: ``semantic`` (vector match) or ``catalog`` (the mapped postings).
     source: Literal["semantic", "catalog"] = "catalog"
 

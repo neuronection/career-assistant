@@ -141,6 +141,7 @@ class JobMatchService:
                         "status": posting.status,
                         "catalog_job_id": posting.catalog_job_id,
                         "score": hit.score,
+                        "per_view": dict(hit.per_view),
                         "source": "semantic",
                     }
                 )
@@ -330,6 +331,7 @@ class JobMatchService:
                 "status": posting.status,
                 "catalog_job_id": posting.catalog_job_id,
                 "score": 1.0,
+                "per_view": {},
                 "source": "catalog",
             }
             for posting in rows

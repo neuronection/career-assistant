@@ -11815,6 +11815,13 @@
             "title": "Org",
             "type": "string"
           },
+          "per_view": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Per View",
+            "type": "object"
+          },
           "posted_at": {
             "anyOf": [
               {

@@ -191,6 +191,7 @@ async def test_live_postings_degrade_to_the_catalog_map(
     assert body["degraded"] == "index_missing"
     assert [item["id"] for item in body["items"]] == [str(posting.id)]
     assert body["items"][0]["source"] == "catalog"
+    assert body["items"][0]["per_view"] == {}, "the catalog fallback has no view scores"
 
 
 async def test_live_postings_uses_the_match_and_keeps_visibility(
@@ -226,6 +227,7 @@ async def test_live_postings_uses_the_match_and_keeps_visibility(
     assert str(hidden.id) not in ids, "a hidden posting is never returned"
     assert str(expired.id) not in ids, "an expired posting is not a live opening"
     assert all(item["source"] == "semantic" for item in body["items"])
+    assert all(item["per_view"] for item in body["items"]), "per-view explainability"
 
 
 async def test_live_postings_without_any_candidate_is_an_empty_page(

@@ -51,6 +51,10 @@ export type GraphEdge = Schemas["GraphEdge"];
 export type JobGraph = Schemas["JobGraph"];
 export type Relation = Schemas["RelationOut"];
 export type PrerequisiteCheck = Schemas["PrerequisiteCheck"];
+export type SimilarJob = Schemas["SimilarJobOut"];
+export type SimilarJobs = Schemas["SimilarJobsOut"];
+export type JobPostingMatch = Schemas["JobPostingMatchOut"];
+export type JobPostings = Schemas["JobPostingsOut"];
 
 // ------------------------------------------------------------- profile
 export type ProfileLink = Schemas["ProfileLink"];

@@ -1648,12 +1648,15 @@ async def remap_posting(
     before = snapshot(posting, RETAG_FIELDS)
     await decide_catalog(db, posting, skill_ids, defer_semantic=True)
     await db.commit()
+    signals = (posting.posting_facts or {}).get("mapping_signals") or {}
     return {
         "id": str(posting.id),
         "status": posting.status,
         "mapping_method": posting.mapping_method,
         "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
         "mapping_reason": posting.mapping_reason,
+        "semantic_pending": bool(signals.get("semantic_pending")),
+        "semantic_pending_reason": signals.get("semantic_pending_reason"),
         "before": {key: value for key, value in before.items() if key != "skills"},
     }
 

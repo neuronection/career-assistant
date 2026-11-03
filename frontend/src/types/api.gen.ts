@@ -14010,6 +14010,10 @@ export interface components {
              * @default
              */
             org: string;
+            /** Per View */
+            per_view?: {
+                [key: string]: number;
+            };
             /** Posted At */
             posted_at?: string | null;
             /** Ref */

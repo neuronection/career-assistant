@@ -336,7 +336,10 @@ async def test_the_admin_remap_endpoint_defers_the_semantic_pass(
     response = await client.post(f"/api/v1/admin/postings/{posting.id}/remap", headers=auth_headers)
 
     assert response.status_code == 200, response.text
-    assert response.json()["mapping_method"] is None
+    body = response.json()
+    assert body["mapping_method"] is None
+    assert body["semantic_pending"] is True
+    assert body["semantic_pending_reason"]
     assert vector_guard == {"index": 0, "match": 0}
     [job] = await _semantic_jobs(db)
     assert job.payload["posting_id"] == str(posting.id)
