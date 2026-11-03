@@ -112,10 +112,14 @@ describe("settings-map contract", () => {
   // plan 32 Phase 1 (D17): the tools.connectors row broadened to job-source
   // connectors — the nav conformance pins the broadening so the row can
   // never silently shrink back to MCP-only.
-  // plan 154: the connectors domain narrowed to the MCP server surface
-  // and job-source ingestion split into its own tools.sources domain —
-  // both pinned so neither silently merges back or disappears.
-  it("tools.connectors is the MCP server surface; tools.sources covers job-source ingestion", () => {
+  // plan 154: the connectors domain narrowed to the MCP server surface and
+  // job-source ingestion split into its own domain.
+  // plan 186: that combined sources domain split again into
+  // tools.job-sources + tools.extensions. The UI section split is plan 186's
+  // own step, so the shipped `sources` section temporarily hosts both
+  // domains; the pins below keep the domains split and forbid tools.sources
+  // from returning while the section id stays stable.
+  it("tools.connectors is the MCP server surface; job sources and extensions are split domains", () => {
     const domains = map.domains ?? [];
     const connectors = domains.find((entry) => entry.id === "tools.connectors");
     expect(connectors).toBeDefined();
@@ -123,11 +127,21 @@ describe("settings-map contract", () => {
     expect(connectors!.home?.tab).toBe("tools");
     expect(connectors!.home?.section).toBe("mcp");
 
-    const sources = domains.find((entry) => entry.id === "tools.sources");
-    expect(sources).toBeDefined();
-    expect(sources!.definition).toMatch(/job-source connector/i);
-    expect(sources!.home?.section).toBe("sources");
-    expect(sources!.adopters?.["career-assistant"]).toMatch(/plan 154/);
+    const jobSources = domains.find((entry) => entry.id === "tools.job-sources");
+    expect(jobSources).toBeDefined();
+    expect(jobSources!.definition).toMatch(/job-source connector/i);
+    expect(jobSources!.home?.section).toBe("job-sources");
+    expect(jobSources!.adopters?.["career-assistant"]).toMatch(/plan 186/);
+
+    const extensions = domains.find((entry) => entry.id === "tools.extensions");
+    expect(extensions).toBeDefined();
+    expect(extensions!.definition).toMatch(/extension sources/i);
+    expect(extensions!.home?.section).toBe("extensions");
+    expect(extensions!.adopters?.["career-assistant"]).toMatch(/plan 186/);
+
+    // The plan-186 domain split must never leave the retired combined domain
+    // behind; the section itself still hosts both domains until the UI split.
+    expect(domains.find((entry) => entry.id === "tools.sources")).toBeUndefined();
 
     const declaredTools = declared.find((tab) => tab.id === "tools");
     expect(declaredTools!.sections!.map((section) => section.id)).toEqual([
@@ -135,6 +149,8 @@ describe("settings-map contract", () => {
       "mcp",
       "sources",
     ]);
+    const sourcesSection = declaredTools!.sections!.find((section) => section.id === "sources");
+    expect(sourcesSection!.domains).toEqual(["tools.job-sources", "tools.extensions"]);
   });
 
   it("automations is declared in the automations group", () => {
