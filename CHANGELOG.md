@@ -4,6 +4,14 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (internal — vector retrieval foundation, 2026-11-03)
+- **Groundwork for multi-view semantic retrieval.** The database now carries
+  versioned embedding-space, document and record tables (plus two bounded
+  operational rollups), the app vendors the family vector contract, and an
+  exact-scan linear backend with a writer guard is in place. No existing
+  embedding call site, ranking surface or stored vector changes in this
+  step — the pgvector/sqlite-vec adapters and the read cutover land next.
+
 ### Added (card entity menu on /postings, 2026-11-02)
 - **Filter straight from the cards.** On `/postings`, clicking or
   right-clicking a skill chip or the company name — and right-clicking a
