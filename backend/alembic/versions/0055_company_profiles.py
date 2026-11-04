@@ -5,7 +5,7 @@ One row per organization (unique FK, CASCADE): the reviewed 1:1 layer
 over ``organizations`` — company type, size, HQ, founded year, industry
 tags, links and typed financial claims (kind + amount + currency +
 as-of + source per claim). What postings prove is derived at read time
-and never stored here. Model-first (family-migration §1): mirrors
+and never stored here. Model-first (the family migration rules §1): mirrors
 ``app.models.company_model.CompanyProfile`` exactly. ``downgrade()``
 removes the table.
 

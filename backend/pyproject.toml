@@ -128,18 +128,18 @@ extend-immutable-calls = [
 # contracts/ai-presets.json — never hand-edited; long decision-model data
 # lines are exempt (the byok gate's R1 guards the data, not ruff).
 "app/ai/providers/presets_data.py" = ["E501"]
-# Vendored family extension-contract modules (dev/contracts canonical via
+# Vendored family extension-contract modules (family canonical via
 # scripts/sync-extension-contract.sh, byte-identical, never edited here —
 # ADR-0031/ADR-0040): lint findings belong in the dev canonical, not the
 # vendored copy; drift is gated by the sync ledger + verify-wiring.
 "app/extensions/polite_http.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 "app/extensions/contract.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 "app/extensions/conformance.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
-# Vendored family vector contract (dev/contracts canonical via
+# Vendored family vector contract (family canonical via
 # scripts/sync-vector-contract.sh, byte-identical, never edited here —
 # ADR-0031/ADR-0051): lint findings belong in the dev canonical.
 "app/storage/vector_contract.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
-# Vendored family retrieval-operations contract (dev/contracts canonical via
+# Vendored family retrieval-operations contract (family canonical via
 # scripts/sync-retrieval-ops.sh, byte-identical, never edited here —
 # ADR-0031/ADR-0051): lint findings belong in the dev canonical.
 "app/storage/retrieval_ops.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
@@ -168,7 +168,7 @@ exclude = [
 # moves in EITHER direction.
 #
 # The vendored extension-contract canonical (app/extensions/contract.py)
-# is byte-identical to dev/contracts/contract.py — never edited in-repo,
+# is byte-identical to the family extension contract — never edited in-repo,
 # and mypy-strict compliance is the dev canonical's duty (the
 # unification wave's sync introduced strict-mode findings here; study
 # carries the same exclusion).

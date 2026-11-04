@@ -1,7 +1,7 @@
 """Plan 130 — radar-driven ingestion: job_sources gains query_mode + query_cache.
 
 `query_mode` ('static' | 'radar', default 'static' = today's behavior) is
-mirrored by the `query_mode_allowed` CHECK (family-migration §5b recipe);
+mirrored by the `query_mode_allowed` CHECK (the family migration rules §5b recipe);
 `query_cache` is the merged-query artifact (role groups + provenance +
 rotation cursor) rebuilt on radar change and read at sync time.
 `downgrade()` drops the constraint and both columns.

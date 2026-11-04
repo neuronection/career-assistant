@@ -3,7 +3,7 @@
 How many rotating role groups one radar-mode sync searches (1 = the
 single focused query, 3 = the cap). Executed strictly sequentially with
 a jittered interval the connector enforces — the column only sizes the
-batch. Mirrored by the `query_batch_size_allowed` CHECK (family-migration
+batch. Mirrored by the `query_batch_size_allowed` CHECK (the family migration rules
 §5b recipe). `downgrade()` drops the constraint and the column.
 """
 

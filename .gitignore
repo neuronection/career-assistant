@@ -69,7 +69,6 @@ backend/dist/
 backend/checkpoints.db*
 packaging/_smoke-*/
 smoke.log
-package-lock.json
 packaging/_appimage/
 packaging/_smoke-*/
 packaging/*.deb

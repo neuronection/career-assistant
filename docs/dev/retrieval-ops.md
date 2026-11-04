@@ -3,7 +3,7 @@
 This is the operator how-to for the career vector index: where the read and
 write surfaces live, how to reindex and cut over a space, how to read a run,
 and what to do when a gate or an alert fires. The family contract and its
-non-negotiables live in `dev/guidelines/retrieval-ops.md`; this page is the
+non-negotiables are the family retrieval-operations contract; this page is the
 career runbook, not a second copy of the law.
 
 Everything here is admin-only. The surfaces never expose document, query or

@@ -7,14 +7,14 @@ Two shapes in one migration:
   destructive tool call becomes a Class-B card in the existing proposal
   machinery (idempotent resolve, notification fanout, cross-session
   inbox); the constraint widening is the mirrored-CHECK rule
-  (family-migration §5b): provisioning the new kind otherwise 500s on
+  (the family migration rules §5b): provisioning the new kind otherwise 500s on
   insert;
 * ``user_tool_grants`` — per-user state-changing enablement (the tools
   catalog toggle): a ``state-changing`` registry tool executes only
   while a grant row exists; ``destructive`` tools are never grantable
   and confirm every call.
 
-Model-first (family-migration §1): mirrors ``app.models.enums`` +
+Model-first (the family migration rules §1): mirrors ``app.models.enums`` +
 ``app.models.tool_grant_model`` exactly.
 """
 

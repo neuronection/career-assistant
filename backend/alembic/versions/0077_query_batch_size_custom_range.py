@@ -3,7 +3,7 @@
 The source form gains a custom value beside the 1/2/3 presets; the
 rotation math works for any N and the limiter is the time budget, so the
 sanity cap moves to 6 and the column default moves to 2. CHECK widen is
-same-commit (family-migration §6).
+same-commit (the family migration rules §6).
 
 Portable split: Postgres takes plain ALTER DDL (drop/recreate the named
 CHECK, SET DEFAULT); SQLite cannot ALTER a column or DROP a CHECK, so it

@@ -81,7 +81,7 @@ mode and no hidden unlock — see
 
 `components/ui/*` are **re-export shims** of `@neuronection/assistant-ui` — the
 app is fully adopted. Never reintroduce a local implementation; extend the
-library instead (see the `ca-assistant-ui` and `family-ui` skills). Styling
+library instead (see the assistant-ui docs and this repo's UI conventions). Styling
 goes through `--as-*` tokens and `data-as-*` attributes; app identity
 overrides live in `theme.css`.
 

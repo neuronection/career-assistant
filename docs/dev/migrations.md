@@ -5,7 +5,7 @@ revisions bring existing databases to match. Career Assistant runs **one
 linear chain on two dialects** — PostgreSQL (web) and SQLite (desktop) — so
 every migration must be dialect-aware.
 
-The shared family discipline is the `family-migration` skill; this page is the
+The shared family discipline is documented in the migration standard; this page is the
 app-specific delta.
 
 ## Layout and ids
@@ -111,7 +111,7 @@ regenerating a baseline, **drop and recreate** instead.
 
 Parallel branches both claim the next revision id. The second branch to finish
 rebases onto the new head and **renumbers its revision** before committing
-(see [development.md](development.md) and the `family-dev` skill).
+(see [development.md](development.md) and the repo development workflow).
 
 ## Docs in the same commit
 

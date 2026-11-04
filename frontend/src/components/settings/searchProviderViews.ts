@@ -13,7 +13,7 @@ import type {
   SearchProviderSaveBody,
 } from "@/api/ai";
 
-// The family "pure mapping module" rule (family-ui): wire types → library
+// The family "pure mapping module" rule (the family UI standard): wire types → library
 // view-models in one place, never inline at call sites. Career's catalog
 // arrives from the backend (the vendored family contract served by
 // GET /ai/web/search-providers/catalog) and stores instance rows with

@@ -15,7 +15,7 @@ Three shapes in one migration:
   orphans as ``interrupted``, sandbox death self-disables the extension
   (ADR-0030's AppService boot pattern, ported).
 
-Model-first (family-migration §1): mirrors
+Model-first (the family migration rules §1): mirrors
 ``app.models.extension_model`` exactly.
 """
 

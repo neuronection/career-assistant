@@ -8,7 +8,7 @@ career-path flags, plus the new columns on existing tables (source kind /
 health / pause, user locale, proposal origin, career-path branching, fit
 analytics) and every mirrored enum CHECK widening.
 
-Model-first (family-migration §1): mirrors ``app.models`` exactly.
+Model-first (the family migration rules §1): mirrors ``app.models`` exactly.
 ``downgrade()`` removes everything this revision added.
 """
 

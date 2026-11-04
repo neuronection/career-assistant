@@ -5,7 +5,7 @@ One row per profile (unique FK, CASCADE): keywords, locations,
 seniority, onsite preference, a salary floor on the NORMALIZED annual
 basis (phase 2), the notification cadence and the enabled switch.
 `source_keys` is schema-ready for source-follows and deliberately
-unconsumed until then. Model-first (family-migration §1): mirrors
+unconsumed until then. Model-first (the family migration rules §1): mirrors
 ``app.models.radar_model.JobRadar`` exactly. ``downgrade()`` drops the
 table.
 

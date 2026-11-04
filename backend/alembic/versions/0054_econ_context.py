@@ -7,7 +7,7 @@ observations (four provenance tiers), code crosswalks, occupation
 exposure scores, the scenario/claim registries and per-user watches.
 Sits beside ``market_snapshots`` (which stays posting-derived).
 
-Model-first (family-migration §1): mirrors ``app.models.econ_model``
+Model-first (the family migration rules §1): mirrors ``app.models.econ_model``
 exactly. ``downgrade()`` removes everything this revision added.
 
 Revision id: ``0054`` — the plan's ``0053_econ_context`` slot was taken

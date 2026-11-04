@@ -95,7 +95,7 @@ lookups — no frozen build required).
    headless web mode, rename and upload.
 
 Use `scripts/version_manager.py` for the bump + tag flow (see the
-`family-release` skill).
+family release process).
 
 ## CI workflows
 

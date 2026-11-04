@@ -132,7 +132,7 @@ All notable changes to **Career Assistant** are documented here.
   the one-active-run-per-space lock, stale-heartbeat recovery, the ten alert
   kinds with their dedup/recovery and manage URLs, honest cold/degraded
   states, the no-raw-text rule and a troubleshooting table. The family
-  contract remains `dev/guidelines/retrieval-ops.md`.
+  contract remains `the family retrieval-ops.md standard`.
 - **The user settings page now deep-links the exact surfaces** —
   `/settings/tools?section=retrieval` and
   `/settings/audit?tab=retrieval&section=overview` — and names the cold and
@@ -1250,7 +1250,7 @@ All notable changes to **Career Assistant** are documented here.
 - **A discreet update badge in the sidebar footer**, backed by
   `GET /api/v1/instance/update-check`: a public, 6 h-cached endpoint over
   the synced family version-check contract
-  (`backend/app/core/version_check.py`, canonical in `dev/contracts/` —
+  (`backend/app/core/version_check.py`, canonical in `the family contract canonical/` —
   ADR-0048) that checks the neuronection.com version API with real semver
   ordering and the stable-channel law (prereleases are never offered to
   stable clients; validation before use; failures read as "no update",
@@ -2929,7 +2929,7 @@ All notable changes to **Career Assistant** are documented here.
   configSchema), imported through the same consent-gated git-source
   pipeline (T0 declarative disclosure verbatim).
 - **Shared renderer fixture wall**: both hosts' renderers satisfy
-  `dev/contracts/surface-renderer.fixtures.json` (12 cases — every
+  `the family contract canonical/surface-renderer.fixtures.json` (12 cases — every
   component, degrade paths, the no-raw-markup law). Backend tests join
   the wall (vendored fixtures against career's surface gate); frontend
   tests render the same fixtures through SurfaceRenderer; the e2e suite

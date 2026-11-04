@@ -11,7 +11,7 @@ known period — that restores comparability for existing rows. The basis
 stays NULL for them: recovering gross/net means reading the posting's
 free text (it survives in `posting.raw`), which is an AI re-extraction
 (demand-path or admin-triggered), never a SQL guess. Model-first
-(family-migration §1): mirrors `app.models.posting_model.JobPosting`.
+(the family migration rules §1): mirrors `app.models.posting_model.JobPosting`.
 ``downgrade()`` drops the three columns.
 
 Revision id: ``0056`` — chains onto the plan-129 phase-1 ``0055`` head.

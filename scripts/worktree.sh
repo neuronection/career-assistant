@@ -156,7 +156,7 @@ wt_migrate_test_db() {
 
 wt_copy_local_config() {
   local root="$1"
-  dc_step "copying local-only config (.opencode) into the worktree"
+  dc_step "copying local-only agent config into the worktree"
   if [[ -d "$PRIMARY_ROOT/.opencode" ]]; then
     rm -rf "$root/.opencode"
     cp -R "$PRIMARY_ROOT/.opencode" "$root/.opencode"

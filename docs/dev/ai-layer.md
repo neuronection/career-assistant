@@ -2,7 +2,7 @@
 
 Everything AI in Career Assistant lives under `backend/app/ai/` and flows
 through **one gateway**. There is no side door. The family-wide rules are in
-the `family-ai` skill; this page is the app-specific map.
+the family AI architecture standard; this page is the app-specific map.
 
 ## The gateway is the only invocation path
 
