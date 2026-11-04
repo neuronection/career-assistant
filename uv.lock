@@ -544,6 +544,7 @@ dependencies = [
     { name = "pywebpush" },
     { name = "qrcode" },
     { name = "sqlalchemy", extra = ["asyncio"] },
+    { name = "tiktoken" },
     { name = "typesafe-sdk" },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -623,6 +624,7 @@ requires-dist = [
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "sqlite-vec", marker = "extra == 'desktop'", specifier = ">=0.1.9,<0.2" },
     { name = "sqlite-vec", marker = "extra == 'sqlite'", specifier = ">=0.1.9,<0.2" },
+    { name = "tiktoken", specifier = ">=0.14,<0.15" },
     { name = "typesafe-sdk", specifier = ">=0.7,<0.8" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.49" },
 ]
