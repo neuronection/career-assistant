@@ -203,3 +203,67 @@ async def test_match_score_job_handler_scores_candidates(
     assert job.status == "succeeded", job.error
     assert job.result["scored"] >= 1
     assert job.progress == 100
+
+
+async def test_progress_detail_rides_the_progress_write_and_is_pruned_with_the_result(
+    db, monkeypatch
+):
+    import app.services.job_worker as worker_module
+
+    observed: dict = {}
+
+    async def detailed(db, job, *, progress, cancelled):
+        await progress(
+            10,
+            "scanning posting",
+            {
+                "phase": "scanning",
+                "processed_documents": 1,
+                "total_documents": 4,
+                "embedded_chunks": 3,
+                "tokens": 120,
+                "source_ids": ["doc-1"],
+                "text": "must never persist",
+            },
+        )
+        await db.refresh(job)
+        observed.update(job.progress_detail or {})
+        return {"scanned": 1}
+
+    monkeypatch.setitem(worker_module.HANDLERS, "job_generate", detailed)
+    job = await _enqueue(db)
+    worker = JobWorker(db)
+    await worker.execute(await worker.claim_next())
+    await db.refresh(job)
+
+    assert observed["processed_documents"] == 1
+    assert observed["total_documents"] == 4
+    assert observed["embedded_chunks"] == 3
+    assert "source_ids" not in observed, "unknown/raw keys never persist"
+    assert "text" not in observed
+    assert job.status == "succeeded"
+    assert job.result == {"scanned": 1}, "the final result stays authoritative"
+    assert job.progress_detail is None, "the live detail is pruned when the result commits"
+
+
+def test_bound_progress_detail_drops_unknown_keys_and_clamps_counters():
+    from app.services.progress import MAX_PROGRESS_COUNTER, bound_progress_detail
+
+    bounded = bound_progress_detail(
+        {
+            "phase": "embedding",
+            "processed_documents": 2,
+            "total_documents": 5,
+            "tokens": -1,
+            "embed_calls": MAX_PROGRESS_COUNTER + 7,
+            "source_ids": ["doc-1"],
+        }
+    )
+    assert bounded is not None
+    assert bounded["phase"] == "embedding"
+    assert bounded["processed_documents"] == 2
+    assert bounded["tokens"] == 0, "a negative token count clamps to zero"
+    assert bounded["embed_calls"] == MAX_PROGRESS_COUNTER
+    assert "source_ids" not in bounded
+    assert bound_progress_detail({"phase": "not-a-phase"})["phase"] == "queued"
+    assert bound_progress_detail(None) is None

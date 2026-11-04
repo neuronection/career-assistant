@@ -787,6 +787,20 @@ def _partial_result() -> ReconcileResult:
             "posting": {"updated_at": "2026-01-01T00:00:02+00:00", "id": str(uuid.uuid4())}
         },
         carry={"posting": {"seen": 2, "missing": 0, "stale": 0, "failed": 0, "embedded": 2}},
+        progress={
+            "processed_documents": 2,
+            "total_documents": 5,
+            "processed_chunks": 12,
+            "embedded_chunks": 12,
+            "skipped_chunks": 0,
+            "failed_chunks": 0,
+            "embedded_documents": 2,
+            "skipped_documents": 0,
+            "failed_documents": 0,
+            "tokens": 480,
+            "tokens_exact": True,
+            "embed_calls": 2,
+        },
         done=False,
     )
 
@@ -811,6 +825,7 @@ async def test_a_partial_reconcile_enqueues_exactly_one_continuation(db, monkeyp
     assert followup.status == "queued"
     assert followup.payload["after"] == partial.next_after
     assert followup.payload["carry"] == partial.carry
+    assert followup.payload["progress_carry"] == partial.progress
     assert followup.payload["completed_kinds"] == []
     assert followup.payload["scan_limit"] == 2
     assert followup.payload["continuation_key"]
@@ -1084,3 +1099,170 @@ async def test_a_reconcile_continuation_keeps_the_explicit_space_id(db, monkeypa
 
     [followup] = await _followups(db, job.id)
     assert followup.payload["space_id"] == space_id
+
+
+# --------------------------------------------------------- live progress (T4)
+
+
+class DetailRecorder:
+    """Collects (percent, stage, detail) writes; detail may be None."""
+
+    def __init__(self) -> None:
+        self.writes: list[tuple[int, str, dict | None]] = []
+
+    async def __call__(self, value, stage, detail=None):
+        self.writes.append((value, stage, dict(detail) if detail is not None else None))
+
+    @property
+    def details(self) -> list[dict]:
+        return [detail for _value, _stage, detail in self.writes if detail is not None]
+
+
+async def test_progress_detail_is_exact_for_documents_and_cumulative_for_chunks(
+    db, engine, monkeypatch
+):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(3)]
+    _patch_sources(monkeypatch, postings)
+    recorder = DetailRecorder()
+    service = _service(db, engine, embedder=_mock)
+
+    result = await service.run(progress=recorder)
+
+    assert result.done is True
+    assert result.progress == {}, "a finished chain carries no detail forward"
+    details = recorder.details
+    assert details, "the run wrote at least one detail"
+    final = details[-1]
+    assert final["done"] is True
+    assert final["total_documents"] == 3, "total documents is exact at scan start"
+    assert final["processed_documents"] == 3
+    assert final["embedded_documents"] == 3
+    assert final["failed_documents"] == 0
+    assert final["embedded_chunks"] >= 3
+    assert final["chunks_estimated"] is True, "chunk totals are never claimed exact"
+    assert final["pending_chunks"] == 0
+    assert final["total_chunks"] == final["processed_chunks"]
+    assert isinstance(final["exact_tokenizer"], bool)
+    if final["tokens"] is not None:
+        assert final["tokens"] > 0
+    assert final["embed_calls"] >= 1
+
+    seed, *rest = recorder.writes
+    assert seed[2]["processed_documents"] == 0 and seed[2]["total_documents"] == 3
+    per_document = [row for row in rest if row[1].startswith("scanning ")]
+    assert len(per_document) == 3, "one folded progress write per document"
+
+    serialized = str(details)
+    for posting in postings:
+        assert str(posting.id) not in serialized, "no source ids in progress detail"
+    assert "paragraph" not in serialized, "no document text in progress detail"
+    assert set(details[0]) == {
+        "phase",
+        "processed_documents",
+        "total_documents",
+        "processed_chunks",
+        "pending_chunks",
+        "total_chunks",
+        "chunks_estimated",
+        "embedded_chunks",
+        "skipped_chunks",
+        "failed_chunks",
+        "embedded_documents",
+        "skipped_documents",
+        "failed_documents",
+        "tokens",
+        "tokens_estimated",
+        "embed_calls",
+        "exact_tokenizer",
+        "done",
+    }
+
+
+async def test_progress_carry_resumes_the_bar_without_resetting(db, engine, monkeypatch):
+    postings = [_fake_posting(uuid.uuid4(), title=f"Role {index}") for index in range(5)]
+    _patch_sources(monkeypatch, postings)
+    store = _store(engine)
+
+    first_recorder = DetailRecorder()
+    first = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=2,
+        embedder=_mock,
+    )
+    partial = await first.run(progress=first_recorder)
+
+    assert partial.done is False
+    assert partial.progress["total_documents"] == 5
+    assert partial.progress["processed_documents"] == 2
+    last_partial = first_recorder.details[-1]
+    assert last_partial["pending_chunks"] > 0
+    assert last_partial["total_chunks"] == (
+        last_partial["processed_chunks"] + last_partial["pending_chunks"]
+    )
+
+    second_recorder = DetailRecorder()
+    second = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=2,
+        embedder=_mock,
+        after=partial.next_after,
+        carry=partial.carry,
+        completed_kinds=partial.completed_kinds,
+        progress_carry=partial.progress,
+    )
+    resumed = await second.run(progress=second_recorder)
+
+    opening = second_recorder.details[0]
+    assert opening["total_documents"] == 5, "the carried total survives the continuation"
+    assert opening["processed_documents"] == 2, "the bar resumes instead of resetting"
+    assert resumed.progress["processed_documents"] == 4
+    assert resumed.progress["embedded_documents"] == 4
+
+    final_recorder = DetailRecorder()
+    third = VectorReconcileService(
+        db,
+        store=store,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        scan_limit=2,
+        embedder=_mock,
+        after=resumed.next_after,
+        carry=resumed.carry,
+        completed_kinds=resumed.completed_kinds,
+        progress_carry=resumed.progress,
+    )
+    final = await third.run(progress=final_recorder)
+    assert final.done is True
+    assert final.progress == {}
+    assert final_recorder.details[-1]["processed_documents"] == 5
+
+
+def test_progress_carry_parsing_is_bounded_and_never_keeps_ids():
+    from app.services.progress import MAX_PROGRESS_COUNTER
+    from app.services.vector_reconcile_service import parse_progress_carry
+
+    parsed = parse_progress_carry(
+        {
+            "processed_documents": 4,
+            "total_documents": 10,
+            "tokens": -5,
+            "tokens_exact": 1,
+            "source_ids": ["doc-1"],
+            "text": "secret",
+            "embed_calls": MAX_PROGRESS_COUNTER + 100,
+        }
+    )
+    assert parsed["processed_documents"] == 4
+    assert parsed["tokens"] is None, "a negative token count is not a measurement"
+    assert parsed["tokens_exact"] is True
+    assert parsed["embed_calls"] == MAX_PROGRESS_COUNTER
+    assert "source_ids" not in parsed and "text" not in parsed
+    assert parse_progress_carry(None) == {}
+    with pytest.raises(ValueError):
+        parse_progress_carry(["not", "an", "object"])

@@ -52,6 +52,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.vector_model import RetrievalCoverageSnapshot
+from app.services.progress import MAX_PROGRESS_COUNTER, ProgressCb
 from app.services.vector_index_service import (
     CONTENT_SPACE,
     SourceRow,
@@ -73,8 +74,21 @@ DEFAULT_BATCH_SIZE = 10
 DEFAULT_SCAN_LIMIT = 500
 FAILED_IDS_CAP = 25
 CARRY_FIELDS = ("seen", "missing", "stale", "failed", "embedded")
+#: The live-counter subset that rides a reconcile continuation verbatim, so
+#: the successor's bar resumes instead of resetting. No ids or text.
+DETAIL_COUNTER_FIELDS = (
+    "processed_documents",
+    "total_documents",
+    "processed_chunks",
+    "embedded_chunks",
+    "skipped_chunks",
+    "failed_chunks",
+    "embedded_documents",
+    "skipped_documents",
+    "failed_documents",
+    "embed_calls",
+)
 
-ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelledCb = Callable[[], Awaitable[bool]]
 Cursor = tuple[datetime, str]
 
@@ -128,6 +142,8 @@ class ReconcileResult:
     completed_kinds: tuple[str, ...] = ()
     done: bool = True
     remaining: int = 0
+    #: Live counters for the next chained run (empty when the chain is done).
+    progress: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -155,6 +171,7 @@ class ReconcileResult:
             "completed_kinds": list(self.completed_kinds),
             "done": self.done,
             "remaining": self.remaining,
+            "progress_carry": dict(self.progress),
         }
 
 
@@ -175,6 +192,7 @@ class VectorReconcileService:
         scan_limit: int = DEFAULT_SCAN_LIMIT,
         after: Mapping[str, Any] | None = None,
         carry: Mapping[str, Any] | None = None,
+        progress_carry: Mapping[str, Any] | None = None,
         completed_kinds: Sequence[str] | None = None,
         since: datetime | None = None,
         force: bool = False,
@@ -209,6 +227,7 @@ class VectorReconcileService:
         self._run = run
         self._after = parse_after(after)
         self._carry = parse_carry(carry)
+        self._progress_carry = parse_progress_carry(progress_carry)
         self._completed = set(parse_completed_kinds(completed_kinds))
         self._indexer = VectorIndexService(
             db,
@@ -257,6 +276,59 @@ class VectorReconcileService:
             if kind not in self._completed
         )
 
+        # Live counters (plan 52 T4). ``total_documents`` is exact at scan
+        # start and carried across the chain; chunk totals are cumulative or
+        # estimated because no full corpus pre-scan exists.
+        carried = self._progress_carry
+        total_documents = int(carried.get("total_documents") or population)
+        processed_documents = int(carried.get("processed_documents") or 0)
+        processed_chunks = int(carried.get("processed_chunks") or 0)
+        embedded_chunks = int(carried.get("embedded_chunks") or 0)
+        skipped_chunks = int(carried.get("skipped_chunks") or 0)
+        failed_chunks = int(carried.get("failed_chunks") or 0)
+        embedded_documents = int(carried.get("embedded_documents") or 0)
+        skipped_documents = int(carried.get("skipped_documents") or 0)
+        failed_documents = int(carried.get("failed_documents") or 0)
+        tokens: int | None = carried.get("tokens")
+        tokens_exact = bool(carried.get("tokens_exact"))
+        embed_calls = int(carried.get("embed_calls") or 0)
+
+        def live(phase: str, *, done: bool = False) -> dict[str, Any]:
+            """The bounded detail for one progress write (counts only)."""
+            pending_documents = max(total_documents - processed_documents, 0)
+            if processed_documents > 0 and pending_documents > 0:
+                average = processed_chunks / processed_documents
+                pending_chunks = max(round(average * pending_documents), 0)
+            else:
+                pending_chunks = 0
+            return {
+                "phase": phase,
+                "processed_documents": processed_documents,
+                "total_documents": total_documents,
+                "processed_chunks": processed_chunks,
+                "pending_chunks": pending_chunks,
+                "total_chunks": processed_chunks + pending_chunks,
+                "chunks_estimated": True,
+                "embedded_chunks": embedded_chunks,
+                "skipped_chunks": skipped_chunks,
+                "failed_chunks": failed_chunks,
+                "embedded_documents": embedded_documents,
+                "skipped_documents": skipped_documents,
+                "failed_documents": failed_documents,
+                "tokens": tokens,
+                "tokens_estimated": tokens is not None and not tokens_exact,
+                "embed_calls": embed_calls,
+                "exact_tokenizer": tokens_exact,
+                "done": done,
+            }
+
+        await self._report(
+            progress,
+            self._percent(done_global, population),
+            "scanning",
+            live("scanning"),
+        )
+
         for kind in self.kinds:
             if kind in completed:
                 continue
@@ -291,19 +363,26 @@ class VectorReconcileService:
                     break
                 done_global += 1
                 await self._report(
-                    progress, self._percent(done_global, population), f"scanning {kind}"
+                    progress,
+                    self._percent(done_global, population),
+                    f"scanning {kind}",
+                    live("scanning"),
                 )
+                processed_documents += 1
                 loaded = await load_source(self.db, kind, row.source_id)
                 if loaded is None:
                     orphans += await self._drop_orphan(kind, row.source_id)
                     scanned += 1
                     state["seen"] += 1
+                    skipped_documents += 1
                     last_processed = row
                     continue
                 scanned += 1
+                record_count = len(loaded.composed.records)
                 if loaded.composed.is_empty:
                     state["embedded"] += 1
                     state["seen"] += 1
+                    skipped_documents += 1
                     last_processed = row
                     continue
                 stored = hashes.get(row.source_id)
@@ -311,6 +390,9 @@ class VectorReconcileService:
                     state["embedded"] += 1
                     skipped += 1
                     state["seen"] += 1
+                    processed_chunks += record_count
+                    skipped_chunks += record_count
+                    skipped_documents += 1
                     last_processed = row
                     continue
                 dirty = "missing" if stored is None else "stale"
@@ -327,6 +409,9 @@ class VectorReconcileService:
                     state["failed"] += 1
                     state[dirty] += 1
                     truncated = self._record_failure(failed_ids, kind, row.source_id) or truncated
+                    processed_chunks += record_count
+                    failed_chunks += record_count
+                    failed_documents += 1
                     logger.warning(
                         "vector reconcile failed for %s %s", kind, row.source_id, exc_info=True
                     )
@@ -338,6 +423,7 @@ class VectorReconcileService:
                     if outcome.degraded == "provider_unassigned":
                         deferred += 1
                         state[dirty] += 1
+                        skipped_documents += 1
                     else:
                         failed += 1
                         state["failed"] += 1
@@ -345,6 +431,9 @@ class VectorReconcileService:
                         truncated = (
                             self._record_failure(failed_ids, kind, row.source_id) or truncated
                         )
+                        processed_chunks += record_count
+                        failed_chunks += record_count
+                        failed_documents += 1
                     state["seen"] += 1
                     last_processed = row
                     continue
@@ -354,12 +443,23 @@ class VectorReconcileService:
                 written += outcome.written
                 pruned += outcome.pruned
                 self._units += outcome.embedded
+                processed_chunks += outcome.scanned
+                embedded_chunks += outcome.embedded
+                skipped_chunks += outcome.skipped
+                embedded_documents += 1
+                embed_calls += outcome.embed_calls
+                if outcome.tokens is not None:
+                    tokens = (tokens or 0) + outcome.tokens
+                    tokens_exact = tokens_exact and outcome.tokens_exact
+                elif outcome.embedded:
+                    tokens_exact = False
                 last_processed = row
                 if embedded % self.batch_size == 0:
                     await self._report(
                         progress,
                         self._percent(done_global, population),
                         f"indexed {embedded} document(s)",
+                        live("embedding" if embedded_chunks else "scanning"),
                     )
 
             if kind_complete and not focused and len(sources) >= self.scan_limit:
@@ -415,7 +515,28 @@ class VectorReconcileService:
         if done and self.since is None and self._only is None:
             for kind in self.kinds:
                 orphans += await self._sweep_orphans(kind)
-        await self._report(progress, 100, "reconciled" if done else "batch reconciled")
+        await self._report(
+            progress,
+            100,
+            "reconciled" if done else "batch reconciled",
+            live("done" if done else "scanning", done=done),
+        )
+        progress_carry: dict[str, Any] = {}
+        if not done:
+            progress_carry = {
+                "processed_documents": processed_documents,
+                "total_documents": total_documents,
+                "processed_chunks": processed_chunks,
+                "embedded_chunks": embedded_chunks,
+                "skipped_chunks": skipped_chunks,
+                "failed_chunks": failed_chunks,
+                "embedded_documents": embedded_documents,
+                "skipped_documents": skipped_documents,
+                "failed_documents": failed_documents,
+                "tokens": tokens,
+                "tokens_exact": tokens_exact,
+                "embed_calls": embed_calls,
+            }
         return ReconcileResult(
             space=self.space_name,
             space_id=self.space_id,
@@ -438,6 +559,7 @@ class VectorReconcileService:
             completed_kinds=tuple(kind for kind in self.kinds if kind in completed),
             done=done,
             remaining=remaining,
+            progress=progress_carry,
         )
 
     # ----------------------------------------------------------- internals
@@ -558,9 +680,14 @@ class VectorReconcileService:
         return min(95, max(5, int(95 * done / total)))
 
     @staticmethod
-    async def _report(progress: ProgressCb | None, value: int, stage: str) -> None:
+    async def _report(
+        progress: ProgressCb | None,
+        value: int,
+        stage: str,
+        detail: Mapping[str, Any] | None = None,
+    ) -> None:
         if progress is not None:
-            await progress(value, stage)
+            await progress(value, stage, detail)
 
 
 def _empty_carry() -> dict[str, int]:
@@ -637,6 +764,31 @@ def parse_carry(value: Any) -> dict[str, dict[str, int]]:
     return carried
 
 
+def parse_progress_carry(value: Any) -> dict[str, Any]:
+    """Payload ``progress_carry`` → bounded cumulative live counters.
+
+    This is the reconcile chain's detail carry: it lets a continuation resume
+    the bar with the parent's processed/total documents and chunk/token
+    counters. Unknown keys are ignored; every counter is clamped and optional
+    values stay optional (``tokens`` is ``None`` until measured).
+    """
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("progress_carry must be an object")
+    carried: dict[str, Any] = {}
+    for name in DETAIL_COUNTER_FIELDS:
+        carried[name] = max(0, min(int(value.get(name) or 0), MAX_PROGRESS_COUNTER))
+    tokens = value.get("tokens")
+    carried["tokens"] = (
+        min(int(tokens), MAX_PROGRESS_COUNTER)
+        if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
+        else None
+    )
+    carried["tokens_exact"] = bool(value.get("tokens_exact"))
+    return carried
+
+
 def parse_completed_kinds(value: Any) -> tuple[str, ...]:
     """Payload ``completed_kinds`` → kinds already complete in this chain."""
     if value in (None, "", []):
@@ -704,5 +856,6 @@ __all__ = [
     "parse_completed_kinds",
     "parse_kinds",
     "parse_only",
+    "parse_progress_carry",
     "parse_since",
 ]

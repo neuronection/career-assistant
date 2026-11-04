@@ -31,6 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AINotConfiguredError
 from app.models.enums.retrieval import VectorScopeType
 from app.models.vector_model import VectorSpace as VectorSpaceRow
+from app.services.progress import ProgressCb
 from app.services.vector_composers import (
     CHUNKER_VERSION,
     COMPOSER_VERSION,
@@ -59,7 +60,6 @@ VECTOR_RECORD_NAMESPACE = uuid.uuid5(
     uuid.NAMESPACE_URL, "https://neuronection.local/career/vector-record"
 )
 
-ProgressCb = Callable[[int, str], Awaitable[None]]
 Embedder = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
 
 
@@ -99,6 +99,9 @@ class IndexOutcome:
     written: int = 0
     pruned: int = 0
     degraded: str | None = None
+    tokens: int | None = None
+    tokens_exact: bool = False
+    embed_calls: int = 0
 
     def as_result(self) -> dict[str, Any]:
         """The ``background_jobs.result`` payload (plan 51 §3.2 shape)."""
@@ -442,6 +445,7 @@ class VectorIndexService:
         self._provision_backend = provision_backend
         self._user_id = user_id
         self._verified_spaces: set[str] = set()
+        self._embed_calls = 0
 
     async def index_document(
         self,
@@ -494,6 +498,7 @@ class VectorIndexService:
         composed = loaded.composed
         if composed.is_empty:
             return IndexOutcome(kind=kind, source_id=source_id, space=self.space_name)
+        calls_before = self._embed_calls
         self._tags.clear()
         self._tags["kind"] = kind
         await self._release_sqlite_writer()
@@ -548,6 +553,11 @@ class VectorIndexService:
                 f"embedder returned {len(vectors)} vector(s) for {len(changed)} text(s)"
             )
         vectors = vectors or []
+        tokens, tokens_exact = (
+            self._count_tokens(space, [record.text for record in changed])
+            if changed
+            else (0, False)
+        )
 
         await self._release_sqlite_writer()
         registered = self.store.register_document(
@@ -611,6 +621,9 @@ class VectorIndexService:
             skipped=len(composed.records) - len(changed),
             written=written,
             pruned=pruned,
+            tokens=tokens,
+            tokens_exact=tokens_exact,
+            embed_calls=max(self._embed_calls - calls_before, 0),
         )
 
     def _degraded(
@@ -727,6 +740,7 @@ class VectorIndexService:
             for start in range(0, len(texts), EMBED_BATCH_SIZE):
                 batch = list(texts[start : start + EMBED_BATCH_SIZE])
                 vectors.extend(await self._embedder(batch))
+                self._embed_calls += 1
                 await self._report(
                     progress,
                     min(70, 20 + int(50 * (start + len(batch)) / total)),
@@ -735,6 +749,32 @@ class VectorIndexService:
         except AINotConfiguredError:
             return None
         return vectors
+
+    def _count_tokens(self, space: VectorSpace, texts: Sequence[str]) -> tuple[int | None, bool]:
+        """Local tokenizer count for the run's tokens counter (plan 52 T4).
+
+        Exact when the space's provider/model maps to a bundled tokenizer,
+        visibly approximate for the conservative fallback, and ``None`` when
+        the tokenizer stack cannot answer — progress never depends on it.
+        """
+        try:
+            from app.ai.tokenizers import get_tokenizer_service, resolve_embedding_profile
+
+            profile = resolve_embedding_profile(space.provider, space.model)
+            service = get_tokenizer_service()
+            effective, _degraded = service.effective_spec(profile.tokenizer)
+            total = 0
+            exact = True
+            for text in texts:
+                count = service.count_or_fallback(effective, text)
+                total += count.tokens
+                exact = exact and count.exact
+            return total, exact
+        except Exception:
+            logger.warning(
+                "token counting unavailable for space %r", self.space_name, exc_info=True
+            )
+            return None, False
 
     @staticmethod
     async def _report(progress: ProgressCb | None, value: int, stage: str) -> None:

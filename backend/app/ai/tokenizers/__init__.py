@@ -1,9 +1,11 @@
-"""Tokenizer registry and counting service (plan 52 T1-min).
+"""Tokenizer registry and counting service (plan 52 T1-min, T4 accounting).
 
 Exact bundled ``tiktoken`` for the curated OpenAI embedding models, a
 labelled conservative fallback for everything else, and the read-only shadow
-measurements built on top. No write path imports this package yet: plan 52
-T3 adds token-aware chunking and the space-key fold.
+measurements built on top. Plan 52 T4 additionally uses the service as the
+interim token accounting source for live indexing progress (counts only; no
+chunk, space or record write changes). Token-aware chunking and the space-key
+fold remain plan 52 T3.
 """
 
 from app.ai.tokenizers.service import (

@@ -21,6 +21,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.errors import DomainError
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus, BackgroundJobType
+from app.services.progress import ProgressCb, bound_progress_detail
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +31,6 @@ TERMINAL = (
     BackgroundJobStatus.CANCELLED.value,
 )
 
-ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelledCb = Callable[[], Awaitable[bool]]
 Handler = Callable[..., Awaitable[dict]]
 
@@ -137,11 +137,24 @@ class JobWorker:
             if handler is None:
                 raise DomainError(f"Unknown job type: {job.job_type}")
 
-            async def progress(value: int, stage: str) -> None:
+            async def progress(
+                value: int, stage: str, detail: dict[str, Any] | None = None
+            ) -> None:
+                """Write progress/stage and, when supplied, the bounded detail.
+
+                The detail rides this single UPDATE — vector handlers never
+                issue a second per-document write.
+                """
+                values: dict[str, Any] = {
+                    "progress": value,
+                    "stage": stage[:200],
+                    "heartbeat_at": _utcnow(),
+                }
+                bounded = bound_progress_detail(detail)
+                if bounded is not None:
+                    values["progress_detail"] = bounded
                 await self.db.execute(
-                    update(BackgroundJob)
-                    .where(BackgroundJob.id == job_id)
-                    .values(progress=value, stage=stage[:200], heartbeat_at=_utcnow())
+                    update(BackgroundJob).where(BackgroundJob.id == job_id).values(**values)
                 )
                 await self.db.commit()
 
@@ -184,6 +197,9 @@ class JobWorker:
             values["progress"] = 100
             values["stage"] = "done"
             values["result"] = result
+            # The result is authoritative once it commits: the live detail is
+            # telemetry, so it never survives next to the audit counters.
+            values["progress_detail"] = None
         await self.db.execute(
             update(BackgroundJob).where(BackgroundJob.id == job_id).values(**values)
         )
@@ -946,6 +962,7 @@ async def _run_vector_reconcile(
         parse_completed_kinds,
         parse_kinds,
         parse_only,
+        parse_progress_carry,
         parse_since,
     )
 
@@ -955,6 +972,7 @@ async def _run_vector_reconcile(
         since = parse_since(payload.get("since"))
         after = parse_after(payload.get("after"))
         carry = parse_carry(payload.get("carry"))
+        progress_carry = parse_progress_carry(payload.get("progress_carry"))
         completed = parse_completed_kinds(payload.get("completed_kinds"))
         only = parse_only(payload.get("source_ids"))
     except ValueError as exc:
@@ -972,6 +990,7 @@ async def _run_vector_reconcile(
         scan_limit=int(payload.get("scan_limit") or DEFAULT_SCAN_LIMIT),
         after=after,
         carry=carry,
+        progress_carry=progress_carry,
         completed_kinds=completed,
         since=since,
         force=bool(payload.get("force")),
@@ -1043,11 +1062,12 @@ def _continuation_payload(
     follow = {
         key: value
         for key, value in payload.items()
-        if key not in {"after", "carry", "completed_kinds", "continuation_key"}
+        if key not in {"after", "carry", "completed_kinds", "continuation_key", "progress_carry"}
     }
     after = {kind: cursor for kind, cursor in result.next_after.items() if cursor is not None}
     follow["after"] = after
     follow["carry"] = result.carry
+    follow["progress_carry"] = getattr(result, "progress", {})
     follow["completed_kinds"] = list(result.completed_kinds)
     follow["continuation_key"] = _continuation_key(space, kinds, after)
     return follow
