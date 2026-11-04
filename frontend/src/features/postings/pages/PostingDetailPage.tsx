@@ -156,8 +156,14 @@ export function PostingDetailPage() {
     fetchDocumentStatuses("posting", [postingId])
       .then((response) => {
         if (!active) return;
-        setIndexStatus(response.documents[0] ?? null);
+        const row = response.documents[0] ?? null;
         setIndexSpace(response.space);
+        if (row === null) {
+          setIndexStatus(null);
+          setIndexUnavailable(true);
+          return;
+        }
+        setIndexStatus(row);
       })
       .catch(() => {
         if (!active) return;

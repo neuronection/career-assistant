@@ -283,6 +283,29 @@ describe("PostingDetailPage", () => {
     );
   });
 
+  it("renders status unavailable when the index read returns no document row", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
+    });
+    vi.mocked(fetchDocumentStatuses).mockResolvedValue({
+      kind: "posting",
+      space: {
+        space_id: "space-1",
+        name: "content",
+        status: "active",
+        backend: "pgvector",
+        model: "text-embedding-3-small",
+        dim: 1536,
+      },
+      documents: [],
+    });
+
+    renderPage();
+    expect(await screen.findByTestId("retrieval-index-state")).toHaveTextContent(
+      "status unavailable",
+    );
+  });
+
   it("renders no index row while the posting is still loading", async () => {
     useAuthStore.setState({
       user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },

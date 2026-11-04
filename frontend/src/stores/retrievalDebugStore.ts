@@ -8,6 +8,7 @@ import {
 
 const STORAGE_KEY = "ca:retrieval-debug";
 const MAX_IDS = 50;
+const inFlight = new Set<string>();
 
 function readEnabled(): boolean {
   try {
@@ -58,9 +59,10 @@ export const useRetrievalDebugStore = create<RetrievalDebugState>((set, get) => 
     if (!get().enabled) return;
     const known = get().statuses;
     const pending = Array.from(new Set(sourceIds.map(String)))
-      .filter((id) => !(id in known))
+      .filter((id) => !(id in known) && !inFlight.has(id))
       .slice(0, MAX_IDS);
     if (pending.length === 0) return;
+    for (const id of pending) inFlight.add(id);
     set({ loading: true, error: null });
     try {
       const response = await fetchDocumentStatuses("posting", pending);
@@ -77,6 +79,8 @@ export const useRetrievalDebugStore = create<RetrievalDebugState>((set, get) => 
         loading: false,
         error: error instanceof Error ? error.message : String(error),
       });
+    } finally {
+      for (const id of pending) inFlight.delete(id);
     }
   },
 

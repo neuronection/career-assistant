@@ -434,7 +434,8 @@ describe("RetrievalManagementSection", () => {
     expect(screen.getByTestId("retrieval-debug-count")).toBeInTheDocument();
   });
 
-  it("queues a reindex with the scope controls and says it is not finished", async () => {    const user = userEvent.setup();
+  it("queues a reindex with the scope controls and says it is not finished", async () => {
+    const user = userEvent.setup();
     renderSection();
     await screen.findByTestId("retrieval-active-space");
 

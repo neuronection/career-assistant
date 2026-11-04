@@ -91,6 +91,33 @@ describe("retrieval debug store", () => {
     expect(mockedFetch.mock.calls[0][1]).toHaveLength(50);
   });
 
+  it("never requests an id twice while another load is in flight", async () => {
+    useRetrievalDebugStore.getState().setEnabled(true);
+    let resolveFirst: (value: unknown) => void = () => {};
+    mockedFetch.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }) as never,
+    );
+    mockedFetch.mockResolvedValueOnce(response(["c"]));
+
+    const first = useRetrievalDebugStore.getState().load(["a", "b"]);
+    const second = useRetrievalDebugStore.getState().load(["a", "b", "c"]);
+
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(mockedFetch).toHaveBeenNthCalledWith(1, "posting", ["a", "b"]);
+    expect(mockedFetch).toHaveBeenNthCalledWith(2, "posting", ["c"]);
+    resolveFirst(response(["a", "b"]));
+    await Promise.all([first, second]);
+
+    expect(Object.keys(useRetrievalDebugStore.getState().statuses).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
   it("keeps the previous map when the request fails and records the error", async () => {
     useRetrievalDebugStore.getState().setEnabled(true);
     mockedFetch.mockResolvedValueOnce(response(["a"]));
