@@ -78,7 +78,12 @@ or the desktop-scale linear fallback), model and dimension, store health,
 coverage and the coverage/quality gates. **Coverage & reindex** queues a
 bounded run by kind, view and since timestamp with a token budget and
 document limit, then shows the queued run and its status — a queued run is
-not a finished reindex. **Spaces** lists active, building and retired
+not a finished reindex. The **Tokenizer & limits** card is read-only
+evidence: it names the tokenizer/source, says whether the count is exact or
+approximate, shows the model input limit and the current character-chunk
+budget, and measures the English/Greek/German/CJK/code char-vs-token spread
+plus a bounded corpus sample. It writes no chunks, token columns or spaces.
+**Spaces** lists active, building and retired
 spaces; changing models means building a new space (never an in-place
 rewrite), activating it only after coverage and the golden-query compare
 pass, then retiring the old one. **Index maintenance** queues an index
