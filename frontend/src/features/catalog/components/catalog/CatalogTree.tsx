@@ -1,83 +1,105 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { LayoutGrid } from "lucide-react";
+import { LayoutGrid, X } from "lucide-react";
 import { SettingsShell, type SettingsNavItem } from "@neuronection/assistant-ui";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { JobCard } from "@/features/catalog/components/JobCard";
+import { CatalogFilterRail } from "@/features/catalog/components/catalog/CatalogFilterRail";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
+import {
+  CATALOG_SORT_OPTIONS,
+  catalogActiveChips,
+  catalogApiParams,
+  catalogParams,
+  countActiveCatalogFilters,
+  parseCatalogParams,
+  removeCatalogChip,
+} from "@/features/catalog/catalogParams";
 import type { SearchRecord } from "@/types/wire";
 import type { JobFamilyNode } from "@/types";
 
 export function CatalogTree() {
   const { t } = useTranslation();
-  const { families, jobs, loadFamilies, loadJobs } = useCatalogStore();
-  const [searchParams] = useSearchParams();
-  const familyParam = searchParams.get("family");
-  const [openFamily, setOpenFamily] = useState<string | null>(familyParam);
-  const [query, setQuery] = useState("");
+  const { families, jobs, total, facets, loadFamilies, loadJobs } = useCatalogStore();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filters = useMemo(() => parseCatalogParams(searchParams), [searchParams]);
+  const paramsKey = catalogParams(filters).toString();
   const [historyKey, setHistoryKey] = useState(0);
   const recordSearch = useSearchHistory("catalog");
-  const recordRef = useRef(recordSearch);
-  recordRef.current = recordSearch;
   const navigate = useNavigate();
 
   useEffect(() => {
     void loadFamilies();
-    void loadJobs(familyParam ? { family_key: familyParam } : {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadFamilies, loadJobs]);
+  }, [loadFamilies]);
 
-  const filteredJobs = useMemo(
-    () => jobs.filter((j) => !query || j.title.toLowerCase().includes(query.toLowerCase())),
-    [jobs, query]
+  useEffect(() => {
+    void loadJobs(catalogApiParams(filters));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadJobs, paramsKey]);
+
+  useEffect(() => {
+    const canonical = catalogParams(parseCatalogParams(searchParams)).toString();
+    if (canonical !== searchParams.toString()) {
+      setSearchParams(new URLSearchParams(canonical), { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const patch = useCallback(
+    (update: Partial<typeof filters>) => {
+      setSearchParams(catalogParams({ ...filters, ...update }), { replace: true });
+    },
+    [filters, setSearchParams]
   );
 
   useEffect(() => {
-    if (query.trim().length < 2 && !openFamily) return;
-    recordRef.current(
-      query,
-      { family_key: openFamily ?? null },
-      filteredJobs.length
-    );
+    if (filters.q.trim().length < 2 && !filters.family) return;
+    recordSearch(filters.q, { family_key: filters.family || null }, total);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, openFamily, filteredJobs.length]);
+  }, [filters.q, filters.family, total]);
 
   const applySearch = (record: SearchRecord) => {
-    const familyKey = (record.filters.family_key as string) || null;
-    setQuery(record.query);
-    setOpenFamily(familyKey);
-    void loadJobs(familyKey ? { family_key: familyKey } : {});
-    setHistoryKey((k) => k + 1);
+    const familyKey = (record.filters.family_key as string) || "";
+    patch({ q: record.query, family: familyKey });
+    setHistoryKey((key) => key + 1);
   };
 
   const selectFamily = (key: string | null) => {
-    setOpenFamily(key);
-    void loadJobs(key ? { family_key: key } : {});
+    patch({ family: key ?? "" });
+  };
+
+  const clearAll = () => {
+    setSearchParams(new URLSearchParams(), { replace: true });
   };
 
   const nav: SettingsNavItem[] = useMemo(
     () =>
-      families.map((f) => ({
-        id: f.key,
-        label: f.label,
+      families.map((family) => ({
+        id: family.key,
+        label: family.label,
         trailing: (
           <span
             className="text-xs tabular-nums text-[var(--as-muted-fg)]"
-            data-testid={`family-count-${f.key}`}
+            data-testid={`family-count-${family.key}`}
           >
-            {f.job_count}
+            {family.job_count}
           </span>
         ),
       })),
     [families]
   );
   const activeTopLevel = useMemo(
-    () => topLevelAncestorKey(families, openFamily),
-    [families, openFamily]
+    () => topLevelAncestorKey(families, filters.family || null),
+    [families, filters.family]
   );
-  const activeNode = useMemo(() => findNode(families, openFamily), [families, openFamily]);
+  const activeNode = useMemo(
+    () => findNode(families, filters.family || null),
+    [families, filters.family]
+  );
+  const chips = catalogActiveChips(filters);
+  const activeCount = countActiveCatalogFilters(filters);
 
   return (
     <SettingsShell
@@ -90,42 +112,108 @@ export function CatalogTree() {
       <div className="space-y-4" data-testid="catalog-tree">
         <input
           placeholder={t("catalog.searchPlaceholder")}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={filters.q}
+          onChange={(event) => patch({ q: event.target.value })}
           aria-label={t("catalog.searchPlaceholder")}
+          data-testid="catalog-search"
           className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)] outline-none transition-colors focus:border-[var(--as-primary)]"
         />
         <RecentSearches scope="catalog" onApply={applySearch} refreshKey={historyKey} />
         {activeNode && activeNode.children.length > 0 && (
           <div className="flex flex-wrap gap-2" data-testid="catalog-subfamilies">
-            {activeNode.children.map((c) => (
+            {activeNode.children.map((child) => (
               <button
-                key={c.key}
+                key={child.key}
                 type="button"
-                onClick={() => selectFamily(c.key)}
-                data-testid={`subfamily-${c.key}`}
+                onClick={() => selectFamily(child.key)}
+                data-testid={`subfamily-${child.key}`}
                 className="flex cursor-pointer items-center gap-1.5 rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-1.5 text-xs font-medium text-[var(--as-fg)] transition-colors hover:bg-[var(--as-muted)]"
               >
-                {c.label}
-                <span className="tabular-nums text-[var(--as-muted-fg)]">{c.job_count}</span>
+                {child.label}
+                <span className="tabular-nums text-[var(--as-muted-fg)]">{child.job_count}</span>
               </button>
             ))}
           </div>
         )}
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {filteredJobs.map((job) => (
-            <JobCard key={job.id} job={job} onSelect={(j) => navigate(`/jobs/${j.code}`)} />
-          ))}
+
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--as-muted-fg)]">
+          <span data-testid="catalog-result-count">
+            {t("catalog.filters.resultCount", { count: total })}
+          </span>
+          {activeCount > 0 ? (
+            <span data-testid="catalog-filter-count">
+              {t("catalog.filters.activeCount", { count: activeCount })}
+            </span>
+          ) : null}
+          {chips.length > 0 ? (
+            <button
+              type="button"
+              onClick={clearAll}
+              className="text-[var(--as-primary)] hover:underline"
+              data-testid="catalog-clear-all"
+            >
+              {t("catalog.filters.clearAll")}
+            </button>
+          ) : null}
+          <div className="ml-auto flex flex-wrap items-center gap-1" data-testid="catalog-active-chips">
+            {chips.map((chip) => (
+              <button
+                key={`${chip.axis}-${chip.kind}-${chip.value}`}
+                type="button"
+                onClick={() => patch(removeCatalogChip(filters, chip))}
+                data-axis={chip.axis}
+                data-kind={chip.kind}
+                data-testid={`catalog-chip-${chip.axis}-${chip.value}`}
+                className="inline-flex items-center gap-1 rounded-full border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-0.5"
+              >
+                {chip.labelKey
+                  ? t(chip.labelKey, { defaultValue: chip.label, value: chip.label })
+                  : chip.label}
+                <X aria-hidden className="h-3 w-3" />
+              </button>
+            ))}
+          </div>
+          <label className="flex items-center gap-1">
+            {t("catalog.filters.sort")}
+            <select
+              value={filters.sort}
+              onChange={(event) => patch({ sort: event.target.value })}
+              className="rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-1 py-1"
+              data-testid="catalog-sort"
+            >
+              {CATALOG_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {t(option.labelKey)}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+          <aside className="order-2 self-start lg:order-1 lg:sticky lg:top-16" data-testid="catalog-filter-aside">
+            <CatalogFilterRail
+              filters={filters}
+              facets={facets}
+              families={families}
+              onChange={patch}
+            />
+          </aside>
+          <div
+            className="order-1 grid gap-3 sm:grid-cols-2 xl:grid-cols-3 lg:order-2"
+            data-testid="catalog-grid"
+          >
+            {jobs.map((job) => (
+              <JobCard key={job.id} job={job} onSelect={(selected) => navigate(`/jobs/${selected.code}`)} />
+            ))}
+          </div>
         </div>
       </div>
     </SettingsShell>
   );
 }
 
-function findNode(
-  families: JobFamilyNode[],
-  key: string | null
-): JobFamilyNode | null {
+function findNode(families: JobFamilyNode[], key: string | null): JobFamilyNode | null {
   if (!key) return null;
   for (const family of families) {
     if (family.key === key) return family;
@@ -135,10 +223,7 @@ function findNode(
   return null;
 }
 
-function topLevelAncestorKey(
-  families: JobFamilyNode[],
-  key: string | null
-): string | null {
+function topLevelAncestorKey(families: JobFamilyNode[], key: string | null): string | null {
   if (!key) return null;
   for (const family of families) {
     if (family.key === key || familyHasDescendant(family, key)) return family.key;
@@ -148,6 +233,6 @@ function topLevelAncestorKey(
 
 function familyHasDescendant(family: JobFamilyNode, key: string): boolean {
   return family.children.some(
-    (c) => c.key === key || familyHasDescendant(c, key)
+    (child) => child.key === key || familyHasDescendant(child, key)
   );
 }

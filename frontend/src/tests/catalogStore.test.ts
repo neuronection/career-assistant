@@ -47,7 +47,7 @@ describe("catalogStore", () => {
     vi.clearAllMocks();
   });
 
-  it("loadJobs fetches and merges filters", async () => {
+  it("loadJobs replaces the filter set with the URL state", async () => {
     mocked.fetchJobs.mockResolvedValue({
       items: [makeJob("software-developer")],
       total: 1,
@@ -58,6 +58,8 @@ describe("catalogStore", () => {
     expect(useCatalogStore.getState().total).toBe(1);
     expect(useCatalogStore.getState().facets.demand?.hot).toBe(1);
     expect(useCatalogStore.getState().filters.demand).toBe("hot");
+    await useCatalogStore.getState().loadJobs({ family_key: "technology" });
+    expect(useCatalogStore.getState().filters).toEqual({ family_key: "technology" });
     expect(mocked.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ demand: "hot", page_size: 100 }));
   });
 

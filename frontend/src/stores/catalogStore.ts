@@ -31,13 +31,13 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   loadJobs: async (filters) => {
     set({ loading: true });
     try {
-      const merged = { ...get().filters, ...filters };
-      const page = await jobsApi.fetchJobs({ page_size: 100, ...merged });
+      const next = filters ?? {};
+      const page = await jobsApi.fetchJobs({ page_size: 100, ...next });
       set({
         jobs: page.items ?? [],
         total: page.total ?? 0,
         facets: page.facets ?? {},
-        filters: merged,
+        filters: next,
       });
     } finally {
       set({ loading: false });

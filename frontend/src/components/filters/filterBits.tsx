@@ -144,6 +144,8 @@ export function TriStateChips({
               type="button"
               data-testid={testId}
               aria-pressed={selected}
+              aria-disabled={dimmed || undefined}
+              disabled={dimmed}
               onClick={() => onToggle(value, nextMode)}
               onContextMenu={
                 allowExclude

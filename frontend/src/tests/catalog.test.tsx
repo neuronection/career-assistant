@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -176,8 +176,10 @@ describe("Catalog subtabs", () => {
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "creative-arts" }))
     );
-    await waitFor(() => expect(screen.getByText("Creative & Arts")).toBeInTheDocument());
-    const familyButton = screen.getByRole("button", { name: /Creative & Arts/ });
+    await waitFor(() =>
+      expect(within(screen.getByTestId("catalog-families")).getByText("Creative & Arts")).toBeInTheDocument()
+    );
+    const familyButton = within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Creative & Arts/ });
     expect(familyButton).toHaveAttribute("aria-current", "page");
   });
 
@@ -189,11 +191,11 @@ describe("Catalog subtabs", () => {
     expect(screen.getByTestId("family-count-technology")).toHaveTextContent("2");
     expect(screen.queryByTestId("catalog-subfamilies")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Technology/ }));
+    await user.click(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ }));
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "technology" }))
     );
-    expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page");
   });
 
   it("drills into children as chips and highlights the top-level rail ancestor", async () => {
@@ -224,7 +226,7 @@ describe("Catalog subtabs", () => {
     vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue([technology, families[1]]);
     renderCatalog();
 
-    const techButton = await screen.findByRole("button", { name: /Technology/ });
+    const techButton = await within(await screen.findByTestId("catalog-families")).findByRole("button", { name: /Technology/ });
     await user.click(techButton);
     await waitFor(() => expect(screen.getByTestId("catalog-subfamilies")).toBeInTheDocument());
 
@@ -233,7 +235,7 @@ describe("Catalog subtabs", () => {
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "software-dev" }))
     );
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page")
+      expect(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page")
     );
   });
 
