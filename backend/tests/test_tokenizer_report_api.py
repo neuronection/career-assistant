@@ -50,9 +50,7 @@ async def test_report_returns_tokenizer_limits_and_reference_aggregates(client, 
     ops.assert_no_raw_text(body)
 
 
-async def test_tokenizer_read_paths_make_no_network_call(
-    monkeypatch, client, auth_headers
-):
+async def test_tokenizer_read_paths_make_no_network_call(monkeypatch, client, auth_headers):
     """A curated HF profile is resolved/read without fetching on the request path."""
 
     def forbidden(*args, **kwargs):  # pragma: no cover - the assertion is the raise
