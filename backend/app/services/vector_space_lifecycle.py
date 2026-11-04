@@ -51,6 +51,7 @@ from app.services.vector_reconcile_service import (
     parse_since,
 )
 from app.services.vector_status import read_space_statuses
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 from app.storage.vector_contract import (
     BACKEND_LINEAR,
     COVERAGE_GATE,
@@ -288,11 +289,16 @@ class VectorSpaceLifecycleService:
         document_prefix: str | None = None,
         chunker_version: str = CHUNKER_VERSION,
         composer_version: str = COMPOSER_VERSION,
+        tokenizer: TokenizerSpec | None = None,
+        chunk: ChunkConfig | None = None,
     ) -> SpaceBuildResult:
         """Create a ``building`` space beside the active one and provision it.
 
         The active row is never touched. A matching building space is reused
         idempotently; a different one is refused until it is retired/dropped.
+        Passing ``tokenizer`` **and** ``chunk`` builds a token-aware v2 space
+        (``chunker_version='2'`` and the v2 key); omitting both keeps the
+        legacy v1 identity.
         """
         self._validate_configuration(
             name=name,
@@ -312,6 +318,8 @@ class VectorSpaceLifecycleService:
             chunker_version=chunker_version,
             composer_version=composer_version,
             status=SpaceStatus.BUILDING,
+            tokenizer=tokenizer,
+            chunk=chunk,
         )
         with self.store.session_factory() as session:
             row = session.get(VectorSpaceRow, uuid.UUID(str(space.space_id)))

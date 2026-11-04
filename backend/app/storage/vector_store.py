@@ -26,8 +26,14 @@ from sqlalchemy import Engine, delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models.enums.retrieval import VectorScopeType
-from app.models.vector_model import VectorDocument, VectorRecord
+from app.models.vector_model import (
+    VectorDocument,
+    VectorRecord,
+    chunk_config_from_columns,
+    tokenizer_spec_from_columns,
+)
 from app.models.vector_model import VectorSpace as VectorSpaceRow
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 from app.storage.vector_backends import (
     ResolvedEmbedding,
     SessionBackedBackend,
@@ -50,6 +56,7 @@ from app.storage.vector_contract import (
     VectorSpace,
 )
 from app.storage.vector_contract import space_key as make_space_key
+from app.storage.vector_contract import space_key_v2 as make_space_key_v2
 
 
 @dataclass(frozen=True)
@@ -145,8 +152,27 @@ def resolve_space_row(
     return row
 
 
+def _row_columns(row: VectorSpaceRow) -> dict:
+    return {
+        "tokenizer_kind": row.tokenizer_kind,
+        "tokenizer_identifier": row.tokenizer_identifier,
+        "tokenizer_revision": row.tokenizer_revision,
+        "tokenizer_artifact_sha256": row.tokenizer_artifact_sha256,
+        "tokenizer_exact": row.tokenizer_exact,
+        "max_input_tokens": row.max_input_tokens,
+        "chunk_max_tokens": row.chunk_max_tokens,
+        "chunk_overlap_tokens": row.chunk_overlap_tokens,
+        "chunk_max_chars": row.chunk_max_chars,
+    }
+
+
 def canonical_space(row: VectorSpaceRow) -> VectorSpace:
-    """Build the contract DTO from the persisted row (index_table included)."""
+    """Build the contract DTO from the persisted row (index_table included).
+
+    The tokenizer/chunk are reconstructed from the stored scalars; the key is
+    the stored ``space_key`` verbatim and is never recomputed here.
+    """
+    columns = _row_columns(row)
     return VectorSpace(
         name=row.name,
         provider=row.provider,
@@ -162,6 +188,31 @@ def canonical_space(row: VectorSpaceRow) -> VectorSpace:
         space_id=str(row.id),
         index_table=row.index_table,
         stored_key=row.space_key,
+        tokenizer=tokenizer_spec_from_columns(columns),
+        chunk=chunk_config_from_columns(columns),
+    )
+
+
+def _assert_chunk_fits(
+    tokenizer: TokenizerSpec, chunk: ChunkConfig, document_prefix: str | None
+) -> None:
+    """Refuse a creation whose chunk budget cannot fit the model input.
+
+    The document prefix and the same safety margin the composer uses are
+    counted with the selected tokenizer; a missing exact asset degrades to the
+    conservative heuristic for this check instead of blocking a build.
+    """
+    from app.ai.tokenizers import get_tokenizer_service
+    from app.services.vector_composers import TOKEN_SAFETY_MARGIN
+
+    prefix_tokens = 0
+    if document_prefix:
+        counted = get_tokenizer_service().count_or_fallback(tokenizer, document_prefix)
+        prefix_tokens = counted.tokens
+    chunk.assert_fits(
+        tokenizer.max_input_tokens,
+        prefix_tokens=prefix_tokens,
+        safety_margin=TOKEN_SAFETY_MARGIN,
     )
 
 
@@ -234,6 +285,8 @@ class VectorStoreService:
         chunker_version: str = "1",
         composer_version: str = "1",
         status: SpaceStatus = SpaceStatus.ACTIVE,
+        tokenizer: TokenizerSpec | None = None,
+        chunk: ChunkConfig | None = None,
     ) -> VectorSpace:
         """Get-or-create a space for ``name`` with this configuration.
 
@@ -245,9 +298,17 @@ class VectorStoreService:
         *different* building space for the same name is refused (at most one
         active + one building per name). The physical index is *not* created
         here — provisioning owns DDL.
+
+        A token-aware space passes **both** ``tokenizer`` and ``chunk``: the
+        row persists the flattened identity, ``chunker_version`` is forced to
+        ``'2'`` and the key is the explicit :func:`space_key_v2` pre-image.
+        Omitting both keeps the legacy v1 behaviour; passing only one is a
+        programming error, never a half-configured row.
         """
         if dim < 1:
             raise ValueError("dim must be positive")
+        if (tokenizer is None) != (chunk is None):
+            raise ValueError("tokenizer and chunk must be provided together")
         resolved = ResolvedEmbedding(
             provider=provider,
             model=model,
@@ -256,16 +317,44 @@ class VectorStoreService:
             query_prefix=query_prefix,
             document_prefix=document_prefix,
         )
-        computed_key = make_space_key(
-            provider,
-            model,
-            dim,
-            normalize,
-            query_prefix,
-            document_prefix,
-            chunker_version,
-            composer_version,
-        )
+        columns: dict = {}
+        if tokenizer is not None and chunk is not None:
+            chunker_version = "2"
+            _assert_chunk_fits(tokenizer, chunk, document_prefix)
+            columns = {
+                "tokenizer_kind": tokenizer.kind.value,
+                "tokenizer_identifier": tokenizer.identifier,
+                "tokenizer_revision": tokenizer.revision,
+                "tokenizer_artifact_sha256": tokenizer.artifact_sha256,
+                "tokenizer_exact": tokenizer.exact,
+                "max_input_tokens": tokenizer.max_input_tokens,
+                "chunk_max_tokens": chunk.max_chunk_tokens,
+                "chunk_overlap_tokens": chunk.overlap_tokens,
+                "chunk_max_chars": chunk.max_chars,
+            }
+            computed_key = make_space_key_v2(
+                provider,
+                model,
+                dim,
+                normalize,
+                query_prefix,
+                document_prefix,
+                chunker_version,
+                composer_version,
+                tokenizer=tokenizer,
+                chunk=chunk,
+            )
+        else:
+            computed_key = make_space_key(
+                provider,
+                model,
+                dim,
+                normalize,
+                query_prefix,
+                document_prefix,
+                chunker_version,
+                composer_version,
+            )
         with self._session_factory() as session:
             existing_rows = list(
                 session.scalars(
@@ -318,6 +407,7 @@ class VectorStoreService:
                 composer_version=composer_version,
                 status=status.value,
                 space_key=computed_key,
+                **columns,
             )
             session.add(row)
             session.commit()
@@ -445,6 +535,14 @@ class VectorStoreService:
                 )
             if record.view not in V1_VIEWS:
                 raise VectorBackendError(f"unknown view {record.view!r}")
+            if space.token_aware and record.token_count is None:
+                raise VectorBackendError(
+                    f"record {record.record_id} has no token offsets for a token-aware space"
+                )
+            if not space.token_aware and record.token_count is not None:
+                raise VectorBackendError(
+                    f"record {record.record_id} carries token offsets for a legacy space"
+                )
             key = (record.view, record.chunk_index)
             if key in seen:
                 raise VectorBackendError(f"duplicate record key {key!r} in one document upsert")
@@ -522,6 +620,9 @@ class VectorStoreService:
                             chunk_index=record.chunk_index,
                             char_start=record.char_start,
                             char_end=record.char_end,
+                            token_count=record.token_count,
+                            token_start=record.token_start,
+                            token_end=record.token_end,
                             content_hash=record.content_hash,
                             text_ref=dict(pointer.ref) if pointer is not None else None,
                             text_ref_schema_version=(
@@ -537,6 +638,9 @@ class VectorStoreService:
                         )
                     stored.char_start = record.char_start
                     stored.char_end = record.char_end
+                    stored.token_count = record.token_count
+                    stored.token_start = record.token_start
+                    stored.token_end = record.token_end
                     stored.content_hash = record.content_hash
                     if text_refs is not None:
                         stored.text_ref = dict(pointer.ref) if pointer is not None else None

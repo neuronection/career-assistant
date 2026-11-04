@@ -15,6 +15,7 @@ import pytest
 from sqlalchemy import Column, MetaData, Table, Uuid, create_engine, event, select
 from sqlalchemy.orm import Session
 
+from app.ai.tokenizers import tiktoken_spec
 from app.models.background_job_model import BackgroundJob
 from app.models.vector_model import (
     RetrievalCoverageSnapshot,
@@ -25,6 +26,7 @@ from app.models.vector_model import (
 from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.services.vector_status import read_space_statuses
 from app.storage import vector_contract as vc
+from app.storage.tokenizer_contract import ChunkConfig
 from app.storage.vector_backends import LinearBackend, VectorSpaceMismatch
 from app.storage.vector_store import VectorStoreService, canonical_space
 
@@ -82,6 +84,44 @@ def _create(store: VectorStoreService, *, status=vc.SpaceStatus.ACTIVE, dim: int
 
 def _v1(dim: int = DIM) -> str:
     return vc.space_key("openai", "text-embedding-3-small", dim, True, None, None, "1", "1")
+
+
+def _tokenizer():
+    return tiktoken_spec(max_input_tokens=8191)
+
+
+def _chunk() -> ChunkConfig:
+    return ChunkConfig(max_chunk_tokens=64, overlap_tokens=8, max_chars=400)
+
+
+def _v2(dim: int = DIM) -> str:
+    return vc.space_key_v2(
+        "openai",
+        "text-embedding-3-small",
+        dim,
+        True,
+        None,
+        None,
+        "2",
+        "1",
+        tokenizer=_tokenizer(),
+        chunk=_chunk(),
+    )
+
+
+def _create_v2(store: VectorStoreService, *, status=vc.SpaceStatus.ACTIVE):
+    return store.create_space(
+        name=NAME,
+        provider="openai",
+        model="text-embedding-3-small",
+        dim=DIM,
+        normalize=True,
+        chunker_version="1",
+        composer_version="1",
+        status=status,
+        tokenizer=_tokenizer(),
+        chunk=_chunk(),
+    )
 
 
 def _replace_stored_key(engine, space_id: str, key: str) -> None:
@@ -204,3 +244,93 @@ def test_status_lists_no_recomputed_key_after_a_preimage_change(engine):
         row = session.scalars(select(VectorSpaceRow)).one()
         assert row.space_key == stored
         assert row.space_key != _v1()
+
+
+def test_create_space_persists_the_v2_tokenizer_and_key(engine):
+    space = _create_v2(_store(engine))
+    assert space.token_aware is True
+    assert space.chunker_version == "2", "token-aware creation forces chunker v2"
+    assert space.key == _v2()
+    assert space.key != _v1()
+    with Session(engine) as session:
+        row = session.get(VectorSpaceRow, uuid.UUID(str(space.space_id)))
+        assert row is not None
+        assert row.space_key == _v2()
+        assert row.tokenizer_kind == "tiktoken"
+        assert row.tokenizer_identifier == "cl100k_base"
+        assert row.tokenizer_exact is True
+        assert row.max_input_tokens == 8191
+        assert row.chunk_max_tokens == 64
+        assert row.chunk_overlap_tokens == 8
+        assert row.chunk_max_chars == 400
+        assert canonical_space(row).key == _v2()
+        rebuilt = canonical_space(row).tokenizer
+        assert rebuilt is not None
+        assert rebuilt.kind is _tokenizer().kind
+        assert rebuilt.identifier == _tokenizer().identifier
+        assert rebuilt.revision == _tokenizer().revision
+        assert rebuilt.artifact_sha256 == _tokenizer().artifact_sha256
+        assert rebuilt.exact is True
+        assert rebuilt.max_input_tokens == 8191
+        assert canonical_space(row).chunk == _chunk()
+
+
+def test_create_space_refuses_a_half_configured_space(engine):
+    store = _store(engine)
+    with pytest.raises(ValueError, match="together"):
+        store.create_space(
+            name=NAME,
+            provider="openai",
+            model="text-embedding-3-small",
+            dim=DIM,
+            tokenizer=_tokenizer(),
+        )
+    with pytest.raises(ValueError, match="together"):
+        store.create_space(
+            name=NAME,
+            provider="openai",
+            model="text-embedding-3-small",
+            dim=DIM,
+            chunk=_chunk(),
+        )
+
+
+def test_direct_model_insert_with_v2_columns_stamps_the_v2_key(engine):
+    with Session(engine) as session:
+        row = VectorSpaceRow(
+            name=f"direct-v2-{uuid.uuid4().hex[:8]}",
+            provider="openai",
+            model="text-embedding-3-small",
+            dim=DIM,
+            chunker_version="2",
+            tokenizer_kind="tiktoken",
+            tokenizer_identifier="cl100k_base",
+            tokenizer_artifact_sha256=_tokenizer().artifact_sha256,
+            tokenizer_exact=True,
+            max_input_tokens=8191,
+            chunk_max_tokens=64,
+            chunk_overlap_tokens=8,
+            chunk_max_chars=400,
+        )
+        session.add(row)
+        session.commit()
+        session.refresh(row)
+    assert row.space_key == _v2()
+    assert row.space_key != _v1(), "the direct-insert default must not stamp v1 on v2"
+
+
+def test_status_reports_the_persisted_tokenizer_and_chunk(engine):
+    space = _create_v2(_store(engine))
+    with Session(engine) as session:
+        entry = read_space_statuses(session)[0]
+    assert entry["space_id"] == space.space_id
+    assert entry["space_key"] == _v2()
+    assert entry["token_aware"] is True
+    assert entry["tokenizer"]["kind"] == "tiktoken"
+    assert entry["tokenizer"]["identifier"] == "cl100k_base"
+    assert entry["tokenizer"]["exact"] is True
+    assert entry["chunk"] == {
+        "max_chunk_tokens": 64,
+        "overlap_tokens": 8,
+        "max_chars": 400,
+    }

@@ -218,6 +218,28 @@ def read_space_statuses(session: Session) -> list[dict[str, Any]]:
             or 0
         )
         last_reindex, last_error = _last_jobs(session, row)
+        token_aware = row.tokenizer_kind is not None
+        tokenizer_payload = (
+            {
+                "kind": row.tokenizer_kind,
+                "identifier": row.tokenizer_identifier,
+                "revision": row.tokenizer_revision,
+                "artifact_sha256": row.tokenizer_artifact_sha256,
+                "exact": bool(row.tokenizer_exact),
+                "max_input_tokens": row.max_input_tokens,
+            }
+            if token_aware
+            else None
+        )
+        chunk_payload = (
+            {
+                "max_chunk_tokens": row.chunk_max_tokens,
+                "overlap_tokens": row.chunk_overlap_tokens,
+                "max_chars": row.chunk_max_chars,
+            }
+            if token_aware
+            else None
+        )
         statuses.append(
             {
                 "space_id": str(row.id),
@@ -231,6 +253,9 @@ def read_space_statuses(session: Session) -> list[dict[str, Any]]:
                 "composer_version": row.composer_version,
                 "chunker_version": row.chunker_version,
                 "space_key": row.space_key,
+                "token_aware": token_aware,
+                "tokenizer": tokenizer_payload,
+                "chunk": chunk_payload,
                 "backend": physical_detail["backend"],
                 "index_table": row.index_table,
                 "index_present": physical_detail["index_present"],
