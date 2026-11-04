@@ -25,6 +25,7 @@ import type { PostingOut } from "@/types/wire";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
 import { useProfilesStore } from "@/stores/profilesStore";
+import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
 import {
   applyCardFilter,
@@ -63,6 +64,8 @@ export function Explore() {
   }
   const restored = restoredRef.current;
   const [items, setItems] = useState<PostingOut[]>(() => restored?.items ?? []);
+  const retrievalDebugEnabled = useRetrievalDebugStore((state) => state.enabled);
+  const loadRetrievalStatuses = useRetrievalDebugStore((state) => state.load);
   const [total, setTotal] = useState(() => restored?.total ?? 0);
   const [facets, setFacets] = useState<ExploreFacets>(
     () => restored?.facets ?? EMPTY_FACETS
@@ -152,6 +155,11 @@ export function Explore() {
   useEffect(() => {
     rememberListSearch("/postings", plainKey);
   }, [plainKey]);
+
+  useEffect(() => {
+    if (!retrievalDebugEnabled || items.length === 0) return;
+    void loadRetrievalStatuses(items.map((item) => String(item.id)));
+  }, [items, retrievalDebugEnabled, loadRetrievalStatuses]);
 
   const patch = useCallback(
     (update: Partial<Filters>) => {
@@ -854,6 +862,7 @@ export function Explore() {
               posting={posting}
               smartSort={filters.sort === "smart"}
               filterMenu={cardFilterMenu}
+              showRetrievalState
               onOpen={(item) => navigate(`/postings/${item.ref}`)}
               onChanged={() => load(filters, false)}
             />

@@ -34,9 +34,19 @@ import {
 } from "@/features/postings/components/postings/cardFilterMenu";
 import { formatAbsolute, formatRelativeTime } from "@/lib/time";
 import { safeExternalUrl } from "@/lib/url";
+import type { RetrievalDocumentState } from "@/api/retrieval";
+import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import type { PostingOut } from "@/types/wire";
 
 const OPEN_STATUSES = new Set(["new", "mapped"]);
+
+const RETRIEVAL_TONE: Record<RetrievalDocumentState, "success" | "warning" | "muted"> = {
+  current: "success",
+  stale: "warning",
+  incomplete: "warning",
+  missing: "muted",
+  off: "muted",
+};
 
 const PROVENANCE_ICON = {
   extracted: Sparkles,
@@ -63,6 +73,7 @@ export function PostingCard({
   onChanged,
   smartSort = false,
   filterMenu,
+  showRetrievalState = false,
 }: {
   posting: PostingOut;
   onOpen?: (posting: PostingOut) => void;
@@ -72,10 +83,18 @@ export function PostingCard({
   /** The card entity menu (plan 188): absent → the card renders exactly
    * as before (Dashboard feed, skill/company pages). */
   filterMenu?: CardFilterApi;
+  /** Plan 189: only Explore passes this — the card never reads the debug
+   * store on its own, so every other surface stays byte-identical. */
+  showRetrievalState?: boolean;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const peek = useSkillPeek();
+  const retrievalDebugEnabled = useRetrievalDebugStore((state) => state.enabled);
+  const retrievalStatus = useRetrievalDebugStore(
+    (state) => state.statuses[String(posting.id)],
+  );
+  const retrievalSpaceName = useRetrievalDebugStore((state) => state.space?.name ?? null);
   const [markedSeenId, setMarkedSeenId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
@@ -476,6 +495,18 @@ export function PostingCard({
             <ProvenanceIcon aria-hidden className="h-3 w-3" />
             {t(`card.provenanceValue.${provenance}`, { defaultValue: provenance })}
           </span>
+          {showRetrievalState && retrievalDebugEnabled && retrievalStatus ? (
+            <CardStateMarker
+              testId="posting-retrieval-state"
+              tone={RETRIEVAL_TONE[retrievalStatus.state]}
+              title={[
+                t(`postingDetail.retrievalState.${retrievalStatus.state}`),
+                retrievalSpaceName,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            />
+          ) : null}
           {posting.applied_at ? (
             <>
               <span className="text-[var(--as-border)]">|</span>

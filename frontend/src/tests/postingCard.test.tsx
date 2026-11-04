@@ -4,9 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { markPostingsSeen } from "@/api/postings";
+import type { RetrievalDocumentSpace, RetrievalDocumentStatus } from "@/api/retrieval";
 import { fetchSkill, fetchSkillRelations } from "@/api/skills";
 import { clearSkillPeekCache } from "@/components/skills/SkillPeekModal";
 import { PostingCard } from "@/features/postings/components/PostingCard";
+import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import type { PostingOut } from "@/types/wire";
 
 vi.mock("@/api/postings", () => ({
@@ -54,13 +56,52 @@ function posting(overrides: Partial<PostingOut> = {}): PostingOut {
   } as PostingOut;
 }
 
-function renderCard(item: PostingOut, onOpen?: (value: PostingOut) => void) {
+const RETRIEVAL_SPACE: RetrievalDocumentSpace = {
+  space_id: "space-1",
+  name: "content",
+  status: "active",
+  backend: "pgvector",
+  model: "text-embedding-3-small",
+  dim: 1536,
+};
+
+function retrievalStatus(
+  state: RetrievalDocumentStatus["state"] = "current",
+): RetrievalDocumentStatus {
+  return {
+    source_id: "p1",
+    state,
+    reason: null,
+    records: 2,
+    indexed_at: "2026-11-04T00:00:00Z",
+  };
+}
+
+function renderCard(
+  item: PostingOut,
+  onOpen?: (value: PostingOut) => void,
+  showRetrievalState = false,
+) {
   return render(
     <MemoryRouter>
-      <PostingCard posting={item} onOpen={onOpen} />
+      <PostingCard
+        posting={item}
+        onOpen={onOpen}
+        showRetrievalState={showRetrievalState}
+      />
     </MemoryRouter>
   );
 }
+
+beforeEach(() => {
+  useRetrievalDebugStore.setState({
+    enabled: false,
+    space: null,
+    statuses: {},
+    loading: false,
+    error: null,
+  });
+});
 
 describe("PostingCard", () => {
   it("renders the structured card: score, org link, meta, spec slots", () => {
@@ -304,5 +345,50 @@ describe("PostingCard entity menu (plan 188)", () => {
     renderMenuCard(posting(), undefined);
     fireEvent.contextMenu(screen.getAllByTestId("skill-tag")[0]);
     expect(screen.queryByRole("menuitem")).not.toBeInTheDocument();
+  });
+
+  it("never shows the retrieval marker without the opt-in prop", () => {
+    useRetrievalDebugStore.setState({
+      enabled: true,
+      space: RETRIEVAL_SPACE,
+      statuses: { p1: retrievalStatus() },
+    });
+    renderCard(posting());
+    expect(screen.queryByTestId("posting-retrieval-state")).not.toBeInTheDocument();
+  });
+
+  it("shows the retrieval marker only with the prop, the flag and a cached status", () => {
+    useRetrievalDebugStore.setState({
+      enabled: true,
+      space: RETRIEVAL_SPACE,
+      statuses: { p1: retrievalStatus() },
+    });
+    renderCard(posting(), undefined, true);
+    const marker = screen.getByTestId("posting-retrieval-state");
+    expect(marker).toHaveAttribute("data-tone", "success");
+    expect(marker).toHaveAttribute("title", "Indexed · content");
+  });
+
+  it("maps a stale index to the warning tone", () => {
+    useRetrievalDebugStore.setState({
+      enabled: true,
+      space: RETRIEVAL_SPACE,
+      statuses: { p1: retrievalStatus("stale") },
+    });
+    renderCard(posting(), undefined, true);
+    expect(screen.getByTestId("posting-retrieval-state")).toHaveAttribute(
+      "data-tone",
+      "warning",
+    );
+  });
+
+  it("hides the retrieval marker when the debug flag is off", () => {
+    useRetrievalDebugStore.setState({
+      enabled: false,
+      space: RETRIEVAL_SPACE,
+      statuses: { p1: retrievalStatus() },
+    });
+    renderCard(posting(), undefined, true);
+    expect(screen.queryByTestId("posting-retrieval-state")).not.toBeInTheDocument();
   });
 });
