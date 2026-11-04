@@ -387,8 +387,6 @@
       "rolesHas": "Έχει ανοιχτές θέσεις",
       "rolesNone": "Χωρίς ανοιχτές θέσεις",
       "resultCount": "{{count}} θέσεις",
-      "activeCount": "{{count}} ενεργά",
-      "clearAll": "Καθαρισμός όλων",
       "sort": "Ταξινόμηση"
     },
     "sort": {
@@ -543,7 +541,6 @@
     "browseCompanies": "Αναζήτηση εταιρειών",
     "searchCompanies": "Αναζήτηση εταιρειών…",
     "noCompaniesFound": "Δεν βρέθηκαν εταιρείες",
-    "clearAllFilters": "Καθαρισμός όλων των φίλτρων",
     "facetValue": {
       "remote": "Απομακρυσμένο",
       "hybrid": "Υβριδικό",
@@ -4923,7 +4920,6 @@
     "noMatchTitle": "Καμία αντίστοιχη εταιρεία",
     "noMatchBody": "Δοκίμασε άλλο όνομα ή αφαίρεσε το φίλτρο «Νέα».",
     "railTitle": "Φίλτρο ανά ενεργή πρόσληψη",
-    "clearFilters": "Καθαρισμός φίλτρων ({count})",
     "locationPlaceholder": "Πόλη ή χώρα",
     "minOpenN": "≥ {{count}} ανοιχτές θέσεις",
     "minOpenAny": "Οποιοσδήποτε αριθμός",

@@ -12,7 +12,6 @@ import {
   catalogActiveChips,
   catalogApiParams,
   catalogParams,
-  countActiveCatalogFilters,
   parseCatalogParams,
   removeCatalogChip,
 } from "@/features/catalog/catalogParams";
@@ -78,30 +77,19 @@ export function CatalogTree() {
     [families, filters.family]
   );
   const chips = catalogActiveChips(filters);
-  const activeCount = countActiveCatalogFilters(filters);
 
   return (
     <div className="ca-stats-page" data-testid="catalog-tree">
       <div className="ca-stats-cols ca-catalog-cols">
-        <aside className="ca-stats-rail" data-testid="catalog-filter-aside">
-          <CatalogFilterRail
-            filters={filters}
-            facets={facets}
-            families={families}
-            onChange={patch}
-          />
-        </aside>
+        <CatalogFilterRail
+          filters={filters}
+          facets={facets}
+          families={families}
+          onChange={patch}
+          onClear={clearAll}
+        />
 
         <div className="ca-card-page min-w-0 space-y-3">
-          <input
-            placeholder={t("catalog.searchPlaceholder")}
-            value={filters.q}
-            onChange={(event) => patch({ q: event.target.value })}
-            aria-label={t("catalog.searchPlaceholder")}
-            data-testid="catalog-search"
-            className="w-full rounded-lg border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)] outline-none transition-colors focus:border-[var(--as-primary)]"
-          />
-
           {activeNode && activeNode.children.length > 0 && (
             <div className="flex flex-wrap gap-2" data-testid="catalog-subfamilies">
               {activeNode.children.map((child) => (
@@ -123,21 +111,6 @@ export function CatalogTree() {
             <span data-testid="catalog-result-count">
               {t("catalog.filters.resultCount", { count: total })}
             </span>
-            {activeCount > 0 ? (
-              <span data-testid="catalog-filter-count">
-                {t("catalog.filters.activeCount", { count: activeCount })}
-              </span>
-            ) : null}
-            {chips.length > 0 ? (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="text-[var(--as-primary)] hover:underline"
-                data-testid="catalog-clear-all"
-              >
-                {t("catalog.filters.clearAll")}
-              </button>
-            ) : null}
             <div
               className="ml-auto flex flex-wrap items-center gap-1"
               data-testid="catalog-active-chips"

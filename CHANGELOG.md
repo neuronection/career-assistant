@@ -4,6 +4,28 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (filter rails: one template, one independent scroll owner, 2026-11-04)
+- **The filter side panel now looks and scrolls the same on `/postings`,
+  `/catalog`, `/companies`, `/autopilot` and `/rankings`.** Every rail renders
+  through the shared `FilterRail` shell — header (title, live active count,
+  **Clear all**) and the shared library `SearchInput` — with the page's
+  sections as children. The shell is transparent and borderless, so the bordered filter
+  sections are the only boxes and the panel no longer reads as a card nested
+  inside another card.
+- **The catalog search moved into the rail**, above the collapsible sections,
+  matching `/postings`, `/companies` and `/rankings`; the results column now
+  starts with the family drill chips and the count/sort strip.
+- **Only the rail scrolls, and only where it should.** Scroll ownership now
+  lives in `.ca-stats-rail`: above 64rem of page width the rail sticks below
+  the app header and scrolls on its own; below that the card stacks in normal
+  page flow. The old per-page `sticky`/`max-h`/`overflow` utilities put a
+  percentage `max-height` scroll box inside an auto-height aside, so the box
+  never actually scrolled — `/postings`, `/companies` and `/autopilot` behaved
+  differently from `/catalog`.
+- `Section` and the tri-state chips now use the semantic `--as-*` tokens
+  everywhere; the last hard-coded `slate`/`primary` filter chrome is gone. The
+  dead legacy feed `FilterRail` component was removed.
+
 ### Fixed (desktop: the embed audit write no longer re-locks the index, 2026-11-04)
 - **The inline vector index no longer stalls the API for 30 seconds while
   writing.** The embedding call audits itself by flushing an `ai_generations`

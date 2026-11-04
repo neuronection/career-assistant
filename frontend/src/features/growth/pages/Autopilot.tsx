@@ -1000,29 +1000,24 @@ export function Autopilot() {
           ) : null}
 
           <div className="ca-stats-cols">
-            <aside
-              className="ca-ap-filter-rail shrink-0 self-start"
-              data-open={filtersOpen ? "true" : "false"}
-              data-testid="autopilot-filters"
-            >
-              <FindingsRail
-                filters={filters}
-                facets={feed?.facets ?? null}
-                sources={Object.entries(feed?.facets.source ?? {}).map(([key, count]) => ({
-                  key,
-                  label: `${key} (${count})`,
-                }))}
-                onChange={writeFilters}
-                onClear={() =>
-                  writeFilters({
-                    ...DEFAULT_FINDINGS_FILTERS,
-                    goal: filters.goal,
-                    runId: filters.runId,
-                    view: filters.view,
-                  })
-                }
-              />
-            </aside>
+            <FindingsRail
+              filters={filters}
+              facets={feed?.facets ?? null}
+              sources={Object.entries(feed?.facets.source ?? {}).map(([key, count]) => ({
+                key,
+                label: `${key} (${count})`,
+              }))}
+              onChange={writeFilters}
+              onClear={() =>
+                writeFilters({
+                  ...DEFAULT_FINDINGS_FILTERS,
+                  goal: filters.goal,
+                  runId: filters.runId,
+                  view: filters.view,
+                })
+              }
+              asideOpen={filtersOpen}
+            />
 
             <section className="min-w-0 space-y-3" data-testid="findings-feed">
               <div className="flex flex-wrap items-center justify-between gap-2">

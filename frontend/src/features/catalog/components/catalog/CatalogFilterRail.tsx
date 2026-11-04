@@ -14,6 +14,7 @@ import {
   triStateToggle,
   type TriStateMode,
 } from "@/components/filters/filterBits";
+import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
 import { SkillPicker } from "@/features/postings/components/postings/SkillPicker";
 import {
   CONTRACT_VALUES,
@@ -22,6 +23,7 @@ import {
   ENVIRONMENT_VALUES,
   SCHEDULE_VALUES,
   TRAVEL_VALUES,
+  countActiveCatalogFilters,
   type CatalogFilters,
 } from "@/features/catalog/catalogParams";
 import type { JobFacets } from "@/types/wire";
@@ -47,11 +49,13 @@ export function CatalogFilterRail({
   facets,
   families,
   onChange,
+  onClear,
 }: {
   filters: CatalogFilters;
   facets: JobFacets;
   families: JobFamilyNode[];
   onChange: (update: Partial<CatalogFilters>) => void;
+  onClear: () => void;
 }) {
   const { t } = useTranslation();
   const valueLabel = (value: string) =>
@@ -88,10 +92,21 @@ export function CatalogFilterRail({
   );
 
   return (
-    <div
-      className="space-y-2 rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
-      data-testid="catalog-filter-rail"
+    <FilterRail
+      title={t("filters.title")}
+      activeCount={countActiveCatalogFilters(filters)}
+      onClear={onClear}
+      countTestId="catalog-filter-count"
+      clearTestId="catalog-clear-all"
+      asideTestId="catalog-filter-aside"
+      testId="catalog-filter-rail"
     >
+      <FilterRailSearch
+        value={filters.q}
+        onChange={(q) => onChange({ q })}
+        placeholder={t("catalog.searchPlaceholder")}
+        testId="catalog-search"
+      />
       <Section
         title={t("catalog.filters.skills")}
         active={filters.skills.length + filters.skillsExclude.length + (filters.minLevel ? 1 : 0) > 0}
@@ -455,6 +470,6 @@ export function CatalogFilterRail({
               : t("catalog.filters.rolesNone")}
         </button>
       </Section>
-    </div>
+    </FilterRail>
   );
 }

@@ -40,7 +40,7 @@ export function RecentSearches({
   const list = (
     <>
       {rail ? null : (
-        <p className="text-xs font-medium text-slate-400 uppercase flex items-center gap-1">
+        <p className="flex items-center gap-1 text-xs font-medium uppercase text-[var(--as-muted-fg)]">
           <Clock className="w-3 h-3" /> {t("shared.recentSearches")}
         </p>
       )}
@@ -50,11 +50,11 @@ export function RecentSearches({
             <button
               type="button"
               onClick={() => onApply(record)}
-              className="flex-1 text-left text-sm text-slate-600 hover:text-primary-700 truncate"
+              className="min-w-0 flex-1 truncate text-left text-sm text-[var(--as-fg)] transition-colors hover:text-[var(--as-accent)]"
               data-testid="recent-search-item"
             >
-              {record.query ? record.query : <em className="text-slate-400">{t("shared.filtersOnly")}</em>}
-              <span className="text-slate-300"> · {t("shared.resultCount", { count: record.result_count })}</span>
+              {record.query ? record.query : <em className="text-[var(--as-muted-fg)]">{t("shared.filtersOnly")}</em>}
+              <span className="text-[var(--as-muted-fg)]"> · {t("shared.resultCount", { count: record.result_count })}</span>
               {record.saved && (
                 <Star className="w-3 h-3 inline text-amber-400 fill-amber-400 ml-1" />
               )}
@@ -67,7 +67,7 @@ export function RecentSearches({
                 setRecords((prev) => prev.filter((r) => r.id !== record.id));
                 void deleteSearch(record.id);
               }}
-              className="p-1 text-slate-300 hover:text-rose-500"
+              className="p-1 text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-danger)]"
             >
               <X className="w-3 h-3" />
             </button>

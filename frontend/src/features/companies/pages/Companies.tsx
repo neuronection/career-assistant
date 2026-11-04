@@ -6,7 +6,7 @@ import {
   useSearchParams,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowUpDown, Building2, Globe, MapPin, Search } from "lucide-react";
+import { ArrowUpDown, Building2, Globe, MapPin } from "lucide-react";
 import { fetchCompanies } from "@/api/companies";
 import { rememberListSearch, isListReturn } from "@/lib/listReturn";
 import {
@@ -26,6 +26,7 @@ import {
   triStateToggle,
   type FacetChip,
 } from "@/components/filters/filterBits";
+import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
 import type { SpecItem } from "@/components/cards/specOrder";
 import { OrgAvatar } from "@/components/company/OrgAvatar";
 import { CompaniesStatsRail } from "@/components/stats/StatsRail";
@@ -175,41 +176,24 @@ export function Companies() {
       <p className="text-sm text-[var(--as-muted-fg)]">{t("companies.subtitle")}</p>
 
       <div className="ca-stats-cols">
-        <aside
-          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
-          data-testid="company-filters"
+        <FilterRail
+          title={t("companies.railTitle")}
+          activeCount={filtersActive}
+          onClear={clearAll}
+          countTestId="company-filter-count"
+          clearTestId="company-filters-clear"
+          asideTestId="company-filters"
+          testId="company-filter-rail"
         >
-          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-slate-700">
-                {t("companies.railTitle")}
-              </div>
-              {filtersActive > 0 ? (
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  className="text-xs text-slate-400 hover:text-slate-600"
-                  data-testid="company-filters-clear"
-                >
-                  {t("companies.clearFilters", { count: filtersActive })}
-                </button>
-              ) : null}
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                value={filters.q}
-                onChange={(e) => patch({ q: e.target.value })}
-                placeholder={t("companies.searchPlaceholder")}
-                aria-label={t("companies.searchPlaceholder")}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
-                data-testid="company-search"
-              />
-            </label>
+          <FilterRailSearch
+            value={filters.q}
+            onChange={(q) => patch({ q })}
+            placeholder={t("companies.searchPlaceholder")}
+            testId="company-search"
+          />
 
             <div data-testid="company-filter-statuses">
-              <p className="text-xs font-medium text-slate-500 pt-1">
+              <p className="pt-1 text-xs font-medium text-[var(--as-muted-fg)]">
                 {t("companies.statusTitle")}
               </p>
               <div className="flex flex-wrap gap-1 pt-1">
@@ -219,10 +203,10 @@ export function Companies() {
                     type="button"
                     aria-pressed={filters.status === mode}
                     onClick={() => patch({ status: mode })}
-                    className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                    className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
                       filters.status === mode
-                        ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
-                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                        ? "border-[var(--as-accent)] bg-[var(--as-muted)] font-medium text-[var(--as-accent)]"
+                        : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
                     }`}
                     data-testid={`company-filter-${mode}`}
                   >
@@ -231,7 +215,6 @@ export function Companies() {
                 ))}
               </div>
             </div>
-        <div className="grid gap-2">
           <Section
             title={t("companies.facetTitle.work_mode")}
             active={filters.workMode.length + filters.workModeExclude.length > 0}
@@ -282,43 +265,41 @@ export function Companies() {
               showCounts
             />
           </Section>
-        </div>
-        <div className="space-y-2 pt-1">
-          <label className="block text-xs">
-            <span className="mb-1 block font-medium text-slate-500">
-              {t("companies.facetTitle.locations")}
-            </span>
-            <input
-              value={filters.location}
-              onChange={(e) => patch({ location: e.target.value })}
-              placeholder={t("companies.locationPlaceholder")}
-              aria-label={t("companies.facetTitle.locations")}
-              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
-              data-testid="company-filter-location"
-            />
-          </label>
-          <label className="block text-xs">
-            <span className="mb-1 block font-medium text-slate-500">
-              {t("companies.facetTitle.minOpen")}
-            </span>
-            <select
-              value={String(filters.minOpen)}
-              onChange={(e) => patch({ minOpen: Number(e.target.value) })}
-              aria-label={t("companies.facetTitle.minOpen")}
-              className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
-              data-testid="company-filter-min-open"
-            >
-              <option value={0}>{t("companies.minOpenAny")}</option>
-              {MIN_OPEN_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {t("companies.minOpenN", { count: option })}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+          <div className="space-y-2 pt-1">
+            <label className="block text-xs">
+              <span className="mb-1 block font-medium text-[var(--as-muted-fg)]">
+                {t("companies.facetTitle.locations")}
+              </span>
+              <input
+                value={filters.location}
+                onChange={(e) => patch({ location: e.target.value })}
+                placeholder={t("companies.locationPlaceholder")}
+                aria-label={t("companies.facetTitle.locations")}
+                className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-[var(--as-fg)]"
+                data-testid="company-filter-location"
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="mb-1 block font-medium text-[var(--as-muted-fg)]">
+                {t("companies.facetTitle.minOpen")}
+              </span>
+              <select
+                value={String(filters.minOpen)}
+                onChange={(e) => patch({ minOpen: Number(e.target.value) })}
+                aria-label={t("companies.facetTitle.minOpen")}
+                className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-[var(--as-fg)]"
+                data-testid="company-filter-min-open"
+              >
+                <option value={0}>{t("companies.minOpenAny")}</option>
+                {MIN_OPEN_OPTIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {t("companies.minOpenN", { count: option })}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
-        </aside>
+        </FilterRail>
 
         <div className="flex-1 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">

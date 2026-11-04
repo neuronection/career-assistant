@@ -387,8 +387,6 @@
       "rolesHas": "Has open roles",
       "rolesNone": "No open roles",
       "resultCount": "{{count}} jobs",
-      "activeCount": "{{count}} active",
-      "clearAll": "Clear all",
       "sort": "Sort"
     },
     "sort": {
@@ -543,7 +541,6 @@
     "browseCompanies": "Browse companies",
     "searchCompanies": "Search companies…",
     "noCompaniesFound": "No companies found",
-    "clearAllFilters": "Clear all filters",
     "facetValue": {
       "remote": "Remote",
       "hybrid": "Hybrid",
@@ -4924,7 +4921,6 @@
     "noMatchTitle": "No companies match",
     "noMatchBody": "Try a different name or clear the New filter.",
     "railTitle": "Filter by active hiring",
-    "clearFilters": "Clear filters ({count})",
     "locationPlaceholder": "City or country",
     "minOpenN": "≥ {{count}} open roles",
     "minOpenAny": "Any number of roles",

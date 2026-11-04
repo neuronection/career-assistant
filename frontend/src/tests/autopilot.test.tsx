@@ -371,6 +371,7 @@ describe("Autopilot workspace feed", () => {
     renderPage();
     await screen.findByTestId("finding-title-f1");
     expect(screen.getByTestId("findings-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("autopilot-filters")).toHaveClass("ca-stats-rail");
     await userEvent.setup().click(screen.getByRole("button", { name: "Source" }));
     await userEvent
       .setup()

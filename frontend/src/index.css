@@ -401,8 +401,30 @@ body {
   .ca-stats-rail {
     position: sticky;
     top: 4rem;
-    max-height: calc(100vh - 6rem);
+    /* The app header (3.5rem) sits above the scroll container, and the
+       sticky offset is 4rem inside it — the rail must stop above the
+       viewport bottom, not run past it. */
+    max-height: calc(100vh - 7.5rem);
+    max-height: calc(100dvh - 7.5rem);
     overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--as-border) transparent;
+  }
+}
+
+/* Two-column list pages that are not the full postings template (the
+   rankings filter rail | results pair). Same container-query rule as
+   ca-stats-cols: the chat dock narrows the page column, not the viewport. */
+.ca-rail-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+@container (min-width: 64rem) {
+  .ca-rail-cols {
+    grid-template-columns: minmax(215px, 255px) minmax(0, 1fr);
   }
 }
 

@@ -9,6 +9,7 @@ import { WeightsEditor } from "@/features/catalog/components/WeightsEditor";
 import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import { FitStaleBadge } from "@/features/postings/components/FitStaleBadge";
 import { EmptyState, SearchableDropdown } from "@/components/ui";
+import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
 import { useSearchHistory } from "@/hooks/useSearchHistory";
 import { useCompareStore } from "@/stores/compareStore";
 import type { RankedJob, ScoringWeights, SearchRecord } from "@/types/wire";
@@ -119,29 +120,49 @@ export function Rankings() {
     return buckets;
   }, [items]);
 
+  const activeCount =
+    [q.trim(), family, interests.trim(), demand, status].filter(Boolean).length +
+    (minScore !== null ? 1 : 0) +
+    (stretch ? 1 : 0);
+  const clearFilters = () => {
+    setQ("");
+    setFamily("");
+    setInterests("");
+    setDemand("");
+    setStatus("");
+    setMinScore(null);
+    setStretch(false);
+  };
+
   return (
-    <div className="space-y-6" data-testid="rankings">
+    <div className="ca-stats-page space-y-6" data-testid="rankings">
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">
+        <h1 className="text-2xl font-bold text-[var(--as-fg)]">
           {t(stretch ? "rankings.titleStretch" : "rankings.title")}
         </h1>
         <FitStaleBadge />
         <ScoreLegend align="start" />
       </div>
-      <div className="grid lg:grid-cols-[260px_1fr] gap-6">
-        <aside className="bg-white border border-slate-200 rounded-xl p-4 space-y-4" data-testid="filter-bar">
-          <label className="block">
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.search")}</span>
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("rankings.searchPlaceholder")}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </label>
+      <div className="ca-rail-cols">
+        <FilterRail
+          title={t("filters.title")}
+          activeCount={activeCount}
+          onClear={clearFilters}
+          countTestId="rankings-filter-count"
+          clearTestId="rankings-filter-clear"
+          asideTestId="filter-bar"
+          testId="rankings-filter-rail"
+        >
+          <FilterRailSearch
+            label={t("rankings.search")}
+            value={q}
+            onChange={setQ}
+            placeholder={t("rankings.searchPlaceholder")}
+            testId="rankings-search"
+          />
           <RecentSearches scope="rankings" onApply={applySearch} refreshKey={historyKey} />
           <div>
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.family")}</span>
+            <span className="text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.family")}</span>
             <div className="mt-1">
               <SearchableDropdown
                 options={[{ value: "", label: t("rankings.allFamilies") }, ...FAMILY_KEYS.map((f) => ({ value: f, label: t(`families.${f}`, { defaultValue: f.replace(/-/g, " ") }) }))]}
@@ -152,16 +173,16 @@ export function Rankings() {
             </div>
           </div>
           <label className="block">
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.interest")}</span>
+            <span className="text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.interest")}</span>
             <input
               value={interests}
               onChange={(e) => setInterests(e.target.value)}
               placeholder={t("rankings.interestPlaceholder")}
-              className="mt-1 w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-3 py-2 text-sm text-[var(--as-fg)]"
             />
           </label>
           <div>
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.demand")}</span>
+            <span className="text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.demand")}</span>
             <div className="mt-1">
               <SearchableDropdown
                 options={[{ value: "", label: t("rankings.anyDemand") }, ...DEMAND_OPTIONS]}
@@ -172,7 +193,7 @@ export function Rankings() {
             </div>
           </div>
           <div>
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.myStatus")}</span>
+            <span className="text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.myStatus")}</span>
             <div className="mt-1">
               <SearchableDropdown
                 options={[{ value: "", label: t("rankings.anyStatus") }, ...STATUS_OPTIONS]}
@@ -183,7 +204,7 @@ export function Rankings() {
             </div>
           </div>
           <label className="block">
-            <span className="text-xs font-medium text-slate-400 uppercase">{t("rankings.minScore", { score: minScore ?? 0 })}</span>
+            <span className="text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.minScore", { score: minScore ?? 0 })}</span>
             <input
               type="range"
               min={0}
@@ -191,20 +212,20 @@ export function Rankings() {
               step={0.5}
               value={minScore ?? 0}
               onChange={(e) => setMinScore(Number(e.target.value))}
-              className="mt-1 w-full accent-primary-600"
+              className="mt-1 w-full accent-[var(--as-accent)]"
             />
           </label>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-[var(--as-fg)]">
             <input
               type="checkbox"
               checked={stretch}
               onChange={(e) => setStretch(e.target.checked)}
-              className="accent-primary-600"
+              className="accent-[var(--as-accent)]"
             />
             {t("rankings.stretchOnly")}
           </label>
-          <div className="pt-2 border-t border-slate-100">
-            <h3 className="text-xs font-medium text-slate-400 uppercase mb-2">{t("rankings.scoreDistribution")}</h3>
+          <div className="border-t border-[var(--as-border)] pt-2">
+            <h3 className="mb-2 text-xs font-medium uppercase text-[var(--as-muted-fg)]">{t("rankings.scoreDistribution")}</h3>
             <ResponsiveContainer width="100%" height={120}>
               <BarChart data={distribution}>
                 <XAxis dataKey="range" tick={{ fontSize: 10 }} />
@@ -214,17 +235,17 @@ export function Rankings() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </aside>
+        </FilterRail>
 
-        <section className="space-y-3">
+        <section className="min-w-0 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[var(--as-muted-fg)]">
               {t("rankings.totalJobs", { total })}{stretch ? t("rankings.gatedSuffix") : ""}
             </p>
             <div className="flex gap-2 items-center">
               <button
                 onClick={() => setShowWeights((v) => !v)}
-                className="text-xs border border-slate-200 rounded-lg px-3 py-1.5 hover:border-primary-400"
+                className="rounded-[var(--as-radius)] border border-[var(--as-border)] px-3 py-1.5 text-xs transition-colors hover:border-[var(--as-accent)]"
                 data-testid="adjust-weights"
               >
                 {showWeights ? t("rankings.hideWeights") : t("rankings.adjustWeights")}
@@ -235,8 +256,8 @@ export function Rankings() {
             </div>
           </div>
           {showWeights && weights && (
-            <div className="bg-primary-50 border border-primary-100 rounded-xl p-4">
-              <p className="text-xs text-slate-500 mb-2">
+            <div className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-muted)] p-4">
+              <p className="mb-2 text-xs text-[var(--as-muted-fg)]">
                 {t("rankings.weightsHint")}
               </p>
               <WeightsEditor

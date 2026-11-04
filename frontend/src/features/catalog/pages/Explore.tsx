@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useNavigationType, useSearchParams, useLocation } from "react-router-dom";
-import { ArrowUpDown, Radar, Search, Sparkles, X } from "lucide-react";
+import { ArrowUpDown, Radar, Sparkles, X } from "lucide-react";
 
 import { explorePostings, fetchPostingSources, smartSearch } from "@/api/postings";
 import { fetchRadar, previewRadar } from "@/api/radar";
@@ -27,6 +27,7 @@ import { OrgPicker } from "@/features/postings/components/postings/OrgPicker";
 import { useProfilesStore } from "@/stores/profilesStore";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import { Section, TriStateChips, triStateToggle } from "@/components/filters/filterBits";
+import { FilterRail, FilterRailSearch } from "@/components/filters/FilterRail";
 import {
   applyCardFilter,
   filterStateOf,
@@ -421,47 +422,26 @@ export function Explore() {
       />
 
       <div className="ca-stats-cols">
-        <aside
-          className="shrink-0 self-start sticky top-16 max-h-[calc(100vh-5rem)]"
-          data-testid="explore-filters"
+        <FilterRail
+          title={t("filters.title")}
+          activeCount={activeCount}
+          onClear={resetFilters}
+          countTestId="explore-filter-count"
+          clearTestId="clear-filters"
+          asideTestId="explore-filters"
+          testId="explore-filter-rail"
         >
-          <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-3 max-h-full overflow-y-auto">
-            <div className="flex items-center justify-between gap-2">
-              <div className="text-sm font-semibold text-slate-700">
-                {t("filters.title")}
-                {activeCount > 0 ? (
-                  <span className="ml-2 text-xs text-primary-600" data-testid="explore-filter-count">
-                    {t("filters.activeCount", { count: activeCount })}
-                  </span>
-                ) : null}
-              </div>
-              {active ? (
-                <button
-                  onClick={resetFilters}
-                  className="text-xs text-slate-400 hover:text-slate-600"
-                  data-testid="clear-filters"
-                >
-                  {t("explore.clearAllFilters")}
-                </button>
-              ) : null}
-            </div>
-
-            <label className="flex items-center gap-2 text-sm">
-              <Search className="w-4 h-4 text-slate-400 shrink-0" />
-              <input
-                value={filters.q}
-                onChange={(e) => {
-                  const q = e.target.value;
-                  patch({
-                    q,
-                    ...(filters.sort === "relevance" && !q.trim() ? { sort: "fit" } : {}),
-                  });
-                }}
-                placeholder={t("explore.searchPlaceholder")}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5"
-                data-testid="explore-q"
-              />
-            </label>
+          <FilterRailSearch
+            value={filters.q}
+            onChange={(q) =>
+              patch({
+                q,
+                ...(filters.sort === "relevance" && !q.trim() ? { sort: "fit" } : {}),
+              })
+            }
+            placeholder={t("explore.searchPlaceholder")}
+            testId="explore-q"
+          />
 
             <Section
               title={t("explore.facet.skills")}
@@ -486,7 +466,7 @@ export function Explore() {
                     {filters.skills.map((s) => (
                       <span
                         key={s.key}
-                        className="text-xs bg-primary-50 text-primary-700 border border-primary-200 rounded-full px-2 py-0.5 flex items-center gap-1"
+                        className="flex items-center gap-1 rounded-full border border-[var(--as-accent)] bg-[var(--as-muted)] px-2 py-0.5 text-xs text-[var(--as-accent)]"
                         data-testid={`skill-chip-${s.key}`}
                       >
                         {skillOptions.find((o) => o.value === s.key)?.label ?? s.key}
@@ -501,7 +481,7 @@ export function Explore() {
                               ),
                             })
                           }
-                          className="bg-white border border-primary-200 rounded px-0.5 text-[11px] text-primary-700"
+                          className="rounded border border-[var(--as-border)] bg-[var(--as-surface)] px-0.5 text-[11px] text-[var(--as-fg)]"
                           aria-label={t("explore.skillLevel")}
                           data-testid={`skill-level-${s.key}`}
                         >
@@ -524,7 +504,7 @@ export function Explore() {
                   <select
                     value={filters.skillMode}
                     onChange={(e) => patch({ skillMode: e.target.value as "all" | "any" })}
-                    className="text-xs border border-slate-200 rounded-lg px-1 py-1 w-full"
+                    className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-1 py-1 text-xs text-[var(--as-fg)]"
                     aria-label={t("explore.skillMatchMode")}
                   >
                     <option value="all">{t("explore.allMustMatch")}</option>
@@ -532,7 +512,7 @@ export function Explore() {
                   </select>
                 </>
               )}
-              <p className="text-xs font-medium text-slate-500 pt-1">
+              <p className="pt-1 text-xs font-medium text-[var(--as-muted-fg)]">
                 {t("explore.excludeSkills")}
               </p>
               <SkillPicker
@@ -549,7 +529,7 @@ export function Explore() {
                       <button
                         key={key}
                         onClick={() => addSkillFilter(key)}
-                        className="text-[10px] bg-slate-50 text-slate-500 border border-slate-100 px-1.5 py-0.5 rounded hover:bg-primary-50"
+                        className="rounded border border-[var(--as-border)] bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)] transition-colors hover:text-[var(--as-fg)]"
                       >
                         {key} · {count}
                       </button>
@@ -581,7 +561,7 @@ export function Explore() {
                 value={filters.salaryMin}
                 onChange={(e) => patch({ salaryMin: e.target.value.replace(/[^0-9]/g, "") })}
                 placeholder={t("explore.salaryExample")}
-                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm"
+                className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1.5 text-sm text-[var(--as-fg)]"
                 data-testid="salary-min"
               />
             </Section>
@@ -710,7 +690,7 @@ export function Explore() {
                 onChange={(names) => patch({ orgs: names })}
                 placeholder={t("explore.orgPlaceholder")}
               />
-              <p className="text-xs font-medium text-slate-500 pt-1">
+              <p className="pt-1 text-xs font-medium text-[var(--as-muted-fg)]">
                 {t("explore.excludeOrganizations")}
               </p>
               <OrgPicker
@@ -727,7 +707,7 @@ export function Explore() {
               count={filters.source.length + filters.sourceExclude.length}
             >
               {sources.length === 0 ? (
-                <p className="text-xs text-slate-400">{t("explore.noSources")}</p>
+                <p className="text-xs text-[var(--as-muted-fg)]">{t("explore.noSources")}</p>
               ) : (
                 <TriStateChips
                   showCounts
@@ -769,7 +749,7 @@ export function Explore() {
               />
             </Section>
 
-            <label className="flex items-center justify-between text-xs text-slate-600">
+            <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
               <span>{t("explore.deepExtractedOnly")}</span>
               <input
                 type="checkbox"
@@ -778,7 +758,7 @@ export function Explore() {
                 data-testid="extracted-only"
               />
             </label>
-            <label className="flex items-center justify-between text-xs text-slate-600">
+            <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
               <span>{t("explore.savedOnly")}</span>
               <input
                 type="checkbox"
@@ -787,7 +767,7 @@ export function Explore() {
                 data-testid="saved-only"
               />
             </label>
-            <label className="flex items-center justify-between text-xs text-slate-600">
+            <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
               <span title={t("explore.hideSeenTitle")}>{t("explore.hideSeen")}</span>
               <input
                 type="checkbox"
@@ -796,8 +776,7 @@ export function Explore() {
                 data-testid="seen-exclude"
               />
             </label>
-          </div>
-        </aside>
+        </FilterRail>
 
         <div className="flex-1 space-y-3">
           <form

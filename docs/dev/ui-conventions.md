@@ -343,9 +343,12 @@ page-local form for a profile section.
   `ca-stats-rail` is the **one family surface**: its `Job family` section
   carries the facet counts and a select/clear cycle (families are
   include-only — the subtree parameter has no exclude), and the `family` URL
-  parameter keeps its meaning so old links still filter. The middle column
-  carries `ca-card-page` + search, drill chips for the active family's
-  children (`catalog-subfamilies`), the count/active-chips/sort strip and
+  parameter keeps its meaning so old links still filter. The rail uses the
+  shared filter template (§2k) — its header owns the active count and
+  `Clear all`, and its always-visible search field owns the catalog query.
+  The middle column carries `ca-card-page`, drill chips for the active
+  family's children (`catalog-subfamilies`), the result-count/active-chips/
+  sort strip and
   `.ca-card-grid` (1 → 2 at 32rem → 3 at 54rem of the RESULTS column, not
   the viewport; on `/catalog` that is 2 cards of ≈340px in the three-column
   mode at 1440px and 3 of ≈320px when the page stacks at 1280px). The right
@@ -595,6 +598,38 @@ its loaded pages and scroll height. The return contract on top of §2h:
   `pathname+search`: POP restores it, a fresh PUSH starts at the top, a
   PUSH carrying `listReturn` restores it, REPLACE (filter patches, mount
   canonicalization) never moves it.
+
+## 2k. Filter rails — one template, one scroll owner
+
+Every filter side panel renders through `components/filters/FilterRail.tsx`
+(`FilterRail` + `FilterRailSearch`) on top of the `Section`/`TriStateChips`
+bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
+
+- **One shell**: title, live active count (`filters.activeCount`), a single
+  `Clear all` action and the always-visible search field wherever the page's
+  result set has a text query (`/postings`, `/catalog`, `/companies`,
+  `/rankings`). `FilterRailSearch` composes the library `SearchInput` — one
+  search style (tokens, focus ring, clear button) across the app, never a
+  page-local input. It is never hidden inside a collapsible section, and it
+  is never duplicated above the results. Pages without a text-query contract
+  (`/autopilot`) do not get a decorative search. The shell is
+  **transparent — no border, background or padding** of its own: the bordered
+  sections are the only boxes, so the rail is not a card inside a card.
+- **Scroll lives in one place**: `.ca-stats-rail` (or `.ca-rail-cols` for the
+  two-column Rankings page) is sticky below the app header and scrolls
+  independently above 64rem of PAGE width; below that the card stacks in
+  normal page flow. Pages must not add `sticky`, `top-*`, `max-h-*` or
+  `overflow-y-*` to the aside — nested scroll containers were what made
+  `/catalog` behave differently from `/postings` and `/companies`.
+- **Tokens only**: the shell, `Section`, `TriStateChips` and all controls use
+  `--as-*` tokens; hard-coded `slate`/`primary` scales are drift.
+- **Testids are contracts**: the aside carries the page's existing testid
+  (`explore-filters`, `company-filters`, `catalog-filter-aside`,
+  `autopilot-filters`, `filter-bar`); the card carries the rail testid
+  (`explore-filter-rail`, `company-filter-rail`, `catalog-filter-rail`,
+  `findings-rail`, `rankings-filter-rail`). Count/clear testids stay per page.
+- A rail that can collapse below the breakpoint (`/autopilot`) passes
+  `asideClassName` + `asideOpen` — the CSS still owns the show/hide rule.
 
 ## 2d. Feature state (beta affordance)
 

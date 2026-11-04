@@ -387,8 +387,6 @@
       "rolesHas": "Hat offene Stellen",
       "rolesNone": "Keine offenen Stellen",
       "resultCount": "{{count}} Stellen",
-      "activeCount": "{{count}} aktiv",
-      "clearAll": "Alle löschen",
       "sort": "Sortierung"
     },
     "sort": {
@@ -543,7 +541,6 @@
     "browseCompanies": "Unternehmen durchsuchen",
     "searchCompanies": "Unternehmen suchen…",
     "noCompaniesFound": "Keine Unternehmen gefunden",
-    "clearAllFilters": "Alle Filter löschen",
     "facetValue": {
       "remote": "Remote",
       "hybrid": "Hybrid",
@@ -4923,7 +4920,6 @@
     "noMatchTitle": "Keine passenden Unternehmen",
     "noMatchBody": "Versuche einen anderen Namen oder entferne den Neu-Filter.",
     "railTitle": "Nach aktiver Stellenlage filtern",
-    "clearFilters": "Filter löschen ({count})",
     "locationPlaceholder": "Stadt oder Land",
     "minOpenN": "≥ {{count}} offene Stellen",
     "minOpenAny": "Beliebige Anzahl",

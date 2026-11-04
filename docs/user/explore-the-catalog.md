@@ -17,7 +17,8 @@ card stacks above the results and the recent-searches card follows them.
   live job counts and a select/clear cycle (families are include-only: the
   subtree parameter has no exclude). It is the page's one family
   surface — there is no second family navigation list.
-- **Search** sits at the top of the results column.
+- **Search** sits at the top of the filter rail, always visible above the
+  collapsible sections.
 - **Drill chips** (`catalog-subfamilies`) appear for the selected family's
   children, so one level of the tree stays in reach without an expanding
   tree widget.
@@ -64,10 +65,11 @@ The catalog filter rail speaks the same language as Postings (`/postings`):
   schedule, travel, experience, environment and **has open roles**.
 - every value shows its live facet count. A value with zero matching jobs is
   disabled instead of silently returning an empty list.
-- the header strip shows the result count, the active-filter chips with
-  one-click removal, **Clear all** and the sort: **title**, **demand**,
-  **salary**, **open roles** or **family**. The catalog list is insight-free
-  — fit and match live on `/rankings`, never on this shareable list.
+- the filter rail header shows the active-filter count and **Clear all**;
+  the strip above the results shows the result count, the active-filter chips
+  with one-click removal, and the sort: **title**, **demand**, **salary**,
+  **open roles** or **family**. The catalog list is insight-free — fit and
+  match live on `/rankings`, never on this shareable list.
 
 **The URL is the state.** `/catalog?family=technology&skills=programming@6&demand=hot&sort=open_roles`
 is shareable, survives a reload and keeps the **Job family** section and the

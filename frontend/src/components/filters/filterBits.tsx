@@ -1,12 +1,12 @@
 /**
  * Shared filter-rail bits (plan 141; promoted app-level for Companies in
  * plan 154): the collapsible section and the tri-state include/exclude
- * chip row with optional facet counts. The feed's FilterRail (plan 136),
- * the Explore rail and the Companies page all consume them — one filter
- * language across the product.
+ * chip row with optional facet counts. Every filter rail pairs them with
+ * `FilterRail`/`FilterRailSearch` — one filter language, one chrome.
+ * The chip contract lives in `docs/dev/ui-conventions.md` §2i.
  */
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDown, X } from "lucide-react";
 
@@ -24,31 +24,42 @@ export function Section({
   children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(active || defaultOpen);
+  const bodyId = useId();
   const effectiveOpen = open || active;
   return (
-    <div className="border border-slate-100 rounded-lg">
+    <div className="rounded-[var(--as-radius)] border border-[var(--as-border)]">
       <button
         type="button"
-        className="w-full flex items-center justify-between px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
-        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-[var(--as-radius)] px-3 py-2 text-sm text-[var(--as-fg)] transition-colors hover:bg-[var(--as-muted)]"
+        onClick={() => setOpen((value) => !value)}
         aria-expanded={effectiveOpen}
+        aria-controls={bodyId}
       >
-        <span className={active ? "font-medium text-slate-800" : ""}>{title}</span>
+        <span className={active ? "font-semibold" : ""}>{title}</span>
         <span className="flex items-center gap-2">
           {count ? (
-            <span className="text-xs text-primary-600" data-testid="section-count">
+            <span
+              className="text-xs tabular-nums text-[var(--as-accent)]"
+              data-testid="section-count"
+            >
               {count}
             </span>
           ) : null}
           {active ? (
-            <span className="w-1.5 h-1.5 rounded-full bg-primary-500" aria-hidden />
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--as-accent)]" aria-hidden />
           ) : null}
           <ChevronDown
-            className={`w-3.5 h-3.5 text-slate-400 transition-transform ${effectiveOpen ? "" : "-rotate-90"}`}
+            className={`h-3.5 w-3.5 text-[var(--as-muted-fg)] transition-transform ${
+              effectiveOpen ? "" : "-rotate-90"
+            }`}
           />
         </span>
       </button>
-      {effectiveOpen ? <div className="px-3 pb-3 space-y-2">{children}</div> : null}
+      {effectiveOpen ? (
+        <div id={bodyId} className="space-y-2 px-3 pb-3">
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -132,12 +143,12 @@ export function TriStateChips({
             data-state={isIncluded ? "include" : isExcluded ? "exclude" : undefined}
             className={`inline-flex items-stretch overflow-hidden rounded-full border text-xs transition-colors ${
               isIncluded
-                ? "border-primary-300 bg-primary-50 text-primary-700"
+                ? "border-[var(--as-accent)] bg-[var(--as-muted)] text-[var(--as-accent)]"
                 : isExcluded
-                  ? "border-rose-300 bg-rose-50 text-rose-700"
+                  ? "border-[var(--as-danger)] bg-[color-mix(in_srgb,var(--as-danger)_12%,transparent)] text-[var(--as-danger)]"
                   : dimmed
-                    ? "border-slate-100 bg-white text-slate-300"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                    ? "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-muted-fg)] opacity-50"
+                    : "border-[var(--as-border)] bg-[var(--as-surface)] text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
             }`}
           >
             <button

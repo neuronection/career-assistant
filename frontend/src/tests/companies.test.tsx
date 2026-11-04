@@ -273,6 +273,8 @@ describe("Companies browsing (plan 135)", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("company-card-acme-cloud");
+    expect(screen.getByTestId("company-filters")).toHaveClass("ca-stats-rail");
+    expect(screen.getByTestId("company-filter-rail")).toBeInTheDocument();
 
     fireEvent.change(screen.getByTestId("company-search"), { target: { value: "acme" } });
     await waitFor(() =>

@@ -467,6 +467,8 @@ describe("Explore page", () => {
       </MemoryRouter>
     );
     await screen.findByTestId("explore");
+    expect(screen.getByTestId("explore-filters")).toHaveClass("ca-stats-rail");
+    expect(screen.getByTestId("explore-filter-rail")).toBeInTheDocument();
     expect(mockExplore).toHaveBeenLastCalledWith(
       expect.not.objectContaining({ seen_exclude: expect.anything() })
     );

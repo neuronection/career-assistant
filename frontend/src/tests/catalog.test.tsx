@@ -185,6 +185,8 @@ describe("Catalog subtabs", () => {
     const { container } = renderCatalog();
 
     await waitFor(() => expect(screen.getByTestId("catalog-filter-aside")).toBeInTheDocument());
+    expect(screen.getByTestId("catalog-filter-aside")).toHaveClass("ca-stats-rail");
+    expect(screen.getByTestId("catalog-filter-rail")).toBeInTheDocument();
     expect(container.querySelector(".ca-stats-page")).not.toBeNull();
     expect(container.querySelector(".ca-stats-cols")).not.toBeNull();
     expect(container.querySelector(".ca-catalog-cols")).not.toBeNull();

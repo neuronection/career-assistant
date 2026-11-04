@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import type { FindingFeedFacets } from "@/api/autopilot";
 import { Section, TriStateChips } from "@/components/filters/filterBits";
+import { FilterRail } from "@/components/filters/FilterRail";
 import {
   FINDINGS_POSTED_WINDOWS,
   FINDINGS_SENIORITIES,
@@ -23,6 +24,7 @@ interface FindingsRailProps {
   sources: { key: string; label: string }[];
   onChange: (next: FindingsFilters) => void;
   onClear: () => void;
+  asideOpen?: boolean;
 }
 
 export function FindingsRail({
@@ -31,36 +33,23 @@ export function FindingsRail({
   sources,
   onChange,
   onClear,
+  asideOpen,
 }: FindingsRailProps) {
   const { t } = useTranslation();
   const active = countActiveFindingsFilters(filters);
 
   return (
-    <div
-      className="rounded-xl border border-[var(--as-border)] bg-[var(--as-surface)] p-3 space-y-3"
-      data-testid="findings-rail"
+    <FilterRail
+      title={t("autopilot.workspace.filtersTitle")}
+      activeCount={active}
+      onClear={onClear}
+      countTestId="findings-filter-count"
+      clearTestId="findings-filter-clear"
+      asideClassName="ca-ap-filter-rail"
+      asideTestId="autopilot-filters"
+      asideOpen={asideOpen}
+      testId="findings-rail"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold text-slate-700">
-          {t("autopilot.workspace.filtersTitle")}
-          {active > 0 ? (
-            <span className="ml-2 text-xs text-primary-600" data-testid="findings-filter-count">
-              {t("filters.activeCount", { count: active })}
-            </span>
-          ) : null}
-        </div>
-        {active > 0 ? (
-          <button
-            type="button"
-            className="text-xs text-slate-400 hover:text-slate-600"
-            onClick={onClear}
-            data-testid="findings-filter-clear"
-          >
-            {t("filters.clearAll")}
-          </button>
-        ) : null}
-      </div>
-
       <Section title={t("autopilot.workspace.stateSection")} active={filters.state !== "open" || !filters.latest || filters.hideApplied}>
         <TriStateChips
           values={[
@@ -75,7 +64,7 @@ export function FindingsRail({
             onChange({ ...filters, state: value as FindingsFilters["state"] })
           }
         />
-        <label className="flex items-center justify-between text-xs text-slate-600">
+        <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
           {t("autopilot.workspace.latestOnly")}
           <input
             type="checkbox"
@@ -84,7 +73,7 @@ export function FindingsRail({
             data-testid="findings-latest-toggle"
           />
         </label>
-        <label className="flex items-center justify-between text-xs text-slate-600">
+        <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
           {t("autopilot.workspace.hideApplied")}
           <input
             type="checkbox"
@@ -100,7 +89,7 @@ export function FindingsRail({
         active={filters.minScore !== null || filters.coverageMin !== null}
       >
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-500" htmlFor="findings-min-score">
+          <label className="text-xs text-[var(--as-muted-fg)]" htmlFor="findings-min-score">
             {t("autopilot.workspace.minScore")}
           </label>
           <input
@@ -109,7 +98,7 @@ export function FindingsRail({
             min={0}
             max={10}
             step={0.5}
-            className="w-16 text-sm border border-slate-200 rounded px-2 py-1"
+            className="w-16 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm text-[var(--as-fg)]"
             value={filters.minScore ?? ""}
             onChange={(e) =>
               onChange({
@@ -121,7 +110,7 @@ export function FindingsRail({
           />
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-xs text-slate-500" htmlFor="findings-coverage-min">
+          <label className="text-xs text-[var(--as-muted-fg)]" htmlFor="findings-coverage-min">
             {t("autopilot.workspace.coverageMin")}
           </label>
           <input
@@ -129,7 +118,7 @@ export function FindingsRail({
             type="number"
             min={0}
             max={20}
-            className="w-16 text-sm border border-slate-200 rounded px-2 py-1"
+            className="w-16 rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm text-[var(--as-fg)]"
             value={filters.coverageMin ?? ""}
             onChange={(e) =>
               onChange({
@@ -144,7 +133,7 @@ export function FindingsRail({
 
       <Section title={t("autopilot.workspace.orgSection")} active={!!filters.org.trim()}>
         <input
-          className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1"
+          className="w-full rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-surface)] px-2 py-1 text-sm text-[var(--as-fg)]"
           placeholder={t("autopilot.workspace.orgPlaceholder")}
           value={filters.org}
           onChange={(e) => onChange({ ...filters, org: e.target.value })}
@@ -173,7 +162,7 @@ export function FindingsRail({
           }
         />
         {sources.length === 0 ? (
-          <p className="text-xs text-slate-400">{t("autopilot.workspace.noSources")}</p>
+          <p className="text-xs text-[var(--as-muted-fg)]">{t("autopilot.workspace.noSources")}</p>
         ) : null}
       </Section>
 
@@ -200,7 +189,7 @@ export function FindingsRail({
       </Section>
 
       <Section title={t("autopilot.workspace.remoteSection")} active={filters.remote}>
-        <label className="flex items-center justify-between text-xs text-slate-600">
+        <label className="flex items-center justify-between text-xs text-[var(--as-muted-fg)]">
           {t("autopilot.workspace.remoteOnly")}
           <input
             type="checkbox"
@@ -220,8 +209,8 @@ export function FindingsRail({
               aria-pressed={filters.postedWithin === window}
               className={`text-xs px-2.5 py-1 rounded-full border ${
                 filters.postedWithin === window
-                  ? "border-primary-300 bg-primary-50 text-primary-700 font-medium"
-                  : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                  ? "border-[var(--as-accent)] bg-[var(--as-muted)] font-medium text-[var(--as-accent)]"
+                  : "border-[var(--as-border)] text-[var(--as-fg)] hover:bg-[var(--as-muted)]"
               }`}
               onClick={() =>
                 onChange({
@@ -235,6 +224,6 @@ export function FindingsRail({
           ))}
         </div>
       </Section>
-    </div>
+    </FilterRail>
   );
 }
