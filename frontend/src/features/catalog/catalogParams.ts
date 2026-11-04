@@ -168,10 +168,8 @@ function numberInRange(value: string | null, minimum: number, maximum: number): 
 function skillEntries(value: string | null): CatalogSkillFilter[] {
   return csv(value)
     .map((entry) => {
-      const [rawKey] = entry.split("@");
-      const [key, levelPart] =
-        rawKey.includes(":") ? rawKey.split(":") : [rawKey, entry.split("@")[1]];
-      const normalized = key.trim().toLowerCase();
+      const [rawKey, levelPart] = entry.split("@");
+      const normalized = rawKey.trim().toLowerCase();
       if (!normalized) return null;
       if (levelPart === undefined || levelPart === "") return { key: normalized, level: null };
       const level = Number(levelPart);
@@ -361,6 +359,9 @@ export function catalogActiveChips(filters: CatalogFilters): CatalogActiveChip[]
   for (const skill of filters.skillsExclude) {
     add("skills", skill, "exclude", `− ${skill}`);
   }
+  if (filters.skillMode !== "all" && filters.skills.length) {
+    add("skillMode", filters.skillMode, "flag", filters.skillMode, "catalog.chips.skillMode");
+  }
   if (filters.minLevel != null) {
     add("minLevel", String(filters.minLevel), "bound", `≥ ${filters.minLevel}`, "catalog.chips.minLevel");
   }
@@ -458,6 +459,8 @@ export function removeCatalogChip(
       return { skillsExclude: drop(filters.skillsExclude) };
     case "minLevel":
       return { minLevel: null };
+    case "skillMode":
+      return { skillMode: "all" };
     case "interests":
       return chip.kind === "include"
         ? { interests: drop(filters.interests) }

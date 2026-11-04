@@ -16,7 +16,7 @@ drilling one level keeps the whole surface usable on narrow screens.
 
 - **Search** across the catalog from the top of the pane.
 - **Recent searches** let you jump back to a previous query.
-- A job card opens the job detail page.
+- A job card opens the job detail page at `/jobs/:code`.
 
 ## Job cards
 

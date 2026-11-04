@@ -102,6 +102,14 @@ describe("catalogParams", () => {
     expect(catalogParams(DEFAULT_CATALOG_FILTERS).toString()).toBe("");
   });
 
+  it("splits skill levels on @ only, like the pinned catalog syntax", () => {
+    const parsed = parseCatalogParams(new URLSearchParams("skills=programming:6,sql@4"));
+    expect(parsed.skills).toEqual([
+      { key: "programming:6", level: null },
+      { key: "sql", level: 4 },
+    ]);
+  });
+
   it("maps URL state onto the API query contract", () => {
     const api = catalogApiParams(
       filters({
@@ -176,6 +184,23 @@ describe("catalog active filters", () => {
     expect(education?.labelKey).toBe("catalog.facetValue.bachelor");
     const roles = chips.find((chip) => chip.axis === "hasRoles");
     expect(roles?.labelKey).toBe("catalog.chips.hasRoles");
+  });
+
+  it("chips the any/all modifier so the count never exceeds the chips", () => {
+    const mixed = filters({
+      skills: [{ key: "python", level: 6 }],
+      skillMode: "any",
+      minLevel: 4,
+    });
+    const chips = catalogActiveChips(mixed);
+    const mode = chips.find((chip) => chip.axis === "skillMode");
+    expect(mode).toMatchObject({ kind: "flag", labelKey: "catalog.chips.skillMode" });
+    expect(countActiveCatalogFilters(mixed)).toBe(chips.length);
+    expect(removeCatalogChip(mixed, mode!)).toEqual({ skillMode: "all" });
+
+    const all = filters({ skills: [{ key: "python", level: null }] });
+    expect(catalogActiveChips(all).some((chip) => chip.axis === "skillMode")).toBe(false);
+    expect(countActiveCatalogFilters(all)).toBe(catalogActiveChips(all).length);
   });
 
   it("removes a chip without clearing unrelated axes", () => {

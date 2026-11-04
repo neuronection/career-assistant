@@ -402,6 +402,7 @@
     "chips": {
       "query": "Suche: {{value}}",
       "family": "Familie: {{value}}",
+      "skillMode": "Fähigkeitsabgleich: {{value}}",
       "minLevel": "Niveau ≥ {{value}}",
       "salaryMin": "Gehalt ≥ {{value}}",
       "salaryMax": "Gehalt ≤ {{value}}",

@@ -40,8 +40,6 @@ def _skill_entries(value: str | None) -> list[tuple[str, int | None]] | None:
         if not entry:
             continue
         key, separator, raw_level = entry.partition("@")
-        if not separator:
-            key, separator, raw_level = entry.partition(":")
         key = key.strip().lower()
         if not key:
             continue

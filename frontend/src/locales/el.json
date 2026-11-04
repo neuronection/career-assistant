@@ -402,6 +402,7 @@
     "chips": {
       "query": "Αναζήτηση: {{value}}",
       "family": "Οικογένεια: {{value}}",
+      "skillMode": "Αντιστοίχιση δεξιοτήτων: {{value}}",
       "minLevel": "Επίπεδο ≥ {{value}}",
       "salaryMin": "Μισθός ≥ {{value}}",
       "salaryMax": "Μισθός ≤ {{value}}",

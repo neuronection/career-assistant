@@ -400,3 +400,11 @@ async def test_every_sort_returns_a_deterministic_page(db, sort):
     second, _, _ = await JobService(db).list_jobs(page_size=100, sort=sort)
     assert total == 4
     assert [job.code for job in first] == [job.code for job in second]
+
+
+def test_skill_entries_split_on_the_catalog_separator_only():
+    from app.api.v1.catalog.jobs import _skill_entries
+
+    assert _skill_entries("programming@6,sql") == [("programming", 6), ("sql", None)]
+    assert _skill_entries("programming:6") == [("programming:6", None)]
+    assert _skill_entries(None) is None

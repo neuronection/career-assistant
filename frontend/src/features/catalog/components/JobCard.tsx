@@ -211,6 +211,29 @@ export function JobCard({
             {job.title}
           </button>
           <div className="flex shrink-0 items-center gap-1.5">
+            {compact && (openRoles != null || salary) ? (
+              <div
+                className="flex items-center gap-2 text-[11px] text-[var(--as-muted-fg)]"
+                data-testid="job-metric-rail"
+              >
+                {openRoles != null ? (
+                  <span
+                    className="inline-flex items-baseline gap-1 font-semibold tabular-nums text-[var(--as-fg)]"
+                    data-testid="job-open-roles"
+                  >
+                    {openRoles}
+                    <span className="text-[9px] font-semibold uppercase tracking-[0.07em]">
+                      {t("jobCard.openRolesShort")}
+                    </span>
+                  </span>
+                ) : null}
+                {salary ? (
+                  <span className="font-medium" data-testid="job-salary-band">
+                    {salary}
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
             {seen ? <SeenMark label={t("jobCard.seen")} testId="job-seen" /> : null}
             {saved ? (
               <Bookmark

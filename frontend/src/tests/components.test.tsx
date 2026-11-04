@@ -168,10 +168,12 @@ describe("JobCard", () => {
     expect(skill).toHaveAttribute("title", "requires level 8 of 10");
   });
 
-  it("drops the description, metrics rail and interests in compact density", () => {
+  it("keeps the metric rail compactly and drops the description, spec and interests in compact density", () => {
     renderJob(richJob(), { density: "compact" });
     expect(screen.getByTestId("job-card")).toHaveAttribute("data-density", "compact");
-    expect(screen.queryByTestId("job-metric-rail")).not.toBeInTheDocument();
+    expect(screen.getByTestId("job-metric-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("job-open-roles")).toHaveTextContent("3");
+    expect(screen.getByTestId("job-salary-band")).toHaveTextContent("USD 60k–95k");
     expect(screen.queryByText(/Writes code/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("job-spec")).not.toBeInTheDocument();
     expect(screen.queryByTestId("job-interests")).not.toBeInTheDocument();
