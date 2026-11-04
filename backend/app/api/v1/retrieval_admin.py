@@ -233,6 +233,26 @@ async def retrieval_coverage(
     return _guarded(await reads.read_coverage(db, row))
 
 
+@router.get("/documents/status")
+async def retrieval_document_status(
+    kind: str = Query(..., description="source kind: posting, job, skill or profile"),
+    source_ids: list[str] = Query(
+        ...,
+        description="source ids to check; repeat the param or join them with commas",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Per-source index state in the active space (admin-only, aggregate-only).
+
+    Returns the five-state enum (``current`` / ``stale`` / ``missing`` /
+    ``incomplete`` / ``off``) with record counts, timestamps and the space
+    facts. Document text never leaves this route; an empty list, more than
+    50 ids or a non-UUID id is a 400 rather than a silent truncation.
+    """
+    ids = [part.strip() for raw in source_ids for part in raw.split(",") if part.strip()]
+    return _guarded(await reads.read_document_status(db, kind=kind, source_ids=ids))
+
+
 @router.get("/runs")
 async def retrieval_runs(
     space: str | None = SPACE_QUERY,

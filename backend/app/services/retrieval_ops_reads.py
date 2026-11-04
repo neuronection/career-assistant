@@ -55,6 +55,8 @@ from app.services.analytics.time_buckets import (
     range_bounds,
     zero_filled,
 )
+from app.services.vector_composers import COMPOSER_VERSION
+from app.services.vector_index_service import load_source
 from app.storage import retrieval_ops as ops
 from app.storage.vector_contract import (
     BACKEND_LINEAR,
@@ -72,6 +74,8 @@ USAGE_GROUP_LIMIT = 100
 RECENT_CHANGES_LIMIT = 5
 ERROR_TEXT_LIMIT = 500
 DEFAULT_SPACE_NAME = "content"
+DOCUMENT_STATUS_LIMIT = 50
+DOCUMENT_STATUS_KINDS = ("posting", "job", "skill", "profile")
 
 #: Career's persisted vector job types mapped into the family run vocabulary.
 #: ``vector_reconcile`` is the resumable backfill/reindex and ``vector_index``
@@ -1428,12 +1432,155 @@ async def read_overview(db: AsyncSession, *, window: str = DEFAULT_WINDOW) -> di
     }
 
 
+def _document_status_row(
+    source_id: str,
+    state: str,
+    reason: str | None,
+    records: int,
+    indexed_at: str | None,
+) -> dict[str, Any]:
+    return {
+        "source_id": source_id,
+        "state": state,
+        "reason": reason,
+        "records": records,
+        "indexed_at": indexed_at,
+    }
+
+
+async def read_document_status(
+    db: AsyncSession, *, kind: str, source_ids: Sequence[str]
+) -> dict[str, Any]:
+    """Per-source index state for the active content space.
+
+    Aggregate-only: the payload carries the requested source ids, the state
+    of each, record counts, timestamps and the space facts — never document
+    text. An unknown ``kind``, an empty list, more than
+    ``DOCUMENT_STATUS_LIMIT`` ids or a non-UUID id raises
+    :class:`ValidationError` (the caller caps itself; a silent truncation
+    would lie about what it checked).
+    """
+    if kind not in DOCUMENT_STATUS_KINDS:
+        raise ValidationError(
+            f"Unknown document kind {kind!r}; expected one of {DOCUMENT_STATUS_KINDS}"
+        )
+    if not source_ids:
+        raise ValidationError("at least one source id is required")
+    if len(source_ids) > DOCUMENT_STATUS_LIMIT:
+        raise ValidationError(
+            f"at most {DOCUMENT_STATUS_LIMIT} source ids per request; "
+            "split the request instead of relying on truncation"
+        )
+    canonical: list[str] = []
+    for raw in source_ids:
+        try:
+            value = str(uuid.UUID(str(raw).strip()))
+        except (TypeError, ValueError):
+            raise ValidationError(f"source id {raw!r} is not a UUID") from None
+        if value not in canonical:
+            canonical.append(value)
+
+    space = await default_space(db)
+    if space is None:
+        return {
+            "kind": kind,
+            "space": None,
+            "documents": [
+                _document_status_row(value, "off", "no_active_space", 0, None)
+                for value in canonical
+            ],
+        }
+
+    rows = list(
+        await db.scalars(
+            select(VectorDocument).where(
+                VectorDocument.space_id == space.id,
+                VectorDocument.kind == kind,
+                VectorDocument.source_id.in_(canonical),
+            )
+        )
+    )
+    by_source = {row.source_id: row for row in rows}
+    counts: dict[uuid.UUID, int] = {}
+    if by_source:
+        count_rows = (
+            await db.execute(
+                select(VectorRecord.document_id, func.count())
+                .where(VectorRecord.document_id.in_([row.id for row in by_source.values()]))
+                .group_by(VectorRecord.document_id)
+            )
+        ).all()
+        counts = {document_id: int(total or 0) for document_id, total in count_rows}
+
+    documents: list[dict[str, Any]] = []
+    for source_id in canonical:
+        document = by_source.get(source_id)
+        if document is None:
+            documents.append(
+                _document_status_row(source_id, "missing", "document_missing", 0, None)
+            )
+            continue
+        records = counts.get(document.id, 0)
+        indexed_at = _iso(document.updated_at)
+        if records == 0:
+            documents.append(
+                _document_status_row(source_id, "incomplete", "no_records", 0, indexed_at)
+            )
+            continue
+        loaded = await load_source(db, kind, source_id)
+        if loaded is None:
+            documents.append(
+                _document_status_row(
+                    source_id, "missing", "source_unavailable", records, indexed_at
+                )
+            )
+            continue
+        if document.schema_version != int(COMPOSER_VERSION):
+            documents.append(
+                _document_status_row(
+                    source_id, "stale", "schema_version_mismatch", records, indexed_at
+                )
+            )
+            continue
+        if document.source_hash != loaded.composed.source_hash:
+            documents.append(
+                _document_status_row(
+                    source_id, "stale", "source_hash_mismatch", records, indexed_at
+                )
+            )
+            continue
+        if records != len(loaded.composed.records):
+            documents.append(
+                _document_status_row(
+                    source_id, "incomplete", "record_count_mismatch", records, indexed_at
+                )
+            )
+            continue
+        documents.append(_document_status_row(source_id, "current", None, records, indexed_at))
+
+    return {
+        "kind": kind,
+        "space": {
+            "space_id": str(space.id),
+            "name": space.name,
+            "status": space.status,
+            "backend": _backend_for(space, _dialect(db)),
+            "model": space.model,
+            "dim": int(space.dim),
+        },
+        "documents": documents,
+    }
+
+
 __all__ = [
+    "DOCUMENT_STATUS_KINDS",
+    "DOCUMENT_STATUS_LIMIT",
     "READ_WINDOWS",
     "RUN_PAGE_LIMIT",
     "RUN_PAGE_MAX",
     "default_space",
     "read_coverage",
+    "read_document_status",
     "read_failures",
     "read_overview",
     "read_quality",

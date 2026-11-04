@@ -30663,6 +30663,67 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/documents/status": {
+      "get": {
+        "description": "Per-source index state in the active space (admin-only, aggregate-only).\n\nReturns the five-state enum (``current`` / ``stale`` / ``missing`` /\n``incomplete`` / ``off``) with record counts, timestamps and the space\nfacts. Document text never leaves this route; an empty list, more than\n50 ids or a non-UUID id is a 400 rather than a silent truncation.",
+        "operationId": "retrieval_document_status_api_v1_admin_retrieval_documents_status_get",
+        "parameters": [
+          {
+            "description": "source kind: posting, job, skill or profile",
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "description": "source kind: posting, job, skill or profile",
+              "title": "Kind",
+              "type": "string"
+            }
+          },
+          {
+            "description": "source ids to check; repeat the param or join them with commas",
+            "in": "query",
+            "name": "source_ids",
+            "required": true,
+            "schema": {
+              "description": "source ids to check; repeat the param or join them with commas",
+              "items": {
+                "type": "string"
+              },
+              "title": "Source Ids",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Document Status Api V1 Admin Retrieval Documents Status Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Document Status",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/failures": {
       "get": {
         "description": "Failure groups: embed provider, indexing, cutover gate, maintenance.",

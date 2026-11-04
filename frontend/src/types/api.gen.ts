@@ -1734,6 +1734,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/documents/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Document Status
+         * @description Per-source index state in the active space (admin-only, aggregate-only).
+         *
+         *     Returns the five-state enum (``current`` / ``stale`` / ``missing`` /
+         *     ``incomplete`` / ``off``) with record counts, timestamps and the space
+         *     facts. Document text never leaves this route; an empty list, more than
+         *     50 ids or a non-UUID id is a 400 rather than a silent truncation.
+         */
+        get: operations["retrieval_document_status_api_v1_admin_retrieval_documents_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/failures": {
         parameters: {
             query?: never;
@@ -22735,6 +22760,42 @@ export interface operations {
             query: {
                 /** @description vector space id or name */
                 space: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_document_status_api_v1_admin_retrieval_documents_status_get: {
+        parameters: {
+            query: {
+                /** @description source kind: posting, job, skill or profile */
+                kind: string;
+                /** @description source ids to check; repeat the param or join them with commas */
+                source_ids: string[];
             };
             header?: never;
             path?: never;

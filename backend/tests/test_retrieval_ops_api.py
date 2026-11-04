@@ -14,12 +14,14 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.models.ai_model import AIBudget, AIGeneration
 from app.models.background_job_model import BackgroundJob
 from app.models.identity_model import AuditEvent
+from app.models.posting_model import JobPosting, JobSource
 from app.models.vector_model import (
     RetrievalCoverageSnapshot,
     RetrievalQueryRollup,
@@ -29,6 +31,7 @@ from app.models.vector_model import (
 from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.services import retrieval_ops_reads as reads
 from app.services import retrieval_quality
+from app.services.vector_composers import COMPOSER_VERSION, compose_posting_views
 from app.storage import retrieval_ops as ops
 from tests.conftest import register_user
 
@@ -923,3 +926,254 @@ async def test_models_expose_the_retrieval_seams(db):
         "uq_background_jobs_idempotency_active",
         "uq_background_jobs_lock_key_active",
     } <= schema["job_indexes"]
+
+
+# ---------------------------------------------------------------------------
+# per-document index status
+# ---------------------------------------------------------------------------
+
+STATUS_PATH = "/api/v1/admin/retrieval/documents/status"
+POSTING_TEXT = "SECRET-POSTING-TEXT keep this out of the payload"
+
+
+async def _posting(db: AsyncSession, *, description: str = POSTING_TEXT) -> JobPosting:
+    source = JobSource(
+        key=f"status-{uuid.uuid4().hex[:10]}",
+        connector_key="synthetic",
+        config={},
+        enabled=True,
+    )
+    db.add(source)
+    await db.flush()
+    posting = JobPosting(
+        source_id=source.id,
+        external_id=f"status-{uuid.uuid4().hex[:10]}",
+        title="Backend Engineer",
+        org="Acme",
+        content_hash="0" * 64,
+        raw={"description": description},
+    )
+    db.add(posting)
+    await db.flush()
+    return posting
+
+
+async def _indexed_posting(
+    db: AsyncSession,
+    space: VectorSpaceRow,
+    *,
+    description: str = POSTING_TEXT,
+    drop_records: int = 0,
+) -> tuple[JobPosting, VectorDocument]:
+    posting = await _posting(db, description=description)
+    composed = compose_posting_views(posting)
+    document = VectorDocument(
+        space_id=space.id,
+        kind="posting",
+        source_id=composed.source_id,
+        scope_type="global",
+        source_hash=composed.source_hash,
+        schema_version=int(COMPOSER_VERSION),
+    )
+    db.add(document)
+    await db.flush()
+    records = list(composed.records)
+    if drop_records:
+        records = records[:-drop_records]
+    for record in records:
+        db.add(
+            VectorRecord(
+                document_id=document.id,
+                space_id=space.id,
+                view=record.view,
+                chunk_index=record.chunk_index,
+                content_hash=record.content_hash,
+                text_ref=dict(record.text_ref or {}),
+                text_ref_schema_version=record.text_ref_schema_version,
+            )
+        )
+    await db.flush()
+    return posting, document
+
+
+async def _status(client, auth_headers, ids: list[str], kind: str = "posting"):
+    return await client.get(
+        STATUS_PATH,
+        params={"kind": kind, "source_ids": ",".join(ids)},
+        headers=auth_headers,
+    )
+
+
+async def test_document_status_requires_auth_and_admin(client, db, auth_headers):
+    await _space(db)
+    await db.commit()
+    missing = str(uuid.uuid4())
+    assert (await client.get(f"{STATUS_PATH}?kind=posting&source_ids={missing}")).status_code == 401
+    reader = await register_user(client, "document-status-reader@example.com")
+    url = f"{STATUS_PATH}?kind=posting&source_ids={missing}"
+    response = await client.get(url, headers=reader)
+    assert response.status_code == 403
+
+
+async def test_document_status_cold_space_is_off_never_zero(client, db, auth_headers):
+    await db.commit()
+    ids = [str(uuid.uuid4()), str(uuid.uuid4())]
+    response = await _status(client, auth_headers, ids)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["space"] is None
+    assert [row["source_id"] for row in body["documents"]] == ids
+    assert {row["state"] for row in body["documents"]} == {"off"}
+    assert {row["reason"] for row in body["documents"]} == {"no_active_space"}
+
+
+async def test_document_status_current(client, db, auth_headers):
+    space = await _space(db)
+    posting, _document = await _indexed_posting(db, space)
+    await db.commit()
+    response = await _status(client, auth_headers, [str(posting.id)])
+    assert response.status_code == 200, response.text
+    body = response.json()
+    row = body["documents"][0]
+    assert row["state"] == "current"
+    assert row["reason"] is None
+    assert row["records"] == len(compose_posting_views(posting).records)
+    assert row["indexed_at"]
+    assert body["space"]["name"] == "content"
+    assert body["space"]["model"] == "text-embedding-3-small"
+    assert body["space"]["dim"] == 1536
+    assert POSTING_TEXT not in response.text
+
+
+async def test_document_status_missing_document(client, db, auth_headers):
+    await _space(db)
+    missing = str(uuid.uuid4())
+    await db.commit()
+    body = (await _status(client, auth_headers, [missing])).json()
+    row = body["documents"][0]
+    assert row == {
+        "source_id": missing,
+        "state": "missing",
+        "reason": "document_missing",
+        "records": 0,
+        "indexed_at": None,
+    }
+
+
+async def test_document_status_stale_on_hash_mismatch(client, db, auth_headers):
+    space = await _space(db)
+    posting, document = await _indexed_posting(db, space)
+    flipped = "0" if document.source_hash[0] != "0" else "1"
+    document.source_hash = flipped + document.source_hash[1:]
+    await db.commit()
+    row = (await _status(client, auth_headers, [str(posting.id)])).json()["documents"][0]
+    assert (row["state"], row["reason"]) == ("stale", "source_hash_mismatch")
+
+
+async def test_document_status_stale_on_schema_version(client, db, auth_headers):
+    space = await _space(db)
+    posting, document = await _indexed_posting(db, space)
+    document.schema_version = int(COMPOSER_VERSION) + 1
+    await db.commit()
+    row = (await _status(client, auth_headers, [str(posting.id)])).json()["documents"][0]
+    assert (row["state"], row["reason"]) == ("stale", "schema_version_mismatch")
+
+
+async def test_document_status_incomplete_on_record_count_shortfall(client, db, auth_headers):
+    space = await _space(db)
+    posting, _document = await _indexed_posting(
+        db, space, description="We build things. " * 200, drop_records=1
+    )
+    await db.commit()
+    row = (await _status(client, auth_headers, [str(posting.id)])).json()["documents"][0]
+    assert (row["state"], row["reason"]) == ("incomplete", "record_count_mismatch")
+    assert row["records"] > 0
+
+
+async def test_document_status_incomplete_without_records(client, db, auth_headers):
+    space = await _space(db)
+    posting, document = await _indexed_posting(db, space)
+    for record in list(
+        await db.scalars(select(VectorRecord).where(VectorRecord.document_id == document.id))
+    ):
+        await db.delete(record)
+    await db.commit()
+    row = (await _status(client, auth_headers, [str(posting.id)])).json()["documents"][0]
+    assert (row["state"], row["reason"]) == ("incomplete", "no_records")
+
+
+async def test_document_status_missing_when_the_source_is_gone(client, db, auth_headers):
+    space = await _space(db)
+    source_id = str(uuid.uuid4())
+    document = VectorDocument(
+        space_id=space.id,
+        kind="posting",
+        source_id=source_id,
+        scope_type="global",
+        source_hash="a" * 64,
+        schema_version=int(COMPOSER_VERSION),
+    )
+    db.add(document)
+    await db.flush()
+    db.add(
+        VectorRecord(
+            document_id=document.id,
+            space_id=space.id,
+            view="summary",
+            chunk_index=0,
+            content_hash="b" * 64,
+            text_ref={"table": "job_postings", "id": source_id, "field": "title"},
+            text_ref_schema_version=1,
+        )
+    )
+    await db.commit()
+    row = (await _status(client, auth_headers, [source_id])).json()["documents"][0]
+    assert (row["state"], row["reason"]) == ("missing", "source_unavailable")
+
+
+async def test_document_status_rejects_unknown_kind(client, db, auth_headers):
+    await db.commit()
+    response = await _status(client, auth_headers, [str(uuid.uuid4())], kind="material")
+    assert response.status_code == 400, response.text
+
+
+async def test_document_status_rejects_empty_ids(client, db, auth_headers):
+    await db.commit()
+    response = await client.get(
+        STATUS_PATH, params={"kind": "posting", "source_ids": ""}, headers=auth_headers
+    )
+    assert response.status_code == 400, response.text
+
+
+async def test_document_status_rejects_more_than_fifty_ids(client, db, auth_headers):
+    await db.commit()
+    ids = [str(uuid.uuid4()) for _ in range(51)]
+    response = await _status(client, auth_headers, ids)
+    assert response.status_code == 400, response.text
+
+
+async def test_document_status_rejects_a_non_uuid_id(client, db, auth_headers):
+    await db.commit()
+    response = await _status(client, auth_headers, ["not-a-uuid"])
+    assert response.status_code == 400, response.text
+
+
+async def test_document_status_dedupes_preserving_order(client, db, auth_headers):
+    space = await _space(db)
+    posting, _document = await _indexed_posting(db, space)
+    other = str(uuid.uuid4())
+    await db.commit()
+    ids = [other, str(posting.id), other]
+    body = (await _status(client, auth_headers, ids)).json()
+    assert [row["source_id"] for row in body["documents"]] == [other, str(posting.id)]
+
+
+async def test_document_status_payload_never_carries_source_text(client, db, auth_headers):
+    space = await _space(db)
+    posting, _document = await _indexed_posting(db, space)
+    await db.commit()
+    response = await _status(client, auth_headers, [str(posting.id)])
+    assert response.status_code == 200
+    ops.assert_no_raw_text(response.json())
+    assert POSTING_TEXT not in response.text
+    assert "description" not in response.text
