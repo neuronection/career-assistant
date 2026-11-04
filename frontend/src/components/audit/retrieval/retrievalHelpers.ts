@@ -57,6 +57,8 @@ export function retrievalAuditWindow(window: RetrievalWindow): AuditWindow {
 }
 
 export const TOOLS_RETRIEVAL_URL = "/settings/tools?section=retrieval";
+export const RETRIEVAL_RUNBOOK_URL =
+  "https://github.com/neuronection/career-assistant/blob/main/docs/dev/retrieval-ops.md";
 
 export function retrievalDetailUrl(
   section: RetrievalSection,

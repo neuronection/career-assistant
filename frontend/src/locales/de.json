@@ -6322,7 +6322,16 @@
       "retireBody": "Legen Sie den Space vor dem Löschen still. Der eingegebene Name muss exakt übereinstimmen.",
       "dropTitle": "{{name}} löschen?",
       "dropBody": "Dies löscht den stillgelegten Space und seine Vektoren dauerhaft. Geben Sie den exakten Space-Namen zur Bestätigung ein.",
-      "activeHint": "Der aktive Space bedient Abfragen. Bauen Sie für einen Modellwechsel einen neuen Space; schreiben Sie nie in-place um."
+      "activeHint": "Der aktive Space bedient Abfragen. Bauen Sie für einen Modellwechsel einen neuen Space; schreiben Sie nie in-place um.",
+      "chunker": "Chunker",
+      "tokenAware": "Token-basiert",
+      "tokenAwareApprox": "Token-basiert · ungefähr",
+      "legacyChunker": "Legacy-Zeichenchunks (v1)",
+      "chunkBudget": "{{tokens}} Tokens · {{overlap}} Überlappung · {{chars}} Zeichen",
+      "chunkBudgetLabel": "Chunk-Budget",
+      "runbook": "Retrieval-Runbook",
+      "retainHint": "Der alte Space bleibt erhalten, bis du ihn ausdrücklich pensionierst und löschst. Es wird nichts an Ort und Stelle neu gechunkt.",
+      "approxWarning": "Dieser Space zählt mit einem ungefähren Tokenizer — die Chunk-Größe ist konservativ, kein exaktes Modelllimit."
     },
     "maintenance": {
       "heading": "Index-Wartung",
@@ -6382,8 +6391,12 @@
       "fallbackWarning": "Für dieses Modell ist kein exakter Tokenizer konfiguriert — die Zählung ist eine konservative Schätzung.",
       "assumedWarning": "Das Eingabelimit des Modells ist eine Annahme, bis ein exaktes Profil konfiguriert ist.",
       "degraded": "Exakter Tokenizer nicht verfügbar ({{reason}}) — die Zählung ist ungefähr.",
-      "shadow": "Nur Schattenmessung: keine Chunks, Token-Spalten oder Spaces wurden geschrieben.",
-      "unavailable": "Der Tokenizer-Bericht ist derzeit nicht verfügbar."
+      "shadow": "Nur-Lese-Bericht: er schreibt nichts. Token-basierte Spaces werden über die Spaces-Karte gebaut.",
+      "unavailable": "Der Tokenizer-Bericht ist derzeit nicht verfügbar.",
+      "revision": "Revision",
+      "checksum": "Prüfsumme",
+      "assetUnavailable": "Tokenizer-Artefakt nicht verfügbar",
+      "chunkingTokenAware": "Aktives Chunking: {{tokens}} Tokens mit {{overlap}} Überlappung, max. {{chars}} Zeichen (Chunker v{{version}}, token-basiert)."
     },
     "profile": {
       "source": {
@@ -6429,13 +6442,28 @@
       "reset": "Auf kuratiert zurücksetzen",
       "saved": "Profil für künftige Spaces gespeichert.",
       "resetDone": "Admin-Override entfernt; das kuratierte/Fallback-Profil gilt wieder.",
-      "note": "Profiländerungen gelten für künftige Spaces. Bestehende Spaces behalten ihre aktuellen Chunks, bis tokenbewusstes Reindexing kommt (Plan 52 T3); hier wird nichts neu gechunkt."
+      "note": "Profiländerungen gelten für zukünftige Spaces. Ein neuer token-basierter Space pinnt den Tokenizer und das Chunk-Budget, mit dem er gebaut wurde; bestehende Spaces werden nie an Ort und Stelle neu gechunkt."
     },
     "buildProfile": {
       "resolving": "Tokenizer-Profil wird ermittelt…",
       "line": "Tokenizer: {{identity}} · max. Eingabe {{limit}} Token",
       "chunk": "Standard-Chunk: {{tokens}} Token · {{overlap}} Überlappung · {{chars}} Zeichen",
-      "previewOnly": "Nur Vorschau: der Space-Build behält den aktuellen Zeichen-Chunker bis T3."
+      "previewOnly": "Nur Vorschau: der Space-Build behält den aktuellen Zeichen-Chunker bis T3.",
+      "tokenAware": "Token-basierter Space (v2)",
+      "tokenAwareHint": "Zerlegt jede einbettbare View anhand von Token-IDs mit exakten Offsets und Token-Überlappung. Das erstellt einen neuen Space neben dem aktiven.",
+      "legacyHint": "Legacy-v1-Build: Zeichenchunks ohne Token-Spalten. Nur zur Kompatibilität verwenden; er beansprucht keine Token-Basierung.",
+      "provenance": "Revision: {{revision}} · Artefakt: {{sha}}",
+      "chunkTokens": "Max. Chunk-Tokens",
+      "chunkOverlap": "Chunk-Überlappung (Tokens)",
+      "chunkChars": "Max. Chunk-Zeichen",
+      "chunkTokensInvalid": "Max. Chunk-Tokens müssen mindestens 32 sein.",
+      "chunkOverlapInvalid": "Die Chunk-Überlappung muss null oder positiv sein.",
+      "chunkOverlapTooLarge": "Die Chunk-Überlappung muss unter der Hälfte der max. Chunk-Tokens bleiben.",
+      "chunkCharsInvalid": "Max. Chunk-Zeichen müssen mindestens 1 sein.",
+      "chunkOverInput": "Max. Chunk-Tokens dürfen das Modelllimit von {{limit}} Tokens nicht überschreiten.",
+      "v2Hint": "Ein v2-Build pinnt diesen Tokenizer und das Chunk-Budget in seiner Identität. Eine spätere Änderung erfordert einen weiteren Space.",
+      "resolveFirst": "Löse zuerst das Tokenizer-Profil für dieses Provider/Modell-Paar auf.",
+      "runbook": "Cutover-Runbook lesen"
     },
     "progress": {
       "aria": "Indizierungsfortschritt: {{percent}} %",

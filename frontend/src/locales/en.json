@@ -6323,7 +6323,16 @@
       "retireBody": "Retire the space before dropping it. The typed name must match exactly.",
       "dropTitle": "Drop {{name}}?",
       "dropBody": "This permanently deletes the retired space and its vectors. Type the exact space name to confirm.",
-      "activeHint": "The active space serves queries. Build a new space to change models; never rewrite in place."
+      "activeHint": "The active space serves queries. Build a new space to change models; never rewrite in place.",
+      "chunker": "Chunker",
+      "tokenAware": "Token-aware",
+      "tokenAwareApprox": "Token-aware · approximate",
+      "legacyChunker": "Legacy char chunks (v1)",
+      "chunkBudget": "{{tokens}} tokens · {{overlap}} overlap · {{chars}} chars",
+      "chunkBudgetLabel": "Chunk budget",
+      "runbook": "Retrieval runbook",
+      "retainHint": "The old space stays retained until you explicitly retire and drop it. Nothing is re-chunked in place.",
+      "approxWarning": "This space counts with an approximate tokenizer — its chunk size is conservative, not an exact model limit."
     },
     "maintenance": {
       "heading": "Index maintenance",
@@ -6383,8 +6392,12 @@
       "fallbackWarning": "No exact tokenizer is configured for this model — counts are conservative approximations.",
       "assumedWarning": "The model input limit is an assumption until an exact profile is configured.",
       "degraded": "Exact tokenizer unavailable ({{reason}}) — counts are approximate.",
-      "shadow": "Shadow only: no chunks, token columns or spaces were written.",
-      "unavailable": "The tokenizer report is unavailable right now."
+      "shadow": "Read-only report: it writes nothing. Token-aware spaces are built from the Spaces card.",
+      "unavailable": "The tokenizer report is unavailable right now.",
+      "revision": "Revision",
+      "checksum": "Checksum",
+      "assetUnavailable": "tokenizer asset unavailable",
+      "chunkingTokenAware": "Active chunking: {{tokens}} tokens with {{overlap}} overlap, max {{chars}} chars (chunker v{{version}}, token-aware)."
     },
     "profile": {
       "source": {
@@ -6430,13 +6443,28 @@
       "reset": "Reset to curated",
       "saved": "Profile saved for future spaces.",
       "resetDone": "Admin override removed; the curated/fallback profile applies again.",
-      "note": "Profile changes apply to future spaces. Existing spaces keep their current chunks until token-aware reindexing ships (plan 52 T3); nothing is re-chunked here."
+      "note": "Profile changes apply to future spaces. A new token-aware space pins the tokenizer and chunk budget it was built with; existing spaces are never re-chunked in place."
     },
     "buildProfile": {
       "resolving": "Resolving tokenizer profile…",
       "line": "Tokenizer: {{identity}} · max input {{limit}} tokens",
       "chunk": "Default chunk: {{tokens}} tokens · {{overlap}} overlap · {{chars}} chars",
-      "previewOnly": "Preview only: the space build keeps the current char chunker until T3."
+      "previewOnly": "Preview only: the space build keeps the current char chunker until T3.",
+      "tokenAware": "Token-aware space (v2)",
+      "tokenAwareHint": "Chunks every embeddable view by token ids with exact offsets and token overlap. This creates a new space beside the active one.",
+      "legacyHint": "Legacy v1 build: character chunks and no token columns. Use this only for compatibility; it does not claim token awareness.",
+      "provenance": "Revision: {{revision}} · artifact: {{sha}}",
+      "chunkTokens": "Chunk max tokens",
+      "chunkOverlap": "Chunk overlap tokens",
+      "chunkChars": "Chunk max chars",
+      "chunkTokensInvalid": "Chunk max tokens must be at least 32.",
+      "chunkOverlapInvalid": "Chunk overlap must be zero or positive.",
+      "chunkOverlapTooLarge": "Chunk overlap must stay below half of the max chunk tokens.",
+      "chunkCharsInvalid": "Chunk max chars must be at least 1.",
+      "chunkOverInput": "Chunk max tokens must not exceed the {{limit}}-token model input limit.",
+      "v2Hint": "A v2 build pins this tokenizer and chunk budget in its identity. Changing either later means building another space.",
+      "resolveFirst": "Resolve the tokenizer profile for this provider/model before building.",
+      "runbook": "Read the cutover runbook"
     },
     "progress": {
       "aria": "Indexing progress: {{percent}}%",

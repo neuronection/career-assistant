@@ -15,6 +15,7 @@ import { GateBadge } from "@/components/audit/retrieval/RetrievalCommon";
 import {
   formatNumber,
   formatRate,
+  RETRIEVAL_RUNBOOK_URL,
   statusVariant,
   TOOLS_RETRIEVAL_URL,
   when,
@@ -175,7 +176,70 @@ export function RetrievalSpaceDrawer({
             <MetaRow label={t("retrieval.active.lastReindex")}>
               {when(space.last_reindex_at)}
             </MetaRow>
+            <MetaRow label={t("retrieval.spaces.chunker")}>
+              <span data-testid="retrieval-space-token-aware">
+                {space.token_aware
+                  ? t("retrieval.spaces.tokenAware")
+                  : t("retrieval.spaces.legacyChunker")}
+              </span>
+            </MetaRow>
+            {space.tokenizer && (
+              <>
+                <MetaRow label={t("retrieval.tokenizer.tokenizer")}>
+                  <span className="break-all" data-testid="retrieval-space-tokenizer">
+                    {space.tokenizer.identifier}
+                  </span>
+                </MetaRow>
+                <MetaRow label={t("retrieval.tokenizer.source")}>
+                  {space.tokenizer.source
+                    ? t(`retrieval.profile.source.${space.tokenizer.source}`)
+                    : "—"}
+                </MetaRow>
+                <MetaRow label={t("retrieval.tokenizer.exact")}>
+                  <Badge variant={space.tokenizer.exact ? "success" : "warning"}>
+                    {space.tokenizer.exact
+                      ? t("retrieval.tokenizer.exact")
+                      : t("retrieval.tokenizer.approximate")}
+                  </Badge>
+                </MetaRow>
+                <MetaRow label={t("retrieval.tokenizer.maxInput")}>
+                  {formatNumber(space.tokenizer.max_input_tokens)}
+                </MetaRow>
+                <MetaRow label={t("retrieval.tokenizer.revision")}>
+                  <span className="break-all font-mono text-[11px]">
+                    {space.tokenizer.revision ?? "—"}
+                  </span>
+                </MetaRow>
+                <MetaRow label={t("retrieval.tokenizer.checksum")}>
+                  <span className="break-all font-mono text-[11px]">
+                    {space.tokenizer.artifact_sha256
+                      ? space.tokenizer.artifact_sha256.slice(0, 12)
+                      : "—"}
+                  </span>
+                </MetaRow>
+              </>
+            )}
+            {space.chunk && (
+              <MetaRow label={t("retrieval.spaces.chunkBudgetLabel")}>
+                <span data-testid="retrieval-space-chunk">
+                  {t("retrieval.spaces.chunkBudget", {
+                    tokens: space.chunk.max_chunk_tokens,
+                    overlap: space.chunk.overlap_tokens,
+                    chars: space.chunk.max_chars,
+                  })}
+                </span>
+              </MetaRow>
+            )}
           </dl>
+
+          {space.tokenizer && !space.tokenizer.exact && (
+            <p
+              className="rounded-[var(--as-radius)] bg-[var(--as-warning)]/10 p-2 text-xs text-[var(--as-warning)]"
+              data-testid="retrieval-space-tokenizer-warning"
+            >
+              {t("retrieval.spaces.approxWarning")}
+            </p>
+          )}
 
           {space.last_error && (
             <p className="break-words rounded-[var(--as-radius)] bg-rose-50 p-2 text-xs text-rose-700">
@@ -220,13 +284,24 @@ export function RetrievalSpaceDrawer({
             </p>
           )}
 
-          <Link
-            to={TOOLS_RETRIEVAL_URL}
-            className="inline-flex py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
-            data-testid="retrieval-space-tools-link"
-          >
-            {t("audit.retrieval.spaces.manageInTools")} →
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to={TOOLS_RETRIEVAL_URL}
+              className="inline-flex py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
+              data-testid="retrieval-space-tools-link"
+            >
+              {t("audit.retrieval.spaces.manageInTools")} →
+            </Link>
+            <a
+              href={RETRIEVAL_RUNBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex py-1 text-xs font-semibold text-[var(--as-primary)] hover:underline"
+              data-testid="retrieval-space-runbook"
+            >
+              {t("retrieval.spaces.runbook")} →
+            </a>
+          </div>
         </div>
       ) : null}
     </PanelModal>

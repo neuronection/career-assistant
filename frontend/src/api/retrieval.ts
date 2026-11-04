@@ -19,6 +19,28 @@ export interface RetrievalBackend {
   semantic_available: boolean;
 }
 
+export type RetrievalTokenizerSource =
+  | "provider"
+  | "curated"
+  | "admin"
+  | "fallback";
+
+export interface RetrievalSpaceTokenizer {
+  kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+  identifier: string;
+  revision: string | null;
+  artifact_sha256: string | null;
+  exact: boolean;
+  max_input_tokens: number;
+  source: RetrievalTokenizerSource | null;
+}
+
+export interface RetrievalSpaceChunk {
+  max_chunk_tokens: number;
+  overlap_tokens: number;
+  max_chars: number;
+}
+
 export interface RetrievalSpace {
   space_id: string;
   name: string;
@@ -41,6 +63,9 @@ export interface RetrievalSpace {
   last_error: string | null;
   gate: RetrievalGate;
   as_of: string | null;
+  token_aware: boolean;
+  tokenizer: RetrievalSpaceTokenizer | null;
+  chunk: RetrievalSpaceChunk | null;
 }
 
 export interface RetrievalSpacesResponse {
@@ -198,7 +223,7 @@ export interface RetrievalModelProfilesResponse {
   unavailable_presets: RetrievalUnavailablePreset[];
   overrides: RetrievalModelProfile[];
   bounds: RetrievalModelProfileBounds;
-  token_aware_writes: false;
+  token_aware_writes: boolean;
 }
 
 export interface RetrievalTokenizerFetchPayload {
@@ -260,14 +285,14 @@ export interface RetrievalModelProfilePayload {
 export interface RetrievalModelProfileSaveResponse {
   state: "ok";
   profile: RetrievalModelProfile;
-  token_aware_writes: false;
+  token_aware_writes: boolean;
 }
 
 export interface RetrievalModelProfileDeleteResponse {
   state: "ok";
   deleted: boolean;
   resolution: RetrievalModelProfile;
-  token_aware_writes: false;
+  token_aware_writes: boolean;
 }
 
 export interface RetrievalTokenizerReport {
@@ -293,10 +318,13 @@ export interface RetrievalTokenizerReport {
   chunking: {
     view: string;
     max_chunk_chars: number;
-    overlap_chars: number;
+    overlap_chars: number | null;
     chunker_version: string;
     composer_version: string;
     token_aware: boolean;
+    max_chunk_tokens: number | null;
+    overlap_tokens: number | null;
+    tokenizer_source: RetrievalTokenizerSource | null;
   };
   reference: {
     state: "ok" | "empty";
@@ -454,6 +482,9 @@ export interface RetrievalRun {
   idempotency_key: string | null;
   lock_key: string | null;
   progress_detail?: RetrievalRunProgress | null;
+  token_aware: boolean;
+  tokenizer: RetrievalSpaceTokenizer | null;
+  chunk: RetrievalSpaceChunk | null;
 }
 
 export interface RetrievalRunsResponse {
@@ -709,6 +740,22 @@ export interface ReindexPayload {
   auto_continue?: boolean;
 }
 
+export interface BuildTokenizerPayload {
+  kind: RetrievalSpaceTokenizer["kind"];
+  identifier: string;
+  revision?: string;
+  artifact_sha256?: string;
+  exact?: boolean;
+  max_input_tokens: number;
+  source?: RetrievalTokenizerSource;
+}
+
+export interface BuildChunkPayload {
+  max_chunk_tokens: number;
+  overlap_tokens?: number;
+  max_chars: number;
+}
+
 export interface BuildSpacePayload {
   name: string;
   provider: string;
@@ -718,6 +765,9 @@ export interface BuildSpacePayload {
   normalize?: boolean;
   query_prefix?: string;
   document_prefix?: string;
+  tokenizer?: BuildTokenizerPayload;
+  chunk?: BuildChunkPayload;
+  tokenizer_profile?: { provider: string; model: string };
 }
 
 export type MaintenanceAction =

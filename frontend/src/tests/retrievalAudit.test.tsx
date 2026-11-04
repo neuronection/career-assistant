@@ -94,6 +94,17 @@ const SPACES: RetrievalSpacesResponse = {
       last_error: null,
       gate: "pass",
       as_of: "2026-11-03T08:00:00Z",
+      token_aware: true,
+      tokenizer: {
+        kind: "tiktoken",
+        identifier: "cl100k_base",
+        revision: null,
+        artifact_sha256: "a".repeat(64),
+        exact: true,
+        max_input_tokens: 8191,
+        source: "curated",
+      },
+      chunk: { max_chunk_tokens: 256, overlap_tokens: 32, max_chars: 1200 },
     },
     {
       space_id: "space-build",
@@ -117,6 +128,9 @@ const SPACES: RetrievalSpacesResponse = {
       last_error: null,
       gate: "unknown",
       as_of: null,
+      token_aware: false,
+      tokenizer: null,
+      chunk: null,
     },
   ],
 };
@@ -219,6 +233,17 @@ const RUNS: RetrievalRunsResponse = {
         exact_tokenizer: false,
         done: false,
       },
+      token_aware: true,
+      tokenizer: {
+        kind: "tiktoken",
+        identifier: "cl100k_base",
+        revision: null,
+        artifact_sha256: "a".repeat(64),
+        exact: true,
+        max_input_tokens: 8191,
+        source: "curated",
+      },
+      chunk: { max_chunk_tokens: 256, overlap_tokens: 32, max_chars: 1200 },
     },
   ],
 };
@@ -601,6 +626,18 @@ describe("audit retrieval tab", () => {
       "href",
       "/settings/tools?section=retrieval",
     );
+    expect(screen.getByTestId("retrieval-space-token-aware").textContent).toContain(
+      "Token-aware",
+    );
+    expect(screen.getByTestId("retrieval-space-tokenizer").textContent).toContain(
+      "cl100k_base",
+    );
+    expect(screen.getByTestId("retrieval-space-chunk").textContent).toContain(
+      "256 tokens",
+    );
+    expect(
+      screen.getByTestId("retrieval-space-runbook").getAttribute("href"),
+    ).toContain("docs/dev/retrieval-ops.md");
     await userEvent.keyboard("{Escape}");
     await waitFor(() =>
       expect(probe()).toBe("/settings/audit?tab=retrieval&section=spaces"),
@@ -638,6 +675,12 @@ describe("audit retrieval tab", () => {
       ),
     );
     expect(screen.getByTestId("retrieval-run-live-progress")).toBeTruthy();
+    expect(screen.getByTestId("retrieval-run-tokenizer").textContent).toContain(
+      "Token-aware",
+    );
+    expect(screen.getByTestId("retrieval-run-tokenizer").textContent).toContain(
+      "cl100k_base",
+    );
     expect(screen.getByTestId("retrieval-run-progress-estimated")).toBeTruthy();
     expect(screen.getByTestId("retrieval-run-progress-pending").textContent).toContain(
       "1,110 chunks pending",

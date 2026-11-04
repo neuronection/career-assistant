@@ -36,6 +36,7 @@ import {
   retrievalActionError,
   runRetrievalMaintenance,
   type BuildSpacePayload,
+  type BuildChunkPayload,
   type MaintenanceAction,
   type RetrievalActionResponse,
   type RetrievalCoverage,
@@ -69,6 +70,7 @@ import {
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import { RetrievalModelProfileCard } from "@/components/settings/RetrievalModelProfileCard";
 import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
+import { RETRIEVAL_RUNBOOK_URL } from "@/components/audit/retrieval/retrievalHelpers";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import {
@@ -417,6 +419,42 @@ function QualitySummary({
   );
 }
 
+function SpaceChunkerCell({ space }: { space: RetrievalSpace }) {
+  const { t } = useTranslation();
+  const tokenizer = space.tokenizer;
+  if (!space.token_aware || !tokenizer || !space.chunk) {
+    return (
+      <span data-testid={`retrieval-chunker-${space.space_id}`}>
+        {t("retrieval.spaces.legacyChunker")}
+      </span>
+    );
+  }
+  return (
+    <div className="space-y-0.5" data-testid={`retrieval-chunker-${space.space_id}`}>
+      <p className="flex flex-wrap items-center gap-1.5">
+        <Badge variant={tokenizer.exact ? "success" : "warning"}>
+          {tokenizer.exact
+            ? t("retrieval.spaces.tokenAware")
+            : t("retrieval.spaces.tokenAwareApprox")}
+        </Badge>
+        {tokenizer.source && (
+          <span className="text-[11px]">
+            {t(`retrieval.profile.source.${tokenizer.source}`)}
+          </span>
+        )}
+      </p>
+      <p className="break-all text-[11px]">{tokenizer.identifier}</p>
+      <p className="text-[11px]">
+        {t("retrieval.spaces.chunkBudget", {
+          tokens: space.chunk.max_chunk_tokens,
+          overlap: space.chunk.overlap_tokens,
+          chars: space.chunk.max_chars,
+        })}
+      </p>
+    </div>
+  );
+}
+
 export function RetrievalManagementSection() {
   const { t } = useTranslation();
   const [spaces, setSpaces] = useState<RetrievalSpacesResponse | null>(null);
@@ -457,6 +495,7 @@ export function RetrievalManagementSection() {
   const [reindexForce, setReindexForce] = useState(false);
 
   const [buildOpen, setBuildOpen] = useState(false);
+  const [buildTokenAware, setBuildTokenAware] = useState(true);
   const [buildDraft, setBuildDraft] = useState({
     name: "",
     provider: "",
@@ -465,6 +504,12 @@ export function RetrievalManagementSection() {
     queryPrefix: "",
     documentPrefix: "",
   });
+  const [buildChunk, setBuildChunk] = useState<{
+    maxTokens: number | null;
+    overlap: number | null;
+    maxChars: number | null;
+  }>({ maxTokens: null, overlap: null, maxChars: null });
+  const [buildError, setBuildError] = useState("");
 
   const [maintenanceAction, setMaintenanceAction] =
     useState<MaintenanceAction>("index-rebuild");
@@ -601,6 +646,32 @@ export function RetrievalManagementSection() {
   }, [buildOpen, buildDraft.provider, buildDraft.model]);
 
   useEffect(() => {
+    if (!buildPreview) return;
+    setBuildChunk({
+      maxTokens: buildPreview.chunk.max_chunk_tokens,
+      overlap: buildPreview.chunk.overlap_tokens,
+      maxChars: buildPreview.chunk.max_chars,
+    });
+  }, [buildPreview]);
+
+  const buildChunkError = useMemo(() => {
+    if (!buildTokenAware || !buildPreview) return "";
+    const maxTokens = buildChunk.maxTokens;
+    const overlap = buildChunk.overlap;
+    const maxChars = buildChunk.maxChars;
+    if (maxTokens == null || maxTokens < 32) return t("retrieval.buildProfile.chunkTokensInvalid");
+    if (overlap == null || overlap < 0) return t("retrieval.buildProfile.chunkOverlapInvalid");
+    if (overlap * 2 >= maxTokens) return t("retrieval.buildProfile.chunkOverlapTooLarge");
+    if (maxChars == null || maxChars < 1) return t("retrieval.buildProfile.chunkCharsInvalid");
+    if (maxTokens > buildPreview.max_input_tokens) {
+      return t("retrieval.buildProfile.chunkOverInput", {
+        limit: buildPreview.max_input_tokens,
+      });
+    }
+    return "";
+  }, [buildTokenAware, buildPreview, buildChunk, t]);
+
+  useEffect(() => {
     if (!activeSpaceId) {
       setActiveQuality(null);
       return;
@@ -704,6 +775,27 @@ export function RetrievalManagementSection() {
     if (!buildDraft.name.trim() || !buildDraft.provider.trim() || !buildDraft.model.trim()) {
       return;
     }
+    if (buildTokenAware) {
+      if (!buildPreview) {
+        setBuildError(t("retrieval.buildProfile.resolveFirst"));
+        return;
+      }
+      if (buildChunkError) {
+        setBuildError(buildChunkError);
+        return;
+      }
+    }
+    setBuildError("");
+    const chunk: BuildChunkPayload | undefined =
+      buildTokenAware &&
+      buildChunk.maxTokens != null &&
+      buildChunk.maxChars != null
+        ? {
+            max_chunk_tokens: buildChunk.maxTokens,
+            overlap_tokens: buildChunk.overlap ?? 0,
+            max_chars: buildChunk.maxChars,
+          }
+        : undefined;
     const payload: BuildSpacePayload = {
       name: buildDraft.name.trim(),
       provider: buildDraft.provider.trim(),
@@ -711,6 +803,15 @@ export function RetrievalManagementSection() {
       dim: buildDraft.dim,
       query_prefix: buildDraft.queryPrefix.trim() || undefined,
       document_prefix: buildDraft.documentPrefix.trim() || undefined,
+      ...(buildTokenAware
+        ? {
+            tokenizer_profile: {
+              provider: buildDraft.provider.trim(),
+              model: buildDraft.model.trim(),
+            },
+            chunk,
+          }
+        : {}),
     };
     try {
       const result = await busyWith("spaces", () => buildRetrievalSpace(payload));
@@ -725,6 +826,7 @@ export function RetrievalManagementSection() {
           queryPrefix: "",
           documentPrefix: "",
         });
+        setBuildChunk({ maxTokens: null, overlap: null, maxChars: null });
         refresh();
       }
     } catch (err) {
@@ -998,6 +1100,24 @@ export function RetrievalManagementSection() {
                   {activeSpace.provider}/{activeSpace.model} · {activeSpace.dim}
                 </strong>
               </span>
+              <span data-testid="retrieval-active-chunker">
+                {t("retrieval.spaces.chunker")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {activeSpace.token_aware && activeSpace.tokenizer
+                    ? activeSpace.tokenizer.identifier
+                    : t("retrieval.spaces.legacyChunker")}
+                </strong>
+                {activeSpace.tokenizer && (
+                  <Badge
+                    className="ml-1.5"
+                    variant={activeSpace.tokenizer.exact ? "success" : "warning"}
+                  >
+                    {activeSpace.tokenizer.exact
+                      ? t("retrieval.tokenizer.exact")
+                      : t("retrieval.tokenizer.approximate")}
+                  </Badge>
+                )}
+              </span>
               <span>
                 {t("retrieval.active.health")}:{" "}
                 <Badge variant={activeHealth?.ok ? "success" : "danger"}>
@@ -1006,7 +1126,25 @@ export function RetrievalManagementSection() {
                     : t("retrieval.active.healthFailed")}
                 </Badge>
               </span>
+              <a
+                href={RETRIEVAL_RUNBOOK_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[var(--as-primary)] hover:underline"
+                data-testid="retrieval-active-runbook"
+              >
+                {t("retrieval.spaces.runbook")}
+              </a>
             </div>
+            {activeSpace.token_aware && activeSpace.tokenizer && !activeSpace.tokenizer.exact && (
+              <p
+                className="flex items-start gap-1.5 text-xs text-[var(--as-warning)]"
+                data-testid="retrieval-active-tokenizer-warning"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t("retrieval.spaces.approxWarning")}</span>
+              </p>
+            )}
             <StatTiles tiles={activeStats} layout="auto" testId="retrieval-active-stats" />
             {activeSpace.last_error && (
               <p className="text-xs text-rose-600" data-testid="retrieval-active-last-error">
@@ -1092,11 +1230,18 @@ export function RetrievalManagementSection() {
 
             <div className="rounded-lg border border-[var(--as-border)] p-2">
               <p className="text-xs text-[var(--as-muted-fg)]">
-                {t("retrieval.tokenizer.chunking", {
-                  chars: tokenizerReport.chunking.max_chunk_chars,
-                  overlap: tokenizerReport.chunking.overlap_chars,
-                  version: tokenizerReport.chunking.chunker_version,
-                })}
+                {tokenizerReport.chunking.token_aware
+                  ? t("retrieval.tokenizer.chunkingTokenAware", {
+                      tokens: tokenizerReport.chunking.max_chunk_tokens ?? "—",
+                      overlap: tokenizerReport.chunking.overlap_tokens ?? 0,
+                      chars: tokenizerReport.chunking.max_chunk_chars,
+                      version: tokenizerReport.chunking.chunker_version,
+                    })
+                  : t("retrieval.tokenizer.chunking", {
+                      chars: tokenizerReport.chunking.max_chunk_chars,
+                      overlap: tokenizerReport.chunking.overlap_chars,
+                      version: tokenizerReport.chunking.chunker_version,
+                    })}
               </p>
               <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
                 {tokenizerReport.reference.samples.map((sample) => (
@@ -1334,12 +1479,23 @@ export function RetrievalManagementSection() {
                   testId="retrieval-build-document-prefix"
                 />
               </div>
-              {buildPreviewLoading && (
+              <ToggleRow
+                label={t("retrieval.buildProfile.tokenAware")}
+                checked={buildTokenAware}
+                onChange={setBuildTokenAware}
+                data-testid="retrieval-build-token-aware"
+              />
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {buildTokenAware
+                  ? t("retrieval.buildProfile.tokenAwareHint")
+                  : t("retrieval.buildProfile.legacyHint")}
+              </p>
+              {buildTokenAware && buildPreviewLoading && (
                 <p className="text-xs text-[var(--as-muted-fg)]" role="status">
                   {t("retrieval.buildProfile.resolving")}
                 </p>
               )}
-              {buildPreview && (
+              {buildTokenAware && buildPreview && (
                 <div
                   className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--as-muted)_35%,transparent)] px-2 py-1.5 text-xs"
                   data-testid="retrieval-build-profile"
@@ -1357,48 +1513,120 @@ export function RetrievalManagementSection() {
                         ? t("retrieval.tokenizer.exact")
                         : t("retrieval.tokenizer.approximate")}
                     </Badge>
-                    <span>
+                    <span data-testid="retrieval-build-profile-identity">
                       {t("retrieval.buildProfile.line", {
-                        identity: buildPreview.identity,
+                        identity:
+                          buildPreview.counted_identity !== buildPreview.identity
+                            ? `${buildPreview.identity} → ${buildPreview.counted_identity}`
+                            : buildPreview.identity,
                         limit: buildPreview.max_input_tokens,
                       })}
                     </span>
                   </p>
-                  <p className="text-[var(--as-muted-fg)]">
-                    {t("retrieval.buildProfile.chunk", {
-                      tokens: buildPreview.chunk.max_chunk_tokens,
-                      overlap: buildPreview.chunk.overlap_tokens,
-                      chars: buildPreview.chunk.max_chars,
+                  <p className="text-[var(--as-muted-fg)]" data-testid="retrieval-build-profile-provenance">
+                    {t("retrieval.buildProfile.provenance", {
+                      revision: buildPreview.tokenizer_revision ?? "—",
+                      sha: buildPreview.tokenizer_artifact_sha256
+                        ? buildPreview.tokenizer_artifact_sha256.slice(0, 12)
+                        : "—",
                     })}
                   </p>
-                  {buildPreview.source === "fallback" && (
-                    <p className="flex items-start gap-1.5 text-[var(--as-warning)]">
+                  {(buildPreview.source === "fallback" || !buildPreview.exact) && (
+                    <p
+                      className="flex items-start gap-1.5 text-[var(--as-warning)]"
+                      data-testid="retrieval-build-profile-warning"
+                    >
                       <AlertTriangle
                         className="mt-0.5 h-3.5 w-3.5 shrink-0"
                         aria-hidden
                       />
-                      <span>{t("retrieval.profile.fallbackWarning")}</span>
+                      <span>
+                        {buildPreview.source === "fallback"
+                          ? t("retrieval.profile.fallbackWarning")
+                          : t("retrieval.tokenizer.degraded", {
+                              reason:
+                                buildPreview.degraded_reason ??
+                                t("retrieval.tokenizer.assetUnavailable"),
+                            })}
+                      </span>
+                    </p>
+                  )}
+                  <div className="grid gap-2 pt-1 sm:grid-cols-3">
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkTokens")}
+                      value={buildChunk.maxTokens}
+                      onChange={(value) =>
+                        setBuildChunk({ ...buildChunk, maxTokens: value })
+                      }
+                      min={32}
+                      max={buildPreview.max_input_tokens}
+                      testId="retrieval-build-chunk-tokens"
+                    />
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkOverlap")}
+                      value={buildChunk.overlap}
+                      onChange={(value) => setBuildChunk({ ...buildChunk, overlap: value })}
+                      min={0}
+                      max={Math.max(0, Math.floor((buildChunk.maxTokens ?? 32) / 2) - 1)}
+                      testId="retrieval-build-chunk-overlap"
+                    />
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkChars")}
+                      value={buildChunk.maxChars}
+                      onChange={(value) => setBuildChunk({ ...buildChunk, maxChars: value })}
+                      min={1}
+                      max={1000000}
+                      testId="retrieval-build-chunk-chars"
+                    />
+                  </div>
+                  {buildChunkError && (
+                    <p
+                      className="text-[var(--as-warning)]"
+                      role="alert"
+                      data-testid="retrieval-build-chunk-error"
+                    >
+                      {buildChunkError}
                     </p>
                   )}
                   <p className="text-[11px] text-[var(--as-muted-fg)]">
-                    {t("retrieval.buildProfile.previewOnly")}
+                    {t("retrieval.buildProfile.v2Hint")}
                   </p>
                 </div>
               )}
-              <Button
-                size="sm"
-                disabled={
-                  busy === "spaces" ||
-                  !buildDraft.name.trim() ||
-                  !buildDraft.provider.trim() ||
-                  !buildDraft.model.trim()
-                }
-                loading={busy === "spaces"}
-                onClick={() => void submitBuild()}
-                data-testid="retrieval-build-submit"
-              >
-                {t("retrieval.action.build")}
-              </Button>
+              {buildError && (
+                <p className="text-xs text-rose-600" role="alert" data-testid="retrieval-build-error">
+                  {buildError}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={
+                    busy === "spaces" ||
+                    !buildDraft.name.trim() ||
+                    !buildDraft.provider.trim() ||
+                    !buildDraft.model.trim() ||
+                    (buildTokenAware && (!buildPreview || !!buildChunkError))
+                  }
+                  loading={busy === "spaces"}
+                  onClick={() => void submitBuild()}
+                  data-testid="retrieval-build-submit"
+                >
+                  {t("retrieval.action.build")}
+                </Button>
+                <a
+                  href={RETRIEVAL_RUNBOOK_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+                  data-testid="retrieval-build-runbook"
+                >
+                  {t("retrieval.buildProfile.runbook")}
+                </a>
+              </div>
+              <p className="text-[11px] text-[var(--as-muted-fg)]">
+                {t("retrieval.spaces.retainHint")}
+              </p>
             </div>
           )}
 
@@ -1415,6 +1643,7 @@ export function RetrievalManagementSection() {
                   <tr className="border-b border-[var(--as-border)] text-left text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
                     <th className="px-3 py-2">{t("retrieval.field.space")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.model")}</th>
+                    <th className="px-3 py-2">{t("retrieval.spaces.chunker")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.coverage")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.gate")}</th>
                     <th className="px-3 py-2" />
@@ -1445,6 +1674,9 @@ export function RetrievalManagementSection() {
                         {space.provider}/{space.model} · {space.dim}
                         <br />
                         {space.backend}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-[var(--as-muted-fg)]">
+                        <SpaceChunkerCell space={space} />
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
                         {rate(space.coverage)}

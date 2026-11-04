@@ -10818,10 +10818,41 @@ export interface components {
             window: string;
         };
         /**
+         * BuildChunkRequest
+         * @description The token-aware chunk budget (bounds mirror the tokenizer contract).
+         */
+        BuildChunkRequest: {
+            /** Max Chars */
+            max_chars: number;
+            /** Max Chunk Tokens */
+            max_chunk_tokens: number;
+            /**
+             * Overlap Tokens
+             * @default 0
+             */
+            overlap_tokens: number;
+        };
+        /**
+         * BuildProfileReference
+         * @description Build from the effective embedding profile of one provider/model pair.
+         */
+        BuildProfileReference: {
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+        };
+        /**
          * BuildSpaceRequest
          * @description Provision a ``building`` space beside the active one.
+         *
+         *     Omitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy
+         *     v1 char-chunk build. Supplying either a resolved-profile reference or an
+         *     explicit tokenizer makes the build token-aware (v2); a half-configured
+         *     request is refused instead of silently falling back to v1.
          */
         BuildSpaceRequest: {
+            chunk?: components["schemas"]["BuildChunkRequest"] | null;
             /** Dim */
             dim: number;
             /** Document Prefix */
@@ -10846,6 +10877,40 @@ export interface components {
             provider: string;
             /** Query Prefix */
             query_prefix?: string | null;
+            tokenizer?: components["schemas"]["BuildTokenizerRequest"] | null;
+            tokenizer_profile?: components["schemas"]["BuildProfileReference"] | null;
+        };
+        /**
+         * BuildTokenizerRequest
+         * @description An explicit pinned tokenizer for a token-aware (v2) build.
+         *
+         *     The server derives nothing from the model name here: these fields are the
+         *     admin's selection. ``exact`` may be omitted (it follows ``kind``), and a
+         *     non-heuristic kind needs its artifact checksum (plus a pinned revision for
+         *     Hugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the
+         *     same effective profile the write path resolves.
+         */
+        BuildTokenizerRequest: {
+            /** Artifact Sha256 */
+            artifact_sha256?: string | null;
+            /**
+             * Exact
+             * @description defaults from kind; heuristic is always false
+             */
+            exact?: boolean | null;
+            /** Identifier */
+            identifier: string;
+            /** Kind */
+            kind: string;
+            /** Max Input Tokens */
+            max_input_tokens: number;
+            /** Revision */
+            revision?: string | null;
+            /**
+             * Source
+             * @default admin
+             */
+            source: string;
         };
         /** BulkJobActionIn */
         BulkJobActionIn: {
