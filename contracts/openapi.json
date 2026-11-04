@@ -31996,6 +31996,77 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/tokenizer": {
+      "get": {
+        "description": "Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.\n\nShadow only \u2014 no write, no stored chunk change, no document text. The\ncorpus scan is bounded per kind; the multilingual reference block is a\nfixed synthetic fixture.",
+        "operationId": "retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get",
+        "parameters": [
+          {
+            "description": "source kinds to shadow-measure; default all supported",
+            "in": "query",
+            "name": "kinds",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "source kinds to shadow-measure; default all supported",
+              "title": "Kinds"
+            }
+          },
+          {
+            "description": "source rows per kind (bounded admin sample)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "source rows per kind (bounded admin sample)",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Api V1 Admin Retrieval Tokenizer Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/usage": {
       "get": {
         "description": "Embed calls/tokens by day, space and kind, plus the token budget.",

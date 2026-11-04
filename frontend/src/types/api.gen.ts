@@ -2150,6 +2150,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/tokenizer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Tokenizer
+         * @description Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.
+         *
+         *     Shadow only — no write, no stored chunk change, no document text. The
+         *     corpus scan is bounded per kind; the multilingual reference block is a
+         *     fixed synthetic fixture.
+         */
+        get: operations["retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/usage": {
         parameters: {
             query?: never;
@@ -23529,6 +23553,42 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get: {
+        parameters: {
+            query?: {
+                /** @description source kinds to shadow-measure; default all supported */
+                kinds?: string[] | null;
+                /** @description source rows per kind (bounded admin sample) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
