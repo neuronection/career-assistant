@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
 
@@ -162,12 +162,12 @@ describe("catalog filter rail", () => {
     expect(screen.getByTestId("catalog-demand-hot")).not.toBeDisabled();
   });
 
-  it("keeps family nav and the rail chip in sync", async () => {
+  it("keeps the family chip and the URL in sync", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
-    const nav = await screen.findByTestId("catalog-families");
-    await user.click(within(nav).getByRole("button", { name: /Technology/ }));
+    const chip = await screen.findByTestId("catalog-family-technology");
+    await user.click(chip);
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(
         expect.objectContaining({ family_key: "technology" })

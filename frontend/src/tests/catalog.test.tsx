@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -176,29 +176,41 @@ describe("Catalog subtabs", () => {
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "creative-arts" }))
     );
-    await waitFor(() =>
-      expect(within(screen.getByTestId("catalog-families")).getByText("Creative & Arts")).toBeInTheDocument()
-    );
-    const familyButton = within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Creative & Arts/ });
-    expect(familyButton).toHaveAttribute("aria-current", "page");
+    const chip = await screen.findByTestId("catalog-family-creative-arts");
+    expect(chip).toHaveTextContent("Creative & Arts");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("renders families as a SettingsShell rail and loads jobs on selection", async () => {
+  it("renders the /postings layout with one family surface in the filter rail", async () => {
+    const { container } = renderCatalog();
+
+    await waitFor(() => expect(screen.getByTestId("catalog-filter-aside")).toBeInTheDocument());
+    expect(container.querySelector(".ca-stats-page")).not.toBeNull();
+    expect(container.querySelector(".ca-stats-cols")).not.toBeNull();
+    expect(container.querySelector(".ca-settings-shell")).toBeNull();
+    expect(screen.queryByTestId("catalog-families")).not.toBeInTheDocument();
+    expect(screen.getByTestId("catalog-grid").className).toContain("ca-card-grid");
+
+    const familyChip = await screen.findByTestId("catalog-family-technology");
+    expect(familyChip).toHaveTextContent("Technology");
+    expect(familyChip).toHaveTextContent("2");
+  });
+
+  it("loads jobs on family selection from the rail", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
-    await waitFor(() => expect(screen.getByTestId("catalog-families")).toBeInTheDocument());
-    expect(screen.getByTestId("family-count-technology")).toHaveTextContent("2");
+    const chip = await screen.findByTestId("catalog-family-technology");
     expect(screen.queryByTestId("catalog-subfamilies")).not.toBeInTheDocument();
 
-    await user.click(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ }));
+    await user.click(chip);
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "technology" }))
     );
-    expect(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("drills into children as chips and highlights the top-level rail ancestor", async () => {
+  it("drills into children as chips from the family section", async () => {
     const user = userEvent.setup();
     const technology: JobFamilyNode = {
       id: "f1",
@@ -226,17 +238,14 @@ describe("Catalog subtabs", () => {
     vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue([technology, families[1]]);
     renderCatalog();
 
-    const techButton = await within(await screen.findByTestId("catalog-families")).findByRole("button", { name: /Technology/ });
-    await user.click(techButton);
+    await user.click(await screen.findByTestId("catalog-family-technology"));
     await waitFor(() => expect(screen.getByTestId("catalog-subfamilies")).toBeInTheDocument());
 
     await user.click(screen.getByTestId("subfamily-software-dev"));
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "software-dev" }))
     );
-    await waitFor(() =>
-      expect(within(screen.getByTestId("catalog-families")).getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page")
-    );
+    expect(screen.getByTestId("catalog-family-software-dev")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("shows the universities subtab (visible before bootstrap loads)", async () => {
