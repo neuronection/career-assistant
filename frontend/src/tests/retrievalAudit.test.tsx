@@ -199,6 +199,26 @@ const RUNS: RetrievalRunsResponse = {
       cancel_requested: false,
       idempotency_key: "idem-run-1",
       lock_key: "vector_space:space-active",
+      progress_detail: {
+        phase: "embedding",
+        processed_documents: 120,
+        total_documents: 500,
+        processed_chunks: 340,
+        pending_chunks: 1110,
+        total_chunks: 1450,
+        chunks_estimated: true,
+        embedded_chunks: 320,
+        skipped_chunks: 20,
+        failed_chunks: 0,
+        embedded_documents: 118,
+        skipped_documents: 2,
+        failed_documents: 0,
+        tokens: 184000,
+        tokens_estimated: true,
+        embed_calls: 7,
+        exact_tokenizer: false,
+        done: false,
+      },
     },
   ],
 };
@@ -603,12 +623,33 @@ describe("audit retrieval tab", () => {
       ),
     );
 
+    const tableBar = screen.getByTestId("retrieval-run-progress-run-1-bar");
+    expect(tableBar).toHaveAttribute("role", "progressbar");
+    expect(tableBar).toHaveAttribute("aria-valuenow", "24");
+    expect(
+      screen.getByTestId("retrieval-run-progress-run-1-documents").textContent,
+    ).toContain("120 / 500 documents");
+
     await userEvent.click(screen.getByTestId("retrieval-run-row-run-1"));
     expect(await screen.findByTestId("retrieval-run-drawer")).toBeTruthy();
     await waitFor(() =>
       expect(screen.getByTestId("retrieval-run-meta").textContent).toContain(
         "embedding",
       ),
+    );
+    expect(screen.getByTestId("retrieval-run-live-progress")).toBeTruthy();
+    expect(screen.getByTestId("retrieval-run-progress-estimated")).toBeTruthy();
+    expect(screen.getByTestId("retrieval-run-progress-pending").textContent).toContain(
+      "1,110 chunks pending",
+    );
+    expect(
+      screen.getByTestId("retrieval-run-progress-embedded").textContent,
+    ).toContain("118 embedded");
+    expect(screen.getByTestId("retrieval-run-progress-tokens").textContent).toContain(
+      "~184,000 tokens",
+    );
+    expect(screen.getByTestId("retrieval-run-progress-calls").textContent).toContain(
+      "7 embed calls",
     );
     expect(screen.getByTestId("retrieval-run-result").textContent).toContain(
       "Scanned",
@@ -627,6 +668,16 @@ describe("audit retrieval tab", () => {
     expect(probe()).toContain(
       "section=runs&detail=run-1",
     );
+  });
+
+  it("renders no live bar for a run without progress detail", async () => {
+    vi.mocked(fetchRetrievalRuns).mockResolvedValueOnce({
+      ...RUNS,
+      runs: [{ ...RUNS.runs[0], progress_detail: null }],
+    });
+    renderPage("/settings/audit?tab=retrieval&section=runs");
+    expect(await screen.findByTestId("retrieval-run-row-run-1")).toBeTruthy();
+    expect(screen.queryByTestId("retrieval-run-progress-run-1")).toBeNull();
   });
 
   it("renders the quality compare and opens a golden-query drawer without raw text", async () => {

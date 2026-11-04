@@ -8,6 +8,7 @@ import {
 import { apiDetail } from "@/api/client";
 import { Badge, PanelModal, Spinner } from "@/components/ui";
 import { GateBadge } from "@/components/audit/retrieval/RetrievalCommon";
+import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
 import {
   formatNumber,
   shortId,
@@ -169,6 +170,21 @@ export function RetrievalRunDrawer({
               </span>
             </MetaRow>
           </dl>
+
+          {run.progress_detail && (
+            <div
+              className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3"
+              data-testid="retrieval-run-live-progress"
+            >
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("audit.retrieval.runs.liveProgress")}
+              </p>
+              <RetrievalProgress
+                detail={run.progress_detail}
+                testId="retrieval-run-progress"
+              />
+            </div>
+          )}
 
           {result ? (
             <div

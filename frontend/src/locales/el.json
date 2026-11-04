@@ -5791,6 +5791,7 @@
         "space": "Χώρος",
         "stage": "Στάδιο",
         "progress": "Πρόοδος",
+        "liveProgress": "Ζωντανή πρόοδος ευρετηριοποίησης",
         "scope": "Εύρος",
         "created": "Δημιουργήθηκε",
         "started": "Ξεκίνησε",
@@ -6383,6 +6384,21 @@
       "degraded": "Ο ακριβής tokenizer δεν είναι διαθέσιμος ({{reason}}) — η μέτρηση είναι κατά προσέγγιση.",
       "shadow": "Μόνο σκιά: δεν γράφτηκαν chunks, στήλες token ή spaces.",
       "unavailable": "Η αναφορά tokenizer δεν είναι διαθέσιμη αυτή τη στιγμή."
+    },
+    "progress": {
+      "aria": "Πρόοδος ευρετηριοποίησης: {{percent}}%",
+      "documents": "{{processed}} / {{total}} έγγραφα",
+      "documentsNoTotal": "{{processed}} έγγραφα",
+      "chunksPending": "{{count}} τμήματα σε αναμονή",
+      "chunksEstimated": "εκτιμώμενο σύνολο τμημάτων",
+      "embeddedDocuments": "{{count}} ενσωματώθηκαν",
+      "skippedDocuments": "{{count}} παραλείφθηκαν",
+      "failedDocuments": "{{count}} απέτυχαν",
+      "embeddedChunks": "{{count}} τμήματα ενσωματώθηκαν",
+      "tokens": "{{count}} tokens",
+      "tokensApprox": "~{{count}} tokens",
+      "embedCalls": "{{count}} κλήσεις embedding",
+      "done": "ολοκληρώθηκε"
     }
   }
 }

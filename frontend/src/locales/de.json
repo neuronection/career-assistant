@@ -5791,6 +5791,7 @@
         "space": "Space",
         "stage": "Phase",
         "progress": "Fortschritt",
+        "liveProgress": "Live-Indizierungsfortschritt",
         "scope": "Umfang",
         "created": "Erstellt",
         "started": "Gestartet",
@@ -6383,6 +6384,21 @@
       "degraded": "Exakter Tokenizer nicht verfügbar ({{reason}}) — die Zählung ist ungefähr.",
       "shadow": "Nur Schattenmessung: keine Chunks, Token-Spalten oder Spaces wurden geschrieben.",
       "unavailable": "Der Tokenizer-Bericht ist derzeit nicht verfügbar."
+    },
+    "progress": {
+      "aria": "Indizierungsfortschritt: {{percent}} %",
+      "documents": "{{processed}} / {{total}} Dokumente",
+      "documentsNoTotal": "{{processed}} Dokumente",
+      "chunksPending": "{{count}} Chunks ausstehend",
+      "chunksEstimated": "Chunk-Gesamtzahl geschätzt",
+      "embeddedDocuments": "{{count}} eingebettet",
+      "skippedDocuments": "{{count}} übersprungen",
+      "failedDocuments": "{{count}} fehlgeschlagen",
+      "embeddedChunks": "{{count}} Chunks eingebettet",
+      "tokens": "{{count}} Tokens",
+      "tokensApprox": "~{{count}} Tokens",
+      "embedCalls": "{{count}} Embed-Aufrufe",
+      "done": "abgeschlossen"
     }
   }
 }

@@ -261,6 +261,26 @@ function run(overrides: Partial<RetrievalRun> = {}): RetrievalRun {
     cancel_requested: false,
     idempotency_key: "key-1",
     lock_key: "vector_space:1",
+    progress_detail: {
+      phase: "queued",
+      processed_documents: 0,
+      total_documents: 20,
+      processed_chunks: 0,
+      pending_chunks: 40,
+      total_chunks: 40,
+      chunks_estimated: true,
+      embedded_chunks: 0,
+      skipped_chunks: 0,
+      failed_chunks: 0,
+      embedded_documents: 0,
+      skipped_documents: 0,
+      failed_documents: 0,
+      tokens: null,
+      tokens_estimated: false,
+      embed_calls: 0,
+      exact_tokenizer: true,
+      done: false,
+    },
     ...overrides,
   };
 }
@@ -693,6 +713,20 @@ describe("RetrievalManagementSection", () => {
     const row = await screen.findByTestId("retrieval-run-run-queued-1");
     expect(within(row).getByText("retrieval.status.queued")).toBeTruthy();
     expect(within(row).getByTestId("retrieval-cancel-run-queued-1")).toBeTruthy();
+    const bar = within(row).getByTestId("retrieval-run-progress-run-queued-1-bar");
+    expect(bar).toHaveAttribute("role", "progressbar");
+    expect(bar).toHaveAttribute("aria-valuenow", "0");
+    expect(
+      within(row).getByTestId("retrieval-run-progress-run-queued-1-documents")
+        .textContent,
+    ).toContain("retrieval.progress.documents");
+    expect(
+      within(row).getByTestId("retrieval-run-progress-run-queued-1-pending")
+        .textContent,
+    ).toContain("retrieval.progress.chunksPending");
+    expect(
+      within(row).getByTestId("retrieval-run-progress-run-queued-1-estimated"),
+    ).toBeTruthy();
   });
 
   it("renders the tokenizer and limits report as read-only evidence", async () => {

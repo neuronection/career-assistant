@@ -64,6 +64,7 @@ import {
   SwitchRow,
 } from "@/components/ui";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
+import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import {
@@ -296,6 +297,14 @@ function RunRow({
           {run.scope.kind ?? t("retrieval.kind.all")} · {run.scope.view ?? t("retrieval.view.all")}
           {run.progress > 0 ? ` · ${t("retrieval.reindex.showProgress", { progress: run.progress })}` : ""}
         </p>
+        {run.progress_detail && (
+          <div className="pt-1">
+            <RetrievalProgress
+              detail={run.progress_detail}
+              testId={`retrieval-run-progress-${run.run_id}`}
+            />
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {active && !run.cancel_requested && (

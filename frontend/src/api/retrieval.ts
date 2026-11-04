@@ -270,6 +270,27 @@ export interface RetrievalRunScope {
   since: string | null;
 }
 
+export interface RetrievalRunProgress {
+  phase: "queued" | "scanning" | "embedding" | "writing" | "done";
+  processed_documents: number;
+  total_documents: number;
+  processed_chunks: number;
+  pending_chunks: number;
+  total_chunks: number | null;
+  chunks_estimated: boolean;
+  embedded_chunks: number;
+  skipped_chunks: number;
+  failed_chunks: number;
+  embedded_documents: number;
+  skipped_documents: number;
+  failed_documents: number;
+  tokens: number | null;
+  tokens_estimated: boolean;
+  embed_calls: number;
+  exact_tokenizer: boolean;
+  done: boolean;
+}
+
 export interface RetrievalRun {
   run_id: string;
   space_id: string;
@@ -287,6 +308,7 @@ export interface RetrievalRun {
   cancel_requested: boolean;
   idempotency_key: string | null;
   lock_key: string | null;
+  progress_detail?: RetrievalRunProgress | null;
 }
 
 export interface RetrievalRunsResponse {

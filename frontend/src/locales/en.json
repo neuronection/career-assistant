@@ -5792,6 +5792,7 @@
         "space": "Space",
         "stage": "Stage",
         "progress": "Progress",
+        "liveProgress": "Live indexing progress",
         "scope": "Scope",
         "created": "Created",
         "started": "Started",
@@ -6384,6 +6385,21 @@
       "degraded": "Exact tokenizer unavailable ({{reason}}) — counts are approximate.",
       "shadow": "Shadow only: no chunks, token columns or spaces were written.",
       "unavailable": "The tokenizer report is unavailable right now."
+    },
+    "progress": {
+      "aria": "Indexing progress: {{percent}}%",
+      "documents": "{{processed}} / {{total}} documents",
+      "documentsNoTotal": "{{processed}} documents",
+      "chunksPending": "{{count}} chunks pending",
+      "chunksEstimated": "chunk total estimated",
+      "embeddedDocuments": "{{count}} embedded",
+      "skippedDocuments": "{{count}} skipped",
+      "failedDocuments": "{{count}} failed",
+      "embeddedChunks": "{{count}} chunks embedded",
+      "tokens": "{{count}} tokens",
+      "tokensApprox": "~{{count}} tokens",
+      "embedCalls": "{{count}} embed calls",
+      "done": "complete"
     }
   }
 }
