@@ -25,9 +25,27 @@ All notable changes to **Career Assistant** are documented here.
   service with an explicit tokenizer and chunk) builds it, the ordinary
   backfill writes the token records, and activation still requires the
   coverage and golden-query quality gates. The retired space's stored key
-  drives the posting remap and the old space is retained. The Tools/Audit
-  build controls, OpenAPI client and Study parity are the following slices
-  (T3c/T5).
+  drives the posting remap and the old space is retained.
+
+### Added (retrieval: build and cut over a token-aware space from Tools, 2026-11-04)
+- **Tools → Retrieval can now build a token-aware v2 space beside the active
+  one.** The build dialog resolves the effective embedding profile, shows
+  the tokenizer source, exactness, pinned revision, checksum and model input
+  limit, warns visibly when the selection is the labelled fallback, and
+  lets an admin edit the chunk budget (max tokens, overlap, max chars)
+  within safe bounds. Submitting pins that profile and budget through
+  `POST /admin/retrieval/spaces`; leaving token awareness off deliberately
+  submits the legacy v1 char-chunk build. A half-configured tokenizer/chunk
+  request is refused.
+- **Spaces, runs and the tokenizer report carry the real chunker identity.**
+  The space card, Audit space drawer and Audit run drawer render
+  `token_aware`, the tokenizer source/exactness/revision/checksum, the model
+  input limit and the chunk budget, with a runbook link. The tokenizer report
+  claims `token_aware: true` only when the active space actually persisted a
+  tokenizer and chunk config; a legacy active space still reports v1 char
+  chunks. Migration `0097` persists the selection source; the space key is
+  unchanged and no existing space is re-chunked in place. The old space
+  stays retained until an explicit retire/drop.
 
 ### Fixed (retrieval: a space keeps its identity through a cutover, 2026-11-04)
 - **A vector space now stores its space key on the row, so a later

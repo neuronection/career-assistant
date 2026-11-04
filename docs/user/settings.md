@@ -97,13 +97,21 @@ corrupt cached asset stays visibly approximate until it is fetched. The
 build-space form previews the same profile for the provider/model being
 entered, so a fallback is visible before the space exists. Profile changes
 are settings only: no existing chunk, token column, record or space is
-rewritten, and token-aware writes arrive with plan 52 T3. A profile change
-therefore applies to **future** spaces; an existing space is not re-chunked
-in place.
+rewritten. A profile change therefore applies to **future** spaces; an
+existing space is not re-chunked in place.
 **Spaces** lists active, building and retired
 spaces; changing models means building a new space (never an in-place
 rewrite), activating it only after coverage and the golden-query compare
-pass, then retiring the old one. **Index maintenance** queues an index
+pass, then retiring the old one. **Build new space** defaults to a
+**token-aware (v2)** build: it shows the resolved tokenizer with its source,
+exact/approximate flag, pinned revision, checksum and model input limit, warns
+when the conservative fallback applies, and lets you edit the chunk token
+budget, overlap and character ceiling within safe bounds. The build pins that
+tokenizer and chunk budget in the new space's identity. Switching token
+awareness off deliberately creates a legacy v1 space with character chunks.
+The space card, Audit space drawer and Audit run drawer show the real chunker
+and link the operator runbook. The old space stays retained until you
+explicitly retire and drop it; nothing is re-chunked in place. **Index maintenance** queues an index
 rebuild, vacuum, orphan sweep or failed-document retry, with a dry run where
 supported. **Quality** scores the versioned golden-query set for a candidate
 against its baseline and shows recall, precision and the gate. The **danger

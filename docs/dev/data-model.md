@@ -154,6 +154,15 @@ deletion).
 
 ### Migration notes
 
+- **0095–0097** — plan 52 T3a–T3c, the token-aware space identity.
+  `0095` stamps each `vector_spaces` row with its stored v1 cutover key;
+  `0096` adds the flattened tokenizer/chunk scalars and
+  `vector_records.token_count`/`token_start`/`token_end` (all NULL on a
+  legacy row, the complete set on a v2 row, with kind/exact/provenance and
+  chunk-budget CHECKs); `0097` adds `vector_spaces.tokenizer_source`
+  (provenance only — not part of the frozen key, and nullable for legacy
+  rows). Downgrades drop the additive columns but never rewrite a stored
+  `space_key`.
 - **0094** — plan 52 T2a: `embedding_model_profiles`, the admin
   tokenizer/limit registry. Keyed on `(provider_class, model_name)`
   (unique `uq_embedding_model_profiles_scope`), with typed scalar columns —
@@ -459,7 +468,7 @@ deletion).
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
-| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space (plan 52 T3b) also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
+| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space (plan 52 T3b/T3c) also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens/source provenance) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
 | `retrieval_query_rollups`, `retrieval_coverage_snapshots` | `vector_model.py` | Bounded operational telemetry (plan 51 Q0 schema, first written by the P1d reconcile pass): query-health buckets and per-kind coverage points (`total`/`missing`/`stale`/`failed`/`embedded` + the sampled ANN recall) |
 | `ai_mcp_servers` | `mcp_bridge_model.py` | External MCP server registrations |
 | `mcp_tokens` | `mcp_bridge_model.py` | Hashed MCP access tokens (personal or instance-wide), closed `scopes`, rotation + per-token revocation |

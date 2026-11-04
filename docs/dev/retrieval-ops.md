@@ -86,10 +86,17 @@ cutover still remaps the exact key those semantic mappings recorded.
    dimension, metric and optional prefixes. The space starts `building`; its
    physical index is provisioned off the request path. The active row is
    untouched. A matching build is reused idempotently; a different building
-   space with the same name is refused until it is retired or dropped. The
-   form previews the resolved tokenizer profile for the pair (source, exact
-   flag, max input, batch and default chunk budget) — a fallback is visible
-   here, before the space exists (see §4).
+   space with the same name is refused until it is retired or dropped.
+   **Token-aware (v2)** is on by default: the form resolves the effective
+   embedding profile for the pair (source, exact flag, pinned revision,
+   artifact checksum, max input), shows a warning when the selection is the
+   labelled fallback, and sends `tokenizer_profile` plus the editable chunk
+   bounds (`chunk.max_chunk_tokens`/`overlap_tokens`/`max_chars`). Turning it
+   off deliberately submits the legacy v1 char-chunk build. A request that
+   supplies a tokenizer without chunk bounds (or the reverse) is refused; the
+   server never guesses a tokenizer from a model name and never accepts an
+   unavailable artifact. A v2 build pins the profile and chunk budget in its
+   space identity; the active v1 space is never re-chunked in place.
 2. **Backfill.** Queue reindex runs **against the building space** for every
    kind you intend to serve. Backfill writes through the ordinary bounded
    reconcile writer and stamps coverage snapshots against the building space;
@@ -189,9 +196,38 @@ out-of-range input answers `400`/`422`. Changes are audited as
 resource — the existing group, no second ledger.
 
 **It is configuration, not a rewrite.** Saving a profile does not rechunk,
-re-embed, re-key or cut over any space; the report still says
-`chunking.token_aware: false` and the existing space keeps its current char
-chunks. Plan 52 T3 is where the write path becomes token-aware.
+re-embed, re-key or cut over any space; an existing space keeps exactly the
+chunker it was built with.
+
+### Token-aware build and cutover (plan 52 T3b/T3c)
+
+The **Build new space** dialog (and `POST /admin/retrieval/spaces`) accepts a
+v2 identity in two additive forms:
+
+- `tokenizer_profile: {provider, model}` — the server resolves the same
+  effective profile the write path uses (admin → curated → fallback, HF
+  included) and pins that tokenizer; `chunk` optionally overrides the
+  profile's default budget.
+- `tokenizer: {kind, identifier, revision, artifact_sha256, exact,
+  max_input_tokens, source}` plus `chunk: {max_chunk_tokens, overlap_tokens,
+  max_chars}` — an explicit pin. A non-heuristic artifact must be loadable in
+  this instance; the API refuses an unavailable one rather than silently
+  degrading.
+
+Omitting both (and `chunk`) keeps the legacy v1 build. Supplying only one
+half is a `400`, as is a chunk budget that cannot fit the model input. The
+server persists the tokenizer/chunk identity plus the selection source
+(migration `0097`; source is provenance, not part of the frozen space key).
+The space key itself remains the stored v1 or v2 pre-image and is never
+recomputed at cutover.
+
+The **Tokenizer & limits** report reads the active space's persisted chunker:
+a v2 space reports `chunking.token_aware: true` with its token budget; a
+legacy active space (or no active space) reports the v1 char chunker and
+`token_aware: false`. Spaces, runs and the Audit drawers carry the same
+`token_aware`/`tokenizer`/`chunk` evidence and a runbook link. A fallback or
+approximate tokenizer is labelled everywhere; nothing claims exactness it
+does not have.
 
 ## 5. Maintenance actions
 
@@ -378,15 +414,31 @@ the audit event in the incident note; the Changes section already has the
   existing coverage/quality gate, and the retired row's stored key drives
   `POSTING_REMAP`; the old space is retained.
 
-**T3c handoff (not wired in T3b).**
+**T3c — build/cutover UI, API contract and reports (implemented).**
 
-- `BuildSpaceRequest` / OpenAPI / generated client need the tokenizer
-  selection and chunk bounds; `retrieval_actions.build_space` already
-  accepts them and records them in the run payload.
-- Tools → Retrieval build dialog: show the resolved tokenizer/source/
-  exactness/revision, let the admin override the chunk bounds, and pass
-  them to the action.
-- Space card/drawer and Audit run view: render `token_aware`,
-  `tokenizer`/`chunk` from `read_space_statuses` plus the existing live
-  progress counters; add fallback/exactness warnings and the runbook link.
-- Study parity remains T5; its `len//4` heuristic is untouched here.
+- `BuildSpaceRequest` accepts `tokenizer_profile` or an explicit
+  `tokenizer` + `chunk`; the OpenAPI contract and generated client carry the
+  same fields. Omitted fields keep the v1 build; a half-configured request,
+  an unavailable artifact or an unsafe chunk budget is refused.
+- Tools → Retrieval shows the resolved profile (source, exact/approx,
+  revision, checksum, max input), warns on the fallback, lets the admin edit
+  the chunk bounds and submits a v2 build (or a deliberate legacy v1 build).
+- `SpaceDTO` / `RunDTO` expose `token_aware`, `tokenizer` and `chunk`; the
+  Tools space card, Audit space drawer and Audit run drawer render them with
+  the existing live progress counters and a runbook link. No Audit action
+  controls were added.
+- Migration `0097` persists the tokenizer selection source. A legacy active
+  space still reports v1/legacy; only a space with persisted tokenizer columns
+  may claim `token_aware: true`.
+- The old space is retained through the normal retire/drop lifecycle. Nothing
+  is re-chunked in place.
+
+**T5 handoff (Study parity + rollout).**
+
+- Port the same tokenizer registry, chunk identity and `space_key_v2` to
+  Study; replace its `len//4` token heuristic and add DTO/fixture parity.
+- Roll out a candidate space on real corpora: backfill, compare coverage and
+  the golden-query quality gate, activate, confirm the `POSTING_REMAP` for the
+  retired stored key, and keep the old space until an explicit drop.
+- Add the fallback/tokenizer-missing alert and the fleet docs pointer. HF
+  auto-fetch and SentencePiece remain last, not prerequisites.
