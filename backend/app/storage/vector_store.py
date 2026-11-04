@@ -49,6 +49,7 @@ from app.storage.vector_contract import (
     SpaceStatus,
     VectorSpace,
 )
+from app.storage.vector_contract import space_key as make_space_key
 
 
 @dataclass(frozen=True)
@@ -160,6 +161,7 @@ def canonical_space(row: VectorSpaceRow) -> VectorSpace:
         status=SpaceStatus(row.status),
         space_id=str(row.id),
         index_table=row.index_table,
+        stored_key=row.space_key,
     )
 
 
@@ -177,6 +179,11 @@ def _assert_dto_matches_row(space: VectorSpace, row: VectorSpaceRow) -> None:
     )
     if reason is not None:
         raise VectorSpaceMismatch(f"space DTO disagrees with the persisted row — {reason}")
+    if space.key != row.space_key:
+        raise VectorSpaceMismatch(
+            "space key identity disagrees with the persisted row — "
+            f"dto={space.key!r}, row={row.space_key!r}"
+        )
     if row.status != str(space.status):
         raise VectorSpaceMismatch(
             f"space status mismatch — row={row.status!r}, dto={str(space.status)!r}"
@@ -249,6 +256,16 @@ class VectorStoreService:
             query_prefix=query_prefix,
             document_prefix=document_prefix,
         )
+        computed_key = make_space_key(
+            provider,
+            model,
+            dim,
+            normalize,
+            query_prefix,
+            document_prefix,
+            chunker_version,
+            composer_version,
+        )
         with self._session_factory() as session:
             existing_rows = list(
                 session.scalars(
@@ -260,23 +277,31 @@ class VectorStoreService:
                     .order_by(VectorSpaceRow.created_at.desc())
                 )
             )
+            matching = next(
+                (candidate for candidate in existing_rows if candidate.space_key == computed_key),
+                None,
+            )
             if status is SpaceStatus.ACTIVE:
-                if existing_rows:
-                    existing = existing_rows[0]
-                    mismatch = writer_mismatch_reason(canonical_space(existing), resolved)
+                if matching is not None:
+                    mismatch = writer_mismatch_reason(canonical_space(matching), resolved)
                     if mismatch is not None:
                         raise VectorSpaceMismatch(
                             f"active space {name!r} has a different configuration — {mismatch}"
                         )
-                    return canonical_space(existing)
+                    return canonical_space(matching)
+                if existing_rows:
+                    raise VectorSpaceMismatch(
+                        f"active space {name!r} has a different stored identity — "
+                        f"row={existing_rows[0].space_key!r}, requested={computed_key!r}"
+                    )
+            elif matching is not None:
+                mismatch = writer_mismatch_reason(canonical_space(matching), resolved)
+                if mismatch is not None:
+                    raise VectorSpaceMismatch(
+                        f"building space {name!r} has a different configuration — {mismatch}"
+                    )
+                return canonical_space(matching)
             elif existing_rows:
-                for candidate in existing_rows:
-                    if (
-                        writer_mismatch_reason(canonical_space(candidate), resolved) is None
-                        and candidate.chunker_version == chunker_version
-                        and candidate.composer_version == composer_version
-                    ):
-                        return canonical_space(candidate)
                 raise VectorSpaceMismatch(
                     f"a different {status.value} space named {name!r} already exists; "
                     "retire or drop it before building another"
@@ -292,6 +317,7 @@ class VectorStoreService:
                 chunker_version=chunker_version,
                 composer_version=composer_version,
                 status=status.value,
+                space_key=computed_key,
             )
             session.add(row)
             session.commit()

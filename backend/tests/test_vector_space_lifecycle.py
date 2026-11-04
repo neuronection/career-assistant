@@ -322,6 +322,35 @@ async def test_activation_flips_and_retires_atomically(db, monkeypatch):
     assert jobs[0].payload["all_postings"] is False
 
 
+async def test_activation_remaps_the_previous_stored_key(db):
+    """T3a: a pre-image change after the row was built never rewrites identity."""
+    old = _create_active()
+    stored = "f" * 64
+    with Session(sync_engine) as session:
+        row = session.get(VectorSpaceRow, uuid.UUID(str(old.space_id)))
+        assert row is not None
+        row.space_key = stored
+        session.commit()
+
+    service = _service(db)
+    built = await service.build_space(
+        NAME, provider="openai", model="text-embedding-3-small", dim=DIM
+    )
+    _insert_snapshot(sync_engine, built.space_id, total=10, embedded=10)
+
+    result = await service.activate_space(built.space_id, kinds=("skill",))
+
+    assert result.previous_space_key == stored
+    assert result.previous_space_key != old.key, "the old row's stored key wins"
+    jobs = list(
+        (await db.execute(select(BackgroundJob).where(BackgroundJob.job_type == "posting_remap")))
+        .scalars()
+        .all()
+    )
+    assert len(jobs) == 1
+    assert jobs[0].payload["space_key"] == stored
+
+
 async def test_first_activation_enqueues_no_remap(db):
     service = _service(db)
     built = await service.build_space(

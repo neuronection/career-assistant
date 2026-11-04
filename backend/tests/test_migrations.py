@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0094"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0095"], (
         "revision chain stays linear on one head"
     )
 
@@ -162,6 +162,187 @@ def test_0027_cv_synth_items_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present(), "re-upgrade restores the table"
+
+
+def _spaces_0094_table():
+    """The ``vector_spaces`` shape at 0094, plus the 0095 column for reads."""
+    import sqlalchemy as sa
+
+    return sa.table(
+        "vector_spaces",
+        sa.column("id", sa.Uuid()),
+        sa.column("name", sa.String),
+        sa.column("provider", sa.String),
+        sa.column("model", sa.String),
+        sa.column("dim", sa.Integer),
+        sa.column("metric", sa.String),
+        sa.column("normalize", sa.Boolean),
+        sa.column("chunker_version", sa.String),
+        sa.column("composer_version", sa.String),
+        sa.column("query_prefix", sa.String),
+        sa.column("document_prefix", sa.String),
+        sa.column("status", sa.String),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+        sa.column("space_key", sa.String),
+    )
+
+
+def _space_specs_0094() -> list[dict]:
+    """Two populated 0094 rows with distinct v1 pre-images."""
+    import uuid as _uuid
+
+    return [
+        {
+            "id": _uuid.uuid4(),
+            "name": f"migrate-plain-{_uuid.uuid4().hex[:8]}",
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "dim": 1536,
+            "normalize": True,
+            "query_prefix": None,
+            "document_prefix": None,
+            "chunker_version": "1",
+            "composer_version": "1",
+        },
+        {
+            "id": _uuid.uuid4(),
+            "name": f"migrate-asym-{_uuid.uuid4().hex[:8]}",
+            "provider": "Ollama",
+            "model": "embeddinggemma-2:440m ",
+            "dim": 768,
+            "normalize": False,
+            "query_prefix": "query: ",
+            "document_prefix": "passage: ",
+            "chunker_version": "2",
+            "composer_version": "3",
+        },
+    ]
+
+
+def _insert_0094_spaces(specs: list[dict]) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    spaces = _spaces_0094_table()
+    now = datetime.now(UTC)
+
+    async def run() -> None:
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for spec in specs:
+                    await conn.execute(
+                        spaces.insert().values(
+                            **spec,
+                            metric="cosine",
+                            status="active",
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
+def _read_0095_space_keys() -> dict[str, str]:
+    import asyncio
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    spaces = _spaces_0094_table()
+
+    async def run() -> dict[str, str]:
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                rows = (await conn.execute(sa.select(spaces.c.id, spaces.c.space_key))).all()
+            return {str(row[0]): str(row[1]) for row in rows}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _expected_v1_key(spec: dict) -> str:
+    from app.storage.vector_contract import space_key
+
+    return space_key(
+        spec["provider"],
+        spec["model"],
+        spec["dim"],
+        spec["normalize"],
+        spec["query_prefix"],
+        spec["document_prefix"],
+        spec["chunker_version"],
+        spec["composer_version"],
+    )
+
+
+def test_0095_vector_space_key_stamps_populated_rows_and_roundtrips():
+    """Plan 52 T3a: every existing row keeps its v1 key verbatim, once."""
+    config = _configured()
+    command.upgrade(config, "head")
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key"), "0094 has no stored key"
+
+    specs = _space_specs_0094()
+    _insert_0094_spaces(specs)
+
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "space_key")
+    stored = _read_0095_space_keys()
+    for spec in specs:
+        assert stored[str(spec["id"])] == _expected_v1_key(spec), spec["name"]
+
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "space_key")
+
+
+def test_populated_sqlite_upgrades_0094_to_0095(tmp_path, monkeypatch):
+    """The desktop profile stamps a populated SQLite file through batch mode."""
+    import uuid as _uuid
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'vector-spaces-0095.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+
+    command.upgrade(config, "head")
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key")
+
+    spec = {
+        "id": _uuid.uuid4(),
+        "name": f"sqlite-stamp-{_uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 384,
+        "normalize": True,
+        "query_prefix": "query: ",
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    _insert_0094_spaces([spec])
+
+    command.upgrade(config, "0095")
+    assert _read_0095_space_keys()[str(spec["id"])] == _expected_v1_key(spec)
+
+    command.upgrade(config, "head")
 
 
 def test_0078_search_preset_name_roundtrip():
@@ -3976,9 +4157,10 @@ def _vector_constraint_probe(name: str) -> dict[str, bool]:
         space_columns = (
             "INSERT INTO vector_spaces "
             "(id, name, provider, model, dim, metric, normalize, chunker_version, "
-            "composer_version, index_table, status, created_at, updated_at) "
+            "composer_version, space_key, index_table, status, created_at, updated_at) "
             f"VALUES ({uuid_param('id')}, :name, 'openai', 'text-embedding-3-small', "
-            "4, 'cosine', true, '1', '1', :index_table, :status, :now, :now)"
+            "4, 'cosine', true, '1', '1', "
+            f"'{'a' * 64}', :index_table, :status, :now, :now)"
         )
         rollup_columns = (
             "INSERT INTO retrieval_query_rollups "

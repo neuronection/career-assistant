@@ -230,7 +230,7 @@ def read_space_statuses(session: Session) -> list[dict[str, Any]]:
                 "normalize": row.normalize,
                 "composer_version": row.composer_version,
                 "chunker_version": row.chunker_version,
-                "space_key": canonical_space(row).key,
+                "space_key": row.space_key,
                 "backend": physical_detail["backend"],
                 "index_table": row.index_table,
                 "index_present": physical_detail["index_present"],

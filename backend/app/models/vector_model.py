@@ -44,6 +44,7 @@ from app.storage.vector_contract import (
     DegradedReason,
     SpaceStatus,
 )
+from app.storage.vector_contract import space_key as make_space_key
 
 # Index tables are named from the space UUID by the provisioning seam:
 # ``vec_`` + 8 lowercase hex characters. The DB CHECK pins the portable
@@ -73,6 +74,21 @@ _INDEX_TABLE_CHECK = (
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _computed_space_key(context) -> str:
+    """Stamp a new row with the v1 key of its configuration (once, at insert)."""
+    values = context.get_current_parameters()
+    return make_space_key(
+        values["provider"],
+        values["model"],
+        int(values["dim"]),
+        bool(values.get("normalize", True)),
+        values.get("query_prefix"),
+        values.get("document_prefix"),
+        str(values.get("chunker_version") or "1"),
+        str(values.get("composer_version") or "1"),
+    )
 
 
 class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -124,6 +140,9 @@ class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     query_prefix: Mapped[str | None] = mapped_column(String(80), nullable=True)
     document_prefix: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Persisted identity: stamped once at creation and never recomputed across
+    # tokenizer/chunker versions. Remap/cutover compares this value verbatim.
+    space_key: Mapped[str] = mapped_column(String(64), nullable=False, default=_computed_space_key)
     # Physical ANN table; NULL while the linear backend is the store.
     index_table: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(

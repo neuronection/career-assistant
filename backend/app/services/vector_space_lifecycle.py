@@ -324,7 +324,7 @@ class VectorSpaceLifecycleService:
             space_id=str(row.id),
             name=canonical.name,
             status=canonical.status.value,
-            space_key=canonical.key,
+            space_key=row.space_key,
             backend=provision.backend,
             index_table=provision.index_table,
             dim=canonical.dim,
@@ -418,7 +418,7 @@ class VectorSpaceLifecycleService:
             target_id = row.id
             target_name = row.name
             target_status = row.status
-            target_key = canonical_space(row).key
+            target_key = row.space_key
             if target_status == SpaceStatus.RETIRED.value:
                 raise SpaceStateError(f"space {target_name!r} is retired and cannot be activated")
             if target_status == SpaceStatus.BUILDING.value:
@@ -448,7 +448,7 @@ class VectorSpaceLifecycleService:
                 return ActivationResult(
                     space_id=str(target.id),
                     name=target.name,
-                    space_key=canonical_space(target).key,
+                    space_key=target.space_key,
                     already_active=target.status == SpaceStatus.ACTIVE.value,
                 )
             previous = [
@@ -456,7 +456,7 @@ class VectorSpaceLifecycleService:
                 for candidate in rows
                 if candidate.status == SpaceStatus.ACTIVE.value and candidate.id != target.id
             ]
-            previous_keys = [canonical_space(candidate).key for candidate in previous]
+            previous_keys = [candidate.space_key for candidate in previous]
             previous_ids = [str(candidate.id) for candidate in previous]
             if previous_keys and self.db is None:
                 raise SpaceLifecycleError(
@@ -475,7 +475,7 @@ class VectorSpaceLifecycleService:
             target.activated_at = now
             target.retired_at = None
             session.commit()
-            target_key = canonical_space(target).key
+            target_key = target.space_key
 
         remap_ids: list[str] = []
         for old_key in dict.fromkeys(previous_keys):

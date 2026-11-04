@@ -46,7 +46,7 @@ from app.services.vector_space_lifecycle import (
 )
 from app.storage import retrieval_ops as ops
 from app.storage.vector_contract import METRICS, V1_VIEWS
-from app.storage.vector_store import VectorStoreService, canonical_space
+from app.storage.vector_store import VectorStoreService
 
 VECTOR_RECONCILE = BackgroundJobType.VECTOR_RECONCILE.value
 VECTOR_INDEX = BackgroundJobType.VECTOR_INDEX.value
@@ -609,7 +609,7 @@ async def build_space(
             ),
         )
         raise
-    model_changed = bool(active is not None and canonical_space(active).key != built.space_key)
+    model_changed = bool(active is not None and active.space_key != built.space_key)
     audits = [
         emitter.audit_event(
             actor=actor,
