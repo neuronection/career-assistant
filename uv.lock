@@ -601,7 +601,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.2,<2" },
     { name = "langgraph-checkpoint-postgres", specifier = ">=3,<4" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3,<4" },
-    { name = "neuronection-auth-kit", git = "https://github.com/neuronection/auth-kit?rev=eb3499103ce91cb52e3282c72129f72ed419f3bb" },
+    { name = "neuronection-auth-kit", git = "https://github.com/neuronection/auth-kit?rev=adb60c4de728cea6cb6e68b3edb1aec4499d0feb" },
     { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.45.1" },
     { name = "opentelemetry-exporter-otlp-proto-http", marker = "extra == 'otel'", specifier = ">=1.45.1" },
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.45.1" },
@@ -2575,8 +2575,8 @@ wheels = [
 
 [[package]]
 name = "neuronection-auth-kit"
-version = "0.4.0"
-source = { git = "https://github.com/neuronection/auth-kit?rev=eb3499103ce91cb52e3282c72129f72ed419f3bb#eb3499103ce91cb52e3282c72129f72ed419f3bb" }
+version = "0.5.0"
+source = { git = "https://github.com/neuronection/auth-kit?rev=adb60c4de728cea6cb6e68b3edb1aec4499d0feb#adb60c4de728cea6cb6e68b3edb1aec4499d0feb" }
 dependencies = [
     { name = "bcrypt" },
     { name = "cryptography" },
