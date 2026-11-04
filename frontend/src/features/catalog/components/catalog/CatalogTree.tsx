@@ -187,7 +187,14 @@ export function CatalogTree() {
           </div>
         </div>
 
-        <RecentSearches scope="catalog" onApply={applySearch} refreshKey={historyKey} />
+        <RecentSearches
+          scope="catalog"
+          onApply={applySearch}
+          refreshKey={historyKey}
+          max={4}
+          hideEmptyFiltersOnly
+          rail
+        />
       </div>
     </div>
   );

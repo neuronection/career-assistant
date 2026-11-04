@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
 import { JobCard } from "@/features/catalog/components/JobCard";
@@ -152,6 +152,17 @@ describe("JobCard engagement state", () => {
 });
 
 describe("Recent searches", () => {
+  const makeRecord = (id: string, over: Partial<SearchRecord> = {}): SearchRecord => ({
+    id,
+    scope: "catalog",
+    query: `query-${id}`,
+    filters: {},
+    result_count: 1,
+    saved: false,
+    created_at: "2026-08-31T00:00:00Z",
+    ...over,
+  });
+
   it("lists records, re-runs on click and deletes", async () => {
     const onApply = vi.fn();
     const record: SearchRecord = {
@@ -173,6 +184,67 @@ describe("Recent searches", () => {
 
     fireEvent.click(screen.getByLabelText("Delete search"));
     await waitFor(() => expect(deleteSearch).toHaveBeenCalledWith("s1"));
+  });
+
+  it("keeps the rankings list at six records including filters-only rows", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([
+      makeRecord("f", { scope: "rankings", query: "", result_count: 0 }),
+      makeRecord("1", { scope: "rankings" }),
+      makeRecord("2", { scope: "rankings" }),
+      makeRecord("3", { scope: "rankings" }),
+      makeRecord("4", { scope: "rankings" }),
+      makeRecord("5", { scope: "rankings" }),
+      makeRecord("6", { scope: "rankings" }),
+      makeRecord("7", { scope: "rankings" }),
+    ]);
+
+    render(<RecentSearches scope="rankings" onApply={vi.fn()} />);
+    const root = await screen.findByTestId("recent-searches-rankings");
+    expect(within(root).getAllByTestId("recent-search-item")).toHaveLength(6);
+    expect(within(root).getByText("filters only")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-recent-panel")).not.toBeInTheDocument();
+  });
+
+  it("caps the catalog rail at four real records and drops filters-only rows", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([
+      makeRecord("f", { query: "", result_count: 0 }),
+      makeRecord("1"),
+      makeRecord("2"),
+      makeRecord("3"),
+      makeRecord("4"),
+      makeRecord("5"),
+    ]);
+
+    render(
+      <RecentSearches
+        scope="catalog"
+        onApply={vi.fn()}
+        max={4}
+        hideEmptyFiltersOnly
+        rail
+      />
+    );
+    const panel = await screen.findByTestId("catalog-recent-panel");
+    expect(await within(panel).findAllByTestId("recent-search-item")).toHaveLength(4);
+    expect(within(panel).queryByText("filters only")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when the catalog panel has only filters-only records", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([makeRecord("f", { query: "", result_count: 0 })]);
+
+    const { container } = render(
+      <RecentSearches
+        scope="catalog"
+        onApply={vi.fn()}
+        max={4}
+        hideEmptyFiltersOnly
+        rail
+      />
+    );
+    await waitFor(() => expect(fetchSearches).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="catalog-recent-panel"]')).toBeNull()
+    );
   });
 });
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes, useSearchParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import { Catalog } from "@/features/catalog/pages/Catalog";
 import { CatalogTree } from "@/features/catalog/components/catalog/CatalogTree";
 import { useCatalogStore } from "@/stores/catalogStore";
 import * as jobsApi from "@/api/jobs";
+import { fetchSearches } from "@/api/engagement";
 import type { Job } from "@/types/wire";
 import type { JobFamilyNode } from "@/types";
 
@@ -125,6 +126,7 @@ beforeEach(() => {
     filters: {},
   });
   vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
+  vi.mocked(fetchSearches).mockResolvedValue([]);
   vi.mocked(jobsApi.fetchJobs).mockResolvedValue({
     items: [job()],
     total: 1,
@@ -221,6 +223,35 @@ describe("catalog filter rail", () => {
       expect(screen.getByTestId("search-probe")).toHaveTextContent("education=bachelor")
     );
     expect(screen.getByTestId("catalog-chip-education-bachelor")).toBeInTheDocument();
+  });
+
+  it("applies a recent catalog search to the URL from the right rail", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchSearches).mockResolvedValue([
+      {
+        id: "r1",
+        scope: "catalog",
+        query: "nurse",
+        filters: { family_key: "healthcare" },
+        result_count: 3,
+        saved: false,
+        created_at: "2026-08-31T00:00:00Z",
+      },
+    ]);
+    renderCatalog();
+
+    const panel = await screen.findByTestId("catalog-recent-panel");
+    expect(panel.parentElement).toHaveClass("ca-stats-cols");
+    await user.click(within(panel).getByTestId("recent-search-item"));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("search-probe")).toHaveTextContent("q=nurse&family=healthcare")
+    );
+    await waitFor(() =>
+      expect(jobsApi.fetchJobs).toHaveBeenCalledWith(
+        expect.objectContaining({ q: "nurse", family_key: "healthcare" })
+      )
+    );
   });
 
   it("canonicalizes an unknown parameter on mount", async () => {
