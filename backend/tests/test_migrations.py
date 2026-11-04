@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0092"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0093"], (
         "revision chain stays linear on one head"
     )
 
@@ -4395,3 +4395,17 @@ def test_0092_profile_link_urls_roundtrip():
     finally:
         asyncio.run(run("DELETE FROM profiles WHERE id = :id", {"id": str(profile_id)}))
         asyncio.run(run("DELETE FROM users WHERE id = :id", {"id": str(user_id)}))
+
+
+def test_0093_job_progress_detail_roundtrip():
+    """Plan 52 T4: the nullable bounded progress detail exists at head,
+    disappears on downgrade and returns on re-upgrade (both dialects)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "progress_detail"), "live detail at head"
+
+    command.downgrade(config, "0092")
+    assert not _column_present("background_jobs", "progress_detail")
+
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "progress_detail")

@@ -440,6 +440,21 @@ async def _vector_jobs(
     return resolved, unattributed, len(jobs) >= scan_limit
 
 
+def _progress_detail(job: BackgroundJob) -> ops.RunProgressDTO | None:
+    """The stored live counters, validated through the family contract.
+
+    ``None`` for jobs that never wrote a detail (every non-vector family) and
+    for a malformed row; the run itself still reads normally.
+    """
+    raw = job.progress_detail
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return ops.RunProgressDTO(**dict(raw))
+    except (TypeError, ValueError):
+        return None
+
+
 def _run_dto(run: _Run) -> ops.RunDTO:
     job = run.job
     return ops.RunDTO(
@@ -459,6 +474,7 @@ def _run_dto(run: _Run) -> ops.RunDTO:
         cancel_requested=bool(job.cancel_requested),
         idempotency_key=job.idempotency_key,
         lock_key=job.lock_key,
+        progress_detail=_progress_detail(job),
     )
 
 

@@ -1178,3 +1178,79 @@ async def test_document_status_payload_never_carries_source_text(client, db, aut
     ops.assert_no_raw_text(response.json())
     assert POSTING_TEXT not in response.text
     assert "description" not in response.text
+
+
+# --------------------------------------------------- live progress (plan 52 T4)
+
+
+async def test_run_reads_carry_the_bounded_progress_detail(client, db, auth_headers):
+    space = await _space(db)
+    running = _job(
+        status="running",
+        progress=42,
+        payload={"space_id": str(space.id), "kinds": ["posting"]},
+        heartbeat_at=_now(),
+        progress_detail={
+            "phase": "embedding",
+            "processed_documents": 120,
+            "total_documents": 500,
+            "processed_chunks": 340,
+            "pending_chunks": 1110,
+            "total_chunks": 1450,
+            "chunks_estimated": True,
+            "embedded_chunks": 320,
+            "skipped_chunks": 20,
+            "failed_chunks": 0,
+            "embedded_documents": 118,
+            "skipped_documents": 2,
+            "failed_documents": 0,
+            "tokens": 184000,
+            "tokens_estimated": False,
+            "embed_calls": 7,
+            "exact_tokenizer": True,
+            "done": False,
+        },
+    )
+    done = _job(
+        status="succeeded",
+        payload={"space_id": str(space.id)},
+        result={"scanned": 1, "embedded": 1, "skipped": 0, "failed": 0},
+        finished_at=_now(),
+    )
+    db.add_all([running, done])
+    await db.commit()
+
+    listed = (
+        await client.get("/api/v1/admin/retrieval/runs?window=24h", headers=auth_headers)
+    ).json()
+    by_id = {row["run_id"]: row for row in listed["runs"]}
+    detail = by_id[str(running.id)]["progress_detail"]
+    assert detail["phase"] == "embedding"
+    assert detail["total_documents"] == 500, "the exact scan-start total is exposed"
+    assert detail["processed_documents"] == 120
+    assert detail["pending_chunks"] == 1110
+    assert detail["chunks_estimated"] is True, "estimated chunks are labelled"
+    assert detail["embedded_chunks"] == 320 and detail["skipped_chunks"] == 20
+    assert detail["tokens"] == 184000 and detail["exact_tokenizer"] is True
+    assert by_id[str(done.id)]["progress_detail"] is None, "a committed result carries no detail"
+    ops.assert_no_raw_text(listed)
+
+    single = (
+        await client.get(f"/api/v1/admin/retrieval/runs/{running.id}", headers=auth_headers)
+    ).json()
+    assert single["detail"]["run"]["progress_detail"]["tokens"] == 184000
+    ops.assert_no_raw_text(single)
+
+
+async def test_a_malformed_progress_detail_reads_as_absent(client, db, auth_headers):
+    space = await _space(db)
+    job = _job(
+        status="running",
+        payload={"space_id": str(space.id)},
+        progress_detail={"phase": "bogus", "processed_documents": -3},
+    )
+    db.add(job)
+    await db.commit()
+
+    body = (await client.get(f"/api/v1/admin/retrieval/runs/{job.id}", headers=auth_headers)).json()
+    assert body["detail"]["run"]["progress_detail"] is None

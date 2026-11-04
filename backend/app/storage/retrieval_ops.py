@@ -155,6 +155,10 @@ VECTOR_AUDIT_EVENTS = (
 )
 
 FAILED_IDS_LIMIT = 500
+#: The live indexing phases a run's ``progress_detail`` may report. ``queued``
+#: is the pre-claim state; ``done`` is the terminal report before the result
+#: replaces the detail (the detail is pruned when the result commits).
+RUN_PROGRESS_PHASES = ("queued", "scanning", "embedding", "writing", "done")
 COVERAGE_GATE = 0.995
 QUALITY_K_DEFAULT = 5
 QUALITY_FLOOR_RECALL = 0.80
@@ -516,6 +520,80 @@ class RunResultDTO(_DTO):
 
 
 @dataclass(frozen=True)
+class RunProgressDTO(_DTO):
+    """Bounded live indexing counters (plan 52 T4) — counts only, never ids/text.
+
+    ``total_documents`` is exact at scan start (and carried across a chained
+    reconcile). Chunk totals are cumulative/estimated because no full corpus
+    pre-scan exists: ``chunks_estimated`` says so explicitly and
+    ``pending_chunks`` is the estimated remainder, never a fake exact number.
+    ``tokens`` is the local tokenizer's count (``exact_tokenizer`` decides
+    whether it is exact); ``None`` means the run did not measure tokens.
+    """
+
+    phase: str = "queued"
+    processed_documents: int = 0
+    total_documents: int = 0
+    processed_chunks: int = 0
+    pending_chunks: int = 0
+    total_chunks: int | None = None
+    chunks_estimated: bool = True
+    embedded_chunks: int = 0
+    skipped_chunks: int = 0
+    failed_chunks: int = 0
+    embedded_documents: int = 0
+    skipped_documents: int = 0
+    failed_documents: int = 0
+    tokens: int | None = None
+    tokens_estimated: bool = False
+    embed_calls: int = 0
+    exact_tokenizer: bool = False
+    done: bool = False
+
+    def __post_init__(self) -> None:
+        phase = _text(self.phase, "phase", required=True, maximum=40)
+        if phase not in RUN_PROGRESS_PHASES:
+            raise _bad("phase", f"must be one of {RUN_PROGRESS_PHASES}")
+        object.__setattr__(self, "phase", phase)
+        for name in (
+            "processed_documents",
+            "total_documents",
+            "processed_chunks",
+            "pending_chunks",
+            "embedded_chunks",
+            "skipped_chunks",
+            "failed_chunks",
+            "embedded_documents",
+            "skipped_documents",
+            "failed_documents",
+            "embed_calls",
+        ):
+            object.__setattr__(self, name, _int(getattr(self, name), name))
+        object.__setattr__(
+            self, "total_chunks", _optional_int(self.total_chunks, "total_chunks")
+        )
+        object.__setattr__(self, "tokens", _optional_int(self.tokens, "tokens"))
+        for name in (
+            "chunks_estimated",
+            "tokens_estimated",
+            "exact_tokenizer",
+            "done",
+        ):
+            object.__setattr__(self, name, bool(getattr(self, name)))
+
+    @property
+    def document_share(self) -> float | None:
+        """Processed/total documents, or ``None`` when the scan had no rows."""
+        if self.total_documents <= 0:
+            return None
+        return min(self.processed_documents / self.total_documents, 1.0)
+
+    @property
+    def pending_documents(self) -> int:
+        return max(self.total_documents - self.processed_documents, 0)
+
+
+@dataclass(frozen=True)
 class RunDTO(_DTO):
     """One row of the Runs section (result only on the detail read)."""
 
@@ -535,6 +613,7 @@ class RunDTO(_DTO):
     cancel_requested: bool = False
     idempotency_key: str | None = None
     lock_key: str | None = None
+    progress_detail: RunProgressDTO | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -575,6 +654,16 @@ class RunDTO(_DTO):
         ):
             object.__setattr__(self, name, _optional_text(getattr(self, name), name))
         object.__setattr__(self, "cancel_requested", bool(self.cancel_requested))
+        detail = self.progress_detail
+        if detail is None:
+            parsed = None
+        elif isinstance(detail, RunProgressDTO):
+            parsed = detail
+        elif isinstance(detail, Mapping):
+            parsed = RunProgressDTO(**dict(detail))
+        else:
+            raise _bad("progress_detail", "must be a progress detail object")
+        object.__setattr__(self, "progress_detail", parsed)
 
     @property
     def active(self) -> bool:
@@ -1598,6 +1687,7 @@ DATA_SEAM_INVENTORY = (
     "retrieval_coverage_snapshots :: operational (TTL 90d — latest snapshot wins; cold means never reconciled)",
     "background_jobs.idempotency_key :: indexed request replay key (partial unique on job_type+idempotency_key; 24h TTL)",
     "background_jobs.lock_key :: partial unique active-run lock (vector_space:<space_id>; queued/running only)",
+    "background_jobs.progress_detail :: bounded live counters (documents/chunks/tokens; no ids or text; pruned when the final result commits)",
 )
 
 
@@ -1661,6 +1751,7 @@ __all__ = [
     "RETRIEVAL_COVERAGE_SNAPSHOTS",
     "RETRIEVAL_QUERY_ROLLUPS",
     "RETRIEVAL_SCHEMA_VERSION",
+    "RUN_PROGRESS_PHASES",
     "SPACE_DROP_GRACE_DAYS",
     "STALL_MINUTES",
     "V1_VIEWS",
@@ -1690,6 +1781,7 @@ __all__ = [
     "RollupSpec",
     "RunDTO",
     "RunDetailDTO",
+    "RunProgressDTO",
     "RunResultDTO",
     "RunScope",
     "RunStatus",

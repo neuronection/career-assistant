@@ -945,7 +945,27 @@
         "started_at": "2026-11-03T06:01:00Z",
         "heartbeat_at": "2026-11-03T06:02:00Z",
         "idempotency_key": "req-abc12345",
-        "lock_key": "vector_space:space-content"
+        "lock_key": "vector_space:space-content",
+        "progress_detail": {
+          "phase": "embedding",
+          "processed_documents": 120,
+          "total_documents": 500,
+          "processed_chunks": 340,
+          "pending_chunks": 1110,
+          "total_chunks": 1450,
+          "chunks_estimated": true,
+          "embedded_chunks": 320,
+          "skipped_chunks": 20,
+          "failed_chunks": 0,
+          "embedded_documents": 118,
+          "skipped_documents": 2,
+          "failed_documents": 0,
+          "tokens": 184000,
+          "tokens_estimated": false,
+          "embed_calls": 7,
+          "exact_tokenizer": true,
+          "done": false
+        }
       },
       "expect": {
         "active": true,
@@ -1761,7 +1781,8 @@
       "retrieval_query_rollups :: operational (TTL 30d — aggregate, not an audit ledger)",
       "retrieval_coverage_snapshots :: operational (TTL 90d — latest snapshot wins; cold means never reconciled)",
       "background_jobs.idempotency_key :: indexed request replay key (partial unique on job_type+idempotency_key; 24h TTL)",
-      "background_jobs.lock_key :: partial unique active-run lock (vector_space:<space_id>; queued/running only)"
+      "background_jobs.lock_key :: partial unique active-run lock (vector_space:<space_id>; queued/running only)",
+      "background_jobs.progress_detail :: bounded live counters (documents/chunks/tokens; no ids or text; pruned when the final result commits)"
     ],
     "quality": {
       "fixtureVersion": 1,
@@ -2692,6 +2713,20 @@
           "d1"
         ],
         "limit": 0
+      }
+    },
+    {
+      "name": "progress-phase",
+      "call": "RunProgressDTO",
+      "payload": {
+        "phase": "bogus"
+      }
+    },
+    {
+      "name": "progress-negative-counter",
+      "call": "RunProgressDTO",
+      "payload": {
+        "processed_documents": -1
       }
     }
   ]
