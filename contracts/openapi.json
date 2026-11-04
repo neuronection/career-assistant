@@ -13668,6 +13668,111 @@
         "title": "ModelOut",
         "type": "object"
       },
+      "ModelProfileRequest": {
+        "description": "One bounded admin embedding-tokenizer/limits override.\n\nThe provider class + model pair is the key. The tokenizer kind is\nrestricted to what this build can actually load (bundled ``tiktoken`` or\nthe conservative heuristic); plan 52 T2b adds HF assets behind the same\ncontract. The server derives ``exact`` and ``source`` \u2014 a client cannot\ndeclare a heuristic as exact.",
+        "properties": {
+          "batch_max_items": {
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Batch Max Items",
+            "type": "integer"
+          },
+          "batch_max_tokens": {
+            "maximum": 10000000.0,
+            "minimum": 1.0,
+            "title": "Batch Max Tokens",
+            "type": "integer"
+          },
+          "chunk_max_chars": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Chunk Max Chars",
+            "type": "integer"
+          },
+          "chunk_max_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 32.0,
+            "title": "Chunk Max Tokens",
+            "type": "integer"
+          },
+          "chunk_overlap_tokens": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Chunk Overlap Tokens",
+            "type": "integer"
+          },
+          "max_input_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Input Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider_class": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Provider Class",
+            "type": "string"
+          },
+          "tokenizer_artifact_sha256": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[0-9a-fA-F]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset",
+            "title": "Tokenizer Artifact Sha256"
+          },
+          "tokenizer_identifier": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Tokenizer Identifier",
+            "type": "string"
+          },
+          "tokenizer_kind": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Tokenizer Kind",
+            "type": "string"
+          },
+          "tokenizer_revision": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokenizer Revision"
+          }
+        },
+        "required": [
+          "provider_class",
+          "model",
+          "tokenizer_kind",
+          "tokenizer_identifier",
+          "max_input_tokens",
+          "batch_max_items",
+          "batch_max_tokens",
+          "chunk_max_tokens",
+          "chunk_max_chars"
+        ],
+        "title": "ModelProfileRequest",
+        "type": "object"
+      },
       "ModelUpdate": {
         "properties": {
           "caps": {
@@ -30969,6 +31074,180 @@
           }
         },
         "summary": "Retrieval Maintenance",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/model-profiles": {
+      "delete": {
+        "description": "Drop the admin override; the curated profile (or fallback) returns.",
+        "operationId": "retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete",
+        "parameters": [
+          {
+            "description": "provider type/label of the override",
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "description": "provider type/label of the override",
+              "maxLength": 40,
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "description": "embedding model id of the override",
+            "in": "query",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "description": "embedding model id of the override",
+              "maxLength": 200,
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Delete Model Profile Api V1 Admin Retrieval Model Profiles Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Delete Model Profile",
+        "tags": [
+          "retrieval-admin"
+        ]
+      },
+      "get": {
+        "description": "The curated catalog + admin overrides + the effective profile.\n\nWith ``provider`` and ``model`` the ``resolution`` previews that exact\npair (the build-space selector); without them it describes the assigned\nembedding model. Curated profiles are read-only code facts; admin rows\nare the explicit override. Nothing here rechunks or cuts over a space.",
+        "operationId": "retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get",
+        "parameters": [
+          {
+            "description": "provider type/label for a preview resolution",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "provider type/label for a preview resolution",
+              "title": "Provider"
+            }
+          },
+          {
+            "description": "embedding model id for a preview resolution",
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "embedding model id for a preview resolution",
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Model Profiles Api V1 Admin Retrieval Model Profiles Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Model Profiles",
+        "tags": [
+          "retrieval-admin"
+        ]
+      },
+      "put": {
+        "description": "Save one bounded admin tokenizer/limit override for a model pair.",
+        "operationId": "retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Save Model Profile Api V1 Admin Retrieval Model Profiles Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Save Model Profile",
         "tags": [
           "retrieval-admin"
         ]

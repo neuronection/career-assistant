@@ -19,12 +19,21 @@ async def test_report_returns_tokenizer_limits_and_reference_aggregates(client, 
         "state",
         "model",
         "tokenizer",
+        "profile",
         "chunking",
         "reference",
         "corpus",
         "shadow",
     }
     assert body["tokenizer"]["kind"] in ("tiktoken", "heuristic")
+    assert body["tokenizer"]["source"] in ("curated", "admin", "fallback")
+    assert body["profile"]["source"] == body["tokenizer"]["source"]
+    assert body["profile"]["batch_max_items"] > 0
+    assert body["profile"]["batch_max_tokens"] > 0
+    assert body["profile"]["chunk"]["max_chunk_tokens"] > 0
+    assert body["profile"]["chunk"]["overlap_tokens"] >= 0
+    assert body["profile"]["chunk"]["max_chars"] > 0
+    assert body["profile"]["max_input_tokens"] == body["tokenizer"]["max_input_tokens"]
     assert isinstance(body["tokenizer"]["exact"], bool)
     assert body["tokenizer"]["max_input_tokens"] > 0
     assert body["chunking"]["max_chunk_chars"] == 1600

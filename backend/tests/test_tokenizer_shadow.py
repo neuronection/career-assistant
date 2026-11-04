@@ -11,7 +11,11 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-from app.ai.tokenizers import TokenizerService, resolve_tokenizer_spec
+from app.ai.tokenizers import (
+    TokenizerService,
+    resolve_embedding_profile,
+    resolve_tokenizer_spec,
+)
 from app.services import tokenizer_report
 from app.services.vector_composers import (
     BODY_CHUNK_CHARS,
@@ -108,9 +112,7 @@ def test_measure_reference_exposes_the_multilingual_mismatch():
 
 def test_reference_heuristic_is_visibly_approximate_and_still_counted():
     service = TokenizerService()
-    spec = tokenizer_report.resolve_embedding_profile(
-        "openai_compatible", "nomic-embed-text"
-    ).tokenizer
+    spec = resolve_embedding_profile("openai_compatible", "nomic-embed-text").tokenizer
     report = tokenizer_report.measure_reference(spec=spec, service=service)
     assert report["exact"] is False
     assert all(row["tokens"] > 0 for row in report["samples"])

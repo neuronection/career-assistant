@@ -1839,6 +1839,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/model-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Model Profiles
+         * @description The curated catalog + admin overrides + the effective profile.
+         *
+         *     With ``provider`` and ``model`` the ``resolution`` previews that exact
+         *     pair (the build-space selector); without them it describes the assigned
+         *     embedding model. Curated profiles are read-only code facts; admin rows
+         *     are the explicit override. Nothing here rechunks or cuts over a space.
+         */
+        get: operations["retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get"];
+        /**
+         * Retrieval Save Model Profile
+         * @description Save one bounded admin tokenizer/limit override for a model pair.
+         */
+        put: operations["retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put"];
+        post?: never;
+        /**
+         * Retrieval Delete Model Profile
+         * @description Drop the admin override; the curated profile (or fallback) returns.
+         */
+        delete: operations["retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/overview": {
         parameters: {
             query?: never;
@@ -15076,6 +15109,48 @@ export interface components {
             /** Tier */
             tier?: string | null;
         };
+        /**
+         * ModelProfileRequest
+         * @description One bounded admin embedding-tokenizer/limits override.
+         *
+         *     The provider class + model pair is the key. The tokenizer kind is
+         *     restricted to what this build can actually load (bundled ``tiktoken`` or
+         *     the conservative heuristic); plan 52 T2b adds HF assets behind the same
+         *     contract. The server derives ``exact`` and ``source`` — a client cannot
+         *     declare a heuristic as exact.
+         */
+        ModelProfileRequest: {
+            /** Batch Max Items */
+            batch_max_items: number;
+            /** Batch Max Tokens */
+            batch_max_tokens: number;
+            /** Chunk Max Chars */
+            chunk_max_chars: number;
+            /** Chunk Max Tokens */
+            chunk_max_tokens: number;
+            /**
+             * Chunk Overlap Tokens
+             * @default 0
+             */
+            chunk_overlap_tokens: number;
+            /** Max Input Tokens */
+            max_input_tokens: number;
+            /** Model */
+            model: string;
+            /** Provider Class */
+            provider_class: string;
+            /**
+             * Tokenizer Artifact Sha256
+             * @description packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset
+             */
+            tokenizer_artifact_sha256?: string | null;
+            /** Tokenizer Identifier */
+            tokenizer_identifier: string;
+            /** Tokenizer Kind */
+            tokenizer_kind: string;
+            /** Tokenizer Revision */
+            tokenizer_revision?: string | null;
+        };
         /** ModelUpdate */
         ModelUpdate: {
             /** Caps */
@@ -22986,6 +23061,113 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get: {
+        parameters: {
+            query?: {
+                /** @description provider type/label for a preview resolution */
+                provider?: string | null;
+                /** @description embedding model id for a preview resolution */
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete: {
+        parameters: {
+            query: {
+                /** @description provider type/label of the override */
+                provider: string;
+                /** @description embedding model id of the override */
+                model: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

@@ -26,10 +26,10 @@ from app.core.database import get_db, sync_engine
 from app.core.errors import NotFoundError, ValidationError
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.services import embedding_profiles, tokenizer_report
 from app.services import retrieval_actions as actions
 from app.services import retrieval_jobs as retrieval_jobs
 from app.services import retrieval_ops_reads as reads
-from app.services import tokenizer_report
 from app.services.audit import emitter
 from app.services.deps import require_admin
 from app.services.vector_reconcile_service import (
@@ -172,6 +172,37 @@ class BuildSpaceRequest(BaseModel):
     query_prefix: str | None = Field(default=None, max_length=80)
     document_prefix: str | None = Field(default=None, max_length=80)
     idempotency_key: str | None = Field(default=None)
+
+
+class ModelProfileRequest(BaseModel):
+    """One bounded admin embedding-tokenizer/limits override.
+
+    The provider class + model pair is the key. The tokenizer kind is
+    restricted to what this build can actually load (bundled ``tiktoken`` or
+    the conservative heuristic); plan 52 T2b adds HF assets behind the same
+    contract. The server derives ``exact`` and ``source`` — a client cannot
+    declare a heuristic as exact.
+    """
+
+    provider_class: str = Field(..., min_length=1, max_length=40)
+    model: str = Field(..., min_length=1, max_length=200)
+    tokenizer_kind: str = Field(..., min_length=1, max_length=30)
+    tokenizer_identifier: str = Field(..., min_length=1, max_length=200)
+    tokenizer_revision: str | None = Field(default=None, max_length=120)
+    tokenizer_artifact_sha256: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern="^[0-9a-fA-F]{64}$",
+        description=(
+            "packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset"
+        ),
+    )
+    max_input_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_INPUT_TOKENS)
+    batch_max_items: int = Field(..., ge=1, le=embedding_profiles.MAX_BATCH_ITEMS)
+    batch_max_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_BATCH_TOKENS)
+    chunk_max_tokens: int = Field(..., ge=32, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    chunk_overlap_tokens: int = Field(default=0, ge=0, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    chunk_max_chars: int = Field(..., ge=1, le=embedding_profiles.MAX_CHUNK_CHARS)
 
 
 class TypedSpaceRequest(BaseModel):
@@ -359,6 +390,93 @@ async def retrieval_tokenizer(
             f"(expected one of {INDEXABLE_KINDS})"
         )
     return _guarded(await tokenizer_report.build_report(db, kinds=selected, limit_per_kind=limit))
+
+
+@router.get("/model-profiles")
+async def retrieval_model_profiles(
+    provider: str | None = Query(
+        default=None,
+        max_length=embedding_profiles.MAX_PROVIDER_CLASS_LENGTH,
+        description="provider type/label for a preview resolution",
+    ),
+    model: str | None = Query(
+        default=None,
+        max_length=embedding_profiles.MAX_MODEL_LENGTH,
+        description="embedding model id for a preview resolution",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The curated catalog + admin overrides + the effective profile.
+
+    With ``provider`` and ``model`` the ``resolution`` previews that exact
+    pair (the build-space selector); without them it describes the assigned
+    embedding model. Curated profiles are read-only code facts; admin rows
+    are the explicit override. Nothing here rechunks or cuts over a space.
+    """
+    if (provider is None) != (model is None):
+        raise ValidationError("pass both provider and model, or neither")
+    return _guarded(await embedding_profiles.list_payload(db, provider=provider, model=model))
+
+
+@router.put("/model-profiles")
+async def retrieval_save_model_profile(
+    request: ModelProfileRequest,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Save one bounded admin tokenizer/limit override for a model pair."""
+    profile = embedding_profiles.build_override(
+        provider=request.provider_class,
+        model=request.model,
+        tokenizer_kind=request.tokenizer_kind,
+        tokenizer_identifier=request.tokenizer_identifier,
+        tokenizer_revision=request.tokenizer_revision,
+        tokenizer_artifact_sha256=request.tokenizer_artifact_sha256,
+        max_input_tokens=request.max_input_tokens,
+        batch_max_items=request.batch_max_items,
+        batch_max_tokens=request.batch_max_tokens,
+        chunk_max_tokens=request.chunk_max_tokens,
+        chunk_overlap_tokens=request.chunk_overlap_tokens,
+        chunk_max_chars=request.chunk_max_chars,
+    )
+    saved = await embedding_profiles.save_override(db, actor=user.id, profile=profile)
+    return _guarded(
+        {
+            "state": "ok",
+            "profile": embedding_profiles.profile_dto(saved),
+            "token_aware_writes": False,
+        }
+    )
+
+
+@router.delete("/model-profiles")
+async def retrieval_delete_model_profile(
+    provider: str = Query(
+        ...,
+        max_length=embedding_profiles.MAX_PROVIDER_CLASS_LENGTH,
+        description="provider type/label of the override",
+    ),
+    model: str = Query(
+        ...,
+        max_length=embedding_profiles.MAX_MODEL_LENGTH,
+        description="embedding model id of the override",
+    ),
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Drop the admin override; the curated profile (or fallback) returns."""
+    deleted = await embedding_profiles.delete_override(
+        db, actor=user.id, provider=provider, model=model
+    )
+    resolved = await embedding_profiles.resolve_for(db, provider, model)
+    return _guarded(
+        {
+            "state": "ok",
+            "deleted": deleted,
+            "resolution": embedding_profiles.profile_dto(resolved),
+            "token_aware_writes": False,
+        }
+    )
 
 
 @router.get("/status")

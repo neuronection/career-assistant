@@ -68,15 +68,9 @@ FALLBACK_IDENTIFIER = "utf8-heuristic-v1"
 
 # Curated OpenAI embeddings. Pin the encoding per model — ``text-embedding-3-*``
 # and ``text-embedding-ada-002`` use cl100k_base; o200k_base is a chat
-# encoding and is deliberately absent.
+# encoding and is deliberately absent. The catalog itself lives in
+# :mod:`app.ai.tokenizers.registry` (plan 52 T2a).
 OPENAI_EMBEDDING_MAX_INPUT_TOKENS = 8191
-_OPENAI_CL100K_MODELS = frozenset(
-    {
-        "text-embedding-3-small",
-        "text-embedding-3-large",
-        "text-embedding-ada-002",
-    }
-)
 
 
 class TokenizerUnavailable(RuntimeError):
@@ -86,16 +80,6 @@ class TokenizerUnavailable(RuntimeError):
         self.reason = reason
         self.detail = detail
         super().__init__(f"{reason}: {detail}" if detail else reason)
-
-
-@dataclass(frozen=True)
-class EmbeddingModelProfile:
-    """Minimal model metadata for tokenizer/limit reporting (plan 52 T2 grows it)."""
-
-    provider_class: str
-    model: str
-    tokenizer: TokenizerSpec
-    max_input_assumed: bool = False
 
 
 @dataclass(frozen=True)
@@ -118,16 +102,22 @@ def fallback_spec(max_input_tokens: int = FALLBACK_MAX_INPUT_TOKENS) -> Tokenize
     )
 
 
-def tiktoken_spec(identifier: str = CL100K_BASE) -> TokenizerSpec:
+def tiktoken_spec(
+    identifier: str = CL100K_BASE,
+    *,
+    max_input_tokens: int = OPENAI_EMBEDDING_MAX_INPUT_TOKENS,
+    source: TokenizerSource = TokenizerSource.PROVIDER,
+    artifact_sha256: str | None = CL100K_BASE_BPE_SHA256,
+) -> TokenizerSpec:
     """A pinned exact tiktoken selection (only cl100k_base is bundled today)."""
     if identifier != CL100K_BASE:
         raise TokenizerUnavailable("unsupported_encoding", identifier)
     return TokenizerSpec(
         kind=TokenizerKind.TIKTOKEN,
         identifier=CL100K_BASE,
-        max_input_tokens=OPENAI_EMBEDDING_MAX_INPUT_TOKENS,
-        source=TokenizerSource.PROVIDER,
-        artifact_sha256=CL100K_BASE_BPE_SHA256,
+        max_input_tokens=max_input_tokens,
+        source=source,
+        artifact_sha256=artifact_sha256,
     )
 
 
@@ -141,37 +131,6 @@ def provider_class(provider_type: str | None) -> str:
     if value == "mock":
         return "mock"
     return value or "unknown"
-
-
-def resolve_embedding_profile(
-    provider_type: str | None, model: str | None
-) -> EmbeddingModelProfile:
-    """Resolve the tokenizer/limit profile for one embedding model.
-
-    Curated exact mappings win; everything else is the labelled heuristic
-    fallback. An Ollama/open-source model is never guessed from its name —
-    plan 52 T2 adds the admin override and curated Ollama mappings.
-    """
-    model_name = str(model or "").strip()
-    klass = provider_class(provider_type)
-    if klass == "openai" and model_name in _OPENAI_CL100K_MODELS:
-        return EmbeddingModelProfile(
-            provider_class=klass,
-            model=model_name,
-            tokenizer=tiktoken_spec(),
-            max_input_assumed=False,
-        )
-    return EmbeddingModelProfile(
-        provider_class=klass,
-        model=model_name,
-        tokenizer=fallback_spec(),
-        max_input_assumed=True,
-    )
-
-
-def resolve_tokenizer_spec(provider_type: str | None, model: str | None) -> TokenizerSpec:
-    """Convenience wrapper around :func:`resolve_embedding_profile`."""
-    return resolve_embedding_profile(provider_type, model).tokenizer
 
 
 def _read_bpe_asset(
@@ -354,14 +313,11 @@ __all__ = [
     "FALLBACK_IDENTIFIER",
     "FALLBACK_MAX_INPUT_TOKENS",
     "OPENAI_EMBEDDING_MAX_INPUT_TOKENS",
-    "EmbeddingModelProfile",
     "TokenCount",
     "TokenizerService",
     "TokenizerUnavailable",
     "fallback_spec",
     "get_tokenizer_service",
     "provider_class",
-    "resolve_embedding_profile",
-    "resolve_tokenizer_spec",
     "tiktoken_spec",
 ]

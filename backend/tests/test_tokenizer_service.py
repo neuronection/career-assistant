@@ -44,9 +44,14 @@ def test_openai_embedding_models_pin_cl100k_exactly():
         assert profile.tokenizer.kind is tc.TokenizerKind.TIKTOKEN
         assert profile.tokenizer.identifier == CL100K_BASE
         assert profile.tokenizer.exact is True
-        assert profile.tokenizer.source is tc.TokenizerSource.PROVIDER
+        assert profile.tokenizer.source is tc.TokenizerSource.CURATED
         assert profile.tokenizer.max_input_tokens == OPENAI_EMBEDDING_MAX_INPUT_TOKENS
         assert profile.max_input_assumed is False
+        assert profile.chunk.max_chunk_tokens == 512
+        assert profile.chunk.overlap_tokens == 64
+        assert profile.batch_max_items == 2048
+        assert profile.batch_max_tokens > 0
+        assert profile.chunk.fits(profile.tokenizer.max_input_tokens)
 
 
 def test_unknown_and_non_openai_models_are_labelled_fallback():

@@ -29,9 +29,9 @@ from app.ai.tokenizers import (
     EmbeddingModelProfile,
     TokenizerService,
     get_tokenizer_service,
-    resolve_embedding_profile,
 )
 from app.models.enums import AITaskType
+from app.services import embedding_profiles
 from app.services.vector_composers import (
     BODY_CHUNK_CHARS,
     BODY_CHUNK_OVERLAP_CHARS,
@@ -291,10 +291,12 @@ async def build_report(
 ) -> dict[str, Any]:
     """The Tools -> Retrieval tokenizer/limits report (aggregates only)."""
     tokenizer_service = service or get_tokenizer_service()
-    resolved = await resolution.resolve_task_model(db, AITaskType.EMBED.value, None)
+    resolved = await resolution.resolve_task_model(
+        db, AITaskType.EMBED.value, None, allow_dev_bootstrap=False
+    )
     provider_type = resolved.provider_type if resolved is not None else None
     model_name = resolved.model_name if resolved is not None else None
-    profile = resolve_embedding_profile(provider_type, model_name)
+    profile = await embedding_profiles.resolve_for(db, provider_type, model_name)
     effective, _degraded = tokenizer_service.effective_spec(profile.tokenizer)
 
     reference = measure_reference(spec=effective, service=tokenizer_service)
@@ -313,6 +315,7 @@ async def build_report(
             "max_input_assumed": profile.max_input_assumed,
         },
         "tokenizer": _tokenizer_dict(profile, tokenizer_service),
+        "profile": embedding_profiles.profile_dto(profile, service=tokenizer_service),
         "chunking": {
             "view": "body",
             "max_chunk_chars": BODY_CHUNK_CHARS,
