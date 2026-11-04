@@ -501,7 +501,8 @@
         "Verified nomic/mxbai/bge/Qwen/e5 mappings carry pinned revision, SHA-256, license and source URL",
         "Pinned HF tokenizer.json fetch is allowlisted, size-capped, SHA-256-verified, cached and never request-time",
         "Unfetched/unknown models show the labelled fallback; an admin per provider-class + model can override it",
-        "Measured EN/EL/DE/CJK/code spread plus corpus sample; build preview is read-only until T3"
+        "Measured EN/EL/DE/CJK/code spread plus corpus sample",
+        "Token-aware spaces chunk every view by token ids with exact char/token offsets and a new v2 space key; legacy spaces keep the char chunker until an explicit cutover (build UI wiring follows in T3c)"
       ],
       "links": [
         {

@@ -16,6 +16,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.ai.tokenizers import tiktoken_spec
 from app.models.vector_model import (
     RetrievalCoverageSnapshot,
     VectorDocument,
@@ -35,6 +36,7 @@ from app.services.vector_reconcile_service import (
     parse_since,
 )
 from app.storage import vector_contract as vc
+from app.storage.tokenizer_contract import ChunkConfig
 from app.storage.vector_backends import LinearBackend
 from app.storage.vector_store import VectorStoreService
 from tests.vector_harness import create_sqlite_engine
@@ -599,6 +601,42 @@ async def test_a_failed_document_is_counted_and_bounded(db, engine, monkeypatch)
     assert all(value.startswith("posting:") for value in result.failed_ids)
     assert result.kinds[0].failed == 3
     assert result.kinds[0].missing == 3, "a failed document never counts as embedded"
+
+
+async def test_input_too_long_is_a_bounded_reconcile_failure(db, engine, monkeypatch):
+    """A token-aware item that cannot fit fails once; the run never loops."""
+    postings = [_fake_posting(uuid.uuid4(), title=f"Too long {index}") for index in range(2)]
+    _patch_sources(monkeypatch, postings)
+    store = _store(engine)
+    space = store.create_space(
+        name=SPACE,
+        provider="mock",
+        model="mock-small",
+        dim=64,
+        status=vc.SpaceStatus.BUILDING,
+        tokenizer=tiktoken_spec(max_input_tokens=8191),
+        chunk=ChunkConfig(max_chunk_tokens=32, overlap_tokens=0, max_chars=1),
+    )
+    counter = CountingEmbedder(_mock)
+    service = VectorReconcileService(
+        db,
+        store=store,
+        space_name=SPACE,
+        space_id=space.space_id,
+        provision_backend=vc.BACKEND_LINEAR,
+        kinds=("posting",),
+        embedder=counter,
+    )
+
+    result = await service.run()
+
+    assert result.failed == 2
+    assert result.embedded == 0
+    assert result.done is True, "the failed documents do not keep the run open"
+    assert {value.split(":")[0] for value in result.failed_ids} == {"posting"}
+    assert counter.calls == 0, "the provider is never asked for an oversized item"
+    assert result.kinds[0].failed == 2
+    assert result.kinds[0].missing == 2
 
 
 async def test_failed_ids_are_truncated(db, engine, monkeypatch):

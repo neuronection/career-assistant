@@ -45,6 +45,7 @@ from app.services.vector_space_lifecycle import (
     VectorSpaceLifecycleService,
 )
 from app.storage import retrieval_ops as ops
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 from app.storage.vector_contract import METRICS, V1_VIEWS
 from app.storage.vector_store import VectorStoreService
 
@@ -518,8 +519,16 @@ async def build_space(
     document_prefix: str | None,
     idempotency_key: str,
     actor: uuid.UUID,
+    tokenizer: TokenizerSpec | None = None,
+    chunk: ChunkConfig | None = None,
 ) -> dict[str, Any]:
-    """Provision a ``building`` space through the lifecycle service."""
+    """Provision a ``building`` space through the lifecycle service.
+
+    A token-aware build passes **both** a pinned ``tokenizer`` and a
+    ``chunk`` config; the lifecycle persists them and computes the v2 key.
+    Omitting both keeps the legacy v1 identity. The HTTP request model and
+    client are wired in plan 52 T3c.
+    """
     if metric not in METRICS:
         raise ValidationError(f"unsupported metric {metric!r}; expected one of {METRICS}")
     payload = {
@@ -533,6 +542,10 @@ async def build_space(
         "query_prefix": query_prefix,
         "document_prefix": document_prefix,
     }
+    if tokenizer is not None:
+        payload["tokenizer"] = tokenizer.to_dict()
+    if chunk is not None:
+        payload["chunk"] = chunk.to_dict()
     existing_building = await _building_space_for_name(db, name)
     action_job, deduplicated = await jobs.begin_action_run(
         db,
@@ -566,6 +579,8 @@ async def build_space(
             normalize=bool(normalize),
             query_prefix=query_prefix,
             document_prefix=document_prefix,
+            tokenizer=tokenizer,
+            chunk=chunk,
         )
     except ValueError as exc:
         await jobs.fail_action_run(

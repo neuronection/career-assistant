@@ -4,6 +4,31 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: token-aware chunking and a v2 space identity, 2026-11-04)
+- **A token-aware vector space now chunks every embeddable view by token
+  ids, with exact character offsets, token overlap and token counts.**
+  Summary, requirements, responsibilities, skills and body all split;
+  `max_chars` is a hard ceiling rather than a silent truncation. The model
+  input limit is checked per item (including the document prefix and a small
+  safety margin) and requests are batched by both item count and token sum.
+  An item that still cannot fit is a recorded `input_too_long` failure, not
+  a retry loop.
+- **The tokenizer and chunk configuration are part of the space identity.**
+  `VectorSpace` gains an optional `tokenizer`/`chunk` pair and a
+  `space_key_v2` pre-image; migration `0096` persists the flattened scalars
+  and the record token offsets, while every existing row keeps its stored v1
+  key and NULL tokenizer columns. The effective profile (admin override →
+  curated → fallback, including Hugging Face) drives writes, builds and the
+  live token accounting.
+- **A token-aware space is built beside the legacy one, never re-chunked in
+  place.** `vector_spaces.py build --token-aware` (or the lifecycle/action
+  service with an explicit tokenizer and chunk) builds it, the ordinary
+  backfill writes the token records, and activation still requires the
+  coverage and golden-query quality gates. The retired space's stored key
+  drives the posting remap and the old space is retained. The Tools/Audit
+  build controls, OpenAPI client and Study parity are the following slices
+  (T3c/T5).
+
 ### Fixed (retrieval: a space keeps its identity through a cutover, 2026-11-04)
 - **A vector space now stores its space key on the row, so a later
   tokenizer/chunker version can never change what an existing space is.**

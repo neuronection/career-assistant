@@ -19,6 +19,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.ai.gateway import MOCK_EMBED_DIM
+from app.ai.tokenizers import tiktoken_spec
 from app.core.database import sync_engine
 from app.extensions.sdk import RawPosting
 from app.models.background_job_model import BackgroundJob
@@ -40,6 +41,7 @@ from app.services.vector_space_lifecycle import (
     VectorSpaceLifecycleService,
 )
 from app.storage import vector_contract as vc
+from app.storage.tokenizer_contract import ChunkConfig
 from app.storage.vector_backends import VectorSpaceMismatch, choose_backend
 from app.storage.vector_provisioning import provision_space
 from app.storage.vector_store import VectorStoreService
@@ -244,6 +246,89 @@ async def test_backfill_indexes_only_the_building_space_with_its_own_coverage(db
         row = session.get(VectorSpaceRow, uuid.UUID(built.space_id))
         assert row is not None
         assert (row.backfill_done, row.backfill_total) == (2, 2)
+
+
+async def test_v2_space_builds_beside_v1_then_backfills_activates_and_remaps(db):
+    """A token-aware space is a new space, never an in-place re-chunk."""
+    old = _create_active(provider="mock", model="mock-small")
+    await _skills(db, 2)
+    service = _service(db)
+    tokenizer = tiktoken_spec(max_input_tokens=8191)
+    chunk = ChunkConfig(max_chunk_tokens=32, overlap_tokens=4, max_chars=120)
+
+    built = await service.build_space(
+        NAME,
+        provider="mock",
+        model="mock-small",
+        dim=DIM,
+        tokenizer=tokenizer,
+        chunk=chunk,
+    )
+    assert built.space_key != old.key, "the tokenizer/chunk fold changes the identity"
+    with Session(sync_engine) as session:
+        row = session.get(VectorSpaceRow, uuid.UUID(built.space_id))
+        assert row is not None
+        assert row.chunker_version == "2"
+        assert row.tokenizer_kind == "tiktoken"
+        assert row.tokenizer_identifier == "cl100k_base"
+        assert row.tokenizer_exact is True
+        assert row.max_input_tokens == 8191
+        assert (row.chunk_max_tokens, row.chunk_overlap_tokens, row.chunk_max_chars) == (
+            32,
+            4,
+            120,
+        )
+        assert row.space_key == built.space_key
+        old_row = session.get(VectorSpaceRow, uuid.UUID(str(old.space_id)))
+        assert old_row is not None and old_row.space_key == old.key
+
+    result = await service.backfill_space(
+        built.space_id,
+        kinds=("skill",),
+        embedder=_mock_embed,
+        scan_limit=50,
+    )
+    assert result.done is True and result.embedded == 2
+    assert _count(sync_engine, VectorDocument, space_id=uuid.UUID(old.space_id or "")) == 0
+    with Session(sync_engine) as session:
+        old_records = list(
+            session.scalars(
+                select(VectorRecord).where(VectorRecord.space_id == uuid.UUID(str(old.space_id)))
+            )
+        )
+        new_records = list(
+            session.scalars(
+                select(VectorRecord).where(VectorRecord.space_id == uuid.UUID(built.space_id))
+            )
+        )
+    assert old_records == [], "the active legacy space is never re-chunked in place"
+    assert new_records
+    assert all(
+        record.token_count is not None
+        and record.token_count == record.token_end - record.token_start
+        for record in new_records
+    )
+
+    activated = await service.activate_space(built.space_id, kinds=("skill",))
+    assert activated.already_active is False
+    assert activated.space_key == built.space_key
+    assert activated.previous_space_key == old.key
+    with Session(sync_engine) as session:
+        rows = {
+            str(row.id): row
+            for row in session.scalars(select(VectorSpaceRow).where(VectorSpaceRow.name == NAME))
+        }
+    assert rows[built.space_id].status == "active"
+    assert rows[str(old.space_id)].status == "retired"
+    assert rows[str(old.space_id)].space_key == old.key, "the old identity is retained"
+
+    jobs = list(
+        (await db.execute(select(BackgroundJob).where(BackgroundJob.job_type == "posting_remap")))
+        .scalars()
+        .all()
+    )
+    assert len(jobs) == 1
+    assert jobs[0].payload["space_key"] == old.key
 
 
 async def test_backfill_refuses_the_active_space(db):

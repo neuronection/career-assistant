@@ -346,19 +346,47 @@ the audit event in the incident note; the Changes section already has the
   migration 0095) and every cutover comparison reads it verbatim; T3b still
   owns token-aware writes, `space_key` v2 and the cutover that consumes them.
 
-**T3b — token-aware chunk writes and cutover.**
+**T3b — token-aware chunk writes and cutover (backend/contract/schema implemented).**
 
-- Bind the effective profile (including admin overrides) into the chunker
-  and space identity: token-count the composed records, write the token
-  columns, fold the tokenizer identity and `ChunkConfig.fingerprint` into
-  `space_key`, and make `token_aware: true` in reports only once records
-  actually carry token counts.
-- Do not re-chunk an existing active space in place. Build a new space with
-  the new profile, backfill, run the coverage/quality gates, activate and
-  remap, then retire/drop the old space through the existing lifecycle.
-- Wire the T4 live token accounting (`vector_index_service._count_tokens`)
-  to the same persisted profile; it is synchronous today and reads the
-  curated/fallback resolver, so it does not yet see an admin override.
-- Update the runbook, `docs/dev/data-model.md`, the OpenAPI contract,
-  `docs/capabilities.json`, the tokenizer report DTO and the UI tests in
-  the same change.
+- The contract now has a v2 identity: `VectorSpace.tokenizer` + `VectorSpace.chunk`
+  are both-or-neither, `space_key_v2` folds the tokenizer
+  kind/identifier/revision/artifact sha/exact and the
+  `ChunkConfig.fingerprint` after a version marker, and `space_key` keeps
+  the frozen v1 pre-image. A stored key always wins; a legacy row is never
+  re-keyed. `IndexRecord` carries optional
+  `token_count`/`token_start`/`token_end` (ordered, non-negative,
+  `count == end - start`).
+- Migration `0096` adds the tokenizer/chunk scalars to `vector_spaces`
+  (all NULL on a v1 row; a v2 row requires the complete set,
+  `chunker_version='2'`, a kind-valid exact/revision/checksum combination
+  and a chunk budget that fits the input limit) and the nullable token
+  offsets to `vector_records`. Downgrade drops the columns but keeps the
+  stored `space_key`.
+- `vector_index_service` resolves the **effective DB profile** (admin →
+  curated → fallback, HF included) for write/build paths and token
+  accounting. A v2 space composes every embeddable view (summary,
+  requirements, responsibilities, skills, body) with the token chunker:
+  exact character offsets, token overlap, `max_chars` as a ceiling, the
+  document prefix + safety margin inside `max_input_tokens`. Batches split
+  by both `batch_max_items` and `batch_max_tokens`; an item that cannot fit
+  is a typed `input_too_long` write failure recorded once by reconcile,
+  never a loop or truncation.
+- A v1 active space keeps the char chunker, NULL token columns and is never
+  re-chunked in place. Build a v2 space beside it
+  (`scripts/vector_spaces.py build --token-aware`, or the lifecycle/action
+  service with an explicit tokenizer+chunk), backfill, activate through the
+  existing coverage/quality gate, and the retired row's stored key drives
+  `POSTING_REMAP`; the old space is retained.
+
+**T3c handoff (not wired in T3b).**
+
+- `BuildSpaceRequest` / OpenAPI / generated client need the tokenizer
+  selection and chunk bounds; `retrieval_actions.build_space` already
+  accepts them and records them in the run payload.
+- Tools → Retrieval build dialog: show the resolved tokenizer/source/
+  exactness/revision, let the admin override the chunk bounds, and pass
+  them to the action.
+- Space card/drawer and Audit run view: render `token_aware`,
+  `tokenizer`/`chunk` from `read_space_statuses` plus the existing live
+  progress counters; add fallback/exactness warnings and the runbook link.
+- Study parity remains T5; its `len//4` heuristic is untouched here.

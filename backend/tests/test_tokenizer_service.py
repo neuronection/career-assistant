@@ -136,6 +136,42 @@ def test_counts_are_deterministic_and_encoding_round_trips():
         service.encode(fallback_spec(), text)
 
 
+def test_encode_with_offsets_round_trips_every_reference_language():
+    service = TokenizerService()
+    spec = resolve_tokenizer_spec("openai_compatible", "text-embedding-3-small")
+    samples = _reference_samples()
+    for language, row in samples.items():
+        text = row["text"]
+        ids, offsets = service.encode_with_offsets(spec, text)
+        assert ids == service.encode(spec, text), language
+        assert len(offsets) == len(ids), language
+        assert service.decode(spec, ids) == text, language
+        previous_end = 0
+        for start, end in offsets:
+            assert 0 <= start <= end <= len(text), (language, start, end)
+            assert start <= previous_end, f"{language}: spans must advance"
+            previous_end = max(previous_end, end)
+        assert offsets[0][0] == 0
+        assert offsets[-1][1] == len(text)
+
+
+def test_encode_with_offsets_rejects_the_heuristic():
+    service = TokenizerService()
+    with pytest.raises(TokenizerUnavailable):
+        service.encode_with_offsets(fallback_spec(), "text")
+
+
+def test_hf_encode_with_offsets_uses_the_published_spans(tmp_path: Path):
+    payload = _hf_fixture_bytes()
+    spec = _hf_spec()
+    _write_hf_cache(tmp_path, payload)
+    service = TokenizerService(cache_dir=tmp_path)
+    ids, offsets = service.encode_with_offsets(spec, "hello world")
+    assert ids == [2, 3]
+    assert offsets == [(0, 5), (6, 11)]
+    assert service.decode(spec, ids) == "hello world"
+
+
 def test_cache_is_bounded_and_keyed_by_spec_identity():
     service = TokenizerService(max_cached=1)
     first = resolve_tokenizer_spec("openai_compatible", "text-embedding-3-small")

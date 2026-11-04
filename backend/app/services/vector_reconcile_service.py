@@ -437,6 +437,22 @@ class VectorReconcileService:
                     state["seen"] += 1
                     last_processed = row
                     continue
+                if outcome.failed:
+                    # A typed write failure (``input_too_long`` / a missing
+                    # tokenizer asset) is recorded once for this document and
+                    # the run moves on — never retried in a loop and never
+                    # silently truncated. A later reconcile may retry it.
+                    failed += 1
+                    state["failed"] += 1
+                    state[dirty] += 1
+                    truncated = self._record_failure(failed_ids, kind, row.source_id) or truncated
+                    failed_count = max(outcome.scanned, record_count)
+                    processed_chunks += failed_count
+                    failed_chunks += failed_count
+                    failed_documents += 1
+                    state["seen"] += 1
+                    last_processed = row
+                    continue
                 state["embedded"] += 1
                 state["seen"] += 1
                 embedded += 1
@@ -687,7 +703,7 @@ class VectorReconcileService:
         detail: Mapping[str, Any] | None = None,
     ) -> None:
         if progress is not None:
-            await progress(value, stage, detail)
+            await progress(value, stage, dict(detail) if detail is not None else None)
 
 
 def _empty_carry() -> dict[str, int]:

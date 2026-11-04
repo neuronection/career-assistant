@@ -27,6 +27,8 @@ import base64
 import gzip
 import hashlib
 import threading
+from bisect import bisect_left as _bisect_left
+from bisect import bisect_right as _bisect_right
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
@@ -297,6 +299,39 @@ class TokenizerService:
         if spec.kind is TokenizerKind.HEURISTIC:
             raise TokenizerUnavailable("heuristic_has_no_encoding", spec.identifier)
         return self._encoder(spec).decode(ids)
+
+    def encode_with_offsets(
+        self, spec: TokenizerSpec, text: str
+    ) -> tuple[list[int], list[tuple[int, int]]]:
+        """Encode ``text`` and return ids plus one character span per token.
+
+        Spans are inclusive-start/exclusive-end offsets into the **input**
+        text. Hugging Face tokenizers publish them directly; tiktoken is a
+        byte-level BPE whose tokens can split a multi-byte codepoint, so a
+        token's byte span is widened to the whole codepoints it touches. A
+        window may therefore repeat an edge character rather than silently
+        dropping part of it; the composer writes the exact input slice.
+        """
+        if spec.kind is TokenizerKind.HEURISTIC:
+            raise TokenizerUnavailable("heuristic_has_no_encoding", spec.identifier)
+        encoder = self._encoder(spec)
+        if spec.kind is TokenizerKind.HF_TOKENIZERS:
+            encoding = encoder.encode(text)
+            return list(encoding.ids), [(int(start), int(end)) for start, end in encoding.offsets]
+        ids = list(encoder.encode(text, disallowed_special=()))
+        pieces = encoder.decode_tokens_bytes(ids)
+        char_offsets = [0]
+        for character in text:
+            char_offsets.append(char_offsets[-1] + len(character.encode("utf-8")))
+        spans: list[tuple[int, int]] = []
+        byte_start = 0
+        for piece in pieces:
+            byte_end = byte_start + len(piece)
+            start = max(_bisect_right(char_offsets, byte_start) - 1, 0)
+            end = min(_bisect_left(char_offsets, byte_end), len(text))
+            spans.append((start, max(end, start)))
+            byte_start = byte_end
+        return ids, spans
 
     def _encoder(self, spec: TokenizerSpec):
         key = spec.cache_key

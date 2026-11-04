@@ -18,13 +18,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.ai.gateway import MOCK_EMBED_DIM
+from app.ai.tokenizers import tiktoken_spec
 from app.core.errors import AINotConfiguredError
 from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobType
 from app.models.vector_model import VectorDocument, VectorRecord
 from app.services import vector_index_service as vis
 from app.services.job_worker import HANDLERS, JobWorker, enqueue
-from app.services.vector_composers import compose_posting_views
+from app.services.vector_composers import ComposedRecord, compose_posting_views
 from app.services.vector_index_service import (
     CONTENT_SPACE,
     EmbeddingProfile,
@@ -35,6 +36,7 @@ from app.services.vector_index_service import (
     record_id_for,
 )
 from app.storage import vector_contract as vc
+from app.storage.tokenizer_contract import ChunkConfig
 from app.storage.vector_backends import LinearBackend, VectorSpaceNotFound
 from app.storage.vector_store import VectorStoreService
 from tests.conftest import _make_posting
@@ -637,3 +639,162 @@ async def test_a_space_that_cannot_be_provisioned_reports_index_missing(
     assert outcome.degraded == "index_missing"
     assert outcome.written == 0
     assert store.active_space(CONTENT_SPACE).index_table is None
+
+
+# ------------------------------------------------------ token-aware writes
+
+
+def _v2_spec(*, max_input: int = 8191):
+    return tiktoken_spec(max_input_tokens=max_input)
+
+
+def _v2_chunk(*, max_chunk: int = 32, overlap: int = 4, max_chars: int = 400) -> ChunkConfig:
+    return ChunkConfig(max_chunk_tokens=max_chunk, overlap_tokens=overlap, max_chars=max_chars)
+
+
+def _create_v2_space(
+    engine,
+    *,
+    max_input: int = 8191,
+    max_chunk: int = 32,
+    overlap: int = 4,
+    max_chars: int = 400,
+):
+    return _store(engine).create_space(
+        name=CONTENT_SPACE,
+        provider="mock",
+        model="mock-embed",
+        dim=MOCK_EMBED_DIM,
+        tokenizer=_v2_spec(max_input=max_input),
+        chunk=_v2_chunk(max_chunk=max_chunk, overlap=overlap, max_chars=max_chars),
+    )
+
+
+def _v2_profile(
+    *,
+    max_input: int = 8191,
+    max_chunk: int = 32,
+    overlap: int = 4,
+    max_chars: int = 400,
+    batch_items: int = 64,
+    batch_tokens: int = 100_000,
+) -> EmbeddingProfile:
+    return EmbeddingProfile(
+        provider="mock",
+        model="mock-embed",
+        tokenizer=_v2_spec(max_input=max_input),
+        chunk=_v2_chunk(max_chunk=max_chunk, overlap=overlap, max_chars=max_chars),
+        batch_max_items=batch_items,
+        batch_max_tokens=batch_tokens,
+    )
+
+
+async def test_legacy_v1_write_leaves_every_token_column_null(db, engine, source, seeded_catalog):
+    posting = await _make_posting(db, source, external_id="vec-v1-tokenless")
+    outcome = await _service(db, engine).index_document(kind="posting", source_id=str(posting.id))
+
+    assert outcome.degraded is None
+    space = _store(engine).active_space(CONTENT_SPACE)
+    assert space.token_aware is False
+    assert space.chunker_version == "1"
+    with Session(engine) as session:
+        records = list(session.scalars(select(VectorRecord)))
+    assert records
+    assert all(
+        record.token_count is None and record.token_start is None and record.token_end is None
+        for record in records
+    )
+
+
+async def test_v2_write_uses_token_windows_and_writes_the_token_columns(
+    db, engine, source, seeded_catalog
+):
+    _create_v2_space(engine, max_chunk=32, overlap=4, max_chars=48)
+
+    async def embedder(texts):
+        from app.ai.gateway import _mock_embedding
+
+        return [_mock_embedding(text) for text in texts]
+
+    posting = await _make_posting(db, source, external_id="vec-v2-write")
+    service = _service(
+        db,
+        engine,
+        embedder=embedder,
+        profile=_v2_profile(max_chunk=32, overlap=4, max_chars=48),
+    )
+    outcome = await service.index_document(kind="posting", source_id=str(posting.id))
+
+    assert outcome.degraded is None
+    assert outcome.failed == 0
+    assert outcome.written == outcome.scanned > 0
+    assert outcome.tokens and outcome.tokens > 0
+    assert outcome.tokens_exact is True, "cl100k_base is exact"
+    with Session(engine) as session:
+        records = list(session.scalars(select(VectorRecord)))
+    assert records
+    for record in records:
+        assert record.token_count is not None
+        assert record.token_count == record.token_end - record.token_start
+        assert record.token_end > record.token_start
+        assert record.char_start is not None and record.char_end is not None
+    keys = {(record.view, record.chunk_index) for record in records}
+    assert any(view != "body" for view, _ in keys), "a short view is also token-chunked"
+    assert len([key for key in keys if key[0] == "summary"]) > 1, "the summary split"
+
+
+async def test_v2_batches_split_by_item_count_and_token_sum(db, engine):
+    space = _create_v2_space(engine, max_chunk=32, max_chars=400)
+
+    async def embedder(texts):
+        from app.ai.gateway import _mock_embedding
+
+        return [_mock_embedding(text) for text in texts]
+
+    records = [ComposedRecord(view="summary", text="word " * 3) for _ in range(5)]
+    counter = CountingEmbedder(embedder)
+
+    item_limited = _service(
+        db,
+        engine,
+        embedder=counter,
+        profile=_v2_profile(batch_items=2, batch_tokens=100_000),
+    )
+    await item_limited._embed(records, None, space=space, profile=item_limited._profile)
+    assert counter.calls == 3, "five records at two per request"
+
+    counter.calls = 0
+    token_limited = _service(
+        db,
+        engine,
+        embedder=counter,
+        profile=_v2_profile(batch_items=10, batch_tokens=4),
+    )
+    await token_limited._embed(records, None, space=space, profile=token_limited._profile)
+    assert counter.calls == 5, "each three-token record gets its own token batch"
+
+
+async def test_input_too_long_is_a_failed_outcome_not_a_truncation(
+    db, engine, source, seeded_catalog
+):
+    _create_v2_space(engine, max_chunk=32, overlap=0, max_chars=1)
+
+    async def embedder(texts):  # pragma: no cover - must not be called
+        raise AssertionError("an input_too_long write never reaches the provider")
+
+    posting = await _make_posting(db, source, external_id="vec-v2-toolong")
+    service = _service(
+        db,
+        engine,
+        embedder=embedder,
+        profile=_v2_profile(max_chunk=32, overlap=0, max_chars=1),
+    )
+    outcome = await service.index_document(kind="posting", source_id=str(posting.id))
+
+    assert outcome.failed == 1
+    assert outcome.failed_reason == "input_too_long"
+    assert outcome.degraded is None
+    assert outcome.written == 0
+    assert outcome.embedded == 0
+    with Session(engine) as session:
+        assert list(session.scalars(select(VectorRecord))) == []
