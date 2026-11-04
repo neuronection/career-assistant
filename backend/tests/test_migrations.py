@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0093"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0094"], (
         "revision chain stays linear on one head"
     )
 
@@ -4409,3 +4409,31 @@ def test_0093_job_progress_detail_roundtrip():
 
     command.upgrade(config, "head")
     assert _column_present("background_jobs", "progress_detail")
+
+
+def test_0094_embedding_model_profiles_roundtrip():
+    """Plan 52 T2a: the admin profile registry exists at head, disappears on
+    downgrade and returns on re-upgrade (both dialects)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _table_present("embedding_model_profiles"), "profile registry at head"
+    for column in (
+        "provider_class",
+        "model_name",
+        "tokenizer_kind",
+        "max_input_tokens",
+        "batch_max_items",
+        "batch_max_tokens",
+        "chunk_max_tokens",
+        "chunk_overlap_tokens",
+        "chunk_max_chars",
+        "source",
+        "updated_by",
+    ):
+        assert _column_present("embedding_model_profiles", column), column
+
+    command.downgrade(config, "0093")
+    assert not _table_present("embedding_model_profiles")
+
+    command.upgrade(config, "head")
+    assert _table_present("embedding_model_profiles")

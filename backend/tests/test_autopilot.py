@@ -1275,7 +1275,7 @@ async def test_migration_head_is_linear():
 
     config = Config("alembic.ini")
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == ["0093"]
+    assert script.get_heads() == ["0094"]
 
 
 # --------------------------------------------------- S1 planner grounding

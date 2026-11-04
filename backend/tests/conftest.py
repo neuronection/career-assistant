@@ -127,6 +127,7 @@ TABLES = [
     "assessment_runs",
     "assessment_templates",
     "background_jobs",
+    "embedding_model_profiles",
     "ai_task_assignments",
     "ai_models",
     "ai_providers",

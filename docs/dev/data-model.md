@@ -154,6 +154,20 @@ deletion).
 
 ### Migration notes
 
+- **0094** — plan 52 T2a: `embedding_model_profiles`, the admin
+  tokenizer/limit registry. Keyed on `(provider_class, model_name)`
+  (unique `uq_embedding_model_profiles_scope`), with typed scalar columns —
+  no JSONB. Holds the tokenizer kind/identifier/revision/checksum/exact
+  flag, `max_input_tokens`, `batch_max_items`/`batch_max_tokens`, the
+  default `ChunkConfig` preview (`chunk_max_tokens`/`chunk_overlap_tokens`/
+  `chunk_max_chars`), `source` (closed to `curated|admin|fallback`; this
+  slice writes `admin`) and `updated_by` (FK `users.id` SET NULL). CHECKs
+  mirror the contract floor (`chunk_max_tokens >= 32`,
+  `chunk_overlap_tokens * 2 < chunk_max_tokens`, chunk fits input, positive
+  limits). No seed rows: curated OpenAI profiles live in code so a migration
+  never invents model facts. Downgrade drops the table; overrides are
+  rebuildable configuration, and every change is already on
+  `audit_events` as `vector.model.changed`.
 - **0093** — plan 52 T4: `background_jobs.progress_detail` (`StructuredJSON`,
   nullable; `JSONB` on PostgreSQL). A bounded live counter document
   (phase, processed/total documents, cumulative/estimated chunks,
@@ -441,6 +455,7 @@ deletion).
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
+| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model (plan 52 T2a): tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Curated rows live in code (`app/ai/tokenizers/registry.py`); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite |
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
