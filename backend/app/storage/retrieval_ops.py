@@ -128,6 +128,10 @@ VECTOR_JOB_TYPES = (
     "VECTOR_CUTOVER",
     "VECTOR_MAINTENANCE",
 )
+#: Plan 52 T2b: a bounded admin fetch of a pinned tokenizer asset. It is not
+#: a space run — it never takes a ``vector_space:`` lock and is not a
+#: ``RunDTO``/``VECTOR_JOB_TYPES`` member.
+TOKENIZER_JOB_TYPES = ("TOKENIZER_FETCH",)
 VECTOR_RUN_ACTIVE_STATUSES = (RunStatus.QUEUED, RunStatus.RUNNING)
 VECTOR_RUN_TERMINAL_STATUSES = (
     RunStatus.SUCCEEDED,
@@ -149,6 +153,9 @@ VECTOR_AUDIT_EVENTS = (
     "vector.reindex.retried",
     "vector.maintenance.started",
     "vector.model.changed",
+    "vector.tokenizer.fetch_requested",
+    "vector.tokenizer.fetched",
+    "vector.tokenizer.fetch_failed",
     "vector.gate.failed",
     "vector.run.stalled",
     "vector.document.indexed",
@@ -1754,6 +1761,7 @@ __all__ = [
     "RUN_PROGRESS_PHASES",
     "SPACE_DROP_GRACE_DAYS",
     "STALL_MINUTES",
+    "TOKENIZER_JOB_TYPES",
     "V1_VIEWS",
     "VECTOR_AUDIT_EVENTS",
     "VECTOR_AUDIT_GROUP",

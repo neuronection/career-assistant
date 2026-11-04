@@ -1191,6 +1191,19 @@ async def _run_vector_maintenance(
     return result
 
 
+async def _run_tokenizer_fetch(
+    db: AsyncSession,
+    job: BackgroundJob,
+    *,
+    progress: ProgressCb,
+    cancelled: CancelledCb,
+) -> dict:
+    """One bounded pinned tokenizer fetch (plan 52 T2b)."""
+    from app.services.tokenizer_fetch import handle_tokenizer_fetch
+
+    return await handle_tokenizer_fetch(db, job, progress=progress, cancelled=cancelled)
+
+
 async def _run_vector_cutover(
     db: AsyncSession,
     job: BackgroundJob,
@@ -1265,6 +1278,7 @@ HANDLERS: dict[str, Handler] = {
     "vector_cutover": _run_vector_cutover,
     "retrieval_alert_sweep": _run_retrieval_alert_sweep,
     "posting_remap": _run_posting_remap,
+    "tokenizer_fetch": _run_tokenizer_fetch,
 }
 
 

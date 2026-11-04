@@ -118,6 +118,7 @@ def test_closed_vocabularies_match_the_fixture():
         "activeRunStatuses": [member.value for member in ops.VECTOR_RUN_ACTIVE_STATUSES],
         "terminalRunStatuses": [member.value for member in ops.VECTOR_RUN_TERMINAL_STATUSES],
         "jobTypes": list(ops.VECTOR_JOB_TYPES),
+        "tokenizerJobTypes": list(ops.TOKENIZER_JOB_TYPES),
         "auditGroup": ops.VECTOR_AUDIT_GROUP,
         "auditEvents": list(ops.VECTOR_AUDIT_EVENTS),
         "views": list(ops.V1_VIEWS),

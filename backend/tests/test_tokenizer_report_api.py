@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 
 from app.services import tokenizer_report
 from app.storage import retrieval_ops as ops
@@ -47,6 +48,29 @@ async def test_report_returns_tokenizer_limits_and_reference_aggregates(client, 
     assert "SECRET" not in json.dumps(body)
     assert "Senior backend engineer" not in json.dumps(body), "reference text never leaves"
     ops.assert_no_raw_text(body)
+
+
+async def test_tokenizer_read_paths_make_no_network_call(
+    monkeypatch, client, auth_headers
+):
+    """A curated HF profile is resolved/read without fetching on the request path."""
+
+    def forbidden(*args, **kwargs):  # pragma: no cover - the assertion is the raise
+        raise AssertionError("a tokenizer read path attempted a network call")
+
+    monkeypatch.setattr(socket, "socket", forbidden)
+    monkeypatch.setattr(socket, "create_connection", forbidden)
+
+    preview = await client.get(
+        "/api/v1/admin/retrieval/model-profiles",
+        params={"provider": "openai_compatible", "model": "nomic-embed-text"},
+        headers=auth_headers,
+    )
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["resolution"]["tokenizer_kind"] == "hf_tokenizers"
+
+    report = await client.get(PATH, headers=auth_headers)
+    assert report.status_code == 200, report.text
 
 
 async def test_report_is_bounded_by_kind_and_limit(client, auth_headers):

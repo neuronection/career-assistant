@@ -32,6 +32,9 @@
       "VECTOR_CUTOVER",
       "VECTOR_MAINTENANCE"
     ],
+    "tokenizerJobTypes": [
+      "TOKENIZER_FETCH"
+    ],
     "auditGroup": "vector",
     "auditEvents": [
       "vector.space.provisioned",
@@ -44,6 +47,9 @@
       "vector.reindex.retried",
       "vector.maintenance.started",
       "vector.model.changed",
+      "vector.tokenizer.fetch_requested",
+      "vector.tokenizer.fetched",
+      "vector.tokenizer.fetch_failed",
       "vector.gate.failed",
       "vector.run.stalled",
       "vector.document.indexed"

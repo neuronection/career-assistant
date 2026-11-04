@@ -24,9 +24,10 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db, sync_engine
 from app.core.errors import NotFoundError, ValidationError
+from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
-from app.services import embedding_profiles, tokenizer_report
+from app.services import embedding_profiles, tokenizer_fetch, tokenizer_report
 from app.services import retrieval_actions as actions
 from app.services import retrieval_jobs as retrieval_jobs
 from app.services import retrieval_ops_reads as reads
@@ -178,10 +179,10 @@ class ModelProfileRequest(BaseModel):
     """One bounded admin embedding-tokenizer/limits override.
 
     The provider class + model pair is the key. The tokenizer kind is
-    restricted to what this build can actually load (bundled ``tiktoken`` or
-    the conservative heuristic); plan 52 T2b adds HF assets behind the same
-    contract. The server derives ``exact`` and ``source`` — a client cannot
-    declare a heuristic as exact.
+    restricted to what this build can actually load: bundled ``tiktoken``,
+    a pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +
+    verified SHA-256) or the conservative heuristic. The server derives
+    ``exact`` and ``source`` — a client cannot declare a heuristic as exact.
     """
 
     provider_class: str = Field(..., min_length=1, max_length=40)
@@ -203,6 +204,32 @@ class ModelProfileRequest(BaseModel):
     chunk_max_tokens: int = Field(..., ge=32, le=embedding_profiles.MAX_CHUNK_TOKENS)
     chunk_overlap_tokens: int = Field(default=0, ge=0, le=embedding_profiles.MAX_CHUNK_TOKENS)
     chunk_max_chars: int = Field(..., ge=1, le=embedding_profiles.MAX_CHUNK_CHARS)
+
+
+class TokenizerFetchRequestBody(BaseModel):
+    """One pinned, bounded Hugging Face tokenizer fetch (admin-only job)."""
+
+    repository: str = Field(..., min_length=3, max_length=200, description="org/model")
+    revision: str = Field(
+        ...,
+        min_length=40,
+        max_length=40,
+        pattern="^[0-9a-fA-F]{40}$",
+        description="pinned 40-character commit sha (branches/tags are refused)",
+    )
+    files: list[str] = Field(
+        default_factory=lambda: [tokenizer_fetch.PRIMARY_TOKENIZER_FILE],
+        description=(
+            "allowlisted small files; must include tokenizer.json "
+            f"({tokenizer_fetch.ALLOWED_FILES})"
+        ),
+    )
+    expected_sha256: str | None = Field(
+        default=None,
+        pattern="^[0-9a-fA-F]{64}$",
+        description="optional expected tokenizer.json sha256; a mismatch fails the fetch",
+    )
+    idempotency_key: str | None = Field(default=None)
 
 
 class TypedSpaceRequest(BaseModel):
@@ -475,6 +502,92 @@ async def retrieval_delete_model_profile(
             "deleted": deleted,
             "resolution": embedding_profiles.profile_dto(resolved),
             "token_aware_writes": False,
+        }
+    )
+
+
+@router.post("/tokenizer/fetch")
+async def retrieval_tokenizer_fetch(
+    request: TokenizerFetchRequestBody,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Queue one pinned tokenizer asset fetch (never on the request path).
+
+    The handler validates the host/file allowlist, size cap and SHA-256,
+    caches under the content hash, and audits ``vector.tokenizer.*``. A repeat
+    with the same idempotency key and body returns the original job.
+    """
+    key = _key(idempotency_key, request, required=True, action="tokenizer fetch")
+    try:
+        fetch_request = tokenizer_fetch.TokenizerFetchRequest.from_payload(request.model_dump())
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    payload = {
+        "repository": fetch_request.repository,
+        "revision": fetch_request.revision,
+        "files": list(fetch_request.files),
+        "expected_sha256": fetch_request.expected_sha256,
+    }
+    audit = emitter.audit_event(
+        actor=user.id,
+        action="vector.tokenizer.fetch_requested",
+        resource_ref=emitter.resource(
+            f"tokenizer:{fetch_request.repository}@{fetch_request.revision}",
+            files=",".join(fetch_request.files),
+        ),
+    )
+    job, deduplicated = await retrieval_jobs.enqueue_retrieval_job(
+        db,
+        job_type=BackgroundJobType.TOKENIZER_FETCH.value,
+        payload=payload,
+        idempotency_key=str(key),
+        user_id=user.id,
+        lock=False,
+        audit=audit,
+    )
+    return _guarded(
+        {
+            "state": "ok",
+            "job_id": str(job.id),
+            "job_type": job.job_type,
+            "status": job.status,
+            "progress": job.progress,
+            "stage": job.stage,
+            "requested": payload,
+            "deduplicated": deduplicated,
+            "idempotency_key": job.idempotency_key,
+        }
+    )
+
+
+@router.get("/tokenizer/fetch/{job_id}")
+async def retrieval_tokenizer_fetch_status(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Read one tokenizer fetch job's status/progress/result (admin-only)."""
+    try:
+        parsed = uuid.UUID(job_id)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"job_id must be a UUID, got {job_id!r}") from exc
+    job = await db.get(BackgroundJob, parsed)
+    if job is None or job.job_type != BackgroundJobType.TOKENIZER_FETCH.value:
+        raise NotFoundError("tokenizer fetch job not found")
+    return _guarded(
+        {
+            "state": "ok",
+            "job_id": str(job.id),
+            "status": job.status,
+            "progress": job.progress,
+            "stage": job.stage,
+            "heartbeat_at": job.heartbeat_at.isoformat() if job.heartbeat_at else None,
+            "error": job.error,
+            "result": job.result,
+            "requested": job.payload,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "finished_at": job.finished_at.isoformat() if job.finished_at else None,
         }
     )
 
