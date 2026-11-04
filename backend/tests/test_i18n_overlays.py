@@ -56,7 +56,7 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
     assert rows
     title_row = next(row for row in rows if row["entity_kind"] == "job" and row["field"] == "label")
 
-    listing = (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
+    listing = (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()["items"]
     target = next(job for job in listing if job["id"] == title_row["entity_id"])
     assert title_row["base_value"] == target["title"]
     assert title_row["value"] == f"[de] {target['title']}"
@@ -69,7 +69,7 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
 
     localized = next(
         job
-        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
+        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()["items"]
         if job["id"] == target["id"]
     )
     assert localized["title"] == f"[de] {target['title']}"
@@ -81,7 +81,7 @@ async def test_overlay_fallback_chain(client, auth_headers, db, seeded_catalog):
     assert rejected.status_code == 200
     other_job = next(
         job
-        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()
+        for job in (await client.get("/api/v1/jobs?page_size=100", headers=auth_headers)).json()["items"]
         if job["id"] == other["entity_id"]
     )
     field = "title" if other["field"] == "label" else "short_description"
