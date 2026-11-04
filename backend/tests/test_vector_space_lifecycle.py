@@ -331,6 +331,91 @@ async def test_v2_space_builds_beside_v1_then_backfills_activates_and_remaps(db)
     assert jobs[0].payload["space_key"] == old.key
 
 
+async def test_v2_cutover_retains_the_populated_v1_record_set_and_remaps_its_stored_key(db):
+    """T3c acceptance: build v2 beside a *populated* v1 space, then cut over."""
+    await _skills(db, 2)
+    service = _service(db)
+
+    v1 = await service.build_space(NAME, provider="mock", model="mock-small", dim=DIM)
+    v1_backfill = await service.backfill_space(
+        v1.space_id, kinds=("skill",), embedder=_mock_embed, scan_limit=50
+    )
+    assert v1_backfill.done is True and v1_backfill.embedded == 2
+    _insert_snapshot(sync_engine, v1.space_id, total=2, embedded=2)
+    await service.activate_space(v1.space_id, kinds=("skill",))
+
+    stored_key = "e" * 64
+    with Session(sync_engine) as session:
+        row = session.get(VectorSpaceRow, uuid.UUID(v1.space_id))
+        assert row is not None
+        row.space_key = stored_key
+        session.commit()
+        v1_records = sorted(
+            (
+                str(record.id),
+                record.view,
+                record.chunk_index,
+                record.content_hash,
+                record.token_count,
+                record.token_start,
+                record.token_end,
+            )
+            for record in session.scalars(
+                select(VectorRecord).where(VectorRecord.space_id == uuid.UUID(v1.space_id))
+            )
+        )
+    assert v1_records, "the legacy space has real records to preserve"
+
+    tokenizer = tiktoken_spec(max_input_tokens=8191)
+    chunk = ChunkConfig(max_chunk_tokens=32, overlap_tokens=4, max_chars=120)
+    v2 = await service.build_space(
+        NAME,
+        provider="mock",
+        model="mock-small",
+        dim=DIM,
+        tokenizer=tokenizer,
+        chunk=chunk,
+    )
+    assert v2.space_key != stored_key
+    v2_backfill = await service.backfill_space(
+        v2.space_id, kinds=("skill",), embedder=_mock_embed, scan_limit=50
+    )
+    assert v2_backfill.done is True and v2_backfill.embedded == 2
+    _insert_snapshot(sync_engine, v2.space_id, total=2, embedded=2)
+
+    activated = await service.activate_space(v2.space_id, kinds=("skill",))
+    assert activated.previous_space_key == stored_key
+
+    with Session(sync_engine) as session:
+        rows = {
+            str(row.id): row
+            for row in session.scalars(select(VectorSpaceRow).where(VectorSpaceRow.name == NAME))
+        }
+        assert rows[v2.space_id].status == "active"
+        assert rows[v1.space_id].status == "retired", "the old space is retained"
+        assert rows[v1.space_id].space_key == stored_key, "its stored key is untouched"
+        after = sorted(
+            (
+                str(record.id),
+                record.view,
+                record.chunk_index,
+                record.content_hash,
+                record.token_count,
+                record.token_start,
+                record.token_end,
+            )
+            for record in session.scalars(
+                select(VectorRecord).where(VectorRecord.space_id == uuid.UUID(v1.space_id))
+            )
+        )
+    assert after == v1_records, "the v1 record set is never re-chunked in place"
+
+    remap = (
+        await db.execute(select(BackgroundJob).where(BackgroundJob.job_type == "posting_remap"))
+    ).scalar_one()
+    assert remap.payload["space_key"] == stored_key
+
+
 async def test_backfill_refuses_the_active_space(db):
     old = _create_active()
     service = _service(db)

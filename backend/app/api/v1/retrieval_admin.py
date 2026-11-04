@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.ai.tokenizers import get_tokenizer_service
 from app.core.database import get_db, sync_engine
 from app.core.errors import NotFoundError, ValidationError
 from app.models.background_job_model import BackgroundJob
@@ -44,6 +45,7 @@ from app.services.vector_reconcile_service import (
 )
 from app.services.vector_status import read_health, read_space_statuses
 from app.storage import retrieval_ops as ops
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 
 router = APIRouter(
     prefix="/admin/retrieval", tags=["retrieval-admin"], dependencies=[Depends(require_admin)]
@@ -161,8 +163,50 @@ class ActionKeyRequest(BaseModel):
     idempotency_key: str | None = Field(default=None)
 
 
+class BuildTokenizerRequest(BaseModel):
+    """An explicit pinned tokenizer for a token-aware (v2) build.
+
+    The server derives nothing from the model name here: these fields are the
+    admin's selection. ``exact`` may be omitted (it follows ``kind``), and a
+    non-heuristic kind needs its artifact checksum (plus a pinned revision for
+    Hugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the
+    same effective profile the write path resolves.
+    """
+
+    kind: str = Field(..., pattern="^(tiktoken|hf_tokenizers|sentencepiece|heuristic)$")
+    identifier: str = Field(..., min_length=1, max_length=200)
+    revision: str | None = Field(default=None, max_length=120)
+    artifact_sha256: str | None = Field(default=None, max_length=64)
+    exact: bool | None = Field(
+        default=None, description="defaults from kind; heuristic is always false"
+    )
+    max_input_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_INPUT_TOKENS)
+    source: str = Field(default="admin", pattern="^(provider|curated|admin|fallback)$")
+
+
+class BuildChunkRequest(BaseModel):
+    """The token-aware chunk budget (bounds mirror the tokenizer contract)."""
+
+    max_chunk_tokens: int = Field(..., ge=32, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    overlap_tokens: int = Field(default=0, ge=0, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    max_chars: int = Field(..., ge=1, le=embedding_profiles.MAX_CHUNK_CHARS)
+
+
+class BuildProfileReference(BaseModel):
+    """Build from the effective embedding profile of one provider/model pair."""
+
+    provider: str = Field(..., min_length=1, max_length=60)
+    model: str = Field(..., min_length=1, max_length=120)
+
+
 class BuildSpaceRequest(BaseModel):
-    """Provision a ``building`` space beside the active one."""
+    """Provision a ``building`` space beside the active one.
+
+    Omitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy
+    v1 char-chunk build. Supplying either a resolved-profile reference or an
+    explicit tokenizer makes the build token-aware (v2); a half-configured
+    request is refused instead of silently falling back to v1.
+    """
 
     name: str = Field(..., min_length=1, max_length=40)
     provider: str = Field(..., min_length=1, max_length=60)
@@ -172,6 +216,9 @@ class BuildSpaceRequest(BaseModel):
     normalize: bool = True
     query_prefix: str | None = Field(default=None, max_length=80)
     document_prefix: str | None = Field(default=None, max_length=80)
+    tokenizer: BuildTokenizerRequest | None = None
+    chunk: BuildChunkRequest | None = None
+    tokenizer_profile: BuildProfileReference | None = None
     idempotency_key: str | None = Field(default=None)
 
 
@@ -265,6 +312,76 @@ class QualityCompareRequest(BaseModel):
     space: str = Field(..., description="candidate/new space id or name")
     compare_space: str = Field(..., description="baseline/old space id or name")
     idempotency_key: str | None = Field(default=None)
+
+
+async def _build_tokenizer_and_chunk(
+    db: AsyncSession, request: BuildSpaceRequest
+) -> tuple[TokenizerSpec | None, ChunkConfig | None]:
+    """Resolve the optional v2 identity; refuse a half-configured request.
+
+    ``tokenizer_profile`` pins the same effective profile (admin → curated →
+    fallback, HF included) the write path uses. Explicit ``tokenizer`` fields
+    are validated through the contract and must name an artifact this instance
+    can actually load; no model name is ever guessed into a tokenizer.
+    """
+    has_explicit = request.tokenizer is not None
+    has_profile = request.tokenizer_profile is not None
+    if has_explicit and has_profile:
+        raise ValidationError("supply either tokenizer or tokenizer_profile, not both")
+    if not has_explicit and not has_profile:
+        if request.chunk is not None:
+            raise ValidationError("chunk bounds require a tokenizer or tokenizer_profile")
+        return None, None
+
+    if has_profile:
+        reference = request.tokenizer_profile
+        assert reference is not None
+        profile = await embedding_profiles.resolve_for(db, reference.provider, reference.model)
+        tokenizer, _degraded = get_tokenizer_service().effective_spec(profile.tokenizer)
+        chunk = profile.chunk
+    else:
+        payload = request.tokenizer
+        assert payload is not None
+        if request.chunk is None:
+            raise ValidationError("an explicit tokenizer requires chunk bounds")
+        try:
+            tokenizer = TokenizerSpec(
+                kind=payload.kind,
+                identifier=payload.identifier,
+                revision=payload.revision,
+                artifact_sha256=payload.artifact_sha256,
+                exact=payload.exact,
+                max_input_tokens=payload.max_input_tokens,
+                source=payload.source,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        service = get_tokenizer_service()
+        if not tokenizer.exact and tokenizer.kind.value != "heuristic":
+            raise ValidationError("a non-heuristic tokenizer must be exact")
+        if tokenizer.kind.value != "heuristic" and not service.available(tokenizer):
+            raise ValidationError(
+                "the selected tokenizer artifact is not available; fetch/configure it "
+                "or build from the resolved profile instead"
+            )
+        chunk = None
+
+    if request.chunk is not None:
+        try:
+            chunk = ChunkConfig(
+                max_chunk_tokens=request.chunk.max_chunk_tokens,
+                overlap_tokens=request.chunk.overlap_tokens,
+                max_chars=request.chunk.max_chars,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+    assert tokenizer is not None and chunk is not None
+    try:
+        chunk.assert_fits(tokenizer.max_input_tokens)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    return tokenizer, chunk
 
 
 @router.get("/overview")
@@ -471,7 +588,7 @@ async def retrieval_save_model_profile(
         {
             "state": "ok",
             "profile": embedding_profiles.profile_dto(saved),
-            "token_aware_writes": False,
+            "token_aware_writes": True,
         }
     )
 
@@ -501,7 +618,7 @@ async def retrieval_delete_model_profile(
             "state": "ok",
             "deleted": deleted,
             "resolution": embedding_profiles.profile_dto(resolved),
-            "token_aware_writes": False,
+            "token_aware_writes": True,
         }
     )
 
@@ -790,6 +907,7 @@ async def retrieval_build_space(
 ) -> JSONResponse:
     """Provision a ``building`` space through the lifecycle service."""
     key = _key(idempotency_key, request, required=True, action="build")
+    tokenizer, chunk = await _build_tokenizer_and_chunk(db, request)
     payload = await actions.build_space(
         db,
         name=request.name,
@@ -802,6 +920,8 @@ async def retrieval_build_space(
         document_prefix=request.document_prefix,
         idempotency_key=str(key),
         actor=user.id,
+        tokenizer=tokenizer,
+        chunk=chunk,
     )
     return _action_response(payload)
 

@@ -2415,9 +2415,72 @@
         "title": "BudgetOut",
         "type": "object"
       },
-      "BuildSpaceRequest": {
-        "description": "Provision a ``building`` space beside the active one.",
+      "BuildChunkRequest": {
+        "description": "The token-aware chunk budget (bounds mirror the tokenizer contract).",
         "properties": {
+          "max_chars": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Chars",
+            "type": "integer"
+          },
+          "max_chunk_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 32.0,
+            "title": "Max Chunk Tokens",
+            "type": "integer"
+          },
+          "overlap_tokens": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Overlap Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_chunk_tokens",
+          "max_chars"
+        ],
+        "title": "BuildChunkRequest",
+        "type": "object"
+      },
+      "BuildProfileReference": {
+        "description": "Build from the effective embedding profile of one provider/model pair.",
+        "properties": {
+          "model": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "BuildProfileReference",
+        "type": "object"
+      },
+      "BuildSpaceRequest": {
+        "description": "Provision a ``building`` space beside the active one.\n\nOmitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy\nv1 char-chunk build. Supplying either a resolved-profile reference or an\nexplicit tokenizer makes the build token-aware (v2); a half-configured\nrequest is refused instead of silently falling back to v1.",
+        "properties": {
+          "chunk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildChunkRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "dim": {
             "maximum": 3072.0,
             "minimum": 1.0,
@@ -2486,6 +2549,26 @@
               }
             ],
             "title": "Query Prefix"
+          },
+          "tokenizer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildTokenizerRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tokenizer_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildProfileReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2495,6 +2578,77 @@
           "dim"
         ],
         "title": "BuildSpaceRequest",
+        "type": "object"
+      },
+      "BuildTokenizerRequest": {
+        "description": "An explicit pinned tokenizer for a token-aware (v2) build.\n\nThe server derives nothing from the model name here: these fields are the\nadmin's selection. ``exact`` may be omitted (it follows ``kind``), and a\nnon-heuristic kind needs its artifact checksum (plus a pinned revision for\nHugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the\nsame effective profile the write path resolves.",
+        "properties": {
+          "artifact_sha256": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Sha256"
+          },
+          "exact": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "defaults from kind; heuristic is always false",
+            "title": "Exact"
+          },
+          "identifier": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Identifier",
+            "type": "string"
+          },
+          "kind": {
+            "pattern": "^(tiktoken|hf_tokenizers|sentencepiece|heuristic)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_input_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Input Tokens",
+            "type": "integer"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "source": {
+            "default": "admin",
+            "pattern": "^(provider|curated|admin|fallback)$",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "identifier",
+          "max_input_tokens"
+        ],
+        "title": "BuildTokenizerRequest",
         "type": "object"
       },
       "BulkJobActionIn": {

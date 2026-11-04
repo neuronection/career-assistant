@@ -502,6 +502,125 @@ async def test_build_space_calls_the_lifecycle_service_and_audits(
     assert len(audits) == 1
 
 
+async def test_build_space_pins_the_resolved_profile_and_chunk(
+    client, db, auth_headers, monkeypatch
+):
+    from app.services import retrieval_actions as actions
+
+    captured: dict = {}
+
+    class FakeLifecycle:
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        async def build_space(self, name, **kwargs):
+            captured.update(kwargs)
+            return SpaceBuildResult(
+                space_id=str(uuid.uuid4()),
+                name=name,
+                status="building",
+                space_key="v2",
+                backend="linear",
+                index_table=None,
+                dim=4,
+                created=True,
+            )
+
+    monkeypatch.setattr(actions, "VectorSpaceLifecycleService", FakeLifecycle)
+    response = await client.post(
+        "/api/v1/admin/retrieval/spaces",
+        json={
+            "name": "content-v2",
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "dim": 1536,
+            "tokenizer_profile": {
+                "provider": "openai",
+                "model": "text-embedding-3-small",
+            },
+            "chunk": {"max_chunk_tokens": 256, "overlap_tokens": 32, "max_chars": 1200},
+        },
+        headers={**auth_headers, **_headers(_key("build-v2"))},
+    )
+    assert response.status_code == 200, response.text
+    tokenizer = captured["tokenizer"]
+    chunk = captured["chunk"]
+    assert tokenizer.kind.value == "tiktoken"
+    assert tokenizer.identifier == "cl100k_base"
+    assert tokenizer.exact is True
+    assert tokenizer.source.value == "curated"
+    assert (chunk.max_chunk_tokens, chunk.overlap_tokens, chunk.max_chars) == (
+        256,
+        32,
+        1200,
+    )
+    run = await db.get(BackgroundJob, uuid.UUID(response.json()["run_id"]))
+    assert run is not None
+    assert run.payload["tokenizer"]["kind"] == "tiktoken"
+    assert run.payload["tokenizer"]["source"] == "curated"
+    assert run.payload["chunk"] == {
+        "schema_version": 1,
+        "max_chunk_tokens": 256,
+        "overlap_tokens": 32,
+        "max_chars": 1200,
+    }
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"chunk": {"max_chunk_tokens": 128, "max_chars": 800}},
+        {
+            "tokenizer": {
+                "kind": "tiktoken",
+                "identifier": "cl100k_base",
+                "artifact_sha256": "a" * 64,
+                "max_input_tokens": 8191,
+            }
+        },
+        {
+            "tokenizer": {
+                "kind": "heuristic",
+                "identifier": "utf8-heuristic-v1",
+                "exact": True,
+                "max_input_tokens": 2048,
+            },
+            "chunk": {"max_chunk_tokens": 128, "max_chars": 800},
+        },
+        {
+            "tokenizer_profile": {"provider": "openai", "model": "text-embedding-3-small"},
+            "chunk": {"max_chunk_tokens": 128, "overlap_tokens": 64, "max_chars": 800},
+        },
+        {
+            "tokenizer_profile": {"provider": "openai", "model": "text-embedding-3-small"},
+            "tokenizer": {
+                "kind": "tiktoken",
+                "identifier": "cl100k_base",
+                "artifact_sha256": "a" * 64,
+                "max_input_tokens": 8191,
+            },
+            "chunk": {"max_chunk_tokens": 128, "max_chars": 800},
+        },
+    ],
+)
+async def test_build_space_refuses_half_or_invalid_tokenizer_configuration(
+    client, auth_headers, extra
+):
+    response = await client.post(
+        "/api/v1/admin/retrieval/spaces",
+        json={
+            "name": "content-v2",
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "dim": 1536,
+            **extra,
+        },
+        headers={**auth_headers, **_headers(_key("build-invalid"))},
+    )
+    assert response.status_code in (400, 422), response.text
+    assert "token" in response.text or "chunk" in response.text
+
+
 async def test_activation_refuses_without_a_golden_set(client, db, auth_headers, monkeypatch):
     candidate_id = _sync_space(status="building")
     _sync_coverage(candidate_id)
