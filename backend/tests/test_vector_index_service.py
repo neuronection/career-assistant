@@ -152,6 +152,57 @@ async def test_index_posting_end_to_end(db, engine, source, seeded_catalog):
             assert record.embedding is not None, "the linear backend stores the vector"
 
 
+async def test_the_embed_audit_write_is_released_before_the_store_writes(
+    db, engine, source, seeded_catalog
+):
+    """SQLite has one writer: the gateway's embed call flushes the audit row
+    into this session, so the indexer commits it before the store's own
+    connection writes. Postgres keeps the single transaction."""
+    posting = await _make_posting(db, source, external_id="vec-audit-release")
+    events: list[str] = []
+    original_commit = db.commit
+
+    async def _spy_commit():
+        events.append("commit")
+        await original_commit()
+
+    db.commit = _spy_commit  # type: ignore[method-assign]
+    indexer = _service(db, engine)
+    original_register = indexer.store.register_document
+
+    def _spy_register(*args, **kwargs):
+        events.append("register")
+        return original_register(*args, **kwargs)
+
+    indexer.store.register_document = _spy_register  # type: ignore[method-assign]
+    inner = indexer._embedder
+
+    class _AuditEmbedder:
+        async def __call__(self, texts):
+            events.append("embed")
+            await db.flush()
+            return await inner(texts)
+
+    indexer._embedder = _AuditEmbedder()
+    try:
+        outcome = await indexer.index_document(kind="posting", source_id=str(posting.id))
+    finally:
+        db.commit = original_commit  # type: ignore[method-assign]
+
+    assert outcome.degraded is None
+    embed_at = events.index("embed")
+    register_at = events.index("register")
+    released = [
+        index
+        for index, event in enumerate(events)
+        if event == "commit" and embed_at < index < register_at
+    ]
+    if db.get_bind().dialect.name == "sqlite":
+        assert released, f"the audit write must commit before the store write: {events}"
+    else:
+        assert not released, f"Postgres keeps one transaction across the write: {events}"
+
+
 async def test_reindex_of_unchanged_content_costs_zero_embeds(db, engine, source, seeded_catalog):
     posting = await _make_posting(db, source, external_id="vec-2")
     counter = CountingEmbedder(gateway_embedder(db))

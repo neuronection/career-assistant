@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (desktop: the embed audit write no longer re-locks the index, 2026-11-04)
+- **The inline vector index no longer stalls the API for 30 seconds while
+  writing.** The embedding call audits itself by flushing an `ai_generations`
+  row into the caller's session — which takes SQLite's single writer lock after
+  the pre-index release, so the store's own connection still waited the busy
+  timeout and the rescue degraded to overlap-only. The indexer now releases the
+  session again between the embed and the store write (SQLite only; Postgres
+  keeps one transaction), so the document lands and the semantic rescue works.
+
 ### Fixed (profile: legacy bare link URLs no longer 500 the profile, 2026-11-04)
 - **The profile page loads again when a stored contact link has no scheme.**
   Profile links require an `http(s)` URL, but rows written before that rule

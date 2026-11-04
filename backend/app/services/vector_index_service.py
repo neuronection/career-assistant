@@ -469,6 +469,18 @@ class VectorIndexService:
             progress=progress,
         )
 
+    async def _release_sqlite_writer(self) -> None:
+        """Commit this session so the store's own connection can write.
+
+        SQLite has one writer: the store commits through its own sync engine,
+        while this session may hold a write (the caller's pending rows, or the
+        gateway's ``ai_generations`` audit flush from the embed call). Without
+        the release the sync connection waits the 30s busy timeout inside the
+        event loop and the index degrades. Postgres keeps the transaction.
+        """
+        if self.db.get_bind().dialect.name == "sqlite":
+            await self.db.commit()
+
     async def index_composed(
         self,
         loaded: LoadedSource,
@@ -484,6 +496,7 @@ class VectorIndexService:
             return IndexOutcome(kind=kind, source_id=source_id, space=self.space_name)
         self._tags.clear()
         self._tags["kind"] = kind
+        await self._release_sqlite_writer()
         await self._report(progress, 10, "composing")
         profile: EmbeddingProfile | None = None
         space: VectorSpace | None = self._find_space()
@@ -536,6 +549,7 @@ class VectorIndexService:
             )
         vectors = vectors or []
 
+        await self._release_sqlite_writer()
         registered = self.store.register_document(
             space,
             kind=kind,
