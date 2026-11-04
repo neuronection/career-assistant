@@ -13669,7 +13669,7 @@
         "type": "object"
       },
       "ModelProfileRequest": {
-        "description": "One bounded admin embedding-tokenizer/limits override.\n\nThe provider class + model pair is the key. The tokenizer kind is\nrestricted to what this build can actually load (bundled ``tiktoken`` or\nthe conservative heuristic); plan 52 T2b adds HF assets behind the same\ncontract. The server derives ``exact`` and ``source`` \u2014 a client cannot\ndeclare a heuristic as exact.",
+        "description": "One bounded admin embedding-tokenizer/limits override.\n\nThe provider class + model pair is the key. The tokenizer kind is\nrestricted to what this build can actually load: bundled ``tiktoken``,\na pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +\nverified SHA-256) or the conservative heuristic. The server derives\n``exact`` and ``source`` \u2014 a client cannot declare a heuristic as exact.",
         "properties": {
           "batch_max_items": {
             "maximum": 4096.0,
@@ -24056,6 +24056,64 @@
         "title": "TimeseriesPointOut",
         "type": "object"
       },
+      "TokenizerFetchRequestBody": {
+        "description": "One pinned, bounded Hugging Face tokenizer fetch (admin-only job).",
+        "properties": {
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "optional expected tokenizer.json sha256; a mismatch fails the fetch",
+            "title": "Expected Sha256"
+          },
+          "files": {
+            "description": "allowlisted small files; must include tokenizer.json (('tokenizer.json', 'config.json', 'tokenizer_config.json', 'special_tokens_map.json'))",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "repository": {
+            "description": "org/model",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Repository",
+            "type": "string"
+          },
+          "revision": {
+            "description": "pinned 40-character commit sha (branches/tags are refused)",
+            "maxLength": 40,
+            "minLength": 40,
+            "pattern": "^[0-9a-fA-F]{40}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository",
+          "revision"
+        ],
+        "title": "TokenizerFetchRequestBody",
+        "type": "object"
+      },
       "TranscribeOut": {
         "properties": {
           "model": {
@@ -32341,6 +32399,115 @@
           }
         },
         "summary": "Retrieval Tokenizer",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/tokenizer/fetch": {
+      "post": {
+        "description": "Queue one pinned tokenizer asset fetch (never on the request path).\n\nThe handler validates the host/file allowlist, size cap and SHA-256,\ncaches under the content hash, and audits ``vector.tokenizer.*``. A repeat\nwith the same idempotency key and body returns the original job.",
+        "operationId": "retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenizerFetchRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Fetch Api V1 Admin Retrieval Tokenizer Fetch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer Fetch",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/tokenizer/fetch/{job_id}": {
+      "get": {
+        "description": "Read one tokenizer fetch job's status/progress/result (admin-only).",
+        "operationId": "retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Fetch Status Api V1 Admin Retrieval Tokenizer Fetch  Job Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer Fetch Status",
         "tags": [
           "retrieval-admin"
         ]

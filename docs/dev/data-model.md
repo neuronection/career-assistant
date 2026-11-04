@@ -455,7 +455,7 @@ deletion).
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
-| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model (plan 52 T2a): tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Curated rows live in code (`app/ai/tokenizers/registry.py`); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite |
+| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model (plan 52 T2a/T2b): tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Kinds are `tiktoken`, `hf_tokenizers` and `heuristic`; `sentencepiece` is reserved. Curated rows live in code (`app/ai/tokenizers/registry.py`) with HF provenance (repo/revision/SHA-256/license/source URL); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite. Fetched HF artifacts are cached at `<data_dir>/tokenizers/<sha256>/tokenizer.json`, not in the database |
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
@@ -480,7 +480,7 @@ deletion).
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) and the bounded live `progress_detail` counters (plan 52 T4) |
+| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) and the bounded live `progress_detail` counters (plan 52 T4). `tokenizer_fetch` rows (plan 52 T2b) are plain jobs: they are not `VECTOR_*` runs and never take a space lock |
 | `schedules` | `schedule_model.py` | Trigger definitions, misfire policy, claimed/queued state |
 | `app_settings` | `settings_model.py` | Instance settings (AI config, web tools, notification config) |
 | `interview_sessions` | `interview_model.py` | Interview plans, rubric aggregates, status |

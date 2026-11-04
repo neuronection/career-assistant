@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, RotateCcw, Save } from "lucide-react";
+import { AlertTriangle, Download, ExternalLink, RotateCcw, Save } from "lucide-react";
 
 import { apiDetail } from "@/api/client";
 import {
   deleteRetrievalModelProfile,
+  fetchRetrievalTokenizerFetch,
   saveRetrievalModelProfile,
+  startRetrievalTokenizerFetch,
   type RetrievalModelProfile,
   type RetrievalModelProfilePayload,
   type RetrievalModelProfilesResponse,
+  type RetrievalTokenizerFetchStatus,
 } from "@/api/retrieval";
 import { Badge, Button } from "@/components/ui";
 import {
@@ -55,6 +58,8 @@ function sourceTone(source: RetrievalModelProfile["source"]) {
   return "warning" as const;
 }
 
+const TERMINAL_FETCH_STATUSES = new Set(["succeeded", "failed", "cancelled"]);
+
 /** The admin profile selector: effective tokenizer/limits + a bounded editor. */
 export function RetrievalModelProfileCard({
   profiles,
@@ -67,15 +72,25 @@ export function RetrievalModelProfileCard({
   const resolution = profiles.resolution;
   const bounds = profiles.bounds;
   const [draft, setDraft] = useState<Draft>(() => draftFrom(resolution));
-  const [busy, setBusy] = useState<"save" | "reset" | null>(null);
+  const [busy, setBusy] = useState<"save" | "reset" | "fetch" | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [fetchStatus, setFetchStatus] = useState<RetrievalTokenizerFetchStatus | null>(
+    null,
+  );
 
   useEffect(() => {
     setDraft(draftFrom(resolution));
     setError("");
+    setFetchStatus(null);
   }, [resolution]);
 
+  const isHf = draft.kind === "hf_tokenizers";
+  const canFetch =
+    isHf &&
+    draft.identifier.trim() !== "" &&
+    draft.revision.trim() !== "" &&
+    busy === null;
   const canSave =
     draft.providerClass.trim() !== "" &&
     draft.model.trim() !== "" &&
@@ -86,6 +101,7 @@ export function RetrievalModelProfileCard({
     draft.chunkTokens !== null &&
     draft.chunkOverlap !== null &&
     draft.chunkChars !== null &&
+    (!isHf || (draft.revision.trim() !== "" && draft.sha256.trim() !== "")) &&
     busy === null;
 
   const save = async () => {
@@ -135,6 +151,48 @@ export function RetrievalModelProfileCard({
     }
   };
 
+  const fetchTokenizer = async () => {
+    if (!canFetch) return;
+    setBusy("fetch");
+    setError("");
+    setNotice("");
+    setFetchStatus(null);
+    try {
+      const started = await startRetrievalTokenizerFetch({
+        repository: draft.identifier.trim(),
+        revision: draft.revision.trim(),
+        ...(draft.sha256.trim() ? { expected_sha256: draft.sha256.trim() } : {}),
+      });
+      let status = await fetchRetrievalTokenizerFetch(started.job_id);
+      setFetchStatus(status);
+      let attempts = 0;
+      while (!TERMINAL_FETCH_STATUSES.has(status.status) && attempts < 60) {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        status = await fetchRetrievalTokenizerFetch(started.job_id);
+        setFetchStatus(status);
+      }
+      if (status.status === "succeeded" && status.result) {
+        setDraft((current) => ({ ...current, sha256: status.result?.sha256 ?? "" }));
+        setNotice(
+          t("retrieval.profile.fetchDone", {
+            sha: status.result.sha256.slice(0, 12),
+          }),
+        );
+      } else {
+        setError(status.error || t("retrieval.profile.fetchFailed"));
+      }
+    } catch (err) {
+      setError(apiDetail(err));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const selectedKindLabel = t(`retrieval.profile.kindName.${draft.kind}`, {
+    defaultValue: draft.kind,
+  });
+
   return (
     <div
       className="space-y-3 rounded-lg border border-[var(--as-border)] p-2"
@@ -178,6 +236,44 @@ export function RetrievalModelProfileCard({
           })}
         </p>
       </div>
+
+      {(resolution.family || resolution.license || resolution.source_url) && (
+        <p
+          className="flex flex-wrap items-center gap-1.5 text-xs text-[var(--as-muted-fg)]"
+          data-testid="retrieval-profile-provenance"
+        >
+          {resolution.family && <span>{t("retrieval.profile.family", { family: resolution.family })}</span>}
+          {resolution.license && <span>· {t("retrieval.profile.license", { license: resolution.license })}</span>}
+          {resolution.source_url && (
+            <a
+              className="inline-flex items-center gap-0.5 underline"
+              href={resolution.source_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {t("retrieval.profile.sourceLink")}
+              <ExternalLink className="h-3 w-3" aria-hidden />
+            </a>
+          )}
+        </p>
+      )}
+
+      {(!resolution.usable || !resolution.tokenizer_available) && (
+        <p
+          className="flex items-start gap-1.5 text-xs text-[var(--as-warning)]"
+          data-testid="retrieval-profile-unavailable"
+          role="status"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          <span>
+            {!resolution.usable
+              ? t("retrieval.profile.unavailable", {
+                  reason: resolution.usable_reason ?? "unsupported",
+                })
+              : t("retrieval.profile.assetMissing")}
+          </span>
+        </p>
+      )}
 
       {(resolution.source === "fallback" ||
         resolution.degraded_reason ||
@@ -230,16 +326,24 @@ export function RetrievalModelProfileCard({
             testId="retrieval-profile-kind"
           />
           <TextField
-            label={t("retrieval.profile.identifier")}
+            label={
+              isHf
+                ? t("retrieval.profile.repository")
+                : t("retrieval.profile.identifier")
+            }
             value={draft.identifier}
             onChange={(value) => setDraft({ ...draft, identifier: value })}
             maxLength={bounds.max_identifier_length}
             testId="retrieval-profile-identifier"
           />
-          {draft.kind === "tiktoken" && (
+          {(draft.kind === "tiktoken" || isHf) && (
             <>
               <TextField
-                label={t("retrieval.profile.revision")}
+                label={
+                  isHf
+                    ? t("retrieval.profile.pinnedRevision")
+                    : t("retrieval.profile.revision")
+                }
                 value={draft.revision}
                 onChange={(value) => setDraft({ ...draft, revision: value })}
                 maxLength={bounds.max_revision_length}
@@ -253,6 +357,38 @@ export function RetrievalModelProfileCard({
                 testId="retrieval-profile-sha256"
               />
             </>
+          )}
+          {isHf && (
+            <div className="sm:col-span-2" data-testid="retrieval-profile-fetch-block">
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canFetch}
+                  loading={busy === "fetch"}
+                  onClick={() => void fetchTokenizer()}
+                  data-testid="retrieval-profile-fetch"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden />
+                  {t("retrieval.profile.fetch")}
+                </Button>
+                <span
+                  className="text-[11px] text-[var(--as-muted-fg)]"
+                  data-testid="retrieval-profile-fetch-status"
+                  role="status"
+                >
+                  {fetchStatus
+                    ? t("retrieval.profile.fetchStatus", {
+                        status: fetchStatus.status,
+                        progress: fetchStatus.progress,
+                      })
+                    : t("retrieval.profile.fetchHint", {
+                        kind: selectedKindLabel,
+                        file: bounds.hf_tokenizer_filename,
+                      })}
+                </span>
+              </div>
+            </div>
           )}
           <NumberField
             label={t("retrieval.profile.maxInput")}

@@ -86,12 +86,20 @@ sample. Its **model profile** block shows the auto-resolved profile
 (curated, admin override or the visibly labelled fallback), the per-request
 batch item/token limits and the default token chunk budget; an admin can
 save a bounded tokenizer/limit override for a provider-class + model pair, or
-reset it to the curated profile. The build-space form previews the same
-profile for the provider/model being entered, so a fallback is visible before
-the space exists. Profile changes are settings only: no existing chunk,
-token column, record or space is rewritten, and token-aware writes arrive
-with plan 52 T3. A profile change therefore applies to **future** spaces; an
-existing space is not re-chunked in place.
+reset it to the curated profile. Curated open-source profiles show their
+family, license and source link, and an unavailable preset (for example a
+gated repository) is labelled instead of being presented as supported. For a
+Hugging Face tokenizer the editor takes the repository, a full 40-character
+commit revision and the `tokenizer.json` checksum; **Fetch tokenizer** queues
+a bounded, audited admin job (never a page-load download), shows its progress
+and fills the verified checksum so the profile can be saved. A missing or
+corrupt cached asset stays visibly approximate until it is fetched. The
+build-space form previews the same profile for the provider/model being
+entered, so a fallback is visible before the space exists. Profile changes
+are settings only: no existing chunk, token column, record or space is
+rewritten, and token-aware writes arrive with plan 52 T3. A profile change
+therefore applies to **future** spaces; an existing space is not re-chunked
+in place.
 **Spaces** lists active, building and retired
 spaces; changing models means building a new space (never an in-place
 rewrite), activating it only after coverage and the golden-query compare

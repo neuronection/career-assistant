@@ -2207,6 +2207,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/tokenizer/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Tokenizer Fetch
+         * @description Queue one pinned tokenizer asset fetch (never on the request path).
+         *
+         *     The handler validates the host/file allowlist, size cap and SHA-256,
+         *     caches under the content hash, and audits ``vector.tokenizer.*``. A repeat
+         *     with the same idempotency key and body returns the original job.
+         */
+        post: operations["retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/tokenizer/fetch/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Tokenizer Fetch Status
+         * @description Read one tokenizer fetch job's status/progress/result (admin-only).
+         */
+        get: operations["retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/usage": {
         parameters: {
             query?: never;
@@ -15114,10 +15158,10 @@ export interface components {
          * @description One bounded admin embedding-tokenizer/limits override.
          *
          *     The provider class + model pair is the key. The tokenizer kind is
-         *     restricted to what this build can actually load (bundled ``tiktoken`` or
-         *     the conservative heuristic); plan 52 T2b adds HF assets behind the same
-         *     contract. The server derives ``exact`` and ``source`` — a client cannot
-         *     declare a heuristic as exact.
+         *     restricted to what this build can actually load: bundled ``tiktoken``,
+         *     a pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +
+         *     verified SHA-256) or the conservative heuristic. The server derives
+         *     ``exact`` and ``source`` — a client cannot declare a heuristic as exact.
          */
         ModelProfileRequest: {
             /** Batch Max Items */
@@ -19234,6 +19278,34 @@ export interface components {
             series?: {
                 [key: string]: number;
             };
+        };
+        /**
+         * TokenizerFetchRequestBody
+         * @description One pinned, bounded Hugging Face tokenizer fetch (admin-only job).
+         */
+        TokenizerFetchRequestBody: {
+            /**
+             * Expected Sha256
+             * @description optional expected tokenizer.json sha256; a mismatch fails the fetch
+             */
+            expected_sha256?: string | null;
+            /**
+             * Files
+             * @description allowlisted small files; must include tokenizer.json (('tokenizer.json', 'config.json', 'tokenizer_config.json', 'special_tokens_map.json'))
+             */
+            files?: string[];
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Repository
+             * @description org/model
+             */
+            repository: string;
+            /**
+             * Revision
+             * @description pinned 40-character commit sha (branches/tags are refused)
+             */
+            revision: string;
         };
         /** TranscribeOut */
         TranscribeOut: {
@@ -23749,6 +23821,77 @@ export interface operations {
             };
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenizerFetchRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;

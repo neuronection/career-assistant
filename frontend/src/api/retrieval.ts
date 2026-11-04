@@ -133,6 +133,8 @@ export interface RetrievalModelProfile {
   exact: boolean;
   override: boolean;
   identity: string;
+  counted_identity: string;
+  tokenizer_available: boolean;
   tokenizer_kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
   tokenizer_identifier: string;
   tokenizer_revision: string | null;
@@ -140,6 +142,13 @@ export interface RetrievalModelProfile {
   max_input_tokens: number;
   max_input_assumed: boolean;
   degraded_reason: string | null;
+  family: string | null;
+  license: string | null;
+  source_url: string | null;
+  repository: string | null;
+  preset_revision: string | null;
+  usable: boolean;
+  usable_reason: string | null;
   batch_max_items: number;
   batch_max_tokens: number;
   chunk: {
@@ -149,6 +158,18 @@ export interface RetrievalModelProfile {
   };
   updated_by: string | null;
   updated_at: string | null;
+}
+
+export interface RetrievalUnavailablePreset {
+  family: string;
+  repository: string;
+  revision: string;
+  license: string;
+  source_url: string;
+  max_input_tokens: number;
+  models: string[];
+  usable: boolean;
+  usable_reason: string | null;
 }
 
 export interface RetrievalModelProfileBounds {
@@ -163,6 +184,9 @@ export interface RetrievalModelProfileBounds {
   max_chunk_chars: number;
   supported_kinds: string[];
   supported_tiktoken_identifiers: string[];
+  hf_tokenizer_filename: string;
+  max_tokenizer_json_bytes: number;
+  requires_pinned_revision: boolean;
 }
 
 export interface RetrievalModelProfilesResponse {
@@ -171,9 +195,51 @@ export interface RetrievalModelProfilesResponse {
   assigned: { provider: string; model: string } | null;
   resolution: RetrievalModelProfile;
   curated: RetrievalModelProfile[];
+  unavailable_presets: RetrievalUnavailablePreset[];
   overrides: RetrievalModelProfile[];
   bounds: RetrievalModelProfileBounds;
   token_aware_writes: false;
+}
+
+export interface RetrievalTokenizerFetchPayload {
+  repository: string;
+  revision: string;
+  files?: string[];
+  expected_sha256?: string;
+}
+
+export interface RetrievalTokenizerFetch {
+  state: "ok";
+  job_id: string;
+  job_type: string;
+  status: RetrievalRunStatus;
+  progress: number;
+  stage: string | null;
+  requested: RetrievalTokenizerFetchPayload;
+  deduplicated: boolean;
+  idempotency_key: string | null;
+}
+
+export interface RetrievalTokenizerFetchStatus {
+  state: "ok";
+  job_id: string;
+  status: RetrievalRunStatus;
+  progress: number;
+  stage: string | null;
+  heartbeat_at: string | null;
+  error: string | null;
+  result: {
+    repository: string;
+    revision: string;
+    filename: string;
+    sha256: string;
+    size_bytes: number;
+    cached: boolean;
+    files: Record<string, number>;
+  } | null;
+  requested: RetrievalTokenizerFetchPayload;
+  created_at: string | null;
+  finished_at: string | null;
 }
 
 export interface RetrievalModelProfilePayload {
@@ -763,6 +829,26 @@ export async function deleteRetrievalModelProfile(
   const { data } = await api.delete<RetrievalModelProfileDeleteResponse>(
     "/admin/retrieval/model-profiles",
     { params: { provider, model } },
+  );
+  return data;
+}
+
+export async function startRetrievalTokenizerFetch(
+  payload: RetrievalTokenizerFetchPayload,
+): Promise<RetrievalTokenizerFetch> {
+  const { data } = await api.post<RetrievalTokenizerFetch>(
+    "/admin/retrieval/tokenizer/fetch",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function fetchRetrievalTokenizerFetch(
+  jobId: string,
+): Promise<RetrievalTokenizerFetchStatus> {
+  const { data } = await api.get<RetrievalTokenizerFetchStatus>(
+    `/admin/retrieval/tokenizer/fetch/${jobId}`,
   );
   return data;
 }

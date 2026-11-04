@@ -48,6 +48,8 @@ vi.mock("@/api/retrieval", async (importOriginal) => {
     fetchRetrievalModelProfiles: vi.fn(),
     saveRetrievalModelProfile: vi.fn(),
     deleteRetrievalModelProfile: vi.fn(),
+    startRetrievalTokenizerFetch: vi.fn(),
+    fetchRetrievalTokenizerFetch: vi.fn(),
     reindexRetrievalSpace: vi.fn(),
     cancelRetrievalRun: vi.fn(),
     retryRetrievalRun: vi.fn(),
@@ -357,6 +359,8 @@ function modelProfile(
     exact: true,
     override: false,
     identity: "tiktoken:cl100k_base#223921b76ee9",
+    counted_identity: "tiktoken:cl100k_base#223921b76ee9",
+    tokenizer_available: true,
     tokenizer_kind: "tiktoken",
     tokenizer_identifier: "cl100k_base",
     tokenizer_revision: null,
@@ -365,6 +369,13 @@ function modelProfile(
     max_input_tokens: 8191,
     max_input_assumed: false,
     degraded_reason: null,
+    family: "openai",
+    license: "openai-terms",
+    source_url: "https://platform.openai.com/docs/guides/embeddings",
+    repository: null,
+    preset_revision: null,
+    usable: true,
+    usable_reason: null,
     batch_max_items: 2048,
     batch_max_tokens: 300000,
     chunk: { max_chunk_tokens: 512, overlap_tokens: 64, max_chars: 1600 },
@@ -383,6 +394,19 @@ function modelProfilesResponse(
     assigned: { provider: "openai_compatible", model: "text-embedding-3-small" },
     resolution: modelProfile(),
     curated: [modelProfile()],
+    unavailable_presets: [
+      {
+        family: "embeddinggemma",
+        repository: "google/embeddinggemma-300m",
+        revision: "57c266a740f537b4dc058e1b0cda161fd15afa75",
+        license: "gemma",
+        source_url: "https://huggingface.co/google/embeddinggemma-300m",
+        max_input_tokens: 2048,
+        models: ["embeddinggemma"],
+        usable: false,
+        usable_reason: "gated_repository",
+      },
+    ],
     overrides: [],
     bounds: {
       max_provider_class_length: 40,
@@ -394,8 +418,11 @@ function modelProfilesResponse(
       max_batch_tokens: 10000000,
       max_chunk_tokens: 1000000,
       max_chunk_chars: 1000000,
-      supported_kinds: ["tiktoken", "heuristic"],
+      supported_kinds: ["tiktoken", "hf_tokenizers", "heuristic"],
       supported_tiktoken_identifiers: ["cl100k_base"],
+      hf_tokenizer_filename: "tokenizer.json",
+      max_tokenizer_json_bytes: 33554432,
+      requires_pinned_revision: true,
     },
     token_aware_writes: false,
     ...overrides,
@@ -511,6 +538,44 @@ beforeEach(() => {
     deleted: true,
     resolution: modelProfile(),
     token_aware_writes: false,
+  });
+  vi.mocked(retrievalApi.startRetrievalTokenizerFetch).mockResolvedValue({
+    state: "ok",
+    job_id: "job-fetch-1",
+    job_type: "tokenizer_fetch",
+    status: "queued",
+    progress: 0,
+    stage: null,
+    requested: {
+      repository: "org/model",
+      revision: "0123456789abcdef0123456789abcdef01234567",
+    },
+    deduplicated: false,
+    idempotency_key: "key",
+  });
+  vi.mocked(retrievalApi.fetchRetrievalTokenizerFetch).mockResolvedValue({
+    state: "ok",
+    job_id: "job-fetch-1",
+    status: "succeeded",
+    progress: 100,
+    stage: "done",
+    heartbeat_at: "2026-11-04T10:00:00Z",
+    error: null,
+    result: {
+      repository: "org/model",
+      revision: "0123456789abcdef0123456789abcdef01234567",
+      filename: "tokenizer.json",
+      sha256: "b".repeat(64),
+      size_bytes: 531,
+      cached: false,
+      files: { "tokenizer.json": 531 },
+    },
+    requested: {
+      repository: "org/model",
+      revision: "0123456789abcdef0123456789abcdef01234567",
+    },
+    created_at: "2026-11-04T10:00:00Z",
+    finished_at: "2026-11-04T10:00:02Z",
   });
   vi.mocked(retrievalApi.reindexRetrievalSpace).mockResolvedValue(actionResponse());
   vi.mocked(retrievalApi.cancelRetrievalRun).mockResolvedValue(
@@ -892,6 +957,183 @@ describe("RetrievalManagementSection", () => {
       ),
     );
     expect(within(card).getByText("retrieval.profile.resetDone")).toBeTruthy();
+  });
+
+  it("fetches a pinned HF tokenizer and applies the verified checksum", async () => {
+    const user = userEvent.setup();
+    const revision = "0123456789abcdef0123456789abcdef01234567";
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({
+          source: "admin",
+          override: true,
+          exact: false,
+          tokenizer_available: false,
+          identity: `hf_tokenizers:org/model@${revision}`,
+          counted_identity: "heuristic:utf8-heuristic-v1",
+          tokenizer_kind: "hf_tokenizers",
+          tokenizer_identifier: "org/model",
+          tokenizer_revision: revision,
+          tokenizer_artifact_sha256: null,
+          max_input_tokens: 512,
+          max_input_assumed: false,
+          degraded_reason: "asset_missing",
+          family: "nomic",
+          license: "apache-2.0",
+          source_url: "https://huggingface.co/org/model",
+          repository: "org/model",
+          preset_revision: revision,
+          batch_max_items: 256,
+          batch_max_tokens: 250000,
+          chunk: { max_chunk_tokens: 512, overlap_tokens: 64, max_chars: 1600 },
+        }),
+      }),
+    );
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    expect(within(card).getByTestId("retrieval-profile-provenance").textContent).toContain(
+      "retrieval.profile.license",
+    );
+    expect(within(card).getByTestId("retrieval-profile-unavailable").textContent).toContain(
+      "retrieval.profile.assetMissing",
+    );
+    await user.click(within(card).getByText("retrieval.profile.edit"));
+    await user.click(within(card).getByTestId("retrieval-profile-fetch"));
+    await waitFor(() =>
+      expect(retrievalApi.startRetrievalTokenizerFetch).toHaveBeenCalledWith({
+        repository: "org/model",
+        revision,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        (within(card).getByTestId("retrieval-profile-sha256") as HTMLInputElement).value,
+      ).toBe("b".repeat(64)),
+    );
+    expect(within(card).getByTestId("retrieval-profile-fetch-status").textContent).toContain(
+      "retrieval.profile.fetchStatus",
+    );
+  });
+
+  it("blocks saving an HF profile without a pinned revision and checksum", async () => {
+    const user = userEvent.setup();
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({
+          source: "admin",
+          override: true,
+          exact: false,
+          tokenizer_available: false,
+          identity: "hf_tokenizers:org/model",
+          counted_identity: "heuristic:utf8-heuristic-v1",
+          tokenizer_kind: "hf_tokenizers",
+          tokenizer_identifier: "org/model",
+          tokenizer_revision: null,
+          tokenizer_artifact_sha256: null,
+          max_input_tokens: 512,
+          degraded_reason: "asset_missing",
+          family: "nomic",
+          license: "apache-2.0",
+          source_url: "https://huggingface.co/org/model",
+          repository: "org/model",
+          batch_max_items: 256,
+          batch_max_tokens: 250000,
+          chunk: { max_chunk_tokens: 512, overlap_tokens: 64, max_chars: 1600 },
+        }),
+      }),
+    );
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    await user.click(within(card).getByText("retrieval.profile.edit"));
+    expect(within(card).getByTestId("retrieval-profile-save")).toBeDisabled();
+    expect(within(card).getByTestId("retrieval-profile-fetch")).toBeDisabled();
+  });
+
+  it("shows a failed tokenizer fetch without pretending it succeeded", async () => {
+    const user = userEvent.setup();
+    const revision = "0123456789abcdef0123456789abcdef01234567";
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({
+          source: "admin",
+          override: true,
+          exact: false,
+          tokenizer_available: false,
+          identity: `hf_tokenizers:org/model@${revision}`,
+          counted_identity: "heuristic:utf8-heuristic-v1",
+          tokenizer_kind: "hf_tokenizers",
+          tokenizer_identifier: "org/model",
+          tokenizer_revision: revision,
+          tokenizer_artifact_sha256: "b".repeat(64),
+          max_input_tokens: 512,
+          degraded_reason: "asset_missing",
+          family: "nomic",
+          license: "apache-2.0",
+          source_url: "https://huggingface.co/org/model",
+          repository: "org/model",
+          batch_max_items: 256,
+          batch_max_tokens: 250000,
+          chunk: { max_chunk_tokens: 512, overlap_tokens: 64, max_chars: 1600 },
+        }),
+      }),
+    );
+    vi.mocked(retrievalApi.fetchRetrievalTokenizerFetch).mockResolvedValue({
+      state: "ok",
+      job_id: "job-fetch-1",
+      status: "failed",
+      progress: 40,
+      stage: "failed",
+      heartbeat_at: "2026-11-04T10:00:00Z",
+      error: "checksum_mismatch: expected a, got b",
+      result: null,
+      requested: { repository: "org/model", revision },
+      created_at: "2026-11-04T10:00:00Z",
+      finished_at: "2026-11-04T10:00:02Z",
+    });
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    await user.click(within(card).getByText("retrieval.profile.edit"));
+    await user.click(within(card).getByTestId("retrieval-profile-fetch"));
+    await waitFor(() =>
+      expect(within(card).getByRole("alert").textContent).toContain("checksum_mismatch"),
+    );
+  });
+
+  it("labels an unavailable curated preset without claiming support", async () => {
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({
+          provider_class: "openai",
+          model: "embeddinggemma",
+          source: "fallback",
+          exact: false,
+          override: false,
+          identity: "heuristic:utf8-heuristic-v1",
+          counted_identity: "heuristic:utf8-heuristic-v1",
+          tokenizer_kind: "heuristic",
+          tokenizer_identifier: "utf8-heuristic-v1",
+          tokenizer_artifact_sha256: null,
+          max_input_tokens: 2048,
+          max_input_assumed: true,
+          family: "embeddinggemma",
+          license: "gemma",
+          source_url: "https://huggingface.co/google/embeddinggemma-300m",
+          repository: "google/embeddinggemma-300m",
+          usable: false,
+          usable_reason: "gated_repository",
+          batch_max_items: 64,
+          batch_max_tokens: 8192,
+          chunk: { max_chunk_tokens: 256, overlap_tokens: 32, max_chars: 800 },
+        }),
+      }),
+    );
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    const unavailable = within(card).getByTestId("retrieval-profile-unavailable");
+    expect(unavailable.textContent).toContain("retrieval.profile.unavailable");
+    expect(within(card).getByTestId("retrieval-profile-warning").textContent).toContain(
+      "retrieval.profile.fallbackWarning",
+    );
   });
 
   it("renders a queued run and offers cancel without implying completion", async () => {

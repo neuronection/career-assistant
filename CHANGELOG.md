@@ -4,6 +4,31 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: pinned HF tokenizers and open-source mappings, 2026-11-04)
+- **Tools → Retrieval can now resolve verified open-source embedding
+  tokenizers instead of only the fallback.** Curated profiles for nomic,
+  mxbai, bge, Qwen3-Embedding and multilingual-e5 carry the Hugging Face
+  repository, pinned revision, `tokenizer.json` SHA-256, license and source
+  link. A known family that cannot be fetched honestly (currently gated
+  `embeddinggemma`) is listed as an unavailable preset and stays visibly on
+  the fallback; unknown models are never guessed from their name.
+- **Admins can fetch a pinned Hugging Face tokenizer as a bounded job.** The
+  editor takes a repository, a full 40-character commit and the expected
+  checksum; **Fetch tokenizer** queues an audited `tokenizer_fetch` job,
+  shows its progress, and fills the verified SHA-256 for saving. Downloads
+  are host/file allowlisted, size-capped, redirect-checked, checksum-verified
+  and cached by content hash under the instance data directory. Nothing
+  downloads on a page load, request path or boot.
+- **`hf_tokenizers` loading is exact when the asset is cached and honestly
+  approximate when it is not.** The service verifies size and SHA-256 before
+  parsing the Rust `tokenizers` JSON, supports count/encode/decode, and keeps
+  the bounded LRU. A missing/corrupt asset degrades to the labelled
+  heuristic; `sentencepiece` remains reserved and unshipped.
+- The family retrieval-ops contract gains the non-space `TOKENIZER_FETCH` job
+  vocabulary and the `vector.tokenizer.fetch_requested` / `.fetched` /
+  `.fetch_failed` audit events. This remains settings only: no token-aware
+  chunk write, `space_key` change or cutover (plan 52 T3).
+
 ### Added (retrieval: embedding tokenizer profiles, 2026-11-04)
 - **Tools → Retrieval now resolves an embedding model's tokenizer and limits
   by precedence: admin override → curated catalog → conservative fallback.**

@@ -493,15 +493,15 @@
     {
       "id": "tokenizer-transparency",
       "verb": "See what counts as a token, before it can break retrieval",
-      "summary": "A tokenizer and limits surface in Tools → Retrieval: the counting tokenizer, exactness, input limit, batch and default token-chunk budget, measured char-vs-token spread, and an admin profile per provider-class + model.",
+      "summary": "A tokenizer/limits surface in Tools → Retrieval: counting tokenizer, exactness, input limit, batch and chunk budget, measured spread, and an admin profile per provider-class + model with pinned HF fetch.",
       "category": "analyze",
       "status": "shipped",
       "proofs": [
-        "Exact tiktoken counting for curated OpenAI embedding models, with the BPE asset bundled and checksum-verified offline",
-        "Every other model is visibly labelled as the conservative UTF-8/codepoint fallback — never silently exact",
-        "Admin profile per provider-class + model (tokenizer, limits, default chunk), reset to curated; a model name never picks an exact tokenizer",
-        "Measured English, Greek, German, CJK and code spread plus a bounded corpus sample; aggregates only, no writes",
-        "Build-space preview shows the resolved profile (source, exact, limits, fallback warning); settings-only until T3"
+        "Exact tiktoken counting for curated OpenAI models; the BPE asset is bundled and checksum-verified offline",
+        "Verified nomic/mxbai/bge/Qwen/e5 mappings carry pinned revision, SHA-256, license and source URL",
+        "Pinned HF tokenizer.json fetch is allowlisted, size-capped, SHA-256-verified, cached and never request-time",
+        "Unfetched/unknown models show the labelled fallback; an admin per provider-class + model can override it",
+        "Measured EN/EL/DE/CJK/code spread plus corpus sample; build preview is read-only until T3"
       ],
       "links": [
         {

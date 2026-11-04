@@ -116,24 +116,48 @@ missed recall/precision (inspect the per-query misses in Quality and fix the
 content, views or golden set, then re-compare). Never lower the floor to force
 a cutover.
 
-## 4. Embedding tokenizer profiles (plan 52 T2a)
+## 4. Embedding tokenizer profiles (plan 52 T2a/T2b)
 
 The **Tokenizer & limits** card on Tools → Retrieval owns the embedding
 model's tokenizer/limit profile. Resolution is deterministic and keyed on
 **provider class + model id**, never on a model-name substring:
 
 1. **admin** — an `embedding_model_profiles` row (explicit override);
-2. **curated** — the code catalog in `app/ai/tokenizers/registry.py`
-   (currently `text-embedding-3-small`, `text-embedding-3-large`,
-   `text-embedding-ada-002` → bundled `cl100k_base`);
+2. **curated** — the code catalog in `app/ai/tokenizers/registry.py`:
+   the three OpenAI embeddings (`text-embedding-3-small`,
+   `text-embedding-3-large`, `text-embedding-ada-002` → bundled
+   `cl100k_base`) plus verified open-source families with pinned Hugging
+   Face `tokenizer.json` provenance (nomic, mxbai, bge, Qwen3-Embedding,
+   multilingual-e5);
 3. **fallback** — the conservative UTF-8/codepoint heuristic, always
    `exact=False`.
 
-A known OpenAI model served by another provider class is **fallback**, and
-no Ollama/Hugging Face profile is guessed. The card and the build-space form
-preview show the source, exact flag, max input tokens, per-request batch
-limits and the default token chunk budget; a fallback is called out with a
-warning before the space is built.
+A known model served by another provider class is **fallback**, and no
+profile is guessed from a model-name substring. Curated open-source rows
+carry their repository, 40-character revision, artifact SHA-256, license and
+source URL; the API and card show them. A family whose repository is gated or
+whose tokenizer cannot be fetched honestly (currently `embeddinggemma`) is
+listed as an **unavailable preset** and stays visibly on the fallback — it
+never claims support. The card and the build-space form preview show the
+source, exact flag, availability, max input tokens, per-request batch limits
+and the default token chunk budget; a fallback or unfetched asset is called
+out with a warning before the space is built.
+
+### Hugging Face tokenizer fetch (plan 52 T2b)
+
+An admin may pin a Hugging Face repository, a full 40-character commit
+revision and the `tokenizer.json` SHA-256. The fetch is a bounded
+`tokenizer_fetch` background job, never a request/boot read: host allowlist
+(`huggingface.co` + its CDN/Xet hosts), small-file allowlist
+(`tokenizer.json` + optional `config.json`/`tokenizer_config.json`/
+`special_tokens_map.json`), 32 MiB artifact cap, redirect validation, no
+`trust_remote_code`, and SHA-256 verification. The artifact is cached at
+`<data_dir>/tokenizers/<sha256>/tokenizer.json`, so a repeat is a cache hit
+with no network. Desktop/offline installs use the cache/bundled assets only;
+a missing/corrupt asset degrades to the labelled heuristic, never fake
+exactness. Selection changes stay `vector.model.changed`; fetch jobs audit
+`vector.tokenizer.fetch_requested`, `vector.tokenizer.fetched` and
+`vector.tokenizer.fetch_failed`.
 
 Admin endpoints (admin-only, aggregates only, no raw text):
 
@@ -141,14 +165,18 @@ Admin endpoints (admin-only, aggregates only, no raw text):
 |---|---|---|
 | `GET` | `/api/v1/admin/retrieval/model-profiles` | curated catalog, admin overrides and the assigned model's effective profile |
 | `GET` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | preview the resolution for a build-space pair |
-| `PUT` | `/api/v1/admin/retrieval/model-profiles` | save one bounded override (tokenizer kind/identifier/revision/checksum, max input, batch items/tokens, chunk tokens/overlap/chars) |
+| `PUT` | `/api/v1/admin/retrieval/model-profiles` | save one bounded override (tiktoken/HF/heuristic, identifier/revision/checksum, max input, batch items/tokens, chunk tokens/overlap/chars) |
 | `DELETE` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | remove the override; curated/fallback returns |
+| `POST` | `/api/v1/admin/retrieval/tokenizer/fetch` | queue one pinned HF fetch (repo, 40-char commit, allowlisted files, optional expected SHA-256); idempotent and audited |
+| `GET` | `/api/v1/admin/retrieval/tokenizer/fetch/{job_id}` | fetch job status/progress/result (admin-only; no text) |
 
 Validation happens at the domain boundary: the tokenizer contract owns the
 exact/fallback law, the chunk budget must fit the model input and one batch,
 `chunk_max_tokens >= 32`, `overlap * 2 < max_chunk_tokens`, and this build
-accepts only the bundled `tiktoken` (`cl100k_base`) or `heuristic` kinds;
-unknown or out-of-range input answers `400`/`422`. Changes are audited as
+accepts the bundled `tiktoken` (`cl100k_base`), a pinned
+`hf_tokenizers` selection (repository + 40-character commit + artifact
+SHA-256) or the `heuristic` kind; `sentencepiece` stays reserved. Unknown or
+out-of-range input answers `400`/`422`. Changes are audited as
 `vector.model.changed` with a `model_profile:<provider-class>/<model>`
 resource — the existing group, no second ledger.
 
@@ -290,20 +318,23 @@ the audit event in the incident note; the Changes section already has the
 
 ## 10. Plan 52 handoff (T2b / T3)
 
-**T2b — provider/HF fetch and a wider curated catalog.**
+**T2b — provider/HF fetch and a wider curated catalog (implemented).**
 
-- Add a pinned, checksum-verified fetch job for tokenizer assets (HF
-  `tokenizer.json`/`.model` + revision) under a local data directory; never
-  fetch at request time and never auto-download from a model name. Register
-  the fetched asset in the profile contract axis (`hf_tokenizers` /
-  `sentencepiece`, revision + `artifact_sha256`) and surface `available`
-  honestly.
-- Expand the curated catalog with provenance (license and source URL) and
-  keep unknown models visibly `fallback`. If curated rows move into the
-  table, persist `source=curated` and make the code catalog the sync source;
-  do not make the migration invent model facts.
-- Extend the admin editor to the new kinds once the service can load them;
-  the current API intentionally rejects them.
+- The pinned, checksum-verified `tokenizer_fetch` job loads only an
+  allowlisted `tokenizer.json` (+ small config) from `huggingface.co` and its
+  CDN/Xet hosts at a full 40-character commit revision; it is bounded,
+  audited and cached by content hash. No request/boot path fetches.
+- `hf_tokenizers` loads the verified local cache and exposes count/encode/
+  decode; a missing/corrupt artifact degrades visibly. `sentencepiece` stays
+  reserved.
+- Curated open-source profiles (nomic, mxbai, bge, Qwen3-Embedding,
+  multilingual-e5) carry repository/revision/SHA-256/license/source URL;
+  `embeddinggemma` is listed as an unavailable gated preset. Unknown models
+  stay fallback.
+- The admin editor supports the HF kind, fetch action/status and the
+  provenance/availability warnings. Curated rows remain code facts (no
+  migration invents model data).
+- T3 still owns token-aware writes, `space_key` v2 and cutover.
 
 **T3 — token-aware chunk writes and cutover.**
 
