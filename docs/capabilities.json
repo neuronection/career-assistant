@@ -475,7 +475,7 @@
         "Bounded reindex by kind, view and since timestamp with a token budget and document limit; queued runs are shown as queued, never as finished",
         "Build a new space to change models, activate only after coverage and the golden-query compare pass, then retire or drop it with a typed name",
         "Index rebuild, vacuum, orphan sweep and failed-document retry with dry-run; the status export carries aggregates only, never raw text",
-        "Read-only Audit → Retrieval tab: spaces, runs, quality, query health, failures, usage, changes, with detail drawers and Tools hand-off"
+        "Read-only Audit → Retrieval tab with spaces, runs (live progress, counters), quality, query health, failures, usage and changes"
       ],
       "links": [
         {

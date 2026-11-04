@@ -4,6 +4,19 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: live indexing progress, 2026-11-04)
+- **Vector reindex/backfill runs now show real indexing progress instead of a
+  bare percentage.** Tools → Retrieval recent runs, Audit → Retrieval → Runs
+  and the run drawer render a progress bar with processed / total documents,
+  pending chunks (marked *estimated* when the corpus-wide chunk total is not
+  known), embedded/skipped/failed documents and chunks, measured tokens and
+  embed calls. Document totals are exact at scan start and are carried across
+  chained reconcile continuations, so the bar never resets mid-backfill.
+- The counters live in a bounded `background_jobs.progress_detail` document
+  written in the same per-document progress UPDATE as `progress`/`stage`
+  (no extra write, no ids or text). The detail is pruned when the final run
+  `result` commits; the result stays the authoritative audit record.
+
 ### Added (retrieval: tokenizer/source truth, shadow only, 2026-11-04)
 - **Tools → Retrieval now shows which tokenizer counts the active space's
   text, whether it is exact, the model input limit and the current

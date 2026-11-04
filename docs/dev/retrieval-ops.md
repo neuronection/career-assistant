@@ -61,6 +61,7 @@ Read the run result from the run drawer (or `GET
 | `failed_ids` | Up to 500 affected ids; `failed_ids_truncated` says the list was cut |
 | `gate` | `pass` / `fail` / `unknown` for the run's own gate evaluation |
 | `stage`, `progress` | Worker stage and percentage; not a `run_steps` trace |
+| `progress_detail` | Live counters while the run is queued/running: phase, processed/total documents (exact at scan start), cumulative/estimated chunks, embedded/skipped/failed and tokens. Counts only — never ids or text. Pruned when the result commits |
 | `heartbeat_at`, `error` | Liveness and the terminal failure reason |
 
 A partial run with `auto_continue` queues its successor. A cancelled run

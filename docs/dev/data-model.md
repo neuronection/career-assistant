@@ -154,6 +154,13 @@ deletion).
 
 ### Migration notes
 
+- **0093** — plan 52 T4: `background_jobs.progress_detail` (`StructuredJSON`,
+  nullable; `JSONB` on PostgreSQL). A bounded live counter document
+  (phase, processed/total documents, cumulative/estimated chunks,
+  embedded/skipped/failed, tokens, embed calls) written in the same
+  per-document UPDATE as `progress`/`stage`; pruned when the final `result`
+  commits. Nullable for every other job family; no index or backfill, and
+  downgrade drops the column.
 - **0090** — plan 51 Q1a: the retrieval-operations checkpoint. Adds
   `ai_generations.metadata` (`StructuredJSON`, `NOT NULL` default `'{}'`)
   and `ai_generations.metadata_schema_version` (`SMALLINT`, default 1) —
@@ -458,7 +465,7 @@ deletion).
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) |
+| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) and the bounded live `progress_detail` counters (plan 52 T4) |
 | `schedules` | `schedule_model.py` | Trigger definitions, misfire policy, claimed/queued state |
 | `app_settings` | `settings_model.py` | Instance settings (AI config, web tools, notification config) |
 | `interview_sessions` | `interview_model.py` | Interview plans, rubric aggregates, status |
