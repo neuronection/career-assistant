@@ -90,11 +90,15 @@ export function PostingCard({
   const { t } = useTranslation();
   const navigate = useNavigate();
   const peek = useSkillPeek();
-  const retrievalDebugEnabled = useRetrievalDebugStore((state) => state.enabled);
-  const retrievalStatus = useRetrievalDebugStore(
-    (state) => state.statuses[String(posting.id)],
+  const retrievalDebugEnabled = useRetrievalDebugStore((state) =>
+    showRetrievalState ? state.enabled : false,
   );
-  const retrievalSpaceName = useRetrievalDebugStore((state) => state.space?.name ?? null);
+  const retrievalStatus = useRetrievalDebugStore((state) =>
+    showRetrievalState ? state.statuses[String(posting.id)] : undefined,
+  );
+  const retrievalSpaceName = useRetrievalDebugStore((state) =>
+    showRetrievalState ? (state.space?.name ?? null) : null,
+  );
   const [markedSeenId, setMarkedSeenId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{
     x: number;
