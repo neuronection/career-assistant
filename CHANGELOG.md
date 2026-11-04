@@ -4,6 +4,16 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (desktop: the inline semantic index no longer freezes SQLite, 2026-11-04)
+- **Desktop: a posting's inline semantic index write no longer deadlocks the
+  database.** The vector store commits through its own connection and SQLite
+  allows one writer, so the rescue now commits the caller's pending
+  transaction before indexing (Postgres keeps the single transaction). Before
+  this, every inline rescue waited the 30s busy timeout, stalled the API while
+  it waited, and degraded the mapping to overlap-only; now the document lands
+  in milliseconds. The caught failure still logs one info line, with the
+  traceback moved to debug.
+
 ### Changed (catalog layout — the /postings template and readable cards, 2026-11-04)
 - **`/catalog` now uses the `/postings` page template**: a filter rail on the
   left, the results in the middle and a recent-searches rail on the right.

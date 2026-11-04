@@ -124,6 +124,12 @@ async def _ensure_posting_indexed(
     deployment reports ``index_missing`` until the first index/reconcile run
     creates the space — explicit in the trace, never a silent no-op, and
     never request-time DDL.
+
+    SQLite has one writer: the vector store commits through its own sync
+    engine, so the caller's open write transaction is committed first on that
+    dialect (otherwise the store waits the 30s busy timeout, blocks the event
+    loop and the rescue degrades). Postgres keeps the caller's transaction —
+    a second writer is legal there and the atomicity is preserved.
     """
     if indexer is None:
         from app.services.vector_index_service import VectorIndexService
@@ -138,6 +144,8 @@ async def _ensure_posting_indexed(
             return DegradedReason.INDEX_MISSING.value
     elif not indexer.store.backend.health(space).ok:
         return DegradedReason.INDEX_MISSING.value
+    if db.get_bind().dialect.name == "sqlite":
+        await db.commit()
     outcome = await indexer.index_document(kind="posting", source_id=str(posting.id))
     return outcome.degraded
 
@@ -233,8 +241,8 @@ async def semantic_catalog_signal(
         logger.info(
             "semantic rescue could not index posting %s — overlap-only decision",
             getattr(posting, "id", None),
-            exc_info=True,
         )
+        logger.debug("semantic rescue index failure", exc_info=True)
         return SemanticSignal(
             threshold=SEMANTIC_MAP_THRESHOLD, degraded=DegradedReason.EMBED_FAILED.value
         )

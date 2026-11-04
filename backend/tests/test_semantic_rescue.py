@@ -331,6 +331,51 @@ async def test_the_signal_indexes_the_posting_before_the_match(db, source):
     assert embedder.calls == calls_after_index, "an unchanged posting costs zero embeds"
 
 
+async def test_the_inline_index_releases_the_sqlite_writer_first(db, source):
+    """One writer on SQLite: the caller's transaction commits before the
+    store's own connection inserts. Postgres keeps the transaction open, so
+    the ingest decision stays atomic where a second writer is legal."""
+    from types import SimpleNamespace
+
+    family = JobFamily(key="lock-family", label="Lock", path="lock-family")
+    db.add(family)
+    await db.flush()
+    python = await _skill(db, "lock-python")
+    await _job(db, "lock-role", family, [(python, 8, "core")])
+    posting = await _posting(db, source, "lock-posting", ["python"])
+
+    seen: dict[str, object] = {}
+
+    class FakeIndexer:
+        space_name = "content"
+        store = SimpleNamespace(
+            active_space=lambda _name: SimpleNamespace(index_table=None),
+            backend=SimpleNamespace(name="linear"),
+        )
+
+        async def index_document(self, **_kwargs):
+            seen["in_transaction"] = db.in_transaction()
+            return SimpleNamespace(degraded=None)
+
+    commits: list[bool] = []
+    original_commit = db.commit
+
+    async def _spy_commit():
+        commits.append(True)
+        await original_commit()
+
+    db.commit = _spy_commit  # type: ignore[method-assign]
+    try:
+        assert await rescue._ensure_posting_indexed(db, posting, indexer=FakeIndexer()) is None
+    finally:
+        db.commit = original_commit  # type: ignore[method-assign]
+
+    sqlite = db.get_bind().dialect.name == "sqlite"
+    assert bool(commits) is sqlite
+    if sqlite:
+        assert seen["in_transaction"] is False, "the writer lock is released before indexing"
+
+
 async def test_a_zero_shared_skill_posting_never_reaches_the_ann(db, source):
     _right, _wrong, _draft, posting, embedder, indexer = await _indexed_world(db, None, source)
     calls_before = embedder.calls
