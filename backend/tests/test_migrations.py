@@ -151,7 +151,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0096"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0097"], (
         "revision chain stays linear on one head"
     )
 
@@ -381,6 +381,7 @@ def test_0096_token_columns_keep_legacy_rows_null_and_roundtrip():
     command.upgrade(config, "head")
     for column in _TOKEN_COLUMNS:
         assert _column_present("vector_spaces", column), column
+    assert _column_present("vector_spaces", "tokenizer_source")
     for column in _TOKEN_RECORD_COLUMNS:
         assert _column_present("vector_records", column), column
     row = _read_0096_spaces()[str(spec["id"])]
@@ -394,6 +395,37 @@ def test_0096_token_columns_keep_legacy_rows_null_and_roundtrip():
 
     command.upgrade(config, "head")
     assert _column_present("vector_spaces", "tokenizer_kind")
+
+
+def test_0097_tokenizer_source_is_additive_and_drops_cleanly():
+    """Plan 52 T3c: the provenance column never rewrites the stored key."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "tokenizer_source")
+
+    spec = {
+        "id": uuid.uuid4(),
+        "name": f"token-source-{uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 1536,
+        "normalize": True,
+        "query_prefix": None,
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    spec["space_key"] = _expected_v1_key(spec)
+    key = str(spec["id"])
+    command.downgrade(config, "0096")
+    assert not _column_present("vector_spaces", "tokenizer_source")
+    _insert_0094_spaces([spec])
+    command.upgrade(config, "head")
+    assert _read_0095_space_keys()[key] == spec["space_key"]
+    command.downgrade(config, "0096")
+    assert not _column_present("vector_spaces", "tokenizer_source")
+    assert _read_0095_space_keys()[key] == spec["space_key"]
+    command.upgrade(config, "head")
 
 
 def test_populated_sqlite_upgrades_0095_to_0096(tmp_path, monkeypatch):

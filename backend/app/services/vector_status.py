@@ -227,6 +227,7 @@ def read_space_statuses(session: Session) -> list[dict[str, Any]]:
                 "artifact_sha256": row.tokenizer_artifact_sha256,
                 "exact": bool(row.tokenizer_exact),
                 "max_input_tokens": row.max_input_tokens,
+                "source": row.tokenizer_source,
             }
             if token_aware
             else None

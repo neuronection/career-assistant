@@ -31,7 +31,9 @@ from app.ai.tokenizers import (
     get_tokenizer_service,
 )
 from app.models.enums import AITaskType
+from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.services import embedding_profiles
+from app.services import retrieval_ops_reads as reads
 from app.services.vector_composers import (
     BODY_CHUNK_CHARS,
     BODY_CHUNK_OVERLAP_CHARS,
@@ -282,6 +284,38 @@ async def measure_corpus(
     return payload
 
 
+def _chunking_payload(space: VectorSpaceRow | None) -> dict[str, Any]:
+    """Report the active space's real chunker, never an aspirational one.
+
+    A legacy v1 space (or no active space) reports the char chunker with
+    ``token_aware: false``. Only a space that actually persisted a tokenizer
+    and chunk config may claim the token-aware write path.
+    """
+    if space is not None and space.tokenizer_kind is not None:
+        return {
+            "view": "all views",
+            "max_chunk_chars": space.chunk_max_chars,
+            "overlap_chars": None,
+            "chunker_version": space.chunker_version,
+            "composer_version": space.composer_version,
+            "token_aware": True,
+            "max_chunk_tokens": space.chunk_max_tokens,
+            "overlap_tokens": space.chunk_overlap_tokens,
+            "tokenizer_source": space.tokenizer_source,
+        }
+    return {
+        "view": "body",
+        "max_chunk_chars": BODY_CHUNK_CHARS,
+        "overlap_chars": BODY_CHUNK_OVERLAP_CHARS,
+        "chunker_version": CHUNKER_VERSION,
+        "composer_version": COMPOSER_VERSION,
+        "token_aware": False,
+        "max_chunk_tokens": None,
+        "overlap_tokens": None,
+        "tokenizer_source": None,
+    }
+
+
 async def build_report(
     db: AsyncSession,
     *,
@@ -307,6 +341,7 @@ async def build_report(
         kinds=kinds,
         limit_per_kind=limit_per_kind,
     )
+    active_space = await reads.default_space(db)
     payload = {
         "state": "ok" if resolved is not None else "unconfigured",
         "model": {
@@ -316,14 +351,7 @@ async def build_report(
         },
         "tokenizer": _tokenizer_dict(profile, tokenizer_service),
         "profile": embedding_profiles.profile_dto(profile, service=tokenizer_service),
-        "chunking": {
-            "view": "body",
-            "max_chunk_chars": BODY_CHUNK_CHARS,
-            "overlap_chars": BODY_CHUNK_OVERLAP_CHARS,
-            "chunker_version": CHUNKER_VERSION,
-            "composer_version": COMPOSER_VERSION,
-            "token_aware": False,
-        },
+        "chunking": _chunking_payload(active_space),
         "reference": reference,
         "corpus": corpus,
         "shadow": {"writes": False},

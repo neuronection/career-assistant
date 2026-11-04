@@ -189,7 +189,7 @@ async def test_profile_api_lists_curated_and_resolves_a_preview(client, auth_hea
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["state"] == "ok"
-    assert body["token_aware_writes"] is False
+    assert body["token_aware_writes"] is True
     assert len(body["curated"]) >= 3
     assert body["unavailable_presets"][0]["usable"] is False
     assert body["overrides"] == []

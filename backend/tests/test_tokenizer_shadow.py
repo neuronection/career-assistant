@@ -179,6 +179,9 @@ async def test_build_report_pins_current_char_chunk_config(db, monkeypatch):
         "chunker_version": "1",
         "composer_version": "1",
         "token_aware": False,
+        "max_chunk_tokens": None,
+        "overlap_tokens": None,
+        "tokenizer_source": None,
     }
     assert report["shadow"] == {"writes": False}
     assert report["reference"]["state"] == "ok"

@@ -112,6 +112,11 @@ _TOKENIZER_BOUNDS_CHECK = (
     "AND chunk_max_chars > 0 AND chunk_max_tokens <= max_input_tokens)"
 )
 _TOKENIZER_CHUNKER_VERSION_CHECK = "tokenizer_kind IS NULL OR chunker_version = '2'"
+_TOKENIZER_SOURCES = tuple(member.value for member in TokenizerSource)
+_TOKENIZER_SOURCE_CHECK = (
+    "tokenizer_source IS NULL OR "
+    f"(tokenizer_kind IS NOT NULL AND tokenizer_source IN ({_quoted(_TOKENIZER_SOURCES)}))"
+)
 
 
 def _utcnow() -> datetime:
@@ -122,9 +127,10 @@ def tokenizer_spec_from_columns(values: Mapping[str, Any]) -> TokenizerSpec | No
     """Rebuild the pinned tokenizer from persisted scalar columns.
 
     ``None`` means a legacy v1 row (every tokenizer column NULL). The
-    ``source`` is not part of the stored identity and is reconstructed as
-    ``fallback`` for the heuristic and ``curated`` otherwise; the space key
-    deliberately does not include it.
+    persisted ``source`` is provenance, not identity, so the space key
+    deliberately does not include it; a row that predates migration 0097
+    reconstructs it as ``fallback`` for the heuristic and ``curated``
+    otherwise.
     """
     kind = values.get("tokenizer_kind")
     if kind is None:
@@ -149,7 +155,11 @@ def tokenizer_spec_from_columns(values: Mapping[str, Any]) -> TokenizerSpec | No
         ),
         exact=bool(values.get("tokenizer_exact")),
         max_input_tokens=int(max_input_tokens),
-        source=(TokenizerSource.FALLBACK if heuristic else TokenizerSource.CURATED),
+        source=(
+            str(values.get("tokenizer_source"))
+            if values.get("tokenizer_source") is not None
+            else (TokenizerSource.FALLBACK if heuristic else TokenizerSource.CURATED)
+        ),
     )
 
 
@@ -232,6 +242,7 @@ class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(_TOKENIZER_PROVENANCE_CHECK, name="tokenizer_provenance_by_kind"),
         CheckConstraint(_TOKENIZER_BOUNDS_CHECK, name="tokenizer_chunk_bounds"),
         CheckConstraint(_TOKENIZER_CHUNKER_VERSION_CHECK, name="tokenizer_requires_chunker_v2"),
+        CheckConstraint(_TOKENIZER_SOURCE_CHECK, name="tokenizer_source_allowed"),
         UniqueConstraint("index_table", name="uq_vector_spaces_index_table"),
         Index(
             "uq_vector_spaces_name_active",
@@ -268,6 +279,7 @@ class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     tokenizer_revision: Mapped[str | None] = mapped_column(String(120), nullable=True)
     tokenizer_artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     tokenizer_exact: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    tokenizer_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
     max_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chunk_max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
     chunk_overlap_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)

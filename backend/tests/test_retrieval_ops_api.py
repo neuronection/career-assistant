@@ -342,7 +342,71 @@ async def test_spaces_rows_carry_counts_coverage_and_cold_state(client, db, auth
     assert by_name["content-v2"]["gate"] == "unknown"
     assert by_name["content-v2"]["backend"] == "linear"
     assert by_name["content-v2"]["status"] == "building"
+    assert by_name["content"]["token_aware"] is False
+    assert by_name["content"]["tokenizer"] is None
+    assert by_name["content"]["chunk"] is None
     ops.assert_no_raw_text(body)
+
+
+async def test_spaces_and_runs_report_the_pinned_tokenizer_and_chunk(client, db, auth_headers):
+    space = VectorSpaceRow(
+        name="content-v2",
+        provider="openai",
+        model="text-embedding-3-small",
+        dim=1536,
+        metric="cosine",
+        normalize=True,
+        chunker_version="2",
+        composer_version="1",
+        status="building",
+        tokenizer_kind="tiktoken",
+        tokenizer_identifier="cl100k_base",
+        tokenizer_artifact_sha256="a" * 64,
+        tokenizer_exact=True,
+        tokenizer_source="curated",
+        max_input_tokens=8191,
+        chunk_max_tokens=256,
+        chunk_overlap_tokens=32,
+        chunk_max_chars=1200,
+    )
+    db.add(space)
+    await db.flush()
+    db.add(
+        _job(
+            status="running",
+            progress=20,
+            payload={"space_id": str(space.id), "kinds": ["posting"]},
+            stage="embedding",
+        )
+    )
+    await db.commit()
+
+    spaces = (await client.get("/api/v1/admin/retrieval/spaces", headers=auth_headers)).json()
+    entry = next(row for row in spaces["spaces"] if row["name"] == "content-v2")
+    assert entry["token_aware"] is True
+    assert entry["tokenizer"] == {
+        "kind": "tiktoken",
+        "identifier": "cl100k_base",
+        "revision": None,
+        "artifact_sha256": "a" * 64,
+        "exact": True,
+        "max_input_tokens": 8191,
+        "source": "curated",
+    }
+    assert entry["chunk"] == {
+        "max_chunk_tokens": 256,
+        "overlap_tokens": 32,
+        "max_chars": 1200,
+    }
+
+    runs = (
+        await client.get(f"/api/v1/admin/retrieval/runs?space={space.id}", headers=auth_headers)
+    ).json()
+    run = runs["runs"][0]
+    assert run["token_aware"] is True
+    assert run["tokenizer"]["source"] == "curated"
+    assert run["chunk"]["max_chunk_tokens"] == 256
+    ops.assert_no_raw_text({"spaces": spaces, "runs": runs})
 
 
 async def test_spaces_empty_state(client, db, auth_headers):

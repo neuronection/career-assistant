@@ -427,7 +427,7 @@ async def list_payload(
         ],
         "overrides": [profile_dto(profile) for profile in overrides],
         "bounds": PROFILE_BOUNDS,
-        "token_aware_writes": False,
+        "token_aware_writes": True,
     }
 
 

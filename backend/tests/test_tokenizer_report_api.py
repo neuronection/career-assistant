@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import socket
 
+from app.models.vector_model import VectorSpace as VectorSpaceRow
 from app.services import tokenizer_report
 from app.storage import retrieval_ops as ops
 
@@ -48,6 +49,43 @@ async def test_report_returns_tokenizer_limits_and_reference_aggregates(client, 
     assert "SECRET" not in json.dumps(body)
     assert "Senior backend engineer" not in json.dumps(body), "reference text never leaves"
     ops.assert_no_raw_text(body)
+
+
+async def test_report_claims_token_aware_only_for_a_token_aware_active_space(
+    client, db, auth_headers
+):
+    active = VectorSpaceRow(
+        name="content",
+        provider="openai",
+        model="text-embedding-3-small",
+        dim=1536,
+        metric="cosine",
+        normalize=True,
+        chunker_version="2",
+        composer_version="1",
+        status="active",
+        tokenizer_kind="tiktoken",
+        tokenizer_identifier="cl100k_base",
+        tokenizer_artifact_sha256="a" * 64,
+        tokenizer_exact=True,
+        tokenizer_source="curated",
+        max_input_tokens=8191,
+        chunk_max_tokens=256,
+        chunk_overlap_tokens=32,
+        chunk_max_chars=1200,
+    )
+    db.add(active)
+    await db.commit()
+
+    body = (await client.get(PATH, headers=auth_headers)).json()
+    assert body["chunking"]["token_aware"] is True
+    assert body["chunking"]["view"] == "all views"
+    assert body["chunking"]["chunker_version"] == "2"
+    assert body["chunking"]["max_chunk_tokens"] == 256
+    assert body["chunking"]["overlap_tokens"] == 32
+    assert body["chunking"]["max_chunk_chars"] == 1200
+    assert body["chunking"]["tokenizer_source"] == "curated"
+    assert body["shadow"] == {"writes": False}
 
 
 async def test_tokenizer_read_paths_make_no_network_call(monkeypatch, client, auth_headers):
