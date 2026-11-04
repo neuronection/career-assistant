@@ -49,6 +49,12 @@ from typing import Any
 RETRIEVAL_CONTRACT_VERSION = "1"
 RETRIEVAL_SCHEMA_VERSION = 1
 
+#: Plan 52: a space/run may pin a tokenizer and a token-aware chunk config.
+#: These vocabularies mirror ``tokenizer_contract`` without importing it — the
+#: retrieval DTO only travels the selection, never the loader.
+TOKENIZER_KINDS = ("tiktoken", "hf_tokenizers", "sentencepiece", "heuristic")
+TOKENIZER_SOURCES = ("provider", "curated", "admin", "fallback")
+
 # ---------------------------------------------------------------------------
 # closed vocabularies
 # ---------------------------------------------------------------------------
@@ -364,6 +370,130 @@ class RunScope(_DTO):
 
 
 @dataclass(frozen=True)
+class SpaceTokenizerDTO(_DTO):
+    """The pinned tokenizer identity a token-aware space (or run) carries.
+
+    Counts-only evidence: kind, identifier, pinned revision, artifact
+    checksum, exactness, the model input limit and where the selection came
+    from. It never carries tokenizer assets or document text.
+    """
+
+    kind: str
+    identifier: str
+    exact: bool
+    max_input_tokens: int
+    revision: str | None = None
+    artifact_sha256: str | None = None
+    source: str | None = None
+
+    def __post_init__(self) -> None:
+        kind = _text(self.kind, "tokenizer.kind", required=True, maximum=30)
+        if kind not in TOKENIZER_KINDS:
+            raise _bad("tokenizer.kind", f"must be one of {TOKENIZER_KINDS}")
+        object.__setattr__(self, "kind", kind)
+        object.__setattr__(
+            self,
+            "identifier",
+            _text(self.identifier, "tokenizer.identifier", required=True, maximum=200),
+        )
+        object.__setattr__(self, "exact", bool(self.exact))
+        object.__setattr__(
+            self,
+            "max_input_tokens",
+            _int(self.max_input_tokens, "tokenizer.max_input_tokens", minimum=1),
+        )
+        revision = _optional_text(self.revision, "tokenizer.revision", maximum=120)
+        checksum = _optional_text(
+            self.artifact_sha256, "tokenizer.artifact_sha256", maximum=64
+        )
+        if checksum is not None:
+            checksum = checksum.lower()
+            if len(checksum) != 64 or any(
+                character not in "0123456789abcdef" for character in checksum
+            ):
+                raise _bad(
+                    "tokenizer.artifact_sha256",
+                    "must be a 64-character lowercase sha256",
+                )
+        source = _optional_text(self.source, "tokenizer.source", maximum=20)
+        if source is not None and source not in TOKENIZER_SOURCES:
+            raise _bad("tokenizer.source", f"must be one of {TOKENIZER_SOURCES}")
+        if kind == "heuristic":
+            if self.exact:
+                raise _bad(
+                    "tokenizer.exact", "a heuristic tokenizer is always exact=false"
+                )
+            if revision is not None or checksum is not None:
+                raise _bad(
+                    "tokenizer",
+                    "a heuristic tokenizer carries no revision or artifact checksum",
+                )
+        elif not self.exact:
+            raise _bad("tokenizer.exact", f"a {kind} tokenizer is always exact=true")
+        elif checksum is None:
+            raise _bad(
+                "tokenizer.artifact_sha256",
+                f"a {kind} tokenizer needs an artifact checksum",
+            )
+        elif kind in ("hf_tokenizers", "sentencepiece") and revision is None:
+            raise _bad(
+                "tokenizer.revision", f"a {kind} tokenizer needs a pinned revision"
+            )
+        object.__setattr__(self, "revision", revision)
+        object.__setattr__(self, "artifact_sha256", checksum)
+        object.__setattr__(self, "source", source)
+
+
+@dataclass(frozen=True)
+class SpaceChunkDTO(_DTO):
+    """The token-aware chunk budget a v2 space was built with (no text)."""
+
+    max_chunk_tokens: int
+    overlap_tokens: int = 0
+    max_chars: int = 1
+
+    def __post_init__(self) -> None:
+        maximum = _int(self.max_chunk_tokens, "chunk.max_chunk_tokens", minimum=32)
+        overlap = _int(self.overlap_tokens, "chunk.overlap_tokens", minimum=0)
+        if overlap * 2 >= maximum:
+            raise _bad(
+                "chunk.overlap_tokens",
+                "must stay below half of chunk.max_chunk_tokens",
+            )
+        object.__setattr__(self, "max_chunk_tokens", maximum)
+        object.__setattr__(self, "overlap_tokens", overlap)
+        object.__setattr__(
+            self, "max_chars", _int(self.max_chars, "chunk.max_chars", minimum=1)
+        )
+
+
+def _token_aware_parts(
+    tokenizer: Any, chunk: Any
+) -> tuple[SpaceTokenizerDTO | None, SpaceChunkDTO | None]:
+    if tokenizer is None and chunk is None:
+        return None, None
+    if tokenizer is None or chunk is None:
+        raise _bad(
+            "token_aware",
+            "tokenizer and chunk must be present together on a token-aware space/run",
+        )
+    tokenizer_dto = (
+        tokenizer
+        if isinstance(tokenizer, SpaceTokenizerDTO)
+        else SpaceTokenizerDTO(**dict(tokenizer))
+    )
+    chunk_dto = (
+        chunk if isinstance(chunk, SpaceChunkDTO) else SpaceChunkDTO(**dict(chunk))
+    )
+    if chunk_dto.max_chunk_tokens > tokenizer_dto.max_input_tokens:
+        raise _bad(
+            "chunk.max_chunk_tokens",
+            "must not exceed tokenizer.max_input_tokens",
+        )
+    return tokenizer_dto, chunk_dto
+
+
+@dataclass(frozen=True)
 class SpaceDTO(_DTO):
     """One row of the Spaces section / active-space card."""
 
@@ -388,6 +518,9 @@ class SpaceDTO(_DTO):
     last_error: str | None = None
     gate: GateStatus = GateStatus.UNKNOWN
     as_of: str | None = None
+    token_aware: bool = False
+    tokenizer: SpaceTokenizerDTO | None = None
+    chunk: SpaceChunkDTO | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -428,6 +561,15 @@ class SpaceDTO(_DTO):
             "as_of",
         ):
             object.__setattr__(self, name, _optional_text(getattr(self, name), name))
+        tokenizer, chunk = _token_aware_parts(self.tokenizer, self.chunk)
+        if self.token_aware != (tokenizer is not None):
+            raise _bad(
+                "token_aware",
+                "must be true exactly when a tokenizer and chunk are present",
+            )
+        object.__setattr__(self, "token_aware", bool(self.token_aware))
+        object.__setattr__(self, "tokenizer", tokenizer)
+        object.__setattr__(self, "chunk", chunk)
 
     @property
     def cold(self) -> bool:
@@ -621,6 +763,9 @@ class RunDTO(_DTO):
     idempotency_key: str | None = None
     lock_key: str | None = None
     progress_detail: RunProgressDTO | None = None
+    token_aware: bool = False
+    tokenizer: SpaceTokenizerDTO | None = None
+    chunk: SpaceChunkDTO | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -671,6 +816,15 @@ class RunDTO(_DTO):
         else:
             raise _bad("progress_detail", "must be a progress detail object")
         object.__setattr__(self, "progress_detail", parsed)
+        tokenizer, chunk = _token_aware_parts(self.tokenizer, self.chunk)
+        if self.token_aware != (tokenizer is not None):
+            raise _bad(
+                "token_aware",
+                "must be true exactly when a tokenizer and chunk are present",
+            )
+        object.__setattr__(self, "token_aware", bool(self.token_aware))
+        object.__setattr__(self, "tokenizer", tokenizer)
+        object.__setattr__(self, "chunk", chunk)
 
     @property
     def active(self) -> bool:
@@ -1762,6 +1916,8 @@ __all__ = [
     "SPACE_DROP_GRACE_DAYS",
     "STALL_MINUTES",
     "TOKENIZER_JOB_TYPES",
+    "TOKENIZER_KINDS",
+    "TOKENIZER_SOURCES",
     "V1_VIEWS",
     "VECTOR_AUDIT_EVENTS",
     "VECTOR_AUDIT_GROUP",
@@ -1793,8 +1949,10 @@ __all__ = [
     "RunResultDTO",
     "RunScope",
     "RunStatus",
+    "SpaceChunkDTO",
     "SpaceDTO",
     "SpaceStatus",
+    "SpaceTokenizerDTO",
     "UsageDTO",
     "UsageRowDTO",
     "assert_no_raw_text",
