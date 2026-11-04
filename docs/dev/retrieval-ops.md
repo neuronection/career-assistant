@@ -73,6 +73,14 @@ run's status.
 A model or dimension change is a **new space**, never an in-place rewrite.
 The active space keeps serving reads throughout.
 
+Each space row persists `space_key` — its cutover identity, stamped once
+when the space is created. Activation, the `POSTING_REMAP` payload and the
+space status read compare that stored value verbatim; they never recompute
+it from the row's current configuration. A later tokenizer/chunker version
+therefore cannot silently change a legacy space's identity: migration 0095
+stamped every pre-existing row with its v1 key, and the first post-upgrade
+cutover still remaps the exact key those semantic mappings recorded.
+
 1. **Build.** Tools → Retrieval → **Spaces** → **Build new** (or `POST
    /admin/retrieval/spaces`). Supply the space name, provider, model,
    dimension, metric and optional prefixes. The space starts `building`; its
@@ -334,9 +342,11 @@ the audit event in the incident note; the Changes section already has the
 - The admin editor supports the HF kind, fetch action/status and the
   provenance/availability warnings. Curated rows remain code facts (no
   migration invents model data).
-- T3 still owns token-aware writes, `space_key` v2 and cutover.
+- T3a stores each space's v1 key on the row (`vector_spaces.space_key`,
+  migration 0095) and every cutover comparison reads it verbatim; T3b still
+  owns token-aware writes, `space_key` v2 and the cutover that consumes them.
 
-**T3 — token-aware chunk writes and cutover.**
+**T3b — token-aware chunk writes and cutover.**
 
 - Bind the effective profile (including admin overrides) into the chunker
   and space identity: token-count the composed records, write the token

@@ -4,6 +4,17 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (retrieval: a space keeps its identity through a cutover, 2026-11-04)
+- **A vector space now stores its space key on the row, so a later
+  tokenizer/chunker version can never change what an existing space is.**
+  Builds stamp the key once; activation, the posting-remap job and the space
+  status read compare that stored value verbatim instead of recomputing it
+  from the row fields. Migration `0095` backfills every existing space with
+  its v1 key (and drops the column cleanly on downgrade), so the first
+  post-upgrade cutover still invalidates exactly the semantic mappings that
+  recorded the old key. No chunk, token-column, token-aware write or
+  `space_key` v2 change in this slice.
+
 ### Added (retrieval: pinned HF tokenizers and open-source mappings, 2026-11-04)
 - **Tools → Retrieval can now resolve verified open-source embedding
   tokenizers instead of only the fallback.** Curated profiles for nomic,

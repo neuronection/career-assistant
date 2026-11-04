@@ -596,10 +596,12 @@ keys and per-view scores, the pinned policy thresholds, the embedding
 `space_key` and the degradation reason. A space cutover therefore has a
 recorded dependency: `app/services/postings/mapping_remap.py` enqueues one
 bounded `POSTING_REMAP` sweep over rows whose method is
-`semantic`/`semantic_rerank` (never `manual`). The lifecycle service's
-`activate_space` calls `invalidate_mapping_space(space_key=retired.key)`
-after the new space is active (a first build has no old key and enqueues
-nothing); plan 51's HTTP action wraps that same service. The sweep re-runs
+`semantic`/`semantic_rerank` (never `manual`). The key is persisted on the
+space row when it is built and read back verbatim (never recomputed), so the
+lifecycle service's `activate_space` calls
+`invalidate_mapping_space(space_key=retired.space_key)` after the new space
+is active (a first build has no old key and enqueues nothing); plan 51's
+HTTP action wraps that same service. The sweep re-runs
 `decide_catalog` only — it never rewrites `PostingSkill` rows and never
 alerts.
 
