@@ -3671,6 +3671,18 @@
     "showEvidence": "Beweise anzeigen",
     "refTitle": "Kurze Referenz — fügen Sie sie im Chat ein",
     "loadingPosting": "Posting wird geladen…",
+    "retrievalHeading": "Semantischer Index",
+    "retrievalUnavailable": "Status nicht verfügbar",
+    "retrievalLoading": "Indexstatus wird geprüft…",
+    "retrievalOpen": "Retrieval-Einstellungen öffnen",
+    "retrievalRecords": "{{count}} Datensätze",
+    "retrievalState": {
+      "current": "Indexiert",
+      "stale": "Indexiert · Text seither geändert",
+      "missing": "Nicht indexiert",
+      "incomplete": "Index unvollständig",
+      "off": "Semantischer Index ist deaktiviert"
+    },
     "coverage": "Profilabdeckung {{score}}/10",
     "draftLetter": "Entwurf für das Anschreiben",
     "practiceInterview": "Interview üben",

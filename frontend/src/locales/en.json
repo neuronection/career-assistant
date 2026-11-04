@@ -3672,6 +3672,18 @@
     "showEvidence": "Show evidence",
     "refTitle": "Short reference — paste it into chat",
     "loadingPosting": "Loading posting…",
+    "retrievalHeading": "Semantic index",
+    "retrievalUnavailable": "status unavailable",
+    "retrievalLoading": "Checking index status…",
+    "retrievalOpen": "Open retrieval settings",
+    "retrievalRecords": "{{count}} records",
+    "retrievalState": {
+      "current": "Indexed",
+      "stale": "Indexed · text changed since",
+      "missing": "Not indexed",
+      "incomplete": "Index incomplete",
+      "off": "Semantic index is off"
+    },
     "coverage": "profile coverage {{score}}/10",
     "draftLetter": "Draft cover letter",
     "practiceInterview": "Practice interview",

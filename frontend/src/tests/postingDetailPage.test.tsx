@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 
 import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
+import { fetchDocumentStatuses } from "@/api/retrieval";
 import {
   fetchPostingDetail,
   hidePosting,
@@ -10,6 +11,7 @@ import {
   markPostingsSeen,
   savePosting,
 } from "@/api/postings";
+import { useAuthStore } from "@/stores/authStore";
 import type { PostingDetailOut } from "@/types/wire";
 
 vi.mock("@/api/postings", async (importOriginal) => {
@@ -26,6 +28,10 @@ vi.mock("@/api/postings", async (importOriginal) => {
 
 vi.mock("@/api/applications", () => ({
   trackApplication: vi.fn().mockResolvedValue({ id: "app-1" }),
+}));
+
+vi.mock("@/api/retrieval", () => ({
+  fetchDocumentStatuses: vi.fn(),
 }));
 
 vi.mock("@/api/cv", () => ({
@@ -185,6 +191,8 @@ function renderPage(entry = "/postings/P3KX9Q2A") {
 beforeEach(() => {
   mockFetchDetail.mockReset();
   mockFetchDetail.mockResolvedValue(detail());
+  vi.mocked(fetchDocumentStatuses).mockReset();
+  useAuthStore.setState({ user: null });
 });
 
 describe("PostingDetailPage", () => {
@@ -214,6 +222,76 @@ describe("PostingDetailPage", () => {
     const panel = await screen.findByTestId("timeline-info-panel");
     expect(panel).toHaveTextContent("3 days ago");
     expect(panel).toHaveTextContent("2 hours ago");
+  });
+
+  it("shows an admin the current index status and space facts", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
+    });
+    vi.mocked(fetchDocumentStatuses).mockResolvedValue({
+      kind: "posting",
+      space: {
+        space_id: "space-1",
+        name: "content",
+        status: "active",
+        backend: "pgvector",
+        model: "text-embedding-3-small",
+        dim: 1536,
+      },
+      documents: [
+        {
+          source_id: "p1",
+          state: "current",
+          reason: null,
+          records: 3,
+          indexed_at: "2026-11-04T00:00:00Z",
+        },
+      ],
+    });
+
+    renderPage();
+    const row = await screen.findByTestId("retrieval-index");
+    expect(row).toBeInTheDocument();
+    expect(await screen.findByTestId("retrieval-index-state")).toHaveTextContent("Indexed");
+    const facts = screen.getByTestId("retrieval-index-facts");
+    expect(facts).toHaveTextContent("content");
+    expect(facts).toHaveTextContent("text-embedding-3-small");
+    expect(facts).toHaveTextContent("pgvector");
+    expect(facts).toHaveTextContent("3");
+    expect(screen.getByTestId("retrieval-index-link")).toHaveAttribute(
+      "href",
+      "/settings/tools?section=retrieval",
+    );
+  });
+
+  it("hides the index row from a non-admin and never asks", async () => {
+    renderPage();
+    await screen.findByTestId("posting-facts");
+    expect(screen.queryByTestId("retrieval-index")).not.toBeInTheDocument();
+    expect(fetchDocumentStatuses).not.toHaveBeenCalled();
+  });
+
+  it("renders status unavailable when the index read fails", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
+    });
+    vi.mocked(fetchDocumentStatuses).mockRejectedValue(new Error("forbidden"));
+
+    renderPage();
+    expect(await screen.findByTestId("retrieval-index-state")).toHaveTextContent(
+      "status unavailable",
+    );
+  });
+
+  it("renders no index row while the posting is still loading", async () => {
+    useAuthStore.setState({
+      user: { id: "1", email: "a@b.c", full_name: "", is_active: true, is_admin: true },
+    });
+    mockFetchDetail.mockReturnValue(new Promise(() => {}));
+
+    renderPage();
+    expect(screen.queryByTestId("retrieval-index")).not.toBeInTheDocument();
+    expect(fetchDocumentStatuses).not.toHaveBeenCalled();
   });
 
   it("collapses long raw descriptions behind Show more", async () => {

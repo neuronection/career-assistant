@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
+  ArrowUpRight,
   Banknote,
   Building2,
   Briefcase,
@@ -24,6 +25,11 @@ import { useAuthStore } from "@/stores/authStore";
 import { apiDetail } from "@/api/client";
 import { createCoverLetter } from "@/api/cv";
 import { createInterviewSession, startInterviewSession } from "@/api/interview";
+import {
+  fetchDocumentStatuses,
+  type RetrievalDocumentSpace,
+  type RetrievalDocumentStatus,
+} from "@/api/retrieval";
 import {
   fetchPostingDetail,
   hidePosting,
@@ -111,6 +117,9 @@ export function PostingDetailPage() {
   const [letterError, setLetterError] = useState("");
   const [interviewBusy, setInterviewBusy] = useState(false);
   const [interviewError, setInterviewError] = useState("");
+  const [indexStatus, setIndexStatus] = useState<RetrievalDocumentStatus | null>(null);
+  const [indexSpace, setIndexSpace] = useState<RetrievalDocumentSpace | null>(null);
+  const [indexUnavailable, setIndexUnavailable] = useState(false);
 
   const load = useCallback(() => {
     setMissing(false);
@@ -136,6 +145,30 @@ export function PostingDetailPage() {
     setDescriptionOpen(false);
     load();
   }, [load]);
+
+  useEffect(() => {
+    const postingId = posting?.id;
+    if (!isAdmin || !postingId) return;
+    let active = true;
+    setIndexStatus(null);
+    setIndexSpace(null);
+    setIndexUnavailable(false);
+    fetchDocumentStatuses("posting", [postingId])
+      .then((response) => {
+        if (!active) return;
+        setIndexStatus(response.documents[0] ?? null);
+        setIndexSpace(response.space);
+      })
+      .catch(() => {
+        if (!active) return;
+        setIndexStatus(null);
+        setIndexSpace(null);
+        setIndexUnavailable(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [isAdmin, posting?.id]);
 
   const valueLabel = (value: string | null | undefined): string | null =>
     value ? t(`explore.facetValue.${value}`, { defaultValue: value.replace(/_/g, " ") }) : null;
@@ -742,6 +775,44 @@ export function PostingDetailPage() {
               </div>
             )}
           </section>
+
+          {isAdmin ? (
+            <section
+              className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-2"
+              data-testid="retrieval-index"
+            >
+              <h2 className="text-sm font-semibold text-[var(--as-fg)]">
+                {t("postingDetail.retrievalHeading")}
+              </h2>
+              <p className="text-sm text-[var(--as-fg)]" data-testid="retrieval-index-state">
+                {indexUnavailable
+                  ? t("postingDetail.retrievalUnavailable")
+                  : indexStatus
+                    ? t(`postingDetail.retrievalState.${indexStatus.state}`)
+                    : t("postingDetail.retrievalLoading")}
+              </p>
+              {indexStatus && indexSpace ? (
+                <p
+                  className="text-xs text-[var(--as-muted-fg)]"
+                  data-testid="retrieval-index-facts"
+                >
+                  {[indexSpace.name, indexSpace.model, String(indexSpace.dim), indexSpace.backend].join(
+                    " · ",
+                  )}
+                  {" · "}
+                  {t("postingDetail.retrievalRecords", { count: indexStatus.records })}
+                </p>
+              ) : null}
+              <Link
+                to="/settings/tools?section=retrieval"
+                className="inline-flex items-center gap-1 text-xs text-[var(--as-accent)] hover:underline"
+                data-testid="retrieval-index-link"
+              >
+                {t("postingDetail.retrievalOpen")}
+                <ArrowUpRight aria-hidden className="h-3 w-3" />
+              </Link>
+            </section>
+          ) : null}
 
           <section className="bg-[var(--as-surface)] border border-[var(--as-border)] rounded-[var(--as-radius-lg)] p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
