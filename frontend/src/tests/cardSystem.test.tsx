@@ -141,3 +141,28 @@ describe("state markers", () => {
     );
   });
 });
+
+describe("ChipRow long labels", () => {
+  it("clamps long labels to two rows and never wraps inside a chip", () => {
+    render(
+      <ChipRow
+        items={[
+          { key: "a", label: "A very long skill label that must not wrap" },
+          { key: "b", label: "Another long label that must not wrap either" },
+          { key: "c", label: "Third long label" },
+        ]}
+        clampRows={2}
+        measure={{ widths: [200, 200, 200], containerWidth: 300, moreWidth: 34 }}
+        moreLabel={(count) => `+${count}`}
+        testId="chips"
+        itemTestId="chip"
+      />
+    );
+
+    expect(screen.getByText("+1")).toBeInTheDocument();
+    const chip = screen.getAllByTestId("chip")[0];
+    expect(chip.className).toContain("max-w-[12rem]");
+    expect(chip.className).toContain("whitespace-nowrap");
+    expect(document.querySelector(".sr-only")?.textContent).toContain("Third long label");
+  });
+});

@@ -82,7 +82,7 @@ export function CatalogTree() {
 
   return (
     <div className="ca-stats-page" data-testid="catalog-tree">
-      <div className="ca-stats-cols">
+      <div className="ca-stats-cols ca-catalog-cols">
         <aside className="ca-stats-rail" data-testid="catalog-filter-aside">
           <CatalogFilterRail
             filters={filters}
@@ -194,6 +194,7 @@ export function CatalogTree() {
           max={4}
           hideEmptyFiltersOnly
           rail
+          panelTestId="catalog-recent-panel"
         />
       </div>
     </div>

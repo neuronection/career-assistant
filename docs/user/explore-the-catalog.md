@@ -14,7 +14,8 @@ and your **recent searches** on the right. On a narrower window the filter
 card stacks above the results and the recent-searches card follows them.
 
 - **Job families** live in the filter rail's **Job family** section, with
-  live job counts and the include/exclude cycle. It is the page's one family
+  live job counts and a select/clear cycle (families are include-only: the
+  subtree parameter has no exclude). It is the page's one family
   surface — there is no second family navigation list.
 - **Search** sits at the top of the results column.
 - **Drill chips** (`catalog-subfamilies`) appear for the selected family's

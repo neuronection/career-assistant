@@ -187,7 +187,8 @@ describe("Catalog subtabs", () => {
     await waitFor(() => expect(screen.getByTestId("catalog-filter-aside")).toBeInTheDocument());
     expect(container.querySelector(".ca-stats-page")).not.toBeNull();
     expect(container.querySelector(".ca-stats-cols")).not.toBeNull();
-    expect(container.querySelector(".ca-settings-shell")).toBeNull();
+    expect(container.querySelector(".ca-catalog-cols")).not.toBeNull();
+    expect(container.querySelector('[data-as="settings-shell"]')).toBeNull();
     expect(screen.queryByTestId("catalog-families")).not.toBeInTheDocument();
     expect(screen.getByTestId("catalog-grid").className).toContain("ca-card-grid");
 

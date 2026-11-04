@@ -341,12 +341,15 @@ page-local form for a profile section.
   filter card stacks above the results and the recent panel follows them
   (container query, plan-95 rule; never a `lg:` switch). The left
   `ca-stats-rail` is the **one family surface**: its `Job family` section
-  carries the facet counts and the tri-state cycle, and the `family` URL
+  carries the facet counts and a select/clear cycle (families are
+  include-only — the subtree parameter has no exclude), and the `family` URL
   parameter keeps its meaning so old links still filter. The middle column
   carries `ca-card-page` + search, drill chips for the active family's
   children (`catalog-subfamilies`), the count/active-chips/sort strip and
   `.ca-card-grid` (1 → 2 at 32rem → 3 at 54rem of the RESULTS column, not
-  the viewport). The right rail is the shared `RecentSearches` panel: at
+  the viewport; on `/catalog` that is 2 cards of ≈340px in the three-column
+  mode at 1440px and 3 of ≈320px when the page stacks at 1280px). The right
+  rail is the shared `RecentSearches` panel: at
   most four real records, `filters only · 0 results` rows pruned, nothing
   rendered when empty. No viewport column classes (`sm:`/`lg:`/`xl:`) on the
   page; the type floor and chip rules live in §2e.

@@ -222,6 +222,7 @@ describe("Recent searches", () => {
         max={4}
         hideEmptyFiltersOnly
         rail
+        panelTestId="catalog-recent-panel"
       />
     );
     const panel = await screen.findByTestId("catalog-recent-panel");
@@ -239,6 +240,7 @@ describe("Recent searches", () => {
         max={4}
         hideEmptyFiltersOnly
         rail
+        panelTestId="catalog-recent-panel"
       />
     );
     await waitFor(() => expect(fetchSearches).toHaveBeenCalled());

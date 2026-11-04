@@ -406,6 +406,19 @@ body {
   }
 }
 
+/* Catalog columns (plan 191): /catalog needs narrower rails than the
+   shared stats layout — at a 1440px window the 215-255/230-280 rails left
+   ~278px cards; 190-210 rails leave ~340px. Must stay AFTER the
+   .ca-stats-cols block so the override wins the cascade. */
+@container (min-width: 64rem) {
+  .ca-catalog-cols {
+    grid-template-columns:
+      minmax(190px, 210px)
+      minmax(0, 1fr)
+      minmax(190px, 210px);
+  }
+}
+
 /* Autopilot findings workspace (plan 175): left filter rail · feed ·
    right runs rail over the shared ca-stats grid (container query,
    plan-95 rule — the chat dock narrows the column, not the viewport).

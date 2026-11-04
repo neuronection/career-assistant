@@ -9,12 +9,15 @@ All notable changes to **Career Assistant** are documented here.
   left, the results in the middle and a recent-searches rail on the right.
   Below 64rem of page width the filter card stacks above the results and the
   recent panel follows them. The separate **Job families** navigation list is
-  gone — the filter rail's **Job family** section (live counts + the
-  include/exclude cycle) is the one family surface, and the `family` URL
-  parameter is unchanged, so old links still filter.
+  gone — the filter rail's **Job family** section (live counts + a
+  select/clear cycle; families are include-only) is the one family surface,
+  and the `family` URL parameter is unchanged, so old links still filter.
 - **Result columns follow the results column's own width** (`ca-card-grid`:
   1 → 2 at 32rem → 3 at 54rem), never viewport breakpoints — the shell rails
-  and the chat dock no longer crush cards into per-word wrapping.
+  and the chat dock no longer crush cards into per-word wrapping. On
+  `/catalog` that is 2 cards of ≈340px in the three-column mode at 1440px
+  (rails narrowed to 190-210px) and 3 cards of ≈320px when the page stacks
+  at 1280px.
 - **Catalog cards adapt to their own width**: the open-roles count and salary
   band are one node that reads as a leading rail on wide cards and as one
   inline strip above the body on narrow cards. The catalog type floor is now

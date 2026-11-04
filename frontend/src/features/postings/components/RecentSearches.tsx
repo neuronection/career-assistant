@@ -11,6 +11,7 @@ export function RecentSearches({
   max = 6,
   hideEmptyFiltersOnly = false,
   rail = false,
+  panelTestId = "recent-searches-panel",
 }: {
   scope: SearchScope;
   onApply: (record: SearchRecord) => void;
@@ -18,6 +19,7 @@ export function RecentSearches({
   max?: number;
   hideEmptyFiltersOnly?: boolean;
   rail?: boolean;
+  panelTestId?: string;
 }) {
   const { t } = useTranslation();
   const [records, setRecords] = useState<SearchRecord[]>([]);
@@ -84,13 +86,14 @@ export function RecentSearches({
   }
 
   return (
-    <aside className="ca-stats-rail min-w-0" data-testid="catalog-recent-panel">
+    <aside className="ca-stats-rail min-w-0" data-testid={panelTestId}>
       <details
         open={open}
         className="rounded-[var(--as-radius-lg)] border border-[var(--as-border)] bg-[var(--as-surface)] p-3"
       >
         <summary
           className="flex cursor-pointer list-none items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wide text-[var(--as-muted-fg)]"
+          aria-expanded={open}
           onClick={(event) => {
             event.preventDefault();
             setOpen((value) => !value);
