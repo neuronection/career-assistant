@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Fixed (profile: legacy bare link URLs no longer 500 the profile, 2026-11-04)
+- **The profile page loads again when a stored contact link has no scheme.**
+  Profile links require an `http(s)` URL, but rows written before that rule
+  (or by a hand-edited local profile) carry bare hosts such as
+  `github.com/x`; the read validates the stored JSON, so the whole profile
+  endpoint answered 500. A data migration (`0092`) prefixes `https://` on any
+  link URL without a scheme and leaves already-schemed links untouched — the
+  read stays strict, the stored rows are now legal.
+
 ### Fixed (desktop: the inline semantic index no longer freezes SQLite, 2026-11-04)
 - **Desktop: a posting's inline semantic index write no longer deadlocks the
   database.** The vector store commits through its own connection and SQLite

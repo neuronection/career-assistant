@@ -150,7 +150,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0091"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0092"], (
         "revision chain stays linear on one head"
     )
 
@@ -4283,3 +4283,115 @@ def test_0090_retrieval_ops_seams_behavior():
     assert results["lock_same_active"] is False, "one active run per lock_key"
     assert results["lock_terminal"] is True, "a terminal row releases the lock"
     assert results["lock_running"] is False, "a queued and a running row cannot share a lock"
+
+
+def test_0092_profile_link_urls_roundtrip():
+    """Plan 193: bare profile link URLs fold to https at head, an existing
+    scheme is untouched, the downgrade is a documented no-op and a re-run is
+    idempotent."""
+    import asyncio
+    import json
+    import uuid
+    from datetime import datetime
+
+    from sqlalchemy import text
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    config = _configured()
+    command.downgrade(config, "0091")
+
+    profile_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    basics = {
+        "links": [
+            {"kind": "github", "url": f"github.com/fold-{profile_id}", "label": ""},
+            {"kind": "portfolio", "url": "https://neuronection.com", "label": ""},
+        ]
+    }
+
+    async def run(sql: str, params: dict, fetch: bool = False):
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                result = await conn.execute(text(sql), params)
+                return result.scalar_one() if fetch else None
+        finally:
+            await engine.dispose()
+
+    async def seed() -> None:
+        engine = create_async_engine(settings.database_url)
+        is_postgres = engine.dialect.name == "postgresql"
+        cast = (
+            (lambda param: f"CAST(:{param} AS jsonb)")
+            if is_postgres
+            else (lambda param: f":{param}")
+        )
+        now = datetime.now(UTC)
+        try:
+            async with engine.begin() as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO users (id, email, password_hash, full_name, is_active, "
+                        "is_admin, failed_login_attempts, token_version, created_at, "
+                        "updated_at) VALUES "
+                        "(:id, :email, :hash, '', true, false, 0, 1, :now, :now)"
+                    ),
+                    {
+                        "id": str(user_id),
+                        "email": f"fold0092-{user_id}@example.com",
+                        "hash": "$2b$12$foldmigrationplaceholder",
+                        "now": now,
+                    },
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO profiles (id, user_id, name, is_default, basics, "
+                        "academics, hobbies, likes, dislikes, aspirations, "
+                        "work_preferences, preferences, constraints, created_at, "
+                        "updated_at) VALUES "
+                        f"(:id, :user_id, 'Default', true, {cast('basics')}, "
+                        f"{cast('academics')}, {cast('hobbies')}, {cast('likes')}, "
+                        f"{cast('dislikes')}, {cast('aspirations')}, {cast('wp')}, "
+                        f"{cast('prefs')}, {cast('cons')}, :now, :now)"
+                    ),
+                    {
+                        "id": str(profile_id),
+                        "user_id": str(user_id),
+                        "basics": json.dumps(basics),
+                        "academics": "{}",
+                        "hobbies": "[]",
+                        "likes": "[]",
+                        "dislikes": "[]",
+                        "aspirations": "[]",
+                        "wp": "{}",
+                        "prefs": "{}",
+                        "cons": "{}",
+                        "now": now,
+                    },
+                )
+        finally:
+            await engine.dispose()
+
+    async def links() -> list[str]:
+        raw = await run(
+            "SELECT basics FROM profiles WHERE id = :id", {"id": str(profile_id)}, fetch=True
+        )
+        data = json.loads(raw) if isinstance(raw, str) else raw
+        return [link["url"] for link in data.get("links", [])]
+
+    asyncio.run(seed())
+    try:
+        command.upgrade(config, "head")
+        urls = asyncio.run(links())
+        assert urls[0] == f"https://github.com/fold-{profile_id}"
+        assert urls[1] == "https://neuronection.com", "an existing scheme is untouched"
+
+        command.downgrade(config, "0091")
+        assert asyncio.run(links())[0] == urls[0], "the downgrade is a documented no-op"
+        command.upgrade(config, "head")
+        assert asyncio.run(links()) == urls, "the fold is idempotent"
+    finally:
+        asyncio.run(run("DELETE FROM profiles WHERE id = :id", {"id": str(profile_id)}))
+        asyncio.run(run("DELETE FROM users WHERE id = :id", {"id": str(user_id)}))
