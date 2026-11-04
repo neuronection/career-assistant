@@ -8,14 +8,21 @@ slugs so labels can change without breaking your data.
 
 ## The family tree
 
-Open **Catalog** (`/catalog`). Job families form the left rail
-(`catalog-families`, with job counts); the content pane shows search, recent
-searches, drill chips for the active family's children
-(`catalog-subfamilies`) and a grid of job cards. Selecting a family and
-drilling one level keeps the whole surface usable on narrow screens.
+Open **Catalog** (`/catalog`). The page uses the same three-column template
+as Postings: the **filter rail** on the left, the job results in the middle
+and your **recent searches** on the right. On a narrower window the filter
+card stacks above the results and the recent-searches card follows them.
 
-- **Search** across the catalog from the top of the pane.
-- **Recent searches** let you jump back to a previous query.
+- **Job families** live in the filter rail's **Job family** section, with
+  live job counts and the include/exclude cycle. It is the page's one family
+  surface — there is no second family navigation list.
+- **Search** sits at the top of the results column.
+- **Drill chips** (`catalog-subfamilies`) appear for the selected family's
+  children, so one level of the tree stays in reach without an expanding
+  tree widget.
+- **Recent searches** sit in the right rail: your four most recent real
+  searches, with rows that only carried filters pruned. Applying one
+  restores both the query and its job family.
 - A job card opens the job detail page at `/jobs/:code`.
 
 ## Job cards
@@ -23,20 +30,23 @@ drilling one level keeps the whole surface usable on narrow screens.
 Each card in the grid reads like a posting card: the same anatomy, the same
 information density, and only facts the catalog actually has.
 
-- **Metric rail** — the number of **open live roles** mapped to the job and
-  the **salary band** (median, falling back to entry or senior). Either value
-  is omitted when there is no honest number.
-- **Body** — the title and job family, a two-line description, meta facts
-  (education, typical experience, contract, travel, schedule cues and work
-  hours) and the work-style/physical summary.
+- **Metrics** — the number of **open live roles** mapped to the job and the
+  **salary band** (median, falling back to entry or senior). The same values
+  read as a leading rail on a wide card and as one inline strip above the
+  body on a narrow card. Either value is omitted when there is no honest
+  number.
+- **Body** — the title (up to two lines) and job family, a three-line
+  description, meta facts (education, typical experience, contract, travel,
+  schedule cues and work hours) and the work-style/physical summary.
 - **Skills** — required skill chips with their 1–10 levels; click a chip for
-  the skill peek. The job's interest chips follow.
+  the skill peek. The job's interest chips follow. Chips never wrap inside
+  their own label; long labels truncate and keep the full text on the chip.
 - **Footer** — the family/source reference and a **"N open roles →"** link
   to `/postings?job=<code>`, which opens the Postings page already filtered
   to the live openings mapped to this catalog job.
 
-A narrow container can use the compact card density; it keeps the metric rail
-and skill chips and drops the description and interests.
+A narrow container can use the compact card density: it keeps the metric
+values and skill chips and drops the description, spec and interests.
 
 ## Filtering the catalog
 
@@ -47,10 +57,10 @@ The catalog filter rail speaks the same language as Postings (`/postings`):
   **×** that clears it in one click.
 - **skills** have per-skill minimum levels, a global minimum level, any/all
   mode and a separate exclude picker.
-- **family** is the coarse axis: the family nav on the left writes the same
-  `family` parameter, so the two never fight. The rail continues with
-  interests, education, demand, salary band, contract, schedule, travel,
-  experience, environment and **has open roles**.
+- **family** is the coarse axis: the rail's **Job family** section writes the
+  same `family` parameter, so search, chips and the URL never fight. The rail
+  continues with interests, education, demand, salary band, contract,
+  schedule, travel, experience, environment and **has open roles**.
 - every value shows its live facet count. A value with zero matching jobs is
   disabled instead of silently returning an empty list.
 - the header strip shows the result count, the active-filter chips with
@@ -59,9 +69,9 @@ The catalog filter rail speaks the same language as Postings (`/postings`):
   — fit and match live on `/rankings`, never on this shareable list.
 
 **The URL is the state.** `/catalog?family=technology&skills=programming@6&demand=hot&sort=open_roles`
-is shareable, survives a reload and keeps the family nav and the rail in
-sync. Unknown or malformed values are dropped and the URL is canonicalized in
-place.
+is shareable, survives a reload and keeps the **Job family** section and the
+other filter chips in sync. Unknown or malformed values are dropped and the
+URL is canonicalized in place.
 
 ## The relation graph
 

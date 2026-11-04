@@ -4,6 +4,28 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (catalog layout — the /postings template and readable cards, 2026-11-04)
+- **`/catalog` now uses the `/postings` page template**: a filter rail on the
+  left, the results in the middle and a recent-searches rail on the right.
+  Below 64rem of page width the filter card stacks above the results and the
+  recent panel follows them. The separate **Job families** navigation list is
+  gone — the filter rail's **Job family** section (live counts + the
+  include/exclude cycle) is the one family surface, and the `family` URL
+  parameter is unchanged, so old links still filter.
+- **Result columns follow the results column's own width** (`ca-card-grid`:
+  1 → 2 at 32rem → 3 at 54rem), never viewport breakpoints — the shell rails
+  and the chat dock no longer crush cards into per-word wrapping.
+- **Catalog cards adapt to their own width**: the open-roles count and salary
+  band are one node that reads as a leading rail on wide cards and as one
+  inline strip above the body on narrow cards. The catalog type floor is now
+  11px (11px kickers, 12px meta/footer, 12.5px family), titles wrap to two
+  lines instead of truncating, descriptions clamp to three lines, and skill
+  and badge chips never wrap inside their label (a `max-w-[12rem]` truncate
+  guard keeps long labels in one line).
+- **Recent searches moved to the right rail**: the panel keeps at most four
+  real records and prunes `filters only · 0 results` rows; applying a record
+  restores both the query and its job family. Rankings is unchanged.
+
 ### Changed (catalog cards and filters — posting anatomy and a URL-driven rail, 2026-11-04)
 - **Catalog job cards now carry the facts a student acts on**: a metric rail
   with the job's **open live-role count** and **salary band**, `CardMeta`

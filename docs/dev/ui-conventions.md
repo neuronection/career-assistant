@@ -211,6 +211,18 @@ action slots stop propagation), `density`/`data-state`, and the
 `ca-item-card` container (the action column stacks by **container** width,
 never a viewport breakpoint — the chat dock narrows the column).
 
+**Metrics follow the card's own width** (plan 191): one node
+(`.ca-job-metrics`) renders the open-roles number + caption + salary as a
+full-width inline strip on a narrow card and as the posting-anatomy rail on
+the leading edge at a card container ≥ 26rem — CSS-flipped in
+`index.css`, never a duplicated DOM, a `compact`-only branch or a viewport
+breakpoint. **The catalog type floor is 11px**: kickers are 11px uppercase
+(0.06em tracking), meta/footer 12px, the family line 12.5px, descriptions
+14px clamped to three lines, and titles wrap to two lines instead of
+single-line truncating. Chips never wrap internally — `SkillTag` and badge
+chips are `whitespace-nowrap` with a `max-w-[12rem]` truncate guard, so
+`fitChips` measurement stays honest.
+
 Information is **three tiers**, never one chip soup:
 
 1. **Spec slots** (`CardSpec`, `SPEC_ORDER`) — closed vocabularies in a
@@ -323,14 +335,21 @@ page-local form for a profile section.
   Experience appears as a summary card linking to
   `/profile/experience` — editing lives only in the experience
   workspace, which has no top-level sidebar entry.
-- **Catalog tree layout**: same `SettingsShell` recipe (plan 96) —
-  top-level families as the rail (`data-testid="catalog-families"`,
-  job counts as `trailing` nodes), content pane = search + recent
-  searches + drill chips for the active family's children
-  (`catalog-subfamilies`) + the job-card grid. The expanding tree is
-  gone: selection + one-level drill chips replace it, so the whole
-  surface survives the dock and narrow widths via the container
-  modes.
+- **Catalog tree layout**: the `/postings` page template (plan 191). The
+  page body carries `ca-stats-page`; `.ca-stats-cols` renders filter rail |
+  results | recent searches — one column below 64rem of page width, where the
+  filter card stacks above the results and the recent panel follows them
+  (container query, plan-95 rule; never a `lg:` switch). The left
+  `ca-stats-rail` is the **one family surface**: its `Job family` section
+  carries the facet counts and the tri-state cycle, and the `family` URL
+  parameter keeps its meaning so old links still filter. The middle column
+  carries `ca-card-page` + search, drill chips for the active family's
+  children (`catalog-subfamilies`), the count/active-chips/sort strip and
+  `.ca-card-grid` (1 → 2 at 32rem → 3 at 54rem of the RESULTS column, not
+  the viewport). The right rail is the shared `RecentSearches` panel: at
+  most four real records, `filters only · 0 results` rows pruned, nothing
+  rendered when empty. No viewport column classes (`sm:`/`lg:`/`xl:`) on the
+  page; the type floor and chip rules live in §2e.
 - **Experience workspace** (`/profile/experience`, full-bleed, nested
   under Profile): master-detail
   rail + editor pane, `pane-switcher` below `lg` with focus moved into
