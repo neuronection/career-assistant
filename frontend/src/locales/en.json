@@ -6053,6 +6053,15 @@
         "description": "Score the versioned golden-query set on a candidate against its baseline."
       }
     },
+    "debug": {
+      "title": "Retrieval debug marker",
+      "description": "Draw a semantic-index state dot on posting cards for this browser.",
+      "toggle": "Show index state on posting cards",
+      "hint": "Per browser only — stored in this browser, never on the server. The dot appears only on the /postings list.",
+      "clear": "Clear cached statuses",
+      "cached": "{{count}} cached",
+      "space": "Space: {{name}} · {{model}} · {{dim}} dims"
+    },
     "active": {
       "empty": "No vector space yet",
       "emptyBody": "Build a space to start indexing. Semantic retrieval stays off until a space is active.",

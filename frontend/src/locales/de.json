@@ -6052,6 +6052,15 @@
         "description": "Den versionierten Golden-Query-Satz für einen Kandidaten gegen seine Basis bewerten."
       }
     },
+    "debug": {
+      "title": "Retrieval-Debug-Marker",
+      "description": "Zeigt für diesen Browser einen Statuspunkt des semantischen Index auf Stellenkarten.",
+      "toggle": "Indexstatus auf Stellenkarten anzeigen",
+      "hint": "Nur pro Browser — in diesem Browser gespeichert, nie auf dem Server. Der Punkt erscheint nur in der /postings-Liste.",
+      "clear": "Zwischengespeicherte Status löschen",
+      "cached": "{{count}} im Cache",
+      "space": "Space: {{name}} · {{model}} · {{dim}} Dimensionen"
+    },
     "active": {
       "empty": "Noch kein Vector-Space",
       "emptyBody": "Bauen Sie einen Space, um mit der Indexierung zu beginnen. Semantisches Retrieval bleibt aus, bis ein Space aktiv ist.",

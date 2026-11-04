@@ -16,6 +16,7 @@ import type {
   RetrievalSpacesResponse,
 } from "@/api/retrieval";
 import { RetrievalManagementSection } from "@/components/settings/RetrievalManagementSection";
+import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -329,6 +330,14 @@ function renderSection() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
+  useRetrievalDebugStore.setState({
+    enabled: false,
+    space: null,
+    statuses: {},
+    loading: false,
+    error: null,
+  });
   vi.mocked(retrievalApi.fetchRetrievalSpaces).mockResolvedValue(spacesResponse());
   vi.mocked(retrievalApi.fetchRetrievalHealth).mockResolvedValue(healthResponse());
   vi.mocked(retrievalApi.fetchRetrievalOverview).mockResolvedValue(overviewResponse());
@@ -410,8 +419,22 @@ describe("RetrievalManagementSection", () => {
     );
   });
 
-  it("queues a reindex with the scope controls and says it is not finished", async () => {
+  it("toggles the per-browser retrieval debug marker", async () => {
     const user = userEvent.setup();
+    renderSection();
+    await screen.findByTestId("retrieval-active-space");
+    const toggle = screen.getByTestId("retrieval-debug-toggle");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    await user.click(toggle);
+    expect(localStorage.getItem("ca:retrieval-debug")).toBe("1");
+    expect(await screen.findByTestId("retrieval-debug-space")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("retrieval-debug-clear"));
+    expect(screen.getByTestId("retrieval-debug-count")).toBeInTheDocument();
+  });
+
+  it("queues a reindex with the scope controls and says it is not finished", async () => {    const user = userEvent.setup();
     renderSection();
     await screen.findByTestId("retrieval-active-space");
 

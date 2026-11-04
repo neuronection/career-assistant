@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowUpRight,
+  Bug,
   Database,
   Download,
   Layers,
@@ -58,9 +59,11 @@ import {
   ModalHeader,
   ModalTitle,
   Spinner,
+  SwitchRow,
 } from "@/components/ui";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
+import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import {
   NumberField,
   SelectField,
@@ -415,6 +418,12 @@ export function RetrievalManagementSection() {
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState<Notice | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const debugEnabled = useRetrievalDebugStore((state) => state.enabled);
+  const setDebugEnabled = useRetrievalDebugStore((state) => state.setEnabled);
+  const clearDebugStatuses = useRetrievalDebugStore((state) => state.clear);
+  const debugStatusCount = useRetrievalDebugStore(
+    (state) => Object.keys(state.statuses).length,
+  );
 
   const [reindexKind, setReindexKind] = useState("");
   const [reindexView, setReindexView] = useState("");
@@ -1333,6 +1342,46 @@ export function RetrievalManagementSection() {
             {t("retrieval.action.compare")}
           </Button>
           <ActionNotice notice={notice?.card === "quality" ? notice : null} />
+        </div>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        name="retrieval-debug"
+        icon={Bug}
+        title={t("retrieval.debug.title")}
+        description={t("retrieval.debug.description")}
+        adminOnly
+      >
+        <div className="space-y-3">
+          <SwitchRow
+            label={t("retrieval.debug.toggle")}
+            checked={debugEnabled}
+            onCheckedChange={setDebugEnabled}
+            data-testid="retrieval-debug-toggle"
+          />
+          <p className="text-xs text-[var(--as-muted-fg)]">{t("retrieval.debug.hint")}</p>
+          {debugEnabled && activeSpace ? (
+            <p className="text-xs text-[var(--as-muted-fg)]" data-testid="retrieval-debug-space">
+              {t("retrieval.debug.space", {
+                name: activeSpace.name,
+                model: activeSpace.model,
+                dim: activeSpace.dim,
+              })}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={clearDebugStatuses}
+              data-testid="retrieval-debug-clear"
+            >
+              {t("retrieval.debug.clear")}
+            </Button>
+            <span className="text-xs text-[var(--as-muted-fg)]" data-testid="retrieval-debug-count">
+              {t("retrieval.debug.cached", { count: debugStatusCount })}
+            </span>
+          </div>
         </div>
       </SettingsSectionCard>
 

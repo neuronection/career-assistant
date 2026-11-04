@@ -50,6 +50,36 @@ export interface RetrievalSpacesResponse {
   backend: RetrievalBackend;
 }
 
+export type RetrievalDocumentState =
+  | "current"
+  | "stale"
+  | "missing"
+  | "incomplete"
+  | "off";
+
+export interface RetrievalDocumentStatus {
+  source_id: string;
+  state: RetrievalDocumentState;
+  reason: string | null;
+  records: number;
+  indexed_at: string | null;
+}
+
+export interface RetrievalDocumentSpace {
+  space_id: string;
+  name: string;
+  status: RetrievalSpaceStatus;
+  backend: string;
+  model: string;
+  dim: number;
+}
+
+export interface RetrievalDocumentStatusResponse {
+  kind: string;
+  space: RetrievalDocumentSpace | null;
+  documents: RetrievalDocumentStatus[];
+}
+
 export interface RetrievalHealthSpace {
   space_id: string;
   name: string;
@@ -515,6 +545,17 @@ export async function fetchRetrievalOverview(
 
 export async function fetchRetrievalSpaces(): Promise<RetrievalSpacesResponse> {
   const { data } = await api.get<RetrievalSpacesResponse>("/admin/retrieval/spaces");
+  return data;
+}
+
+export async function fetchDocumentStatuses(
+  kind: string,
+  sourceIds: string[],
+): Promise<RetrievalDocumentStatusResponse> {
+  const { data } = await api.get<RetrievalDocumentStatusResponse>(
+    "/admin/retrieval/documents/status",
+    { params: { kind, source_ids: sourceIds.join(",") } },
+  );
   return data;
 }
 
