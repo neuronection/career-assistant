@@ -12,7 +12,9 @@ import pytest
 from sqlalchemy import select
 
 from app.ai.tokenizers import (
+    CURATED_HF_PRESETS,
     CURATED_OPENAI_MODELS,
+    UNAVAILABLE_HF_PRESETS,
     EmbeddingModelProfile,
     fallback_profile,
     provider_class,
@@ -66,7 +68,7 @@ def _built_override(**overrides) -> EmbeddingModelProfile:
     )
 
 
-def test_curated_catalog_is_the_three_openai_embeddings():
+def test_curated_catalog_keeps_the_three_openai_embeddings():
     profile = resolve_embedding_profile("openai_compatible", "text-embedding-3-small")
     assert profile.source is TokenizerSource.CURATED
     assert profile.tokenizer.kind is TokenizerKind.TIKTOKEN
@@ -83,8 +85,44 @@ def test_curated_catalog_is_the_three_openai_embeddings():
         (entry.provider_class, entry.model)
         for entry in embedding_profiles.CURATED_EMBEDDING_PROFILES
     }
-    assert curated == {("openai", model) for model in CURATED_OPENAI_MODELS}
+    assert {("openai", model) for model in CURATED_OPENAI_MODELS} <= curated
     assert all(source == "openai" for source, _model in curated)
+
+
+def test_curated_open_source_profiles_carry_verified_provenance():
+    for preset in CURATED_HF_PRESETS:
+        for model in preset.models:
+            profile = resolve_embedding_profile("openai_compatible", model)
+            assert profile.source is TokenizerSource.CURATED, model
+            assert profile.tokenizer.kind is TokenizerKind.HF_TOKENIZERS, model
+            assert profile.tokenizer.identifier == preset.repository, model
+            assert profile.tokenizer.revision == preset.revision, model
+            assert profile.tokenizer.artifact_sha256 == preset.artifact_sha256, model
+            assert profile.family == preset.family, model
+            assert profile.license == preset.license, model
+            assert profile.source_url == preset.source_url, model
+            assert profile.usable is True, model
+            assert profile.exact is True, model
+            assert profile.chunk.fits(profile.tokenizer.max_input_tokens), model
+
+    nomic = resolve_embedding_profile("openai_compatible", "nomic-embed-text")
+    assert nomic.tokenizer.kind is TokenizerKind.HF_TOKENIZERS
+    assert nomic.tokenizer.revision == "e9b6763023c676ca8431644204f50c2b100d9aab"
+    assert nomic.license == "apache-2.0"
+    assert nomic.tokenizer.max_input_tokens == 8192
+
+
+def test_unavailable_preset_stays_visible_fallback():
+    preset = UNAVAILABLE_HF_PRESETS[0]
+    for model in preset.models:
+        profile = resolve_embedding_profile("openai_compatible", model)
+        assert profile.source is TokenizerSource.FALLBACK, model
+        assert profile.tokenizer.kind is TokenizerKind.HEURISTIC, model
+        assert profile.exact is False, model
+        assert profile.usable is False, model
+        assert profile.usable_reason == "gated_repository", model
+        assert profile.repository == preset.repository, model
+        assert profile.license == preset.license, model
 
 
 def test_resolver_precedence_admin_then_curated_then_fallback():
@@ -100,7 +138,7 @@ def test_resolver_precedence_admin_then_curated_then_fallback():
     curated = resolve_embedding_profile("openai_compatible", "text-embedding-3-small")
     assert curated.source is TokenizerSource.CURATED
 
-    unknown = resolve_embedding_profile("ollama", "nomic-embed-text")
+    unknown = resolve_embedding_profile("ollama", "unknown-embed-9000")
     assert unknown.source is TokenizerSource.FALLBACK
     assert unknown.tokenizer.kind is TokenizerKind.HEURISTIC
     assert unknown.exact is False
@@ -122,6 +160,9 @@ def test_no_model_name_guessing_across_provider_classes():
         resolved = resolve_embedding_profile(provider, "text-embedding-3-small")
         assert resolved.source is TokenizerSource.FALLBACK, provider
         assert resolved.tokenizer.kind is TokenizerKind.HEURISTIC, provider
+        nomic = resolve_embedding_profile(provider, "nomic-embed-text")
+        assert nomic.source is TokenizerSource.FALLBACK, provider
+        assert nomic.tokenizer.kind is TokenizerKind.HEURISTIC, provider
     assert provider_class("openai_compatible") == "openai"
     assert provider_class("OpenAI") == "openai"
 
@@ -149,10 +190,12 @@ async def test_profile_api_lists_curated_and_resolves_a_preview(client, auth_hea
     body = response.json()
     assert body["state"] == "ok"
     assert body["token_aware_writes"] is False
-    assert len(body["curated"]) == 3
+    assert len(body["curated"]) >= 3
+    assert body["unavailable_presets"][0]["usable"] is False
     assert body["overrides"] == []
     assert body["resolution"]["source"] in ("fallback", "curated", "admin")
-    assert body["bounds"]["supported_kinds"] == ["tiktoken", "heuristic"]
+    assert body["bounds"]["supported_kinds"] == ["tiktoken", "hf_tokenizers", "heuristic"]
+    assert body["bounds"]["hf_tokenizer_filename"] == "tokenizer.json"
     ops.assert_no_raw_text(body)
 
     preview = await client.get(
@@ -247,6 +290,42 @@ async def test_profile_api_save_update_and_delete(client, db, auth_headers):
     assert again.json()["deleted"] is False, "delete is idempotent"
 
 
+async def test_profile_api_saves_a_pinned_hf_profile(client, auth_headers):
+    payload = _override_payload(
+        model="custom-embed",
+        tokenizer_kind="hf_tokenizers",
+        tokenizer_identifier="org/model",
+        tokenizer_revision="0123456789abcdef0123456789abcdef01234567",
+        tokenizer_artifact_sha256="b" * 64,
+        max_input_tokens=512,
+        batch_max_tokens=512,
+        chunk_max_tokens=128,
+        chunk_max_chars=500,
+    )
+    saved = await client.put(PATH, json=payload, headers=auth_headers)
+    assert saved.status_code == 200, saved.text
+    profile = saved.json()["profile"]
+    assert profile["source"] == "admin"
+    assert profile["tokenizer_kind"] == "hf_tokenizers"
+    assert profile["tokenizer_identifier"] == "org/model"
+    assert profile["tokenizer_revision"] == "0123456789abcdef0123456789abcdef01234567"
+    assert profile["exact"] is False, "an unfetched asset is never reported exact"
+    assert profile["tokenizer_available"] is False
+    assert profile["degraded_reason"] == "asset_missing"
+
+    preview = await client.get(
+        PATH,
+        params={"provider": "openai", "model": "custom-embed"},
+        headers=auth_headers,
+    )
+    assert preview.status_code == 200, preview.text
+    resolution = preview.json()["resolution"]
+    assert resolution["source"] == "admin"
+    assert resolution["tokenizer_kind"] == "hf_tokenizers"
+    assert resolution["tokenizer_artifact_sha256"] == "b" * 64
+    ops.assert_no_raw_text(preview.json())
+
+
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -254,6 +333,18 @@ async def test_profile_api_save_update_and_delete(client, db, auth_headers):
         {"max_input_tokens": 100, "chunk_max_tokens": 256},
         {"batch_max_tokens": 64, "chunk_max_tokens": 128},
         {"tokenizer_kind": "hf_tokenizers", "tokenizer_identifier": "org/model"},
+        {
+            "tokenizer_kind": "hf_tokenizers",
+            "tokenizer_identifier": "not-a-repository",
+            "tokenizer_revision": "0123456789abcdef0123456789abcdef01234567",
+            "tokenizer_artifact_sha256": "b" * 64,
+        },
+        {
+            "tokenizer_kind": "hf_tokenizers",
+            "tokenizer_identifier": "org/model",
+            "tokenizer_revision": "main",
+            "tokenizer_artifact_sha256": "b" * 64,
+        },
         {"tokenizer_kind": "tiktoken", "tokenizer_identifier": "o200k_base"},
         {"tokenizer_artifact_sha256": "a" * 64},
     ],

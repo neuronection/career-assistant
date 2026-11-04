@@ -10,12 +10,17 @@ fetches an encoding at request time.
 | `reference_corpus.json` | deterministic synthetic English/Greek/German/CJK/code samples | — |
 
 The gzip container's own checksum is pinned in
-`app/ai/tokenizers/assets.py`; the service verifies the **uncompressed**
+`app/ai/tokenizers/service.py`; the service verifies the **uncompressed**
 sha256 above after decompression, so a swapped container or payload is a
 structured `tokenizer_missing` state, never a silent wrong count.
 
 `cl100k_base` is the encoding OpenAI's `text-embedding-3-*` models use.
 Licence: the tiktoken library and its encoding data are MIT-licensed
-(OpenAI). Do not add a second encoding here until a curated model profile
-needs it (plan 52 T2/T5); Hugging Face assets join later through the
-pinned, checksum-verified fetch job, never automatically.
+(OpenAI).
+
+Hugging Face `tokenizer.json` assets do **not** live here. The admin fetch
+job (plan 52 T2b) writes them to the instance data directory at
+`<data_dir>/tokenizers/<sha256>/tokenizer.json`; the service verifies the
+size cap and sha256 before parsing. Desktop/offline installs may pre-seed
+that cache; nothing loads a remote asset automatically. `sentencepiece`
+remains reserved and unsupported until a concrete model requires it.

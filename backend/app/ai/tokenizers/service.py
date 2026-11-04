@@ -1,19 +1,24 @@
-"""Process-local tokenizer registry and counting service (plan 52 T1-min).
+"""Process-local tokenizer registry and counting service (plan 52 T1-min/T2b).
 
-Two paths only in this slice:
+Three paths:
 
 * **exact** ``tiktoken`` for the curated OpenAI embedding models. The BPE
   asset is bundled in ``app/data/tokenizers`` and checksum-verified; the
   service never calls ``tiktoken.get_encoding`` and never lets tiktoken
   fetch a file from the network.
+* **exact** ``hf_tokenizers`` for a pinned ``tokenizer.json`` already in the
+  local content-addressed cache. The artifact is size-capped and
+  SHA-256-verified before the Rust ``tokenizers`` loader parses it; the
+  service never downloads. A missing/corrupt artifact degrades visibly to
+  the heuristic, never to a fake exact count.
 * **heuristic** UTF-8/codepoint fallback from the family contract, always
   ``exact=False``. It is the only path for an unknown model, a missing
-  asset, or a tokenizer family that later waves add.
+  asset, or a tokenizer family that is reserved but not shipped.
 
 The service is read-only evidence for the shadow report: it counts text a
 composer already produced and never writes, chunks, embeds or mutates a
-space. Hugging Face loading joins in plan 52 T5 behind the same interface
-(``TokenizerKind.HF_TOKENIZERS``); the kind is rejected explicitly today.
+space. Plan 52 T2b adds HF loading behind the same interface;
+``sentencepiece`` remains reserved and rejected explicitly.
 """
 
 from __future__ import annotations
@@ -59,6 +64,13 @@ CL100K_BASE_ASSET = "cl100k_base.tiktoken.gz"
 CL100K_BASE_ASSET_SHA256 = "e97e9286f7089b64da301dec3b07bda1f270cb737153e3bff256f8aeb03e4a9a"
 
 DEFAULT_ASSET_DIR = Path(__file__).resolve().parents[2] / "data" / "tokenizers"
+
+# The HF cache is content-addressed: ``<cache>/<sha256>/tokenizer.json``.
+# It lives under the instance data directory so desktop/offline installs can
+# pre-seed it; nothing here ever downloads.
+HF_CACHE_SUBDIR = "tokenizers"
+HF_TOKENIZER_FILENAME = "tokenizer.json"
+MAX_TOKENIZER_JSON_BYTES = 32 * 1024 * 1024
 
 # Unknown/mock models get a conservative, visibly approximate limit; plan 52
 # T2 replaces it with a curated model profile before any write path enforces
@@ -121,6 +133,37 @@ def tiktoken_spec(
     )
 
 
+def hf_tokenizer_spec(
+    *,
+    identifier: str,
+    revision: str,
+    artifact_sha256: str,
+    max_input_tokens: int,
+    source: TokenizerSource = TokenizerSource.CURATED,
+) -> TokenizerSpec:
+    """A pinned exact Hugging Face ``tokenizer.json`` selection.
+
+    ``identifier`` is the repository (``org/model``); the loader only needs
+    the content hash, so a fetched asset works even when the repository is
+    later renamed.
+    """
+    return TokenizerSpec(
+        kind=TokenizerKind.HF_TOKENIZERS,
+        identifier=identifier,
+        revision=revision,
+        artifact_sha256=artifact_sha256,
+        max_input_tokens=max_input_tokens,
+        source=source,
+    )
+
+
+def default_cache_dir() -> Path:
+    """The instance-local tokenizer cache (``<data_dir>/tokenizers``)."""
+    from app.core.config import settings
+
+    return Path(settings.data_dir).expanduser() / HF_CACHE_SUBDIR
+
+
 def provider_class(provider_type: str | None) -> str:
     """Normalize a resolved provider type to the curated mapping key."""
     value = str(provider_type or "").strip().lower()
@@ -172,14 +215,21 @@ class TokenizerService:
         self,
         *,
         asset_dir: Path | None = None,
+        cache_dir: Path | None = None,
         max_cached: int = 4,
     ) -> None:
         if max_cached < 1:
             raise ValueError("max_cached must be >= 1")
         self._asset_dir = Path(asset_dir) if asset_dir is not None else DEFAULT_ASSET_DIR
+        self._cache_dir = Path(cache_dir) if cache_dir is not None else None
         self._max_cached = max_cached
         self._encoders: OrderedDict[str, Any] = OrderedDict()
         self._lock = threading.Lock()
+
+    @property
+    def cache_dir(self) -> Path:
+        """The content-addressed HF cache directory (resolved lazily)."""
+        return self._cache_dir if self._cache_dir is not None else default_cache_dir()
 
     @property
     def cached_count(self) -> int:
@@ -209,7 +259,7 @@ class TokenizerService:
         """Count tokens; raises :class:`TokenizerUnavailable` for a broken exact spec."""
         if spec.kind is TokenizerKind.HEURISTIC:
             return heuristic_token_count(text)
-        return len(self._encoder(spec).encode(text, disallowed_special=()))
+        return len(self.encode(spec, text))
 
     def count_or_fallback(self, spec: TokenizerSpec, text: str) -> TokenCount:
         """Count with the exact spec when possible, else the labelled fallback."""
@@ -221,7 +271,7 @@ class TokenizerService:
                     tokenizer=spec,
                 )
             return TokenCount(
-                tokens=len(self._encoder(spec).encode(text, disallowed_special=())),
+                tokens=len(self.encode(spec, text)),
                 exact=True,
                 tokenizer=spec,
             )
@@ -237,7 +287,10 @@ class TokenizerService:
         """Token ids for a chunk-splitting caller (plan 52 T3); exact specs only."""
         if spec.kind is TokenizerKind.HEURISTIC:
             raise TokenizerUnavailable("heuristic_has_no_encoding", spec.identifier)
-        return list(self._encoder(spec).encode(text, disallowed_special=()))
+        encoder = self._encoder(spec)
+        if spec.kind is TokenizerKind.HF_TOKENIZERS:
+            return list(encoder.encode(text).ids)
+        return list(encoder.encode(text, disallowed_special=()))
 
     def decode(self, spec: TokenizerSpec, ids: list[int]) -> str:
         """Decode token ids back to text (round-trip proof, plan 52 T3)."""
@@ -262,7 +315,7 @@ class TokenizerService:
 
     def _load(self, spec: TokenizerSpec):
         if spec.kind is TokenizerKind.HF_TOKENIZERS:
-            raise TokenizerUnavailable("unsupported_tokenizer_kind", "hf_tokenizers (plan 52 T5)")
+            return self._load_hf(spec)
         if spec.kind is TokenizerKind.SENTENCEPIECE:
             raise TokenizerUnavailable(
                 "unsupported_tokenizer_kind", "sentencepiece (reserved, not shipped)"
@@ -292,6 +345,34 @@ class TokenizerService:
         except Exception as exc:  # pragma: no cover - pinned asset
             raise TokenizerUnavailable("asset_corrupt", type(exc).__name__) from exc
 
+    def _load_hf(self, spec: TokenizerSpec):
+        """Load one verified ``tokenizer.json`` from the local content cache."""
+        expected_sha = spec.artifact_sha256
+        if not expected_sha:
+            raise TokenizerUnavailable("asset_missing", "hf tokenizer has no checksum")
+        path = self.cache_dir / expected_sha / HF_TOKENIZER_FILENAME
+        try:
+            payload = path.read_bytes()
+        except OSError as exc:
+            raise TokenizerUnavailable("asset_missing", path.name) from exc
+        if len(payload) > MAX_TOKENIZER_JSON_BYTES:
+            raise TokenizerUnavailable(
+                "asset_too_large", f"{len(payload)} > {MAX_TOKENIZER_JSON_BYTES} bytes"
+            )
+        if hashlib.sha256(payload).hexdigest() != expected_sha:
+            raise TokenizerUnavailable("asset_corrupt", f"{path.parent.name}: checksum")
+        try:
+            import tokenizers
+        except ImportError as exc:  # pragma: no cover - direct dependency
+            raise TokenizerUnavailable("tokenizers_missing", "tokenizers not installed") from exc
+        try:
+            tokenizer = tokenizers.Tokenizer.from_str(payload.decode("utf-8"))
+            if tokenizer.get_vocab_size() < 1:
+                raise ValueError("empty vocabulary")
+        except Exception as exc:
+            raise TokenizerUnavailable("schema_invalid", type(exc).__name__) from exc
+        return tokenizer
+
 
 _DEFAULT_SERVICE: TokenizerService | None = None
 _DEFAULT_LOCK = threading.Lock()
@@ -312,12 +393,17 @@ __all__ = [
     "DEFAULT_ASSET_DIR",
     "FALLBACK_IDENTIFIER",
     "FALLBACK_MAX_INPUT_TOKENS",
+    "HF_CACHE_SUBDIR",
+    "HF_TOKENIZER_FILENAME",
+    "MAX_TOKENIZER_JSON_BYTES",
     "OPENAI_EMBEDDING_MAX_INPUT_TOKENS",
     "TokenCount",
     "TokenizerService",
     "TokenizerUnavailable",
+    "default_cache_dir",
     "fallback_spec",
     "get_tokenizer_service",
+    "hf_tokenizer_spec",
     "provider_class",
     "tiktoken_spec",
 ]

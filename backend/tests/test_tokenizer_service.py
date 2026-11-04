@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import socket
 from pathlib import Path
@@ -12,20 +13,55 @@ from app.ai.tokenizers import (
     CL100K_BASE,
     FALLBACK_IDENTIFIER,
     FALLBACK_MAX_INPUT_TOKENS,
+    HF_TOKENIZER_FILENAME,
     OPENAI_EMBEDDING_MAX_INPUT_TOKENS,
     TokenizerService,
     TokenizerUnavailable,
     fallback_spec,
+    hf_tokenizer_spec,
     resolve_embedding_profile,
     resolve_tokenizer_spec,
 )
-from app.ai.tokenizers.service import CL100K_BASE_ASSET, DEFAULT_ASSET_DIR
+from app.ai.tokenizers.service import (
+    CL100K_BASE_ASSET,
+    DEFAULT_ASSET_DIR,
+    MAX_TOKENIZER_JSON_BYTES,
+)
 from app.storage import tokenizer_contract as tc
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "tokenizer_tiktoken.fixtures.json"
+HF_FIXTURE = Path(__file__).resolve().parent / "fixtures" / "tokenizer_hf_wordlevel.json"
 REFERENCE = (
     Path(__file__).resolve().parents[1] / "app" / "data" / "tokenizers" / "reference_corpus.json"
 )
+
+
+def _hf_fixture_bytes() -> bytes:
+    return HF_FIXTURE.read_bytes()
+
+
+def _hf_fixture_sha() -> str:
+    return hashlib.sha256(_hf_fixture_bytes()).hexdigest()
+
+
+def _hf_spec(**overrides) -> tc.TokenizerSpec:
+    payload = {
+        "identifier": "fixture/wordlevel",
+        "revision": "0123456789abcdef0123456789abcdef01234567",
+        "artifact_sha256": _hf_fixture_sha(),
+        "max_input_tokens": 512,
+        "source": "curated",
+    }
+    payload.update(overrides)
+    return hf_tokenizer_spec(**payload)
+
+
+def _write_hf_cache(cache_dir: Path, payload: bytes, *, sha: str | None = None) -> str:
+    digest = sha or hashlib.sha256(payload).hexdigest()
+    target = cache_dir / digest / HF_TOKENIZER_FILENAME
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
+    return digest
 
 
 def _reference_samples() -> dict[str, dict]:
@@ -56,7 +92,7 @@ def test_openai_embedding_models_pin_cl100k_exactly():
 
 def test_unknown_and_non_openai_models_are_labelled_fallback():
     for provider, model in (
-        ("openai_compatible", "nomic-embed-text"),
+        ("openai_compatible", "unknown-embed-9000"),
         ("openai_compatible", "text-embedding-4-unknown"),
         ("google", "gemini-embedding-2"),
         ("mock", "mock-embed"),
@@ -140,15 +176,7 @@ def test_corrupt_asset_degrades_visibly(tmp_path: Path):
     assert service.count_or_fallback(spec, "Hello").exact is False
 
 
-def test_hf_and_sentencepiece_are_explicitly_unsupported():
-    hf = tc.TokenizerSpec(
-        kind="hf_tokenizers",
-        identifier="org/model",
-        revision="0123456789abcdef0123456789abcdef01234567",
-        artifact_sha256="b" * 64,
-        max_input_tokens=512,
-        source="curated",
-    )
+def test_sentencepiece_is_explicitly_unsupported():
     sparse = tc.TokenizerSpec(
         kind="sentencepiece",
         identifier="org/model",
@@ -158,20 +186,89 @@ def test_hf_and_sentencepiece_are_explicitly_unsupported():
         source="admin",
     )
     service = TokenizerService()
-    for spec in (hf, sparse):
-        with pytest.raises(TokenizerUnavailable) as error:
-            service.count(spec, "text")
-        assert error.value.reason == "unsupported_tokenizer_kind"
-        assert service.available(spec) is False
+    with pytest.raises(TokenizerUnavailable) as error:
+        service.count(sparse, "text")
+    assert error.value.reason == "unsupported_tokenizer_kind"
+    assert service.available(sparse) is False
 
 
-def test_exact_counting_makes_no_network_call(monkeypatch):
+def test_hf_tokenizer_loads_from_the_content_cache(tmp_path: Path):
+    payload = _hf_fixture_bytes()
+    spec = _hf_spec()
+    _write_hf_cache(tmp_path, payload)
+    service = TokenizerService(cache_dir=tmp_path)
+
+    assert service.available(spec) is True
+    assert service.count(spec, "hello world") == 2
+    assert service.count(spec, "hello unknown") == 2
+    ids = service.encode(spec, "hello world")
+    assert ids == [2, 3]
+    assert service.decode(spec, ids) == "hello world"
+    assert service.count_or_fallback(spec, "hello world").exact is True
+    assert service.cached_count == 1
+
+
+def test_hf_tokenizer_missing_asset_degrades_visibly(tmp_path: Path):
+    spec = _hf_spec()
+    service = TokenizerService(cache_dir=tmp_path)
+    assert service.available(spec) is False
+    effective, reason = service.effective_spec(spec)
+    assert reason == "asset_missing"
+    assert effective.kind is tc.TokenizerKind.HEURISTIC
+    assert effective.exact is False
+    counted = service.count_or_fallback(spec, "hello world")
+    assert counted.exact is False
+    assert counted.degraded_reason == "asset_missing"
+
+
+def test_hf_tokenizer_rejects_size_cap_corruption_and_bad_schema(tmp_path: Path):
+    oversized = b"x" * (MAX_TOKENIZER_JSON_BYTES + 1)
+    oversized_sha = _write_hf_cache(tmp_path, oversized)
+    service = TokenizerService(cache_dir=tmp_path)
+    with pytest.raises(TokenizerUnavailable) as error:
+        service.count(_hf_spec(artifact_sha256=oversized_sha), "text")
+    assert error.value.reason == "asset_too_large"
+
+    corrupt = b'{"not": "the expected bytes"}'
+    corrupt_sha = _write_hf_cache(tmp_path, corrupt)
+    with pytest.raises(TokenizerUnavailable) as error:
+        service.count(_hf_spec(artifact_sha256=corrupt_sha), "text")
+    assert error.value.reason == "schema_invalid"
+
+    expected = _hf_fixture_sha()
+    broken = tmp_path / expected / HF_TOKENIZER_FILENAME
+    broken.parent.mkdir(parents=True, exist_ok=True)
+    broken.write_bytes(_hf_fixture_bytes() + b"tampered")
+    with pytest.raises(TokenizerUnavailable) as error:
+        service.count(_hf_spec(), "text")
+    assert error.value.reason == "asset_corrupt"
+
+
+def test_hf_cache_is_bounded_by_the_same_lru(tmp_path: Path):
+    payload = _hf_fixture_bytes()
+    _write_hf_cache(tmp_path, payload)
+    service = TokenizerService(cache_dir=tmp_path, max_cached=1)
+    hf = _hf_spec()
+    tiktoken = resolve_tokenizer_spec("openai_compatible", "text-embedding-3-small")
+    assert service.count(hf, "hello world") == 2
+    assert service.cached_count == 1
+    assert service.count(tiktoken, "hello world") == 2
+    assert service.cached_count == 1
+    assert service.count(hf, "hello world") == 2
+    assert service.cached_count == 1
+
+
+def test_exact_counting_makes_no_network_call(monkeypatch, tmp_path: Path):
     def forbidden(*args, **kwargs):  # pragma: no cover - the assertion is the raise
         raise AssertionError("tokenizer service attempted a network call")
 
     monkeypatch.setattr(socket, "socket", forbidden)
     monkeypatch.setattr(socket, "create_connection", forbidden)
-    service = TokenizerService()
+    _write_hf_cache(tmp_path, _hf_fixture_bytes())
+    service = TokenizerService(cache_dir=tmp_path)
     spec = resolve_tokenizer_spec("openai_compatible", "text-embedding-3-small")
     assert service.count(spec, "offline " * 100) >= 100
     assert service.decode(spec, service.encode(spec, "still offline")) == "still offline"
+    hf = _hf_spec()
+    assert service.count(hf, "hello world") == 2
+    assert service.decode(hf, service.encode(hf, "hello world")) == "hello world"

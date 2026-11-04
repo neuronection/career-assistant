@@ -15,6 +15,7 @@ point. The change itself is audited through the existing
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Any
@@ -25,12 +26,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.ai.providers import resolution
 from app.ai.tokenizers import (
     CL100K_BASE,
+    HF_TOKENIZER_FILENAME,
+    MAX_TOKENIZER_JSON_BYTES,
     EmbeddingModelProfile,
     get_tokenizer_service,
     provider_class,
     resolve_embedding_profile,
 )
-from app.ai.tokenizers.registry import CURATED_EMBEDDING_PROFILES
+from app.ai.tokenizers.registry import (
+    CURATED_EMBEDDING_PROFILES,
+    UNAVAILABLE_HF_PRESETS,
+)
 from app.ai.tokenizers.service import CL100K_BASE_BPE_SHA256
 from app.core.errors import ValidationError
 from app.models.embedding_profile_model import EmbeddingModelProfile as EmbeddingModelProfileRow
@@ -53,8 +59,14 @@ MAX_BATCH_TOKENS = 10_000_000
 MAX_CHUNK_TOKENS = 1_000_000
 MAX_CHUNK_CHARS = 1_000_000
 
-SUPPORTED_PROFILE_KINDS = (TokenizerKind.TIKTOKEN, TokenizerKind.HEURISTIC)
+SUPPORTED_PROFILE_KINDS = (
+    TokenizerKind.TIKTOKEN,
+    TokenizerKind.HF_TOKENIZERS,
+    TokenizerKind.HEURISTIC,
+)
 SUPPORTED_TIKTOKEN_IDENTIFIERS = (CL100K_BASE,)
+HF_REPO_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$")
+PINNED_REVISION_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
 PROFILE_BOUNDS: dict[str, Any] = {
     "max_provider_class_length": MAX_PROVIDER_CLASS_LENGTH,
@@ -68,6 +80,9 @@ PROFILE_BOUNDS: dict[str, Any] = {
     "max_chunk_chars": MAX_CHUNK_CHARS,
     "supported_kinds": [kind.value for kind in SUPPORTED_PROFILE_KINDS],
     "supported_tiktoken_identifiers": list(SUPPORTED_TIKTOKEN_IDENTIFIERS),
+    "hf_tokenizer_filename": HF_TOKENIZER_FILENAME,
+    "max_tokenizer_json_bytes": MAX_TOKENIZER_JSON_BYTES,
+    "requires_pinned_revision": True,
 }
 
 
@@ -125,6 +140,27 @@ def _build_spec(
                 identifier=identifier,
                 max_input_tokens=limit,
                 source=TokenizerSource.ADMIN,
+            )
+        if kind == TokenizerKind.HF_TOKENIZERS.value:
+            if not HF_REPO_PATTERN.fullmatch(identifier):
+                raise ValidationError(
+                    "a Hugging Face profile identifier must be a repository id (org/model)"
+                )
+            if revision is None or not PINNED_REVISION_PATTERN.fullmatch(revision):
+                raise ValidationError(
+                    "a Hugging Face profile needs a pinned 40-character commit revision"
+                )
+            if sha is None or len(sha) != 64:
+                raise ValidationError(
+                    "a Hugging Face profile needs the tokenizer.json artifact sha256"
+                )
+            return TokenizerSpec(
+                kind=TokenizerKind.HF_TOKENIZERS,
+                identifier=identifier,
+                max_input_tokens=limit,
+                source=TokenizerSource.ADMIN,
+                artifact_sha256=sha,
+                revision=revision,
             )
         if identifier not in SUPPORTED_TIKTOKEN_IDENTIFIERS:
             raise ValidationError(
@@ -270,24 +306,50 @@ def profile_dto(
     profile: EmbeddingModelProfile,
     *,
     service=None,
+    runtime: bool = True,
 ) -> dict[str, Any]:
-    """The bounded profile read DTO (no document/query/prompt text)."""
-    tokenizer_service = service or get_tokenizer_service()
-    effective, degraded = tokenizer_service.effective_spec(profile.tokenizer)
+    """The bounded profile read DTO (no document/query/prompt text).
+
+    The selected tokenizer identity is what the profile *asks* for; ``exact``
+    and ``degraded_reason`` describe what will actually count right now.
+    ``tokenizer_available`` is false for an unfetched/corrupt HF artifact, so
+    the UI can offer the fetch action without pretending the asset exists.
+    ``runtime=False`` is the curated-catalog form: it describes the code fact
+    without loading every HF asset just to render the list.
+    """
+    if runtime:
+        tokenizer_service = service or get_tokenizer_service()
+        effective, degraded = tokenizer_service.effective_spec(profile.tokenizer)
+        available = (
+            profile.tokenizer.kind is TokenizerKind.HEURISTIC
+            or tokenizer_service.available(profile.tokenizer)
+        )
+    else:
+        effective, degraded = profile.tokenizer, None
+        available = profile.tokenizer.kind is TokenizerKind.HEURISTIC or profile.usable
     return {
         "provider_class": profile.provider_class,
         "model": profile.model,
         "source": profile.source.value,
         "exact": effective.exact,
         "override": profile.override,
-        "identity": effective.identity,
-        "tokenizer_kind": effective.kind.value,
-        "tokenizer_identifier": effective.identifier,
-        "tokenizer_revision": effective.revision,
-        "tokenizer_artifact_sha256": effective.artifact_sha256,
-        "max_input_tokens": effective.max_input_tokens,
+        "identity": profile.tokenizer.identity,
+        "counted_identity": effective.identity,
+        "tokenizer_available": available,
+        "tokenizer_kind": profile.tokenizer.kind.value,
+        "tokenizer_identifier": profile.tokenizer.identifier,
+        "tokenizer_revision": profile.tokenizer.revision,
+        "tokenizer_artifact_sha256": profile.tokenizer.artifact_sha256,
+        "max_input_tokens": profile.tokenizer.max_input_tokens,
         "max_input_assumed": profile.max_input_assumed,
         "degraded_reason": degraded,
+        "family": profile.family,
+        "license": profile.license,
+        "source_url": profile.source_url,
+        "repository": profile.repository,
+        "preset_revision": profile.preset_revision,
+        "usable": profile.usable,
+        "usable_reason": profile.usable_reason,
         "batch_max_items": profile.batch_max_items,
         "batch_max_tokens": profile.batch_max_tokens,
         "chunk": {
@@ -348,7 +410,21 @@ async def list_payload(
         "requested": requested,
         "assigned": assigned,
         "resolution": profile_dto(selected),
-        "curated": [profile_dto(profile) for profile in CURATED_EMBEDDING_PROFILES],
+        "curated": [profile_dto(profile, runtime=False) for profile in CURATED_EMBEDDING_PROFILES],
+        "unavailable_presets": [
+            {
+                "family": preset.family,
+                "repository": preset.repository,
+                "revision": preset.revision,
+                "license": preset.license,
+                "source_url": preset.source_url,
+                "max_input_tokens": preset.max_input_tokens,
+                "models": list(preset.models),
+                "usable": preset.usable,
+                "usable_reason": preset.unusable_reason,
+            }
+            for preset in UNAVAILABLE_HF_PRESETS
+        ],
         "overrides": [profile_dto(profile) for profile in overrides],
         "bounds": PROFILE_BOUNDS,
         "token_aware_writes": False,

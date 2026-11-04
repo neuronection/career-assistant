@@ -40,6 +40,7 @@ dependencies = [
     "pillow>=12",
     "fastmcp>=4.0",
     "qrcode>=8.2",
+    "tokenizers>=0.22,<1",
 ]
 dynamic = ["version"]
 
