@@ -195,6 +195,34 @@ compare and the token budget, never the corpus.
 
 ## 8. Troubleshooting
 
+### Is this posting indexed?
+
+Two ways to answer the same question, both admin-only and aggregate-only:
+
+- Open the posting's detail page — under its facts an admin sees one line
+  with the state, the space facts (`name · model · dim · backend`) and the
+  record count, linking to Tools → Retrieval.
+- Or call `GET /api/v1/admin/retrieval/documents/status?kind=posting&source_ids=<uuid>`
+  (repeatable or comma-joined; at most 50 ids — an empty list or more is a
+  400, never a silent truncation). `kind` is one of `posting`, `job`,
+  `skill`, `profile`.
+
+The read composes the existing document, record and source rows at request
+time; nothing is stored or backfilled. The five states:
+
+| State | Reason | Meaning |
+|---|---|---|
+| `current` | — | Document exists, schema version matches, source hash matches, record count matches. |
+| `stale` | `schema_version_mismatch` / `source_hash_mismatch` | Indexed, but the composer version or the composed text changed since the write — reindex that source. |
+| `missing` | `document_missing` / `source_unavailable` | No document in the active space, or the source row itself is gone. |
+| `incomplete` | `no_records` / `record_count_mismatch` | The document exists but its records are missing or fewer than the composer would write (lost chunks); reindex. |
+| `off` | `no_active_space` | No active content space, so nothing is indexed. Cold is not zero — build and activate a space first. |
+
+None of these states gates serving: an unindexed posting is fully returned,
+and the semantic paths degrade to the lexical order. That is ADR-0051 §7
+(the family vector-retrieval ADR in the dev repo) — semantic is a ranking
+signal, never a gate.
+
 | Symptom | Check | Fix |
 |---|---|---|
 | **No provider / embeddings unassigned** (`retrieval.provider_unassigned`) | Settings → AI → Tasks: the embeddings slot | Assign an embeddings-capable model, then reindex. A fresh install answers 503 until configured. |

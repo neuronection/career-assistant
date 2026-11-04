@@ -4,6 +4,24 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (per-posting retrieval status — admin detail row and debug card marker, 2026-11-04)
+- **A posting's own page now tells an admin whether the semantic index has
+  reached it**: one line under the facts with the state (Indexed, Indexed ·
+  text changed since, Not indexed, Index incomplete or Semantic index is
+  off), the active space's name, model, dimension and backend, and the
+  record count, linking to Tools → Retrieval. A failed read says “status
+  unavailable” instead of hiding. The state is computed at read time from
+  the existing vector tables — no schema change, no new `PostingOut` field.
+- **Operators can opt into a per-browser debug marker**: Settings → Tools →
+  Retrieval gains a switch that draws a small state dot on the `/postings`
+  cards (one batched read per page, never per card). The flag lives in this
+  browser only; it is not server state and changes nothing for a normal
+  user.
+- **New admin endpoint** `GET /api/v1/admin/retrieval/documents/status`
+  (`kind` + up to 50 `source_ids`) returns the five-state enum with record
+  counts and space facts — aggregates only, never document text. Empty or
+  oversized id lists are a 400 rather than a silent truncation.
+
 ### Added (retrieval operations — operator runbook and doc links, 2026-11-04)
 - **The vector-index operations now have a developer runbook** at
   `docs/dev/retrieval-ops.md`: where Tools → Retrieval and Audit →

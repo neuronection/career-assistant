@@ -171,6 +171,18 @@ honest quirk at this scale: an employer-capped posting that would have
 appeared on page one does not reappear on page two — paging continues
 below the page-one cutoff.
 
+An admin opening a posting's own page sees one honest line under its facts:
+whether that posting is **Indexed**, **Indexed · text changed since**,
+**Not indexed**, **Index incomplete** or **Semantic index is off**, with the
+space facts and record count behind it. It is information, never a gate:
+indexing only ever adds the semantic ranking signal, and a posting without
+an index entry is still fully served and ranked by the lexical path. The
+line links straight to
+[the retrieval settings](/settings/tools?section=retrieval); a failed status
+read says “status unavailable” instead of disappearing or pretending the
+posting is indexed.
+
+
 ### Smart search — describe it instead of filtering
 
 Next to the sort control sits the **smart search box**. Type what you are

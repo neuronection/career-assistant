@@ -96,6 +96,17 @@ reconciled”, and ANN recall says “not sampled” until the probe runs; a
 degraded query reports its lexical-fallback reason instead of pretending the
 index served it.
 
+**Retrieval debug marker** is the last card before the danger zone: one
+switch that draws a small semantic-index state dot on the `/postings` cards
+of this browser, so an operator can see at a glance which postings the index
+has actually reached. The flag is stored per browser (never on the server),
+and the card shows the current space while it is on. The dot means
+**Indexed** (current), **Indexed · text changed since** (stale),
+**Not indexed** (missing), **Index incomplete** (incomplete) or **Semantic
+index is off** (no active space); clearing the cached statuses forgets what
+this browser has already fetched. It is a diagnostic only — no card, badge
+or ranking changes for a normal user.
+
 **Sources** hosts the job-source instances: grouped by what they feed —
 **Job boards**, **Market data**, **Universities**, **Search** and
 **Inbound webhooks** — with a health strip (active count, failing /
