@@ -6176,7 +6176,7 @@ export interface paths {
         };
         /**
          * List Jobs
-         * @description Search/filter the job catalog.
+         * @description Search/filter the job catalog; items carry the page's live-role count.
          */
         get: operations["list_jobs_api_v1_jobs_get"];
         put?: never;
@@ -14406,6 +14406,8 @@ export interface components {
             interests?: components["schemas"]["InterestRefOut"][];
             /** Links */
             links?: components["schemas"]["JobLink"][];
+            /** Open Roles */
+            open_roles?: number | null;
             /** Short Description */
             short_description: string;
             /** Skills */
@@ -14580,6 +14582,25 @@ export interface components {
             status?: components["schemas"]["JobStatus"] | null;
             /** Title */
             title?: string | null;
+        };
+        /**
+         * JobsPageOut
+         * @description A catalog page with the self-excluding facet counts the rail renders.
+         */
+        JobsPageOut: {
+            /** Facets */
+            facets?: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Items */
+            items?: components["schemas"]["JobOut"][];
+            /**
+             * Total
+             * @default 0
+             */
+            total: number;
         };
         /** KindPrefIn */
         KindPrefIn: {
@@ -30476,13 +30497,37 @@ export interface operations {
                 family_key?: string | null;
                 /** @description comma-separated tag keys */
                 interests?: string | null;
+                interest_exclude?: string | null;
                 demand?: string | null;
-                education_level?: string | null;
+                demand_exclude?: string | null;
+                /** @description comma-separated levels */
+                education?: string | null;
+                education_exclude?: string | null;
+                education_min?: string | null;
+                /** @description key@level CSV */
+                skills?: string | null;
+                skill_exclude?: string | null;
+                skill_mode?: string;
+                skill_min_level?: number | null;
                 environment?: string | null;
+                environment_exclude?: string | null;
+                contract?: string | null;
+                contract_exclude?: string | null;
+                schedule?: string | null;
+                schedule_exclude?: string | null;
+                travel?: string | null;
+                travel_exclude?: string | null;
                 source?: string | null;
-                min_salary?: number | null;
+                source_exclude?: string | null;
+                salary_min?: number | null;
+                salary_max?: number | null;
+                experience_max_years?: number | null;
+                has_roles?: boolean | null;
+                status?: string | null;
+                sort?: string;
                 page?: number;
                 page_size?: number;
+                with_facets?: boolean;
             };
             header?: never;
             path?: never;
@@ -30496,7 +30541,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobOut"][];
+                    "application/json": components["schemas"]["JobsPageOut"];
                 };
             };
             /** @description Validation Error */

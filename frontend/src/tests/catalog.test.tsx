@@ -112,12 +112,16 @@ function renderCatalog(initialEntries: string[] = ["/catalog"]) {
 
 describe("Catalog subtabs", () => {
   beforeEach(() => {
-    useCatalogStore.setState({ families: [], jobs: [], total: 0, loading: false, filters: {} });
+    useCatalogStore.setState({ families: [], jobs: [], total: 0, facets: {}, loading: false, filters: {} });
     vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
-    vi.mocked(jobsApi.fetchJobs).mockResolvedValue([
-      job(),
-      job({ id: "job-2", code: "ui-designer", title: "UI Designer", family_key: "creative-arts" }),
-    ]);
+    vi.mocked(jobsApi.fetchJobs).mockResolvedValue({
+      items: [
+        job(),
+        job({ id: "job-2", code: "ui-designer", title: "UI Designer", family_key: "creative-arts" }),
+      ],
+      total: 2,
+      facets: {},
+    });
     vi.mocked(jobsApi.fetchGraph).mockResolvedValue({
       nodes: [
         { id: "n1", code: "software-developer", title: "Software Developer", family_key: "technology", demand: "high" },

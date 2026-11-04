@@ -380,7 +380,7 @@ async def _run_path_suggest(
             if found is not None:
                 targets.append(found)
     else:
-        targets, _ = await job_service.list_jobs(status="published", page_size=100)
+        targets, _, _ = await job_service.list_jobs(status="published", page_size=100)
     with_paths = {row[0] for row in await db.execute(select(CareerPath.job_id).distinct())}
     targets = [t for t in targets if t.id not in with_paths]
     if not targets:

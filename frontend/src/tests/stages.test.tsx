@@ -25,7 +25,7 @@ vi.mock("@/api/engagement", async (importOriginal) => {
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
 }));
 
 function bootstrapFor(stage: Bootstrap["career_stage"]): Bootstrap {

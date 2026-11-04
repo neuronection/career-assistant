@@ -73,7 +73,9 @@ async def moderation_queue(
     db: AsyncSession = Depends(get_db),
 ) -> list[JobOut]:
     """All users' catalog drafts (default), newest last, for moderation."""
-    jobs, _ = await JobService(db).list_jobs(status=job_status, source=source, page_size=limit)
+    jobs, _, _ = await JobService(db).list_jobs(
+        status=job_status, source=[source] if source else None, page_size=limit
+    )
     return [JobOut.from_model(j) for j in jobs]
 
 

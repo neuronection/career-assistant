@@ -33,9 +33,11 @@ vi.mock("@/api/jobs", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/jobs")>();
   return {
     ...mod,
-    fetchJobs: vi.fn().mockResolvedValue([
-      { code: "backend-eng", title: "Backend Engineer" },
-    ]),
+    fetchJobs: vi.fn().mockResolvedValue({
+      items: [{ code: "backend-eng", title: "Backend Engineer" }],
+      total: 1,
+      facets: {},
+    }),
   };
 });
 

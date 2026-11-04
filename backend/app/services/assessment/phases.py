@@ -285,7 +285,7 @@ class PersonalizedSelection(Phase):
         from app.services.catalog.job_service import JobService
 
         job_service = JobService(db)
-        jobs, _ = await job_service.list_jobs(page_size=200)
+        jobs, _, _ = await job_service.list_jobs(page_size=200)
         questions: list[AssessmentQuestion] = []
 
         options = [

@@ -3,6 +3,7 @@ import type {
   Job,
   JobGraph,
   JobPostings,
+  JobsPage,
   Relation,
   SimilarJobs,
 } from "@/types/wire";
@@ -13,8 +14,8 @@ export async function fetchFamilyTree(): Promise<JobFamilyNode[]> {
   return data;
 }
 
-export async function fetchJobs(params: Record<string, unknown> = {}): Promise<Job[]> {
-  const { data } = await api.get<Job[]>("/jobs", { params });
+export async function fetchJobs(params: Record<string, unknown> = {}): Promise<JobsPage> {
+  const { data } = await api.get<JobsPage>("/jobs", { params });
   return data;
 }
 

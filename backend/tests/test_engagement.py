@@ -37,7 +37,7 @@ async def fit_rule_off(client, auth_headers):
 
 
 async def _job_ids(client, auth_headers, limit=3):
-    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()
+    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()["items"]
     return [j["id"] for j in jobs[:limit]], jobs[0]["code"]
 
 
@@ -516,7 +516,7 @@ async def test_fit_threshold_max_per_day_cap(
             json={"kind": "fit_threshold", "params": {"min_fit": 5, "max_per_day": 2}},
             headers=auth_headers,
         )
-        jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()[:3]
+        jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()["items"][:3]
         fit = FitService(db)
         for j in jobs:
             job = await JobService(db).get_by_code_or_id(UUID(j["id"]))

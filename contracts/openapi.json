@@ -11887,6 +11887,17 @@
             "title": "Links",
             "type": "array"
           },
+          "open_roles": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Roles"
+          },
           "short_description": {
             "title": "Short Description",
             "type": "string"
@@ -12371,6 +12382,35 @@
           }
         },
         "title": "JobUpdate",
+        "type": "object"
+      },
+      "JobsPageOut": {
+        "description": "A catalog page with the self-excluding facet counts the rail renders.",
+        "properties": {
+          "facets": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Facets",
+            "type": "object"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/JobOut"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "total": {
+            "default": 0,
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "title": "JobsPageOut",
         "type": "object"
       },
       "KindPrefIn": {
@@ -42208,7 +42248,7 @@
     },
     "/api/v1/jobs": {
       "get": {
-        "description": "Search/filter the job catalog.",
+        "description": "Search/filter the job catalog; items carry the page's live-role count.",
         "operationId": "list_jobs_api_v1_jobs_get",
         "parameters": [
           {
@@ -42263,6 +42303,22 @@
           },
           {
             "in": "query",
+            "name": "interest_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Interest Exclude"
+            }
+          },
+          {
+            "in": "query",
             "name": "demand",
             "required": false,
             "schema": {
@@ -42279,7 +42335,7 @@
           },
           {
             "in": "query",
-            "name": "education_level",
+            "name": "demand_exclude",
             "required": false,
             "schema": {
               "anyOf": [
@@ -42290,7 +42346,120 @@
                   "type": "null"
                 }
               ],
-              "title": "Education Level"
+              "title": "Demand Exclude"
+            }
+          },
+          {
+            "description": "comma-separated levels",
+            "in": "query",
+            "name": "education",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "comma-separated levels",
+              "title": "Education"
+            }
+          },
+          {
+            "in": "query",
+            "name": "education_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Education Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "education_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Education Min"
+            }
+          },
+          {
+            "description": "key@level CSV",
+            "in": "query",
+            "name": "skills",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "key@level CSV",
+              "title": "Skills"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skill_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Skill Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skill_mode",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "pattern": "^(all|any)$",
+              "title": "Skill Mode",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "skill_min_level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 10,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Skill Min Level"
             }
           },
           {
@@ -42311,6 +42480,118 @@
           },
           {
             "in": "query",
+            "name": "environment_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Environment Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contract",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Contract"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contract_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Contract Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "schedule",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Schedule"
+            }
+          },
+          {
+            "in": "query",
+            "name": "schedule_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Schedule Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "travel",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Travel"
+            }
+          },
+          {
+            "in": "query",
+            "name": "travel_exclude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Travel Exclude"
+            }
+          },
+          {
+            "in": "query",
             "name": "source",
             "required": false,
             "schema": {
@@ -42327,18 +42608,113 @@
           },
           {
             "in": "query",
-            "name": "min_salary",
+            "name": "source_exclude",
             "required": false,
             "schema": {
               "anyOf": [
                 {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source Exclude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "salary_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
                   "type": "integer"
                 },
                 {
                   "type": "null"
                 }
               ],
-              "title": "Min Salary"
+              "title": "Salary Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "salary_max",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salary Max"
+            }
+          },
+          {
+            "in": "query",
+            "name": "experience_max_years",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 0,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Experience Max Years"
+            }
+          },
+          {
+            "in": "query",
+            "name": "has_roles",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Has Roles"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "published",
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "default": "title",
+              "pattern": "^(title|demand|salary|open_roles|family)$",
+              "title": "Sort",
+              "type": "string"
             }
           },
           {
@@ -42363,6 +42739,16 @@
               "title": "Page Size",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "with_facets",
+            "required": false,
+            "schema": {
+              "default": true,
+              "title": "With Facets",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -42370,11 +42756,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/JobOut"
-                  },
-                  "title": "Response List Jobs Api V1 Jobs Get",
-                  "type": "array"
+                  "$ref": "#/components/schemas/JobsPageOut"
                 }
               }
             },

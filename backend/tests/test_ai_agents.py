@@ -109,7 +109,7 @@ async def test_relation_suggester_valid_codes(db, client, auth_headers, seeded_c
     from app.services.catalog.job_service import JobService
 
     service = JobService(db)
-    jobs, _ = await service.list_jobs(family_key="technology", page_size=5)
+    jobs, _, _ = await service.list_jobs(family_key="technology", page_size=5)
     snapshots = [service.job_snapshot(j) for j in jobs]
     suggestions = await suggest_relations(db, None, snapshots, max_suggestions=5)
     codes = {j["code"] for j in snapshots}

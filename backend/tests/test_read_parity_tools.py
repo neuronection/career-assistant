@@ -107,7 +107,7 @@ async def test_my_fit_breakdown_catalog_job(
 ):
     from app.services.catalog.job_service import JobService
 
-    jobs, _ = await JobService(db).list_jobs(status="published", page_size=1)
+    jobs, _, _ = await JobService(db).list_jobs(status="published", page_size=1)
     assert jobs, "seeded catalog must publish at least one job"
 
     result = await run_tool(
@@ -136,7 +136,7 @@ async def test_my_fit_breakdown_reads_a_mapped_posting(
     from app.services.postings.postings_service import resolve_posting
     from tests.conftest import _make_posting
 
-    jobs, _ = await JobService(db).list_jobs(status="published", page_size=1)
+    jobs, _, _ = await JobService(db).list_jobs(status="published", page_size=1)
     posting = await _make_posting(db, source, external_id="fit-parity-1")
     posting.catalog_job_id = jobs[0].id
     posting.status = "mapped"

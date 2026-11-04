@@ -43,7 +43,7 @@ class MatchingService:
         """Top unscored, feed-eligible jobs by deterministic fit."""
         insights = await self.backfilled_insights(profile)
         job_service = JobService(self.db)
-        jobs, _ = await job_service.list_jobs(family_key=family_key, page_size=500)
+        jobs, _, _ = await job_service.list_jobs(family_key=family_key, page_size=500)
         items: list[dict[str, Any]] = []
         for job in jobs:
             insight = insights.get(job.id)
@@ -71,7 +71,7 @@ class MatchingService:
         """
         insights = await self._insights_map(profile.user_id)
         job_service = JobService(self.db)
-        jobs, _ = await job_service.list_jobs(status="published", page_size=1000)
+        jobs, _, _ = await job_service.list_jobs(status="published", page_size=1000)
         missing = [
             job
             for job in jobs
@@ -150,7 +150,7 @@ class MatchingService:
         await self.backfilled_insights(profile)
         insights = await self._insights_map(profile.user_id)
         job_service = JobService(self.db)
-        jobs, _ = await job_service.list_jobs(status="published", page_size=500)
+        jobs, _, _ = await job_service.list_jobs(status="published", page_size=500)
         pending = []
         for job in jobs:
             insight = insights.get(job.id)
@@ -315,7 +315,7 @@ class MatchingService:
         """
         insights = await self.backfilled_insights(profile)
         job_service = JobService(self.db)
-        jobs, _ = await job_service.list_jobs(
+        jobs, _, _ = await job_service.list_jobs(
             q=q,
             family_key=family_key,
             interest_keys=interest_keys,

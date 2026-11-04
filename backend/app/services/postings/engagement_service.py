@@ -274,7 +274,7 @@ class EngagementService:
             insights = await matching.backfilled_insights(profile)
         else:
             insights = await matching._insights_map(profile.user_id)
-        jobs, _ = await JobService(self.db).list_jobs(status="published", page_size=1000)
+        jobs, _, _ = await JobService(self.db).list_jobs(status="published", page_size=1000)
         items: list[dict] = []
         unseen = 0
         for job in jobs:

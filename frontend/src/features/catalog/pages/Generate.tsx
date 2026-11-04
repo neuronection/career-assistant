@@ -27,8 +27,8 @@ export function Generate() {
   const onDone = async (finished: BackgroundJob) => {
     setBusy(false);
     if (finished.status === "succeeded") {
-      const fresh = await fetchJobs({ status: "draft", source: "ai" });
-      setDrafts(fresh);
+      const page = await fetchJobs({ status: "draft", source: "ai" });
+      setDrafts(page.items ?? []);
       const noteText = finished.result?.note;
       setNote(typeof noteText === "string" ? noteText : "");
     } else if (finished.status === "failed") {

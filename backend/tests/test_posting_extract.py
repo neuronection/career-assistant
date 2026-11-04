@@ -307,7 +307,7 @@ async def test_sync_enqueues_demand_first_without_blocking(
 ):
     """Demand-matched postings enqueue before the rest; sync itself never
     runs the AI (extraction is a queued job)."""
-    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()
+    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()["items"]
     target = jobs[0]
     family_key = target["family_key"]
     rule = await client.put(

@@ -285,7 +285,7 @@ class FitService:
         """(Re)compute fit for every published job for one user."""
         job_service = JobService(self.db)
         profile = profile or await self._profile(user_id)
-        jobs, _ = await job_service.list_jobs(status="published", page_size=1000)
+        jobs, _, _ = await job_service.list_jobs(status="published", page_size=1000)
         user_ctx = await self.user_context(profile)
         weights = await self.scoring_weights(profile)
         done = 0

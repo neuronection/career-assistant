@@ -56,7 +56,7 @@ async def run_generation(
     families = await service.families()
     interests = [i for i in await TaxonomyService(db).interests() if not i.deprecated]
     skills = await TaxonomyService(db).skills(status="active")
-    existing_jobs, _ = await service.list_jobs(status=None, page_size=500)
+    existing_jobs, _, _ = await service.list_jobs(status=None, page_size=500)
     existing_codes = [j.code for j in existing_jobs]
 
     if await cancelled():

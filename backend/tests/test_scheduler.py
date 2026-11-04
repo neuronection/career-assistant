@@ -363,7 +363,7 @@ async def test_saved_search_schedule_end_to_end(
     assert scheduled.json()["kind"] == "user_saved_search"
 
     # A mapped posting exists (direct insert) → the run notifies.
-    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()
+    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()["items"]
     from app.models.posting_model import JobSource
 
     source = JobSource(

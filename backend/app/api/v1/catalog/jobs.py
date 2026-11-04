@@ -12,6 +12,7 @@ from app.schemas.job import (
     JobGraph,
     JobOut,
     JobPostingsOut,
+    JobsPageOut,
     JobUpdate,
     RelationOut,
     SimilarJobsOut,
@@ -21,6 +22,39 @@ from app.services.deps import get_current_user
 from app.services.job_worker import enqueue
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _csv(value: str | None) -> list[str] | None:
+    if not value:
+        return None
+    items = [part.strip() for part in value.split(",") if part.strip()]
+    return items or None
+
+
+def _skill_entries(value: str | None) -> list[tuple[str, int | None]] | None:
+    if not value:
+        return None
+    entries: list[tuple[str, int | None]] = []
+    for part in value.split(","):
+        entry = part.strip()
+        if not entry:
+            continue
+        key, separator, raw_level = entry.partition("@")
+        if not separator:
+            key, separator, raw_level = entry.partition(":")
+        key = key.strip().lower()
+        if not key:
+            continue
+        if not separator or not raw_level:
+            entries.append((key, None))
+            continue
+        try:
+            level = int(raw_level)
+        except ValueError:
+            continue
+        if 1 <= level <= 10:
+            entries.append((key, level))
+    return entries or None
 
 
 @router.get("/tree")
@@ -81,7 +115,7 @@ async def suggest_job_relations(
     """AI-propose relations between this job and same-family peers (stored as ai)."""
     service = JobService(db)
     job = await service.require_job(ref)
-    peers, _ = await service.list_jobs(family_key=job.family.key, page_size=12)
+    peers, _, _ = await service.list_jobs(family_key=job.family.key, page_size=12)
     candidates = [j for j in peers if j.id != job.id][:11]
     snapshots = [service.job_snapshot(j) for j in [job, *candidates]]
     suggestions = await suggest_relations(db, user.id, snapshots, max_suggestions=8)
@@ -169,38 +203,88 @@ async def publish_job(
     return await job_out(db, job, await resolve_locale(db, user))
 
 
-@router.get("", response_model=list[JobOut])
+@router.get("", response_model=JobsPageOut)
 async def list_jobs(
     q: str | None = Query(default=None),
     family: str | None = Query(default=None, alias="family_key"),
     interests: str | None = Query(default=None, description="comma-separated tag keys"),
+    interest_exclude: str | None = Query(default=None),
     demand: str | None = Query(default=None),
-    education_level: str | None = Query(default=None),
+    demand_exclude: str | None = Query(default=None),
+    education: str | None = Query(default=None, description="comma-separated levels"),
+    education_exclude: str | None = Query(default=None),
+    education_min: str | None = Query(default=None),
+    skills: str | None = Query(default=None, description="key@level CSV"),
+    skill_exclude: str | None = Query(default=None),
+    skill_mode: str = Query(default="all", pattern="^(all|any)$"),
+    skill_min_level: int | None = Query(default=None, ge=1, le=10),
     environment: str | None = Query(default=None),
+    environment_exclude: str | None = Query(default=None),
+    contract: str | None = Query(default=None),
+    contract_exclude: str | None = Query(default=None),
+    schedule: str | None = Query(default=None),
+    schedule_exclude: str | None = Query(default=None),
+    travel: str | None = Query(default=None),
+    travel_exclude: str | None = Query(default=None),
     source: str | None = Query(default=None),
-    min_salary: int | None = Query(default=None),
+    source_exclude: str | None = Query(default=None),
+    salary_min: int | None = Query(default=None, ge=0),
+    salary_max: int | None = Query(default=None, ge=0),
+    experience_max_years: float | None = Query(default=None, ge=0),
+    has_roles: bool | None = Query(default=None),
+    status: str | None = Query(default="published"),
+    sort: str = Query(default="title", pattern="^(title|demand|salary|open_roles|family)$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
+    with_facets: bool = Query(default=True),
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> list[JobOut]:
-    """Search/filter the job catalog."""
-    interest_keys = [k.strip() for k in interests.split(",")] if interests else None
-    jobs, _total = await JobService(db).list_jobs(
+) -> JobsPageOut:
+    """Search/filter the job catalog; items carry the page's live-role count."""
+    service = JobService(db)
+    jobs, total, facets = await service.list_jobs(
         q=q,
         family_key=family,
-        interest_keys=interest_keys,
-        demand=demand,
-        education_level=education_level,
-        environment=environment,
-        source=source,
-        min_salary=min_salary,
+        interest_keys=_csv(interests),
+        interest_exclude=_csv(interest_exclude),
+        demand=_csv(demand),
+        demand_exclude=_csv(demand_exclude),
+        education=_csv(education),
+        education_exclude=_csv(education_exclude),
+        education_min=education_min,
+        skills=_skill_entries(skills),
+        skill_exclude=_csv(skill_exclude),
+        skill_mode=skill_mode,
+        skill_min_level=skill_min_level,
+        environment=_csv(environment),
+        environment_exclude=_csv(environment_exclude),
+        source=_csv(source),
+        source_exclude=_csv(source_exclude),
+        contract=_csv(contract),
+        contract_exclude=_csv(contract_exclude),
+        schedule=_csv(schedule),
+        schedule_exclude=_csv(schedule_exclude),
+        travel=_csv(travel),
+        travel_exclude=_csv(travel_exclude),
+        experience_max_years=experience_max_years,
+        salary_min=salary_min,
+        salary_max=salary_max,
+        has_roles=has_roles,
+        status=status,
+        sort=sort,
         page=page,
         page_size=page_size,
+        with_facets=with_facets,
     )
     from app.services.catalog.localized_view import job_outs, resolve_locale
 
-    return await job_outs(db, jobs, await resolve_locale(db, user))
+    items = await job_outs(db, jobs, await resolve_locale(db, user))
+    counts = await service.open_role_counts([job.id for job in jobs])
+    return JobsPageOut(
+        items=[item.model_copy(update={"open_roles": counts.get(item.id, 0)}) for item in items],
+        total=total,
+        facets=facets,
+    )
 
 
 @router.post("", response_model=JobOut, status_code=201)

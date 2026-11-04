@@ -214,6 +214,7 @@ class JobOut(BaseModel):
     skills: list[JobSkillOut] = Field(default_factory=list)
     links: list[JobLink] = Field(default_factory=list)
     created_at: datetime
+    open_roles: int | None = None
 
     model_config = {"from_attributes": True}
 
@@ -262,6 +263,14 @@ class JobOut(BaseModel):
             links=[JobLink.model_validate(link) for link in job.links or []],
             created_at=job.created_at,
         )
+
+
+class JobsPageOut(BaseModel):
+    """A catalog page with the self-excluding facet counts the rail renders."""
+
+    items: list[JobOut] = Field(default_factory=list)
+    total: int = 0
+    facets: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 class RelationOut(BaseModel):

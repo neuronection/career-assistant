@@ -560,7 +560,7 @@ function CreateSessionModal({
   useEffect(() => {
     if (!open || jobs.length > 0) return;
     void fetchJobs()
-      .then(setJobs)
+      .then((page) => setJobs(page.items ?? []))
       .catch(() => setJobs([]));
   }, [open, jobs.length]);
 

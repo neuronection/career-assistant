@@ -43,14 +43,20 @@ function makeJob(code: string): Job {
 
 describe("catalogStore", () => {
   beforeEach(() => {
-    useCatalogStore.setState({ families: [], jobs: [], total: 0, loading: false, filters: {} });
+    useCatalogStore.setState({ families: [], jobs: [], total: 0, facets: {}, loading: false, filters: {} });
     vi.clearAllMocks();
   });
 
   it("loadJobs fetches and merges filters", async () => {
-    mocked.fetchJobs.mockResolvedValue([makeJob("software-developer")]);
+    mocked.fetchJobs.mockResolvedValue({
+      items: [makeJob("software-developer")],
+      total: 1,
+      facets: { demand: { hot: 1 } },
+    });
     await useCatalogStore.getState().loadJobs({ demand: "hot" });
     expect(useCatalogStore.getState().jobs).toHaveLength(1);
+    expect(useCatalogStore.getState().total).toBe(1);
+    expect(useCatalogStore.getState().facets.demand?.hot).toBe(1);
     expect(useCatalogStore.getState().filters.demand).toBe("hot");
     expect(mocked.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ demand: "hot", page_size: 100 }));
   });

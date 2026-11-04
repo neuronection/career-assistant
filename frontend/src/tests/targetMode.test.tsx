@@ -53,7 +53,7 @@ vi.mock("@/api/postings", async (importOriginal) => {
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
 }));
 
 const mockResolve = vi.mocked(resolveTarget);

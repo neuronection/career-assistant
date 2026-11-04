@@ -94,7 +94,7 @@ vi.mock("@/api/profile", () => ({
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
   fetchGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
 }));
 
