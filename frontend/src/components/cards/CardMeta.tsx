@@ -7,6 +7,7 @@ export interface MetaItem {
   text: string;
   title?: string;
   href?: string;
+  testId?: string;
 }
 
 export function CardMeta({
@@ -38,6 +39,7 @@ export function CardMeta({
               key={item.key}
               className="inline-flex min-w-0 items-center gap-1"
               title={item.title}
+              data-testid={item.testId}
             >
               {body}
             </span>
@@ -49,6 +51,7 @@ export function CardMeta({
             to={item.href}
             className="inline-flex min-w-0 items-center gap-1 hover:text-[var(--as-accent)]"
             title={item.title}
+            data-testid={item.testId}
             onClick={(event) => event.stopPropagation()}
           >
             {body}

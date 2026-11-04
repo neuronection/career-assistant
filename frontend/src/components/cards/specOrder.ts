@@ -10,6 +10,10 @@ export const SPEC_ORDER = [
   "type",
   "size",
   "founded",
+  // catalog job-card slots (work-style / physical summary)
+  "physical",
+  "teamwork",
+  "structure",
 ] as const;
 
 export type SpecKey = (typeof SPEC_ORDER)[number];

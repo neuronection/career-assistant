@@ -4064,7 +4064,33 @@
   },
   "jobCard": {
     "seen": "seen",
-    "explore": "explore"
+    "explore": "explore",
+    "openRolesShort": "open roles",
+    "openRolesLink_one": "{{count}} open role →",
+    "openRolesLink_other": "{{count}} open roles →",
+    "experienceRange": "{{min}}–{{max}} yrs",
+    "experienceSingle": "{{years}} yrs",
+    "hoursRange": "{{min}}–{{max}} h",
+    "hoursSingle": "{{hours}} h",
+    "physical": "Physical",
+    "teamwork": "Teamwork",
+    "structure": "Structure",
+    "pattern": {
+      "full_time": "Full time",
+      "part_time": "Part time"
+    },
+    "activity": {
+      "sedentary": "Sedentary",
+      "light": "Light",
+      "moderate": "Moderate",
+      "active": "Active",
+      "physical_intense": "Intense"
+    },
+    "source": {
+      "seed": "Seed",
+      "ai": "AI",
+      "user": "User"
+    }
   },
   "education": {
     "chip": {

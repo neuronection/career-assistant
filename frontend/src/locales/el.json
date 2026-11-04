@@ -4063,7 +4063,33 @@
   },
   "jobCard": {
     "seen": "παρακολούθησα",
-    "explore": "εξερεύνηση"
+    "explore": "εξερεύνηση",
+    "openRolesShort": "ανοιχτές θέσεις",
+    "openRolesLink_one": "{{count}} ανοιχτή θέση →",
+    "openRolesLink_other": "{{count}} ανοιχτές θέσεις →",
+    "experienceRange": "{{min}}–{{max}} έτη",
+    "experienceSingle": "{{years}} έτη",
+    "hoursRange": "{{min}}–{{max}} ώρες",
+    "hoursSingle": "{{hours}} ώρες",
+    "physical": "Φυσικότητα",
+    "teamwork": "Ομαδικότητα",
+    "structure": "Δομή",
+    "pattern": {
+      "full_time": "Πλήρης απασχόληση",
+      "part_time": "Μερική απασχόληση"
+    },
+    "activity": {
+      "sedentary": "Καθιστική",
+      "light": "Ελαφριά",
+      "moderate": "Μέτρια",
+      "active": "Δραστήρια",
+      "physical_intense": "Έντονη"
+    },
+    "source": {
+      "seed": "Βάση",
+      "ai": "AI",
+      "user": "Χρήστης"
+    }
   },
   "education": {
     "chip": {

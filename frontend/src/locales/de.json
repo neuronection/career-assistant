@@ -4063,7 +4063,33 @@
   },
   "jobCard": {
     "seen": "gesehen",
-    "explore": "entdecken"
+    "explore": "entdecken",
+    "openRolesShort": "offene Stellen",
+    "openRolesLink_one": "{{count}} offene Stelle →",
+    "openRolesLink_other": "{{count}} offene Stellen →",
+    "experienceRange": "{{min}}–{{max}} Jahre",
+    "experienceSingle": "{{years}} Jahre",
+    "hoursRange": "{{min}}–{{max}} Std.",
+    "hoursSingle": "{{hours}} Std.",
+    "physical": "Körperlich",
+    "teamwork": "Teamarbeit",
+    "structure": "Struktur",
+    "pattern": {
+      "full_time": "Vollzeit",
+      "part_time": "Teilzeit"
+    },
+    "activity": {
+      "sedentary": "Sitzend",
+      "light": "Leicht",
+      "moderate": "Mäßig",
+      "active": "Aktiv",
+      "physical_intense": "Intensiv"
+    },
+    "source": {
+      "seed": "Seed",
+      "ai": "KI",
+      "user": "Nutzer"
+    }
   },
   "education": {
     "chip": {
