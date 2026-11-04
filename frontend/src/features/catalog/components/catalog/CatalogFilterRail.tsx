@@ -208,7 +208,7 @@ export function CatalogFilterRail({
                   onClick={() =>
                     onChange({ skills: [...filters.skills, { key, level: null }] })
                   }
-                  className="rounded border border-[var(--as-border)] bg-[var(--as-muted)] px-1.5 py-0.5 text-[10px] text-[var(--as-muted-fg)] disabled:opacity-40"
+                  className="rounded border border-[var(--as-border)] bg-[var(--as-muted)] px-1.5 py-0.5 text-[11px] text-[var(--as-muted-fg)] disabled:opacity-40"
                   data-testid={`catalog-skill-suggestion-${key}`}
                 >
                   {key} · {count}

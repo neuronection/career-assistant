@@ -20,7 +20,7 @@ export function CardSpec({
       {ordered.map((item, index) => (
         <span
           key={item.key}
-          className={`inline-flex items-baseline gap-1 whitespace-nowrap${item.onMenu ? " cursor-context-menu" : ""}`}
+          className={`inline-flex min-w-max items-baseline gap-1 whitespace-nowrap${item.onMenu ? " cursor-context-menu" : ""}`}
           data-spec={item.key}
           data-testid={item.testId}
           title={item.hint}
@@ -34,7 +34,7 @@ export function CardSpec({
               : undefined
           }
         >
-          <span className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--as-muted-fg)]">
             {item.label}
           </span>
           {item.scale ? (
@@ -67,7 +67,7 @@ export function CardSpec({
             {item.value}
           </span>
           {index < ordered.length - 1 && (
-            <span aria-hidden className="ml-0.5 text-[10px] text-[var(--as-border)]">
+            <span aria-hidden className="ml-0.5 text-[11px] text-[var(--as-border)]">
               ·
             </span>
           )}

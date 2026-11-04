@@ -175,24 +175,21 @@ export function JobCard({
       seen={seen}
       className="w-full text-left"
     >
-      {!compact && (openRoles != null || salary) ? (
-        <div
-          className="flex w-20 shrink-0 flex-col items-center gap-1.5 border-r border-[var(--as-border)] pr-3 text-center"
-          data-testid="job-metric-rail"
-        >
+      {openRoles != null || salary ? (
+        <div className="ca-job-metrics" data-testid="job-metric-rail">
           {openRoles != null ? (
-            <div data-testid="job-open-roles">
-              <span className="block text-xl font-semibold tabular-nums text-[var(--as-fg)]">
+            <span className="ca-metric-role" data-testid="job-open-roles">
+              <span className="ca-metric-value text-base font-semibold tabular-nums text-[var(--as-fg)]">
                 {openRoles}
               </span>
-              <span className="block text-[9px] font-semibold uppercase tracking-[0.07em] text-[var(--as-muted-fg)]">
+              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--as-muted-fg)]">
                 {t("jobCard.openRolesShort")}
               </span>
-            </div>
+            </span>
           ) : null}
           {salary ? (
             <span
-              className="text-[11px] font-medium text-[var(--as-muted-fg)]"
+              className="text-[12px] font-medium text-[var(--as-muted-fg)]"
               data-testid="job-salary-band"
             >
               {salary}
@@ -206,34 +203,11 @@ export function JobCard({
           <button
             type="button"
             data-testid="job-title"
-            className="min-w-0 truncate text-left font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
+            className="line-clamp-2 min-w-0 text-left font-medium text-[var(--as-fg)] hover:text-[var(--as-accent)]"
           >
             {job.title}
           </button>
           <div className="flex shrink-0 items-center gap-1.5">
-            {compact && (openRoles != null || salary) ? (
-              <div
-                className="flex items-center gap-2 text-[11px] text-[var(--as-muted-fg)]"
-                data-testid="job-metric-rail"
-              >
-                {openRoles != null ? (
-                  <span
-                    className="inline-flex items-baseline gap-1 font-semibold tabular-nums text-[var(--as-fg)]"
-                    data-testid="job-open-roles"
-                  >
-                    {openRoles}
-                    <span className="text-[9px] font-semibold uppercase tracking-[0.07em]">
-                      {t("jobCard.openRolesShort")}
-                    </span>
-                  </span>
-                ) : null}
-                {salary ? (
-                  <span className="font-medium" data-testid="job-salary-band">
-                    {salary}
-                  </span>
-                ) : null}
-              </div>
-            ) : null}
             {seen ? <SeenMark label={t("jobCard.seen")} testId="job-seen" /> : null}
             {saved ? (
               <Bookmark
@@ -250,13 +224,13 @@ export function JobCard({
           </div>
         </div>
         {familyRef ? (
-          <p className="text-xs text-[var(--as-muted-fg)]" data-testid="job-family">
+          <p className="text-[12.5px] text-[var(--as-muted-fg)]" data-testid="job-family">
             {familyRef}
           </p>
         ) : null}
 
         {!compact ? (
-          <p className="mt-1 line-clamp-2 text-sm text-[var(--as-muted-fg)]">
+          <p className="mt-1 line-clamp-3 text-sm text-[var(--as-muted-fg)]">
             {job.short_description}
           </p>
         ) : null}
@@ -274,7 +248,7 @@ export function JobCard({
 
         {(job.skills ?? []).length > 0 ? (
           <div className="mt-2">
-            <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--as-muted-fg)]">
+            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--as-muted-fg)]">
               {t("card.skills")}
             </p>
             <ChipRow
@@ -318,14 +292,14 @@ export function JobCard({
         ) : null}
 
         <div
-          className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-[var(--as-muted-fg)]"
+          className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-[var(--as-muted-fg)]"
           data-testid="job-footer"
         >
-          {familyRef ? <span>{familyRef}</span> : null}
+          {familyRef ? <span className="whitespace-nowrap">{familyRef}</span> : null}
           {job.source ? (
             <>
               <span className="text-[var(--as-border)]">|</span>
-              <span data-testid="job-source">
+              <span className="whitespace-nowrap" data-testid="job-source">
                 {t(`jobCard.source.${job.source}`, { defaultValue: job.source })}
               </span>
             </>
@@ -336,7 +310,7 @@ export function JobCard({
               <Link
                 to={`/postings?job=${encodeURIComponent(job.code)}`}
                 onClick={(event) => event.stopPropagation()}
-                className="text-[var(--as-accent)] hover:underline"
+                className="whitespace-nowrap text-[var(--as-accent)] hover:underline"
                 data-testid="job-open-roles-link"
               >
                 {t("jobCard.openRolesLink", { count: openRoles })}

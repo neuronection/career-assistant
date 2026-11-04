@@ -23,14 +23,14 @@ export function SkillTag({
   onMenu?: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
   const heat = heatTone(score);
-  const classes = `inline-flex items-center gap-1.5 rounded-md border px-1.5 py-px text-xs ${
+  const classes = `inline-flex max-w-[12rem] items-center gap-1.5 whitespace-nowrap rounded-md border px-1.5 py-px text-xs ${
     unmapped
       ? "border-dashed border-[var(--as-border)] text-[var(--as-muted-fg)]"
       : "border-[var(--as-border)] text-[var(--as-fg)]"
   }`;
   const content = (
     <>
-      <span className="font-medium">{label}</span>
+      <span className="min-w-0 truncate font-medium">{label}</span>
       {score != null ? (
         <>
           <span
@@ -39,7 +39,7 @@ export function SkillTag({
             style={{ background: HEAT_COLOR[heat] }}
             data-testid="skill-heat"
           />
-          <span className="text-[10px] tabular-nums text-[var(--as-muted-fg)]">
+          <span className="text-[11px] tabular-nums text-[var(--as-muted-fg)]">
             {Number(score).toFixed(0)}
           </span>
         </>

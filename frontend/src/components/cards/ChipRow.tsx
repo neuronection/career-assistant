@@ -63,11 +63,12 @@ function Chip({
   return (
     <Badge
       variant={CHIP_VARIANT[item.tone ?? "neutral"]}
+      className="max-w-[12rem] whitespace-nowrap"
       title={item.title}
       data-testid={testId}
     >
-      {Icon ? <Icon aria-hidden /> : null}
-      {item.label}
+      {Icon ? <Icon aria-hidden className="shrink-0" /> : null}
+      <span className="min-w-0 truncate">{item.label}</span>
     </Badge>
   );
 }
