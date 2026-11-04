@@ -43,6 +43,7 @@ NEW_READ_PATHS = (
     "/api/v1/admin/retrieval/failures",
     "/api/v1/admin/retrieval/usage",
     "/api/v1/admin/retrieval/quality",
+    "/api/v1/admin/retrieval/tokenizer",
 )
 
 

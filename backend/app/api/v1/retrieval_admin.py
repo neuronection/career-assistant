@@ -29,6 +29,7 @@ from app.models.user_model import User
 from app.services import retrieval_actions as actions
 from app.services import retrieval_jobs as retrieval_jobs
 from app.services import retrieval_ops_reads as reads
+from app.services import tokenizer_report
 from app.services.audit import emitter
 from app.services.deps import require_admin
 from app.services.vector_reconcile_service import (
@@ -328,6 +329,36 @@ async def retrieval_usage(
     """Embed calls/tokens by day, space and kind, plus the token budget."""
     row = await reads.resolve_space(db, space) if space is not None else None
     return _guarded(await reads.read_usage(db, space=row, kind=kind, window=window))
+
+
+@router.get("/tokenizer")
+async def retrieval_tokenizer(
+    kinds: list[str] | None = Query(
+        default=None,
+        description="source kinds to shadow-measure; default all supported",
+    ),
+    limit: int = Query(
+        default=tokenizer_report.DEFAULT_CORPUS_LIMIT,
+        ge=1,
+        le=tokenizer_report.MAX_CORPUS_LIMIT,
+        description="source rows per kind (bounded admin sample)",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.
+
+    Shadow only — no write, no stored chunk change, no document text. The
+    corpus scan is bounded per kind; the multilingual reference block is a
+    fixed synthetic fixture.
+    """
+    selected = [str(kind).strip() for kind in (kinds or tokenizer_report.REPORT_KINDS)]
+    unknown = sorted(set(selected) - set(INDEXABLE_KINDS))
+    if not selected or unknown:
+        raise ValidationError(
+            f"Unknown retrieval kind(s): {unknown or selected!r} "
+            f"(expected one of {INDEXABLE_KINDS})"
+        )
+    return _guarded(await tokenizer_report.build_report(db, kinds=selected, limit_per_kind=limit))
 
 
 @router.get("/status")
