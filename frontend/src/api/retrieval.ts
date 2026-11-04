@@ -126,6 +126,84 @@ export interface RetrievalTokenizerBucket {
   failed_documents: number;
 }
 
+export interface RetrievalModelProfile {
+  provider_class: string;
+  model: string;
+  source: "curated" | "admin" | "fallback";
+  exact: boolean;
+  override: boolean;
+  identity: string;
+  tokenizer_kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+  tokenizer_identifier: string;
+  tokenizer_revision: string | null;
+  tokenizer_artifact_sha256: string | null;
+  max_input_tokens: number;
+  max_input_assumed: boolean;
+  degraded_reason: string | null;
+  batch_max_items: number;
+  batch_max_tokens: number;
+  chunk: {
+    max_chunk_tokens: number;
+    overlap_tokens: number;
+    max_chars: number;
+  };
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface RetrievalModelProfileBounds {
+  max_provider_class_length: number;
+  max_model_length: number;
+  max_identifier_length: number;
+  max_revision_length: number;
+  max_input_tokens: number;
+  max_batch_items: number;
+  max_batch_tokens: number;
+  max_chunk_tokens: number;
+  max_chunk_chars: number;
+  supported_kinds: string[];
+  supported_tiktoken_identifiers: string[];
+}
+
+export interface RetrievalModelProfilesResponse {
+  state: "ok";
+  requested: { provider_class: string; model: string } | null;
+  assigned: { provider: string; model: string } | null;
+  resolution: RetrievalModelProfile;
+  curated: RetrievalModelProfile[];
+  overrides: RetrievalModelProfile[];
+  bounds: RetrievalModelProfileBounds;
+  token_aware_writes: false;
+}
+
+export interface RetrievalModelProfilePayload {
+  provider_class: string;
+  model: string;
+  tokenizer_kind: string;
+  tokenizer_identifier: string;
+  tokenizer_revision?: string;
+  tokenizer_artifact_sha256?: string;
+  max_input_tokens: number;
+  batch_max_items: number;
+  batch_max_tokens: number;
+  chunk_max_tokens: number;
+  chunk_overlap_tokens: number;
+  chunk_max_chars: number;
+}
+
+export interface RetrievalModelProfileSaveResponse {
+  state: "ok";
+  profile: RetrievalModelProfile;
+  token_aware_writes: false;
+}
+
+export interface RetrievalModelProfileDeleteResponse {
+  state: "ok";
+  deleted: boolean;
+  resolution: RetrievalModelProfile;
+  token_aware_writes: false;
+}
+
 export interface RetrievalTokenizerReport {
   state: "ok" | "unconfigured";
   model: {
@@ -145,6 +223,7 @@ export interface RetrievalTokenizerReport {
     max_input_assumed: boolean;
     degraded_reason: string | null;
   };
+  profile: RetrievalModelProfile;
   chunking: {
     view: string;
     max_chunk_chars: number;
@@ -653,6 +732,37 @@ export async function fetchRetrievalHealth(): Promise<RetrievalHealth> {
 export async function fetchRetrievalTokenizer(): Promise<RetrievalTokenizerReport> {
   const { data } = await api.get<RetrievalTokenizerReport>(
     "/admin/retrieval/tokenizer",
+  );
+  return data;
+}
+
+export async function fetchRetrievalModelProfiles(
+  params: { provider?: string; model?: string } = {},
+): Promise<RetrievalModelProfilesResponse> {
+  const { data } = await api.get<RetrievalModelProfilesResponse>(
+    "/admin/retrieval/model-profiles",
+    { params },
+  );
+  return data;
+}
+
+export async function saveRetrievalModelProfile(
+  payload: RetrievalModelProfilePayload,
+): Promise<RetrievalModelProfileSaveResponse> {
+  const { data } = await api.put<RetrievalModelProfileSaveResponse>(
+    "/admin/retrieval/model-profiles",
+    payload,
+  );
+  return data;
+}
+
+export async function deleteRetrievalModelProfile(
+  provider: string,
+  model: string,
+): Promise<RetrievalModelProfileDeleteResponse> {
+  const { data } = await api.delete<RetrievalModelProfileDeleteResponse>(
+    "/admin/retrieval/model-profiles",
+    { params: { provider, model } },
   );
   return data;
 }

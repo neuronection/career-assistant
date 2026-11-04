@@ -6385,6 +6385,45 @@
       "shadow": "Μόνο σκιά: δεν γράφτηκαν chunks, στήλες token ή spaces.",
       "unavailable": "Η αναφορά tokenizer δεν είναι διαθέσιμη αυτή τη στιγμή."
     },
+    "profile": {
+      "source": {
+        "curated": "επιμελημένο",
+        "admin": "παράκαμψη διαχειριστή",
+        "fallback": "εφεδρικό"
+      },
+      "overridden": "παράκαμψη",
+      "batch": "Παρτίδα: {{items}} στοιχεία · {{tokens}} token",
+      "chunk": "Προεπιλεγμένο chunk (προεπισκόπηση): {{tokens}} token · {{overlap}} επικάλυψη · {{chars}} χαρακτήρες",
+      "fallbackWarning": "Κανένα επιμελημένο ή προφίλ διαχειριστή δεν ταιριάζει σε αυτόν τον πάροχο/μοντέλο — εφαρμόζεται το συντηρητικό εφεδρικό.",
+      "edit": "Επεξεργασία προφίλ tokenizer",
+      "providerClass": "Κλάση παρόχου",
+      "model": "Μοντέλο",
+      "kind": "Τύπος tokenizer",
+      "identifier": "Αναγνωριστικό tokenizer",
+      "revision": "Αναθεώρηση (προαιρετικό)",
+      "checksum": "Sha256 αρχείου (προαιρετικό)",
+      "maxInput": "Μέγιστα token εισόδου",
+      "batchItems": "Μέγιστα στοιχεία παρτίδας",
+      "batchTokens": "Μέγιστα token παρτίδας",
+      "chunkTokens": "Μέγιστα token chunk",
+      "chunkOverlap": "Token επικάλυψης chunk",
+      "chunkChars": "Μέγιστοι χαρακτήρες chunk",
+      "kindName": {
+        "tiktoken": "tiktoken (ενσωματωμένο)",
+        "heuristic": "εφεδρικό heuristic"
+      },
+      "save": "Αποθήκευση προφίλ",
+      "reset": "Επαναφορά στο επιμελημένο",
+      "saved": "Το προφίλ αποθηκεύτηκε για μελλοντικά spaces.",
+      "resetDone": "Η παράκαμψη διαχειριστή αφαιρέθηκε· ισχύει ξανά το επιμελημένο/εφεδρικό προφίλ.",
+      "note": "Οι αλλαγές προφίλ ισχύουν για μελλοντικά spaces. Τα υπάρχοντα spaces κρατούν τα τρέχοντα chunks μέχρι την token-aware επαναδεικτοδότηση (plan 52 T3)· τίποτα δεν επανα-χωρίζεται εδώ."
+    },
+    "buildProfile": {
+      "resolving": "Επίλυση προφίλ tokenizer…",
+      "line": "Tokenizer: {{identity}} · μέγιστη είσοδος {{limit}} token",
+      "chunk": "Προεπιλεγμένο chunk: {{tokens}} token · {{overlap}} επικάλυψη · {{chars}} χαρακτήρες",
+      "previewOnly": "Μόνο προεπισκόπηση: η δημιουργία space κρατά τον τρέχοντα chunker χαρακτήρων μέχρι το T3."
+    },
     "progress": {
       "aria": "Πρόοδος ευρετηριοποίησης: {{percent}}%",
       "documents": "{{processed}} / {{total}} έγγραφα",

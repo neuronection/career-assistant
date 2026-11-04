@@ -6385,6 +6385,45 @@
       "shadow": "Nur Schattenmessung: keine Chunks, Token-Spalten oder Spaces wurden geschrieben.",
       "unavailable": "Der Tokenizer-Bericht ist derzeit nicht verfügbar."
     },
+    "profile": {
+      "source": {
+        "curated": "kuratiert",
+        "admin": "Admin-Override",
+        "fallback": "Fallback"
+      },
+      "overridden": "Override",
+      "batch": "Batch: {{items}} Elemente · {{tokens}} Token",
+      "chunk": "Standard-Chunk (Vorschau): {{tokens}} Token · {{overlap}} Überlappung · {{chars}} Zeichen",
+      "fallbackWarning": "Kein kuratiertes oder Admin-Profil passt zu diesem Provider/Modell — der konservative Fallback gilt.",
+      "edit": "Tokenizer-Profil bearbeiten",
+      "providerClass": "Provider-Klasse",
+      "model": "Modell",
+      "kind": "Tokenizer-Typ",
+      "identifier": "Tokenizer-Bezeichner",
+      "revision": "Revision (optional)",
+      "checksum": "Artefakt-Sha256 (optional)",
+      "maxInput": "Max. Eingabe-Token",
+      "batchItems": "Batch max. Elemente",
+      "batchTokens": "Batch max. Token",
+      "chunkTokens": "Chunk max. Token",
+      "chunkOverlap": "Chunk-Überlappung (Token)",
+      "chunkChars": "Chunk max. Zeichen",
+      "kindName": {
+        "tiktoken": "tiktoken (gebündelt)",
+        "heuristic": "Heuristic-Fallback"
+      },
+      "save": "Profil speichern",
+      "reset": "Auf kuratiert zurücksetzen",
+      "saved": "Profil für künftige Spaces gespeichert.",
+      "resetDone": "Admin-Override entfernt; das kuratierte/Fallback-Profil gilt wieder.",
+      "note": "Profiländerungen gelten für künftige Spaces. Bestehende Spaces behalten ihre aktuellen Chunks, bis tokenbewusstes Reindexing kommt (Plan 52 T3); hier wird nichts neu gechunkt."
+    },
+    "buildProfile": {
+      "resolving": "Tokenizer-Profil wird ermittelt…",
+      "line": "Tokenizer: {{identity}} · max. Eingabe {{limit}} Token",
+      "chunk": "Standard-Chunk: {{tokens}} Token · {{overlap}} Überlappung · {{chars}} Zeichen",
+      "previewOnly": "Nur Vorschau: der Space-Build behält den aktuellen Zeichen-Chunker bis T3."
+    },
     "progress": {
       "aria": "Indizierungsfortschritt: {{percent}} %",
       "documents": "{{processed}} / {{total}} Dokumente",

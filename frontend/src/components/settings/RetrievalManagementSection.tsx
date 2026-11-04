@@ -24,6 +24,7 @@ import {
   dropRetrievalSpace,
   fetchRetrievalCoverage,
   fetchRetrievalHealth,
+  fetchRetrievalModelProfiles,
   fetchRetrievalOverview,
   fetchRetrievalQuality,
   fetchRetrievalRuns,
@@ -40,6 +41,8 @@ import {
   type RetrievalCoverage,
   type RetrievalGate,
   type RetrievalHealth,
+  type RetrievalModelProfile,
+  type RetrievalModelProfilesResponse,
   type RetrievalOverview,
   type RetrievalQuality,
   type RetrievalRefusal,
@@ -64,6 +67,7 @@ import {
   SwitchRow,
 } from "@/components/ui";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
+import { RetrievalModelProfileCard } from "@/components/settings/RetrievalModelProfileCard";
 import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
@@ -425,6 +429,12 @@ export function RetrievalManagementSection() {
   const [tokenizerReport, setTokenizerReport] =
     useState<RetrievalTokenizerReport | null>(null);
   const [tokenizerLoading, setTokenizerLoading] = useState(true);
+  const [modelProfiles, setModelProfiles] =
+    useState<RetrievalModelProfilesResponse | null>(null);
+  const [buildPreview, setBuildPreview] = useState<RetrievalModelProfile | null>(
+    null,
+  );
+  const [buildPreviewLoading, setBuildPreviewLoading] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -547,6 +557,48 @@ export function RetrievalManagementSection() {
       cancelled = true;
     };
   }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRetrievalModelProfiles()
+      .then((loaded) => {
+        if (!cancelled) setModelProfiles(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setModelProfiles(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    const provider = buildDraft.provider.trim();
+    const model = buildDraft.model.trim();
+    if (!buildOpen || !provider || !model) {
+      setBuildPreview(null);
+      setBuildPreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBuildPreviewLoading(true);
+    const timer = window.setTimeout(() => {
+      fetchRetrievalModelProfiles({ provider, model })
+        .then((loaded) => {
+          if (!cancelled) setBuildPreview(loaded.resolution);
+        })
+        .catch(() => {
+          if (!cancelled) setBuildPreview(null);
+        })
+        .finally(() => {
+          if (!cancelled) setBuildPreviewLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [buildOpen, buildDraft.provider, buildDraft.model]);
 
   useEffect(() => {
     if (!activeSpaceId) {
@@ -1085,6 +1137,14 @@ export function RetrievalManagementSection() {
             </p>
           </div>
         )}
+        {modelProfiles && (
+          <div className="mt-3">
+            <RetrievalModelProfileCard
+              profiles={modelProfiles}
+              onRefresh={refresh}
+            />
+          </div>
+        )}
       </SettingsSectionCard>
 
       <SettingsSectionCard
@@ -1274,6 +1334,57 @@ export function RetrievalManagementSection() {
                   testId="retrieval-build-document-prefix"
                 />
               </div>
+              {buildPreviewLoading && (
+                <p className="text-xs text-[var(--as-muted-fg)]" role="status">
+                  {t("retrieval.buildProfile.resolving")}
+                </p>
+              )}
+              {buildPreview && (
+                <div
+                  className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--as-muted)_35%,transparent)] px-2 py-1.5 text-xs"
+                  data-testid="retrieval-build-profile"
+                >
+                  <p className="flex flex-wrap items-center gap-2 text-[var(--as-muted-fg)]">
+                    <Badge
+                      variant={
+                        buildPreview.source === "fallback" ? "warning" : "secondary"
+                      }
+                    >
+                      {t(`retrieval.profile.source.${buildPreview.source}`)}
+                    </Badge>
+                    <Badge variant={buildPreview.exact ? "success" : "warning"}>
+                      {buildPreview.exact
+                        ? t("retrieval.tokenizer.exact")
+                        : t("retrieval.tokenizer.approximate")}
+                    </Badge>
+                    <span>
+                      {t("retrieval.buildProfile.line", {
+                        identity: buildPreview.identity,
+                        limit: buildPreview.max_input_tokens,
+                      })}
+                    </span>
+                  </p>
+                  <p className="text-[var(--as-muted-fg)]">
+                    {t("retrieval.buildProfile.chunk", {
+                      tokens: buildPreview.chunk.max_chunk_tokens,
+                      overlap: buildPreview.chunk.overlap_tokens,
+                      chars: buildPreview.chunk.max_chars,
+                    })}
+                  </p>
+                  {buildPreview.source === "fallback" && (
+                    <p className="flex items-start gap-1.5 text-[var(--as-warning)]">
+                      <AlertTriangle
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                        aria-hidden
+                      />
+                      <span>{t("retrieval.profile.fallbackWarning")}</span>
+                    </p>
+                  )}
+                  <p className="text-[11px] text-[var(--as-muted-fg)]">
+                    {t("retrieval.buildProfile.previewOnly")}
+                  </p>
+                </div>
+              )}
               <Button
                 size="sm"
                 disabled={

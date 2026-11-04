@@ -4,6 +4,28 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: embedding tokenizer profiles, 2026-11-04)
+- **Tools → Retrieval now resolves an embedding model's tokenizer and limits
+  by precedence: admin override → curated catalog → conservative fallback.**
+  The Tokenizer & limits card shows the source, exact flag, max input tokens,
+  per-request batch item/token limits and the default token chunk
+  (tokens/overlap/chars), with a visible warning when no curated or admin
+  profile matches. An admin can save a bounded override for a
+  provider-class + model pair, or reset it to the curated profile.
+- **The build-space form previews the same profile** for the provider/model
+  being entered, so a fallback is visible before a space exists. The existing
+  provider/model/dimension controls are unchanged.
+- **Curated profiles are the three usable OpenAI embeddings**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → bundled `cl100k_base`). Unknown, Ollama and HF
+  models stay visibly fallback — a model name alone never selects an exact
+  tokenizer, and provider class + model is the key.
+- **A new `embedding_model_profiles` table** (PG + SQLite, typed scalar
+  columns, no JSONB) holds the admin override; changes are audited as
+  `vector.model.changed`. This is settings only: no existing chunk, token
+  column, record or space is rewritten, and token-aware writes/cutover stay
+  in plan 52 T3. Profile changes apply to future spaces.
+
 ### Added (retrieval: live indexing progress, 2026-11-04)
 - **Vector reindex/backfill runs now show real indexing progress instead of a
   bare percentage.** Tools → Retrieval recent runs, Audit → Retrieval → Runs

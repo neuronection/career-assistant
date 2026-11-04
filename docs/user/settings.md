@@ -78,11 +78,20 @@ or the desktop-scale linear fallback), model and dimension, store health,
 coverage and the coverage/quality gates. **Coverage & reindex** queues a
 bounded run by kind, view and since timestamp with a token budget and
 document limit, then shows the queued run and its status — a queued run is
-not a finished reindex. The **Tokenizer & limits** card is read-only
-evidence: it names the tokenizer/source, says whether the count is exact or
-approximate, shows the model input limit and the current character-chunk
-budget, and measures the English/Greek/German/CJK/code char-vs-token spread
-plus a bounded corpus sample. It writes no chunks, token columns or spaces.
+not a finished reindex. The **Tokenizer & limits** card names the
+tokenizer/source, says whether the count is exact or approximate, shows the
+model input limit and the current character-chunk budget, and measures the
+English/Greek/German/CJK/code char-vs-token spread plus a bounded corpus
+sample. Its **model profile** block shows the auto-resolved profile
+(curated, admin override or the visibly labelled fallback), the per-request
+batch item/token limits and the default token chunk budget; an admin can
+save a bounded tokenizer/limit override for a provider-class + model pair, or
+reset it to the curated profile. The build-space form previews the same
+profile for the provider/model being entered, so a fallback is visible before
+the space exists. Profile changes are settings only: no existing chunk,
+token column, record or space is rewritten, and token-aware writes arrive
+with plan 52 T3. A profile change therefore applies to **future** spaces; an
+existing space is not re-chunked in place.
 **Spaces** lists active, building and retired
 spaces; changing models means building a new space (never an in-place
 rewrite), activating it only after coverage and the golden-query compare

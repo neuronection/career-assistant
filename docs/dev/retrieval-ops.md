@@ -78,7 +78,10 @@ The active space keeps serving reads throughout.
    dimension, metric and optional prefixes. The space starts `building`; its
    physical index is provisioned off the request path. The active row is
    untouched. A matching build is reused idempotently; a different building
-   space with the same name is refused until it is retired or dropped.
+   space with the same name is refused until it is retired or dropped. The
+   form previews the resolved tokenizer profile for the pair (source, exact
+   flag, max input, batch and default chunk budget) — a fallback is visible
+   here, before the space exists (see §4).
 2. **Backfill.** Queue reindex runs **against the building space** for every
    kind you intend to serve. Backfill writes through the ordinary bounded
    reconcile writer and stamps coverage snapshots against the building space;
@@ -113,7 +116,48 @@ missed recall/precision (inspect the per-query misses in Quality and fix the
 content, views or golden set, then re-compare). Never lower the floor to force
 a cutover.
 
-## 4. Maintenance actions
+## 4. Embedding tokenizer profiles (plan 52 T2a)
+
+The **Tokenizer & limits** card on Tools → Retrieval owns the embedding
+model's tokenizer/limit profile. Resolution is deterministic and keyed on
+**provider class + model id**, never on a model-name substring:
+
+1. **admin** — an `embedding_model_profiles` row (explicit override);
+2. **curated** — the code catalog in `app/ai/tokenizers/registry.py`
+   (currently `text-embedding-3-small`, `text-embedding-3-large`,
+   `text-embedding-ada-002` → bundled `cl100k_base`);
+3. **fallback** — the conservative UTF-8/codepoint heuristic, always
+   `exact=False`.
+
+A known OpenAI model served by another provider class is **fallback**, and
+no Ollama/Hugging Face profile is guessed. The card and the build-space form
+preview show the source, exact flag, max input tokens, per-request batch
+limits and the default token chunk budget; a fallback is called out with a
+warning before the space is built.
+
+Admin endpoints (admin-only, aggregates only, no raw text):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/admin/retrieval/model-profiles` | curated catalog, admin overrides and the assigned model's effective profile |
+| `GET` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | preview the resolution for a build-space pair |
+| `PUT` | `/api/v1/admin/retrieval/model-profiles` | save one bounded override (tokenizer kind/identifier/revision/checksum, max input, batch items/tokens, chunk tokens/overlap/chars) |
+| `DELETE` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | remove the override; curated/fallback returns |
+
+Validation happens at the domain boundary: the tokenizer contract owns the
+exact/fallback law, the chunk budget must fit the model input and one batch,
+`chunk_max_tokens >= 32`, `overlap * 2 < max_chunk_tokens`, and this build
+accepts only the bundled `tiktoken` (`cl100k_base`) or `heuristic` kinds;
+unknown or out-of-range input answers `400`/`422`. Changes are audited as
+`vector.model.changed` with a `model_profile:<provider-class>/<model>`
+resource — the existing group, no second ledger.
+
+**It is configuration, not a rewrite.** Saving a profile does not rechunk,
+re-embed, re-key or cut over any space; the report still says
+`chunking.token_aware: false` and the existing space keeps its current char
+chunks. Plan 52 T3 is where the write path becomes token-aware.
+
+## 5. Maintenance actions
 
 **Index maintenance** on Tools → Retrieval queues one typed
 `VECTOR_MAINTENANCE` run. Each action is bounded and returns the normal run
@@ -129,7 +173,7 @@ result.
 Maintenance never runs DDL on the request path. The physical action is a
 `background_jobs` row, visible in Audit → Runs.
 
-## 5. Idempotency, locks and crash recovery
+## 6. Idempotency, locks and crash recovery
 
 - **Idempotency key.** Every mutating action requires an
   `Idempotency-Key` header (8–120 characters) or the equivalent body field.
@@ -150,7 +194,7 @@ Maintenance never runs DDL on the request path. The physical action is a
   idempotency scope. Cutover/gate evaluations are synchronous and cannot be
   retried as runs; re-run the action instead.
 
-## 6. Alerts, dedup and recovery
+## 7. Alerts, dedup and recovery
 
 Retrieval alerts go through the existing notification funnel only. All ten
 kinds are boot-seeded; an unknown or disabled kind fails soft and notifies
@@ -176,7 +220,7 @@ window. Daily caps are per channel. The evaluator is the bounded
 latest snapshots, recent runs, 15-minute rollups, the persisted quality
 compare and the token budget, never the corpus.
 
-## 7. Honest degraded and cold states
+## 8. Honest degraded and cold states
 
 - A space that has never been reconciled says **never reconciled**. It does
   not show a fake 0% or 100%.
@@ -194,7 +238,7 @@ compare and the token budget, never the corpus.
   document, query or prompt text. Raw embed text stays on the admin AI tab;
   the status export is aggregates only.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### Is this posting indexed?
 
@@ -243,3 +287,37 @@ After any fix, re-run the smallest scoped action that proves it (one kind or
 one view), read the run result, then widen the scope. Record the run id and
 the audit event in the incident note; the Changes section already has the
 `vector.*` trail.
+
+## 10. Plan 52 handoff (T2b / T3)
+
+**T2b — provider/HF fetch and a wider curated catalog.**
+
+- Add a pinned, checksum-verified fetch job for tokenizer assets (HF
+  `tokenizer.json`/`.model` + revision) under a local data directory; never
+  fetch at request time and never auto-download from a model name. Register
+  the fetched asset in the profile contract axis (`hf_tokenizers` /
+  `sentencepiece`, revision + `artifact_sha256`) and surface `available`
+  honestly.
+- Expand the curated catalog with provenance (license and source URL) and
+  keep unknown models visibly `fallback`. If curated rows move into the
+  table, persist `source=curated` and make the code catalog the sync source;
+  do not make the migration invent model facts.
+- Extend the admin editor to the new kinds once the service can load them;
+  the current API intentionally rejects them.
+
+**T3 — token-aware chunk writes and cutover.**
+
+- Bind the effective profile (including admin overrides) into the chunker
+  and space identity: token-count the composed records, write the token
+  columns, fold the tokenizer identity and `ChunkConfig.fingerprint` into
+  `space_key`, and make `token_aware: true` in reports only once records
+  actually carry token counts.
+- Do not re-chunk an existing active space in place. Build a new space with
+  the new profile, backfill, run the coverage/quality gates, activate and
+  remap, then retire/drop the old space through the existing lifecycle.
+- Wire the T4 live token accounting (`vector_index_service._count_tokens`)
+  to the same persisted profile; it is synchronous today and reads the
+  curated/fallback resolver, so it does not yet see an admin override.
+- Update the runbook, `docs/dev/data-model.md`, the OpenAPI contract,
+  `docs/capabilities.json`, the tokenizer report DTO and the UI tests in
+  the same change.

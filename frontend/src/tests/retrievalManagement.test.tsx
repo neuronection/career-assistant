@@ -14,6 +14,8 @@ import type {
   RetrievalRunsResponse,
   RetrievalSpace,
   RetrievalSpacesResponse,
+  RetrievalModelProfile,
+  RetrievalModelProfilesResponse,
   RetrievalTokenizerReport,
 } from "@/api/retrieval";
 import { RetrievalManagementSection } from "@/components/settings/RetrievalManagementSection";
@@ -43,6 +45,9 @@ vi.mock("@/api/retrieval", async (importOriginal) => {
     fetchRetrievalQuality: vi.fn(),
     fetchRetrievalRuns: vi.fn(),
     fetchRetrievalTokenizer: vi.fn(),
+    fetchRetrievalModelProfiles: vi.fn(),
+    saveRetrievalModelProfile: vi.fn(),
+    deleteRetrievalModelProfile: vi.fn(),
     reindexRetrievalSpace: vi.fn(),
     cancelRetrievalRun: vi.fn(),
     retryRetrievalRun: vi.fn(),
@@ -342,6 +347,61 @@ function structuredRefusal(): Error {
   });
 }
 
+function modelProfile(
+  overrides: Partial<RetrievalModelProfile> = {},
+): RetrievalModelProfile {
+  return {
+    provider_class: "openai",
+    model: "text-embedding-3-small",
+    source: "curated",
+    exact: true,
+    override: false,
+    identity: "tiktoken:cl100k_base#223921b76ee9",
+    tokenizer_kind: "tiktoken",
+    tokenizer_identifier: "cl100k_base",
+    tokenizer_revision: null,
+    tokenizer_artifact_sha256:
+      "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
+    max_input_tokens: 8191,
+    max_input_assumed: false,
+    degraded_reason: null,
+    batch_max_items: 2048,
+    batch_max_tokens: 300000,
+    chunk: { max_chunk_tokens: 512, overlap_tokens: 64, max_chars: 1600 },
+    updated_by: null,
+    updated_at: null,
+    ...overrides,
+  };
+}
+
+function modelProfilesResponse(
+  overrides: Partial<RetrievalModelProfilesResponse> = {},
+): RetrievalModelProfilesResponse {
+  return {
+    state: "ok",
+    requested: null,
+    assigned: { provider: "openai_compatible", model: "text-embedding-3-small" },
+    resolution: modelProfile(),
+    curated: [modelProfile()],
+    overrides: [],
+    bounds: {
+      max_provider_class_length: 40,
+      max_model_length: 200,
+      max_identifier_length: 200,
+      max_revision_length: 120,
+      max_input_tokens: 1000000,
+      max_batch_items: 4096,
+      max_batch_tokens: 10000000,
+      max_chunk_tokens: 1000000,
+      max_chunk_chars: 1000000,
+      supported_kinds: ["tiktoken", "heuristic"],
+      supported_tiktoken_identifiers: ["cl100k_base"],
+    },
+    token_aware_writes: false,
+    ...overrides,
+  };
+}
+
 function tokenizerReport(): RetrievalTokenizerReport {
   return {
     state: "ok",
@@ -356,12 +416,13 @@ function tokenizerReport(): RetrievalTokenizerReport {
       revision: null,
       artifact_sha256: "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
       exact: true,
-      source: "provider",
+      source: "curated",
       identity: "tiktoken:cl100k_base#223921b76ee9",
       max_input_tokens: 8191,
       max_input_assumed: false,
       degraded_reason: null,
     },
+    profile: modelProfile(),
     chunking: {
       view: "body",
       max_chunk_chars: 1600,
@@ -437,6 +498,20 @@ beforeEach(() => {
   vi.mocked(retrievalApi.fetchRetrievalQuality).mockResolvedValue(qualityResponse());
   vi.mocked(retrievalApi.fetchRetrievalRuns).mockResolvedValue(runsResponse());
   vi.mocked(retrievalApi.fetchRetrievalTokenizer).mockResolvedValue(tokenizerReport());
+  vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+    modelProfilesResponse(),
+  );
+  vi.mocked(retrievalApi.saveRetrievalModelProfile).mockResolvedValue({
+    state: "ok",
+    profile: modelProfile({ source: "admin", override: true, exact: false }),
+    token_aware_writes: false,
+  });
+  vi.mocked(retrievalApi.deleteRetrievalModelProfile).mockResolvedValue({
+    state: "ok",
+    deleted: true,
+    resolution: modelProfile(),
+    token_aware_writes: false,
+  });
   vi.mocked(retrievalApi.reindexRetrievalSpace).mockResolvedValue(actionResponse());
   vi.mocked(retrievalApi.cancelRetrievalRun).mockResolvedValue(
     actionResponse({ action: "cancel_run", message: "cancellation requested" }),
@@ -705,6 +780,118 @@ describe("RetrievalManagementSection", () => {
       "retrieval.action.exported",
     );
     click.mockRestore();
+  });
+
+  it("previews the resolved tokenizer profile in the build form", async () => {
+    const user = userEvent.setup();
+    renderSection();
+    await screen.findByTestId("retrieval-active-space");
+
+    await user.click(screen.getByTestId("retrieval-build-toggle"));
+    await user.type(screen.getByTestId("retrieval-build-provider"), "openai");
+    await user.type(screen.getByTestId("retrieval-build-model"), "text-embedding-3-small");
+
+    const preview = await screen.findByTestId("retrieval-build-profile");
+    await waitFor(() =>
+      expect(retrievalApi.fetchRetrievalModelProfiles).toHaveBeenCalledWith({
+        provider: "openai",
+        model: "text-embedding-3-small",
+      }),
+    );
+    expect(preview.textContent).toContain("retrieval.buildProfile.line");
+    expect(preview.textContent).toContain("retrieval.buildProfile.chunk");
+    expect(preview.textContent).toContain("retrieval.buildProfile.previewOnly");
+  });
+
+  it("shows the effective profile and saves a bounded admin override", async () => {
+    const user = userEvent.setup();
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    expect(card.textContent).toContain("retrieval.profile.source.curated");
+    expect(within(card).getByTestId("retrieval-profile-limit").textContent).toContain(
+      "8191",
+    );
+    expect(within(card).getByTestId("retrieval-profile-batch").textContent).toContain(
+      "retrieval.profile.batch",
+    );
+    expect(within(card).getByTestId("retrieval-profile-chunk").textContent).toContain(
+      "retrieval.profile.chunk",
+    );
+    expect(within(card).queryByTestId("retrieval-profile-warning")).toBeNull();
+
+    await user.click(within(card).getByTestId("retrieval-profile-save"));
+    await waitFor(() =>
+      expect(retrievalApi.saveRetrievalModelProfile).toHaveBeenCalledTimes(1),
+    );
+    expect(retrievalApi.saveRetrievalModelProfile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider_class: "openai",
+        model: "text-embedding-3-small",
+        tokenizer_kind: "tiktoken",
+        tokenizer_identifier: "cl100k_base",
+        max_input_tokens: 8191,
+        batch_max_items: 2048,
+        batch_max_tokens: 300000,
+        chunk_max_tokens: 512,
+        chunk_overlap_tokens: 64,
+        chunk_max_chars: 1600,
+      }),
+    );
+    expect(within(card).getByText("retrieval.profile.saved")).toBeTruthy();
+  });
+
+  it("labels the conservative fallback profile", async () => {
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({
+          provider_class: "ollama",
+          model: "nomic-embed-text",
+          source: "fallback",
+          exact: false,
+          override: false,
+          identity: "heuristic:utf8-heuristic-v1",
+          tokenizer_kind: "heuristic",
+          tokenizer_identifier: "utf8-heuristic-v1",
+          tokenizer_artifact_sha256: null,
+          max_input_tokens: 2048,
+          max_input_assumed: true,
+          batch_max_items: 64,
+          batch_max_tokens: 8192,
+          chunk: { max_chunk_tokens: 256, overlap_tokens: 32, max_chars: 800 },
+        }),
+      }),
+    );
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    expect(card.textContent).toContain("retrieval.profile.source.fallback");
+    expect(within(card).getByTestId("retrieval-profile-warning").textContent).toContain(
+      "retrieval.profile.fallbackWarning",
+    );
+    expect(within(card).getByTestId("retrieval-profile-limit").textContent).toContain(
+      "assumed",
+    );
+    expect(within(card).queryByTestId("retrieval-profile-reset")).toBeNull();
+  });
+
+  it("resets an admin override back to the curated profile", async () => {
+    const user = userEvent.setup();
+    vi.mocked(retrievalApi.fetchRetrievalModelProfiles).mockResolvedValue(
+      modelProfilesResponse({
+        resolution: modelProfile({ source: "admin", override: true }),
+        overrides: [modelProfile({ source: "admin", override: true })],
+      }),
+    );
+    renderSection();
+    const card = await screen.findByTestId("retrieval-model-profile");
+    expect(card.textContent).toContain("retrieval.profile.overridden");
+    await user.click(within(card).getByTestId("retrieval-profile-reset"));
+    await waitFor(() =>
+      expect(retrievalApi.deleteRetrievalModelProfile).toHaveBeenCalledWith(
+        "openai",
+        "text-embedding-3-small",
+      ),
+    );
+    expect(within(card).getByText("retrieval.profile.resetDone")).toBeTruthy();
   });
 
   it("renders a queued run and offers cancel without implying completion", async () => {

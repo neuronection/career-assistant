@@ -6386,6 +6386,45 @@
       "shadow": "Shadow only: no chunks, token columns or spaces were written.",
       "unavailable": "The tokenizer report is unavailable right now."
     },
+    "profile": {
+      "source": {
+        "curated": "curated",
+        "admin": "admin override",
+        "fallback": "fallback"
+      },
+      "overridden": "override",
+      "batch": "Batch: {{items}} items · {{tokens}} tokens",
+      "chunk": "Default chunk (preview): {{tokens}} tokens · {{overlap}} overlap · {{chars}} chars",
+      "fallbackWarning": "No curated or admin profile matches this provider/model — the conservative fallback applies.",
+      "edit": "Edit tokenizer profile",
+      "providerClass": "Provider class",
+      "model": "Model",
+      "kind": "Tokenizer kind",
+      "identifier": "Tokenizer identifier",
+      "revision": "Revision (optional)",
+      "checksum": "Artifact sha256 (optional)",
+      "maxInput": "Max input tokens",
+      "batchItems": "Batch max items",
+      "batchTokens": "Batch max tokens",
+      "chunkTokens": "Chunk max tokens",
+      "chunkOverlap": "Chunk overlap tokens",
+      "chunkChars": "Chunk max chars",
+      "kindName": {
+        "tiktoken": "tiktoken (bundled)",
+        "heuristic": "heuristic fallback"
+      },
+      "save": "Save profile",
+      "reset": "Reset to curated",
+      "saved": "Profile saved for future spaces.",
+      "resetDone": "Admin override removed; the curated/fallback profile applies again.",
+      "note": "Profile changes apply to future spaces. Existing spaces keep their current chunks until token-aware reindexing ships (plan 52 T3); nothing is re-chunked here."
+    },
+    "buildProfile": {
+      "resolving": "Resolving tokenizer profile…",
+      "line": "Tokenizer: {{identity}} · max input {{limit}} tokens",
+      "chunk": "Default chunk: {{tokens}} tokens · {{overlap}} overlap · {{chars}} chars",
+      "previewOnly": "Preview only: the space build keeps the current char chunker until T3."
+    },
     "progress": {
       "aria": "Indexing progress: {{percent}}%",
       "documents": "{{processed}} / {{total}} documents",
