@@ -107,6 +107,70 @@ export interface RetrievalHealth {
   detail: string;
 }
 
+export interface RetrievalTokenizerSample {
+  language: string;
+  label: string;
+  chars: number;
+  tokens: number;
+  chars_per_token: number;
+}
+
+export interface RetrievalTokenizerBucket {
+  documents: number;
+  records: number;
+  chars: number;
+  tokens: number;
+  chars_per_token: number;
+  max_record_tokens: number;
+  records_over_limit: number;
+  failed_documents: number;
+}
+
+export interface RetrievalTokenizerReport {
+  state: "ok" | "unconfigured";
+  model: {
+    provider: string;
+    model: string;
+    max_input_assumed: boolean;
+  };
+  tokenizer: {
+    kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+    identifier: string;
+    revision: string | null;
+    artifact_sha256: string | null;
+    exact: boolean;
+    source: "provider" | "curated" | "admin" | "fallback";
+    identity: string;
+    max_input_tokens: number;
+    max_input_assumed: boolean;
+    degraded_reason: string | null;
+  };
+  chunking: {
+    view: string;
+    max_chunk_chars: number;
+    overlap_chars: number;
+    chunker_version: string;
+    composer_version: string;
+    token_aware: boolean;
+  };
+  reference: {
+    state: "ok" | "empty";
+    samples: RetrievalTokenizerSample[];
+    total_chars: number;
+    total_tokens: number;
+    chars_per_token: number;
+    exact: boolean;
+    degraded_reason: string | null;
+  };
+  corpus: RetrievalTokenizerBucket & {
+    state: "ok" | "empty";
+    limit_per_kind: number;
+    kinds: (RetrievalTokenizerBucket & { kind: string })[];
+    exact: boolean;
+  };
+  shadow: { writes: false };
+}
+
 export interface RetrievalCoverageStats {
   space_id: string;
   as_of: string | null;
@@ -561,6 +625,13 @@ export async function fetchDocumentStatuses(
 
 export async function fetchRetrievalHealth(): Promise<RetrievalHealth> {
   const { data } = await api.get<RetrievalHealth>("/admin/retrieval/health");
+  return data;
+}
+
+export async function fetchRetrievalTokenizer(): Promise<RetrievalTokenizerReport> {
+  const { data } = await api.get<RetrievalTokenizerReport>(
+    "/admin/retrieval/tokenizer",
+  );
   return data;
 }
 

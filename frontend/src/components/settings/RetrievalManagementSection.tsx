@@ -28,6 +28,7 @@ import {
   fetchRetrievalQuality,
   fetchRetrievalRuns,
   fetchRetrievalSpaces,
+  fetchRetrievalTokenizer,
   reindexRetrievalSpace,
   retireRetrievalSpace,
   retryRetrievalRun,
@@ -46,6 +47,7 @@ import {
   type RetrievalRunsResponse,
   type RetrievalSpace,
   type RetrievalSpacesResponse,
+  type RetrievalTokenizerReport,
 } from "@/api/retrieval";
 import {
   Badge,
@@ -411,6 +413,9 @@ export function RetrievalManagementSection() {
   const [quality, setQuality] = useState<RetrievalQuality | null>(null);
   const [activeQuality, setActiveQuality] = useState<RetrievalQuality | null>(null);
   const [runs, setRuns] = useState<RetrievalRunsResponse | null>(null);
+  const [tokenizerReport, setTokenizerReport] =
+    useState<RetrievalTokenizerReport | null>(null);
+  const [tokenizerLoading, setTokenizerLoading] = useState(true);
   const [selectedSpace, setSelectedSpace] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -515,6 +520,24 @@ export function RetrievalManagementSection() {
     [health, activeSpace],
   );
   const activeSpaceId = activeSpace?.space_id ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    setTokenizerLoading(true);
+    fetchRetrievalTokenizer()
+      .then((loaded) => {
+        if (!cancelled) setTokenizerReport(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setTokenizerReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setTokenizerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
 
   useEffect(() => {
     if (!activeSpaceId) {
@@ -929,6 +952,128 @@ export function RetrievalManagementSection() {
                 {activeSpace.last_error}
               </p>
             )}
+          </div>
+        )}
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        name="retrieval-tokenizer"
+        icon={Wrench}
+        title={t("retrieval.card.tokenizer.title")}
+        description={t("retrieval.card.tokenizer.description")}
+        adminOnly
+      >
+        {tokenizerLoading ? (
+          <Spinner label={t("retrieval.loading")} />
+        ) : !tokenizerReport ? (
+          <p className="text-xs text-[var(--as-muted-fg)]" role="status">
+            {t("retrieval.tokenizer.unavailable")}
+          </p>
+        ) : (
+          <div className="space-y-3" data-testid="retrieval-tokenizer-report">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-[var(--as-muted-fg)]">
+              <span data-testid="retrieval-tokenizer-model">
+                {t("retrieval.tokenizer.model")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.model.provider}/{tokenizerReport.model.model}
+                </strong>
+              </span>
+              <span data-testid="retrieval-tokenizer-name">
+                {t("retrieval.tokenizer.tokenizer")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.identity}
+                </strong>{" "}
+                <Badge
+                  variant={tokenizerReport.tokenizer.exact ? "success" : "warning"}
+                >
+                  {tokenizerReport.tokenizer.exact
+                    ? t("retrieval.tokenizer.exact")
+                    : t("retrieval.tokenizer.approximate")}
+                </Badge>
+              </span>
+              <span data-testid="retrieval-tokenizer-limit">
+                {t("retrieval.tokenizer.maxInput")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.max_input_tokens}
+                </strong>{" "}
+                {tokenizerReport.tokenizer.max_input_assumed
+                  ? `(${t("retrieval.tokenizer.assumed")})`
+                  : ""}
+              </span>
+              <span>
+                {t("retrieval.tokenizer.source")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.source}
+                </strong>
+              </span>
+            </div>
+
+            {(tokenizerReport.tokenizer.degraded_reason ||
+              !tokenizerReport.tokenizer.exact ||
+              tokenizerReport.tokenizer.max_input_assumed) && (
+              <p
+                className="flex items-start gap-1.5 text-xs text-[var(--as-warning)]"
+                data-testid="retrieval-tokenizer-warning"
+                role="status"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>
+                  {tokenizerReport.tokenizer.degraded_reason
+                    ? t("retrieval.tokenizer.degraded", {
+                        reason: tokenizerReport.tokenizer.degraded_reason,
+                      })
+                    : !tokenizerReport.tokenizer.exact
+                      ? t("retrieval.tokenizer.fallbackWarning")
+                      : t("retrieval.tokenizer.assumedWarning")}
+                </span>
+              </p>
+            )}
+
+            <div className="rounded-lg border border-[var(--as-border)] p-2">
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {t("retrieval.tokenizer.chunking", {
+                  chars: tokenizerReport.chunking.max_chunk_chars,
+                  overlap: tokenizerReport.chunking.overlap_chars,
+                  version: tokenizerReport.chunking.chunker_version,
+                })}
+              </p>
+              <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                {tokenizerReport.reference.samples.map((sample) => (
+                  <div
+                    key={sample.language}
+                    className="flex items-center justify-between gap-2 rounded-md bg-[var(--as-muted)] px-2 py-1 text-xs"
+                    data-testid={`retrieval-tokenizer-sample-${sample.language}`}
+                  >
+                    <span className="text-[var(--as-fg)]">{sample.label}</span>
+                    <span className="text-[var(--as-muted-fg)]">
+                      {sample.chars} {t("retrieval.tokenizer.chars")} · {sample.tokens}{" "}
+                      {t("retrieval.tokenizer.tokens")} ·{" "}
+                      {sample.chars_per_token.toFixed(2)}{" "}
+                      {t("retrieval.tokenizer.charsPerToken")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--as-muted-fg)]" data-testid="retrieval-tokenizer-corpus">
+              {tokenizerReport.corpus.state === "empty"
+                ? t("retrieval.tokenizer.corpusEmpty")
+                : t("retrieval.tokenizer.corpusStats", {
+                    documents: tokenizerReport.corpus.documents,
+                    records: tokenizerReport.corpus.records,
+                    tokens: tokenizerReport.corpus.tokens,
+                    ratio: tokenizerReport.corpus.chars_per_token.toFixed(2),
+                  })}
+              {tokenizerReport.corpus.records_over_limit > 0 &&
+                ` · ${t("retrieval.tokenizer.overLimit", {
+                  count: tokenizerReport.corpus.records_over_limit,
+                  limit: tokenizerReport.tokenizer.max_input_tokens,
+                })}`}
+            </p>
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("retrieval.tokenizer.shadow")}
+            </p>
           </div>
         )}
       </SettingsSectionCard>

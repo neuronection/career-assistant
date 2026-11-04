@@ -14,6 +14,7 @@ import type {
   RetrievalRunsResponse,
   RetrievalSpace,
   RetrievalSpacesResponse,
+  RetrievalTokenizerReport,
 } from "@/api/retrieval";
 import { RetrievalManagementSection } from "@/components/settings/RetrievalManagementSection";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
@@ -41,6 +42,7 @@ vi.mock("@/api/retrieval", async (importOriginal) => {
     fetchRetrievalCoverage: vi.fn(),
     fetchRetrievalQuality: vi.fn(),
     fetchRetrievalRuns: vi.fn(),
+    fetchRetrievalTokenizer: vi.fn(),
     reindexRetrievalSpace: vi.fn(),
     cancelRetrievalRun: vi.fn(),
     retryRetrievalRun: vi.fn(),
@@ -320,6 +322,76 @@ function structuredRefusal(): Error {
   });
 }
 
+function tokenizerReport(): RetrievalTokenizerReport {
+  return {
+    state: "ok",
+    model: {
+      provider: "openai_compatible",
+      model: "text-embedding-3-small",
+      max_input_assumed: false,
+    },
+    tokenizer: {
+      kind: "tiktoken",
+      identifier: "cl100k_base",
+      revision: null,
+      artifact_sha256: "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
+      exact: true,
+      source: "provider",
+      identity: "tiktoken:cl100k_base#223921b76ee9",
+      max_input_tokens: 8191,
+      max_input_assumed: false,
+      degraded_reason: null,
+    },
+    chunking: {
+      view: "body",
+      max_chunk_chars: 1600,
+      overlap_chars: 240,
+      chunker_version: "1",
+      composer_version: "1",
+      token_aware: false,
+    },
+    reference: {
+      state: "ok",
+      samples: [
+        {
+          language: "english",
+          label: "English",
+          chars: 179,
+          tokens: 32,
+          chars_per_token: 5.594,
+        },
+        {
+          language: "greek",
+          label: "Greek",
+          chars: 163,
+          tokens: 153,
+          chars_per_token: 1.065,
+        },
+      ],
+      total_chars: 342,
+      total_tokens: 185,
+      chars_per_token: 1.849,
+      exact: true,
+      degraded_reason: null,
+    },
+    corpus: {
+      state: "ok",
+      documents: 12,
+      records: 60,
+      chars: 48000,
+      tokens: 12000,
+      chars_per_token: 4,
+      max_record_tokens: 420,
+      records_over_limit: 0,
+      failed_documents: 0,
+      limit_per_kind: 25,
+      kinds: [],
+      exact: true,
+    },
+    shadow: { writes: false },
+  };
+}
+
 function renderSection() {
   return render(
     <MemoryRouter>
@@ -344,6 +416,7 @@ beforeEach(() => {
   vi.mocked(retrievalApi.fetchRetrievalCoverage).mockResolvedValue(coverageResponse());
   vi.mocked(retrievalApi.fetchRetrievalQuality).mockResolvedValue(qualityResponse());
   vi.mocked(retrievalApi.fetchRetrievalRuns).mockResolvedValue(runsResponse());
+  vi.mocked(retrievalApi.fetchRetrievalTokenizer).mockResolvedValue(tokenizerReport());
   vi.mocked(retrievalApi.reindexRetrievalSpace).mockResolvedValue(actionResponse());
   vi.mocked(retrievalApi.cancelRetrievalRun).mockResolvedValue(
     actionResponse({ action: "cancel_run", message: "cancellation requested" }),
@@ -620,5 +693,29 @@ describe("RetrievalManagementSection", () => {
     const row = await screen.findByTestId("retrieval-run-run-queued-1");
     expect(within(row).getByText("retrieval.status.queued")).toBeTruthy();
     expect(within(row).getByTestId("retrieval-cancel-run-queued-1")).toBeTruthy();
+  });
+
+  it("renders the tokenizer and limits report as read-only evidence", async () => {
+    renderSection();
+    const card = await screen.findByTestId("retrieval-tokenizer-report");
+    expect(within(card).getByTestId("retrieval-tokenizer-name").textContent).toContain(
+      "cl100k_base",
+    );
+    expect(within(card).getByTestId("retrieval-tokenizer-name").textContent).toContain(
+      "retrieval.tokenizer.exact",
+    );
+    expect(within(card).getByTestId("retrieval-tokenizer-limit").textContent).toContain(
+      "8191",
+    );
+    expect(
+      within(card).getByTestId("retrieval-tokenizer-sample-greek").textContent,
+    ).toContain("153");
+    expect(within(card).getByTestId("retrieval-tokenizer-corpus").textContent).toContain(
+      "retrieval.tokenizer.corpusStats",
+    );
+    expect(
+      within(card).queryByTestId("retrieval-tokenizer-warning"),
+    ).toBeNull();
+    expect(within(card).getByText("retrieval.tokenizer.shadow")).toBeTruthy();
   });
 });

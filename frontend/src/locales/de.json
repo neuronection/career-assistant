@@ -6177,6 +6177,10 @@
       },
       "quality": {
         "description": "Den versionierten Golden-Query-Satz für einen Kandidaten gegen seine Basis bewerten."
+      },
+      "tokenizer": {
+        "title": "Tokenizer & Grenzen",
+        "description": "Welcher Tokenizer den Text dieses Space zählt, ob er exakt ist, das Eingabelimit des Modells und die Char-zu-Token-Verteilung der aktuellen Char-Chunks."
       }
     },
     "debug": {
@@ -6358,6 +6362,27 @@
       "dryRun": "Probelauf abgeschlossen — nichts wurde eingereiht.",
       "qualityPassed": "Qualitäts-Gate bestanden.",
       "qualityFailed": "Qualitäts-Gate nicht bestanden — Aktivierung bleibt blockiert."
+    },
+    "tokenizer": {
+      "model": "Modell",
+      "tokenizer": "Tokenizer",
+      "exact": "exakt",
+      "approximate": "ungefähr",
+      "maxInput": "Max. Eingabe",
+      "assumed": "geschätzt",
+      "source": "Quelle",
+      "chunking": "Aktuelles Chunking: {{chars}} Zeichen mit {{overlap}} Überlappung (Chunker v{{version}}, zeichenbasiert).",
+      "chars": "Zeichen",
+      "tokens": "Token",
+      "charsPerToken": "Zeichen/Token",
+      "corpusEmpty": "Noch keine zusammengesetzten Dokumente gesampelt.",
+      "corpusStats": "Gesampelter Korpus: {{documents}} Dokumente · {{records}} Einträge · {{tokens}} Token · {{ratio}} Zeichen/Token.",
+      "overLimit": "{{count}} Eintrag/Einträge über dem Eingabelimit von {{limit}} Token.",
+      "fallbackWarning": "Für dieses Modell ist kein exakter Tokenizer konfiguriert — die Zählung ist eine konservative Schätzung.",
+      "assumedWarning": "Das Eingabelimit des Modells ist eine Annahme, bis ein exaktes Profil konfiguriert ist.",
+      "degraded": "Exakter Tokenizer nicht verfügbar ({{reason}}) — die Zählung ist ungefähr.",
+      "shadow": "Nur Schattenmessung: keine Chunks, Token-Spalten oder Spaces wurden geschrieben.",
+      "unavailable": "Der Tokenizer-Bericht ist derzeit nicht verfügbar."
     }
   }
 }

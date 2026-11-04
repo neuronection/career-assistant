@@ -6178,6 +6178,10 @@
       },
       "quality": {
         "description": "Score the versioned golden-query set on a candidate against its baseline."
+      },
+      "tokenizer": {
+        "title": "Tokenizer & limits",
+        "description": "Which tokenizer counts this space's text, whether it is exact, the model input limit, and the char-vs-token spread of the current char chunks."
       }
     },
     "debug": {
@@ -6359,6 +6363,27 @@
       "dryRun": "Dry run complete — nothing was queued.",
       "qualityPassed": "Quality gate passed.",
       "qualityFailed": "Quality gate failed — activation stays blocked."
+    },
+    "tokenizer": {
+      "model": "Model",
+      "tokenizer": "Tokenizer",
+      "exact": "exact",
+      "approximate": "approximate",
+      "maxInput": "Max input",
+      "assumed": "assumed",
+      "source": "Source",
+      "chunking": "Current chunking: {{chars}} chars with {{overlap}} overlap (chunker v{{version}}, char-based).",
+      "chars": "chars",
+      "tokens": "tokens",
+      "charsPerToken": "chars/token",
+      "corpusEmpty": "No composed documents sampled yet.",
+      "corpusStats": "Sampled corpus: {{documents}} documents · {{records}} records · {{tokens}} tokens · {{ratio}} chars/token.",
+      "overLimit": "{{count}} record(s) over the {{limit}}-token input limit.",
+      "fallbackWarning": "No exact tokenizer is configured for this model — counts are conservative approximations.",
+      "assumedWarning": "The model input limit is an assumption until an exact profile is configured.",
+      "degraded": "Exact tokenizer unavailable ({{reason}}) — counts are approximate.",
+      "shadow": "Shadow only: no chunks, token columns or spaces were written.",
+      "unavailable": "The tokenizer report is unavailable right now."
     }
   }
 }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "project": "career",
-  "updated": "2026-11-03",
+  "updated": "2026-11-04",
   "capabilities": [
     {
       "id": "update-checks",
@@ -489,6 +489,30 @@
         "desktop"
       ],
       "order": 72
+    },
+    {
+      "id": "tokenizer-transparency",
+      "verb": "See what counts as a token, before it can break retrieval",
+      "summary": "A read-only tokenizer and limits report in Tools → Retrieval: which tokenizer counts the space, whether it is exact, the model input limit, the char-chunk budget and the measured char-vs-token spread.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Exact tiktoken counting for curated OpenAI embedding models, with the BPE asset bundled and checksum-verified offline",
+        "Every other model is visibly labelled as the conservative UTF-8/codepoint fallback — never silently exact",
+        "Measured English, Greek, German, CJK and code spread plus a bounded corpus sample; aggregates only, no writes"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 73
     }
   ],
   "useCases": [

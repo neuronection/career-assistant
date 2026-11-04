@@ -4,6 +4,25 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: tokenizer/source truth, shadow only, 2026-11-04)
+- **Tools → Retrieval now shows which tokenizer counts the active space's
+  text, whether it is exact, the model input limit and the current
+  char-chunk budget.** The card also shows the measured char-vs-token spread
+  for English, Greek, German, CJK and code/markdown plus a bounded sample of
+  the real corpus. It is read-only evidence: no chunk, token column, space or
+  stored record is written.
+- **Exact `tiktoken` counting ships for the curated OpenAI embedding models**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → `cl100k_base`). The BPE asset is bundled and
+  checksum-verified, so counting never touches the network. Every other model
+  is visibly labelled as the conservative UTF-8/codepoint fallback — never
+  silently treated as exact.
+- **A canonical family `tokenizer_contract`** pins the tokenizer vocabulary,
+  the exact/fallback law, pinned serialization/cache keys and the
+  `ChunkConfig` bounds (`overlap < max/2`, fit after prefixes and safety
+  margin). It is additive: `space_key` and `IndexRecord` are unchanged until
+  the token-aware chunking wave.
+
 ### Fixed (filter rails: one template, one independent scroll owner, 2026-11-04)
 - **The filter side panel now looks and scrolls the same on `/postings`,
   `/catalog`, `/companies`, `/autopilot` and `/rankings`.** Every rail renders
