@@ -183,6 +183,16 @@ read says “status unavailable” instead of disappearing or pretending the
 posting is indexed.
 
 
+### Filter by a catalog job
+
+A catalog job's **"N open roles →"** link opens `/postings?job=<code>` — the
+Explore page already narrowed to the live postings mapped to that catalog
+job. The **Job** section in the filter rail lists the mapped job codes with
+their posting counts, so you can clear or swap the deep link without losing
+the rest of your filters. The axis is an ordinary URL parameter, so the view
+is shareable and survives a reload.
+
+
 ### Smart search — describe it instead of filtering
 
 Next to the sort control sits the **smart search box**. Type what you are

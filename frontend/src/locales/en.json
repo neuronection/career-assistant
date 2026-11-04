@@ -530,7 +530,8 @@
       "schedule": "Schedule",
       "organization": "Organization",
       "sources": "Sources",
-      "posted": "Posted"
+      "posted": "Posted",
+      "job": "Job"
     },
     "removeSkill": "Remove {{skill}}",
     "noSources": "No sources connected yet.",

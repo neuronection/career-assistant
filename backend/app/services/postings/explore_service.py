@@ -88,6 +88,7 @@ ALLOWED_FILTER_KEYS = frozenset(
         "source",
         "source_exclude",
         "mapped_family",
+        "job",
         "saved",
         "seen",
         "seen_exclude",
@@ -121,6 +122,7 @@ DIMENSIONS = (
     "released",
     "source",
     "mapped_family",
+    "job",
     "state",
     "contract",
     "travel",
@@ -264,6 +266,10 @@ def parse_explore_filters(params: dict) -> dict:
         values = _as_list(params.get(key))
         if values:
             filters[key] = values[:12]
+
+    job_codes = [code.strip() for code in _as_list(params.get("job")) if code.strip()]
+    if job_codes:
+        filters["job"] = job_codes[:20]
 
     for key in ("seniority", "remote_policy", "contract", "travel"):
         values = _as_list(params.get(key))
@@ -613,6 +619,11 @@ def _conditions_for(
                     )
                 )
             )
+        )
+
+    elif dimension == "job" and filters.get("job"):
+        conditions.append(
+            JobPosting.catalog_job_id.in_(select(Job.id).where(Job.code.in_(filters["job"])))
         )
 
     elif dimension == "state":
@@ -1416,6 +1427,21 @@ async def facets(db: AsyncSession, user_id: UUID, filters: dict) -> dict:
     for key, count in skill_rows.all():
         skill_counts[key] = count
     facets["skills"] = skill_counts
+
+    job_conditions = _collect_conditions(filters, skill_ids, source_ids, user_id, skip={"job"})
+    job_query = (
+        select(Job.code, func.count(JobPosting.id))
+        .join(Job, Job.id == JobPosting.catalog_job_id)
+        .where(JobPosting.status.in_(OPEN_STATUSES))
+    )
+    if job_conditions:
+        job_query = job_query.where(and_(*job_conditions))
+    job_rows = await db.execute(
+        job_query.group_by(Job.code)
+        .order_by(func.count(JobPosting.id).desc(), Job.code.asc())
+        .limit(20)
+    )
+    facets["job"] = {code: int(count) for code, count in job_rows.all()}
 
     return facets
 

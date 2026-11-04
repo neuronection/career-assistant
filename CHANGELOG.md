@@ -4,6 +4,32 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (catalog cards and filters — posting anatomy and a URL-driven rail, 2026-11-04)
+- **Catalog job cards now carry the facts a student acts on**: a metric rail
+  with the job's **open live-role count** and **salary band**, `CardMeta`
+  facts (education, typical experience, contract, travel, schedule cues, work
+  hours), required **skill chips with their levels** (skill peek included),
+  the work-style/physical summary and interests. Cards render only facts the
+  job has; the compact density keeps the rail and skills for narrow
+  containers. The footer's **"N open roles →"** link opens
+  `/postings?job=<code>`.
+- **`/catalog` gained a full filter rail in the `/postings` grammar**:
+  tri-state include/exclude chips with live facet counts, skills with
+  per-skill and global minimum levels plus any/all mode, interests,
+  education, demand, salary band, contract, schedule, travel, experience,
+  environment and a **has open roles** flag. A zero-count value is disabled;
+  the header strip carries the result count, removable active chips,
+  **Clear all** and the sort (title, demand, salary, open roles, family).
+  The URL is the state and the family nav writes the same `family` parameter.
+- **`GET /api/v1/jobs` returns a page DTO** (`items`, `total`, `facets`)
+  instead of a bare list, with the new filter axes and **`open_roles`**
+  filled by one grouped aggregate per page. The detail endpoint leaves
+  `open_roles` empty. The frontend client and every consumer moved in the
+  same change.
+- **`/postings` gained a `job` axis** mapping a catalog job code to its
+  mapped postings, with a bounded `job` facet — the destination behind the
+  catalog card's open-roles link.
+
 ### Added (per-posting retrieval status — admin detail row and debug card marker, 2026-11-04)
 - **A posting's own page now tells an admin whether the semantic index has
   reached it**: one line under the facts with the state (Indexed, Indexed ·

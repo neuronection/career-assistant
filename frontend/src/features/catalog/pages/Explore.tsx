@@ -377,6 +377,14 @@ export function Explore() {
   const sortOptions = SORT_OPTIONS.filter(
     (option) => option.value !== "relevance" || filters.q.trim().length > 0
   ).map((option) => ({ value: option.value, label: t(option.labelKey) }));
+  const jobValues = Array.from(
+    new Set([...Object.keys(facets?.job ?? {}), ...filters.job])
+  ).map((code) => ({
+    value: code,
+    label: code,
+    count: facets?.job?.[code] ?? 0,
+    testId: `job-${code}`,
+  }));
 
   return (
     <div className="ca-stats-page space-y-6" data-testid="explore">
@@ -737,6 +745,28 @@ export function Explore() {
                   }}
                 />
               )}
+            </Section>
+
+            <Section
+              title={t("explore.facet.job")}
+              active={filters.job.length > 0}
+              count={filters.job.length}
+            >
+              <TriStateChips
+                showCounts
+                allowExclude={false}
+                values={jobValues}
+                include={filters.job}
+                exclude={[]}
+                onToggle={(value, mode) =>
+                  patch({
+                    job:
+                      mode === "clear"
+                        ? filters.job.filter((code) => code !== value)
+                        : [value],
+                  })
+                }
+              />
             </Section>
 
             <label className="flex items-center justify-between text-xs text-slate-600">

@@ -18,6 +18,51 @@ drilling one level keeps the whole surface usable on narrow screens.
 - **Recent searches** let you jump back to a previous query.
 - A job card opens the job detail page.
 
+## Job cards
+
+Each card in the grid reads like a posting card: the same anatomy, the same
+information density, and only facts the catalog actually has.
+
+- **Metric rail** — the number of **open live roles** mapped to the job and
+  the **salary band** (median, falling back to entry or senior). Either value
+  is omitted when there is no honest number.
+- **Body** — the title and job family, a two-line description, meta facts
+  (education, typical experience, contract, travel, schedule cues and work
+  hours) and the work-style/physical summary.
+- **Skills** — required skill chips with their 1–10 levels; click a chip for
+  the skill peek. The job's interest chips follow.
+- **Footer** — the family/source reference and a **"N open roles →"** link
+  to `/postings?job=<code>`, which opens the Postings page already filtered
+  to the live openings mapped to this catalog job.
+
+A narrow container can use the compact card density; it keeps the metric rail
+and skill chips and drops the description and interests.
+
+## Filtering the catalog
+
+The catalog filter rail speaks the same language as Postings (`/postings`):
+
+- every multi-value axis is **tri-state** — click a chip to include, click
+  again to exclude, click once more to clear. A selected value carries an
+  **×** that clears it in one click.
+- **skills** have per-skill minimum levels, a global minimum level, any/all
+  mode and a separate exclude picker.
+- **family** is the coarse axis: the family nav on the left writes the same
+  `family` parameter, so the two never fight. The rail continues with
+  interests, education, demand, salary band, contract, schedule, travel,
+  experience, environment and **has open roles**.
+- every value shows its live facet count. A value with zero matching jobs is
+  disabled instead of silently returning an empty list.
+- the header strip shows the result count, the active-filter chips with
+  one-click removal, **Clear all** and the sort: **title**, **demand**,
+  **salary**, **open roles** or **family**. The catalog list is insight-free
+  — fit and match live on `/rankings`, never on this shareable list.
+
+**The URL is the state.** `/catalog?family=technology&skills=programming@6&demand=hot&sort=open_roles`
+is shareable, survives a reload and keeps the family nav and the rail in
+sync. Unknown or malformed values are dropped and the URL is canonicalized in
+place.
+
 ## The relation graph
 
 Switch to the graph view (`/catalog/graph`) to see jobs as nodes and typed

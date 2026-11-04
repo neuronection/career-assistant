@@ -58,6 +58,14 @@ describe("explore URL params", () => {
     expect(parseFilters(new URLSearchParams("sort=bogus")).sort).toBe("fit");
   });
 
+  it("carries the catalog job deep link in the URL state", () => {
+    const filters = parseFilters(new URLSearchParams("job=software-developer"));
+    expect(filters.job).toEqual(["software-developer"]);
+    expect(toSearchParams(filters).get("job")).toBe("software-developer");
+    expect(countActive(filters)).toBe(1);
+    expect(parseFilters(new URLSearchParams("job=a,b")).job).toEqual(["a", "b"]);
+  });
+
   it("carries the smart-search axes (city, country, employment, family) in the URL state", () => {
     const search =
       "city=Athens&country=Greece&employment_type=full-time,internship&mapped_family=technology";

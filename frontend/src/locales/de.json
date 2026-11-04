@@ -530,7 +530,8 @@
       "schedule": "Zeitplan",
       "organization": "Organisation",
       "sources": "Quellen",
-      "posted": "Veröffentlicht"
+      "posted": "Veröffentlicht",
+      "job": "Beruf"
     },
     "removeSkill": "{{skill}} entfernen",
     "noSources": "Noch keine Quellen verbunden.",

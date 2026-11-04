@@ -1117,3 +1117,36 @@ def test_skill_expand_is_taught_to_every_llm_caller():
     assert "skill_expand" in CHATBOT
     tool = next(tool for tool in list_tools() if tool["key"] == "search_postings")
     assert "skill_expand" in tool["description"]
+
+
+async def test_explore_job_axis_maps_postings_through_the_catalog(
+    db, client, auth_headers, profile_ready, seeded_catalog, source, kinds, search_fixtures
+):
+    from app.models.job_model import Job
+
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
+    mapped, _unmapped, _other = search_fixtures
+    mapped.catalog_job_id = job.id
+    await db.commit()
+
+    response = await client.get(
+        "/api/v1/postings/explore",
+        params={"job": job.code},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [item["id"] for item in body["items"]] == [str(mapped.id)]
+    assert body["facets"]["job"][job.code] == 1
+
+    unknown = await client.get(
+        "/api/v1/postings/explore",
+        params={"job": "no-such-job"},
+        headers=auth_headers,
+    )
+    assert unknown.status_code == 200, unknown.text
+    assert unknown.json()["total"] == 0
+
+    from app.services.postings.explore_service import parse_explore_filters
+
+    assert parse_explore_filters({"job": "software-developer"}) == {"job": ["software-developer"]}

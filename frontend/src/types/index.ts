@@ -322,6 +322,7 @@ export interface ExploreParams {
   source?: string;
   source_exclude?: string;
   mapped_family?: string;
+  job?: string;
   saved?: boolean;
   seen?: boolean;
   seen_exclude?: boolean;
