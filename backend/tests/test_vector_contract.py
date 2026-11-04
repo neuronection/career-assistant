@@ -39,6 +39,7 @@ GROUPS = (
     "textHash",
     "spaceKeyStability",
     "spaceKeyPinned",
+    "spaceKeyStored",
     "rrfMerge",
     "fusedOrder",
     "maxsim",
@@ -72,6 +73,20 @@ def _space(row: dict) -> vc.VectorSpace:
         document_prefix=row.get("documentPrefix"),
         chunker_version=row["chunkerVersion"],
         composer_version=row["composerVersion"],
+        stored_key=row.get("storedKey"),
+    )
+
+
+def _preimage_key(row: dict) -> str:
+    return vc.space_key(
+        row["provider"],
+        row["model"],
+        row["dim"],
+        row["normalize"],
+        row.get("queryPrefix"),
+        row.get("documentPrefix"),
+        row["chunkerVersion"],
+        row["composerVersion"],
     )
 
 
@@ -131,6 +146,15 @@ def test_space_key_stability_fixtures():
 def test_pinned_space_keys():
     for row in _fixtures()["spaceKeyPinned"]:
         assert _space(row["space"]).key == row["expected"], row["name"]
+
+
+def test_stored_space_key_wins_over_the_current_preimage():
+    for row in _fixtures()["spaceKeyStored"]:
+        recomputed = _preimage_key(row["space"])
+        assert recomputed == row["recomputed"], f"{row['name']}: v1 pre-image drifted"
+        assert _space(row["space"]).key == row["expected"], row["name"]
+        if row.get("differs"):
+            assert row["expected"] != recomputed, row["name"]
 
 
 def test_rrf_merge_fixtures():

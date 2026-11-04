@@ -131,15 +131,24 @@ BACKEND_CAPS: Mapping[str, BackendCaps] = {
 }
 
 
+def _is_stored_space_key(value: str) -> bool:
+    """True when ``value`` is a lowercase hex sha256 (64 characters)."""
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+
+
 @dataclass(frozen=True)
 class VectorSpace:
     """A versioned embedding space (§3.1) — the only place a model/dim is trusted.
 
     ``key`` is the stable identity products stamp into derived rows (e.g.
     career's ``mapping_features``) so a cutover can re-enqueue stale
-    semantic decisions (§7.2). ``space_id``/``index_table`` are the
-    persistence handles: ``index_table`` is ``None`` while the linear
-    backend is active.
+    semantic decisions (§7.2). ``stored_key`` is that identity **persisted on
+    the space row when the space is created**: it is the cutover identity and
+    is never recomputed across tokenizer/chunker version boundaries. When it
+    is present, ``key`` returns it verbatim; only an unstored DTO falls back
+    to :func:`space_key`'s v1 pre-image. ``space_id``/``index_table`` are the
+    persistence handles: ``index_table`` is ``None`` while the linear backend
+    is active.
     """
 
     name: str
@@ -155,6 +164,7 @@ class VectorSpace:
     status: SpaceStatus = SpaceStatus.ACTIVE
     space_id: str | None = None
     index_table: str | None = None
+    stored_key: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("name", "provider", "model"):
@@ -166,9 +176,15 @@ class VectorSpace:
             raise ValueError(f"VectorSpace.metric must be one of {METRICS}")
         if str(self.status) not in {member.value for member in SpaceStatus}:
             raise ValueError(f"VectorSpace.status must be one of {tuple(SpaceStatus)}")
+        if self.stored_key is not None and not _is_stored_space_key(self.stored_key):
+            raise ValueError(
+                "VectorSpace.stored_key must be a 64-character lowercase hex sha256"
+            )
 
     @property
     def key(self) -> str:
+        if self.stored_key is not None:
+            return self.stored_key
         return space_key(
             self.provider,
             self.model,

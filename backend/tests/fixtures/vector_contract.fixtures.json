@@ -2,7 +2,7 @@
   "schema": 1,
   "adr": "ADR-0051 (proposed)",
   "plan": 50,
-  "description": "Cross-product acceptance wall for the family vector-retrieval contract (ADR-0051 / plan 50 P0). Every vendored copy of contracts/vector_contract.py must satisfy these rows — score math, chunk aggregation, weighted RRF fusion, space-key stability, content-hash normalization, the v1 caps/defaults and the degradation vocabulary. Same law, one table, never per-repo edits.",
+  "description": "Cross-product acceptance wall for the family vector-retrieval contract (ADR-0051 / plan 50 P0). Every vendored copy of contracts/vector_contract.py must satisfy these rows — score math, chunk aggregation, weighted RRF fusion, space-key stability and stored-key precedence, content-hash normalization, the v1 caps/defaults and the degradation vocabulary. Same law, one table, never per-repo edits.",
   "cosine": [
     { "name": "identical-vectors", "a": [1, 2, 3], "b": [1, 2, 3], "expected": 1.0 },
     { "name": "orthogonal-vectors", "a": [1, 0, 1], "b": [1, 1, 0], "expected": 0.5 },
@@ -80,6 +80,29 @@
       "name": "ollama-asymmetric-768",
       "space": { "provider": "ollama", "model": "embeddinggemma-2:440m", "dim": 768, "normalize": true, "queryPrefix": "query: ", "documentPrefix": "passage: ", "chunkerVersion": "2", "composerVersion": "3" },
       "expected": "70815a9b4592bbddca6ff1ab5b55316cc2d7e833d2182f9ad7185698359994fb"
+    }
+  ],
+  "spaceKeyStored": [
+    {
+      "name": "stored-key-wins-over-the-current-preimage",
+      "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 1536, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1", "storedKey": "0f25f4959455509604dd75a2e30d41f5421607ce7639cedcfad3281d21c7fb63" },
+      "expected": "0f25f4959455509604dd75a2e30d41f5421607ce7639cedcfad3281d21c7fb63",
+      "recomputed": "15b568bcad93c4580ddf7e77e3c8c25a49994239631f64f376e8367fea16ecd3",
+      "differs": true
+    },
+    {
+      "name": "stored-key-equal-to-the-preimage-is-still-returned-verbatim",
+      "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 1536, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1", "storedKey": "15b568bcad93c4580ddf7e77e3c8c25a49994239631f64f376e8367fea16ecd3" },
+      "expected": "15b568bcad93c4580ddf7e77e3c8c25a49994239631f64f376e8367fea16ecd3",
+      "recomputed": "15b568bcad93c4580ddf7e77e3c8c25a49994239631f64f376e8367fea16ecd3",
+      "differs": false
+    },
+    {
+      "name": "stored-key-is-opaque-and-never-recomputed",
+      "space": { "provider": "ollama", "model": "legacy-model:7b", "dim": 768, "normalize": false, "queryPrefix": "query: ", "documentPrefix": null, "chunkerVersion": "2", "composerVersion": "3", "storedKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+      "expected": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "recomputed": "fae4e90caf423c70d8c4bbfd31ceff1ad3674446d133d36e252f99fcd49ef124",
+      "differs": true
     }
   ],
   "rrfMerge": [
@@ -191,6 +214,9 @@
     { "name": "top-mean-n-zero", "call": "topMean", "scores": [0.5], "n": 0 },
     { "name": "rrf-k-zero", "call": "rrfMerge", "lists": [["a"]], "k": 0 },
     { "name": "rrf-weight-count-mismatch", "call": "rrfMerge", "lists": [["a"], ["b"]], "k": 60, "weights": [1.0] },
-    { "name": "space-dim-zero", "call": "space", "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 0, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1" } }
+    { "name": "space-dim-zero", "call": "space", "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 0, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1" } },
+    { "name": "space-stored-key-uppercase", "call": "space", "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 1536, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1", "storedKey": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB" } },
+    { "name": "space-stored-key-too-short", "call": "space", "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 1536, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1", "storedKey": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } },
+    { "name": "space-stored-key-non-hex", "call": "space", "space": { "provider": "openai", "model": "text-embedding-3-small", "dim": 1536, "normalize": true, "queryPrefix": null, "documentPrefix": null, "chunkerVersion": "1", "composerVersion": "1", "storedKey": "zbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" } }
   ]
 }
