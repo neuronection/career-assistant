@@ -19,6 +19,28 @@ export interface RetrievalBackend {
   semantic_available: boolean;
 }
 
+export type RetrievalTokenizerSource =
+  | "provider"
+  | "curated"
+  | "admin"
+  | "fallback";
+
+export interface RetrievalSpaceTokenizer {
+  kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+  identifier: string;
+  revision: string | null;
+  artifact_sha256: string | null;
+  exact: boolean;
+  max_input_tokens: number;
+  source: RetrievalTokenizerSource | null;
+}
+
+export interface RetrievalSpaceChunk {
+  max_chunk_tokens: number;
+  overlap_tokens: number;
+  max_chars: number;
+}
+
 export interface RetrievalSpace {
   space_id: string;
   name: string;
@@ -41,6 +63,9 @@ export interface RetrievalSpace {
   last_error: string | null;
   gate: RetrievalGate;
   as_of: string | null;
+  token_aware: boolean;
+  tokenizer: RetrievalSpaceTokenizer | null;
+  chunk: RetrievalSpaceChunk | null;
 }
 
 export interface RetrievalSpacesResponse {
@@ -105,6 +130,218 @@ export interface RetrievalHealth {
   };
   spaces: RetrievalHealthSpace[];
   detail: string;
+}
+
+export interface RetrievalTokenizerSample {
+  language: string;
+  label: string;
+  chars: number;
+  tokens: number;
+  chars_per_token: number;
+}
+
+export interface RetrievalTokenizerBucket {
+  documents: number;
+  records: number;
+  chars: number;
+  tokens: number;
+  chars_per_token: number;
+  max_record_tokens: number;
+  records_over_limit: number;
+  failed_documents: number;
+}
+
+export interface RetrievalModelProfile {
+  provider_class: string;
+  model: string;
+  source: "curated" | "admin" | "fallback";
+  exact: boolean;
+  override: boolean;
+  identity: string;
+  counted_identity: string;
+  tokenizer_available: boolean;
+  tokenizer_kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+  tokenizer_identifier: string;
+  tokenizer_revision: string | null;
+  tokenizer_artifact_sha256: string | null;
+  max_input_tokens: number;
+  max_input_assumed: boolean;
+  degraded_reason: string | null;
+  family: string | null;
+  license: string | null;
+  source_url: string | null;
+  repository: string | null;
+  preset_revision: string | null;
+  usable: boolean;
+  usable_reason: string | null;
+  batch_max_items: number;
+  batch_max_tokens: number;
+  chunk: {
+    max_chunk_tokens: number;
+    overlap_tokens: number;
+    max_chars: number;
+  };
+  updated_by: string | null;
+  updated_at: string | null;
+}
+
+export interface RetrievalUnavailablePreset {
+  family: string;
+  repository: string;
+  revision: string;
+  license: string;
+  source_url: string;
+  max_input_tokens: number;
+  models: string[];
+  usable: boolean;
+  usable_reason: string | null;
+}
+
+export interface RetrievalModelProfileBounds {
+  max_provider_class_length: number;
+  max_model_length: number;
+  max_identifier_length: number;
+  max_revision_length: number;
+  max_input_tokens: number;
+  max_batch_items: number;
+  max_batch_tokens: number;
+  max_chunk_tokens: number;
+  max_chunk_chars: number;
+  supported_kinds: string[];
+  supported_tiktoken_identifiers: string[];
+  hf_tokenizer_filename: string;
+  max_tokenizer_json_bytes: number;
+  requires_pinned_revision: boolean;
+}
+
+export interface RetrievalModelProfilesResponse {
+  state: "ok";
+  requested: { provider_class: string; model: string } | null;
+  assigned: { provider: string; model: string } | null;
+  resolution: RetrievalModelProfile;
+  curated: RetrievalModelProfile[];
+  unavailable_presets: RetrievalUnavailablePreset[];
+  overrides: RetrievalModelProfile[];
+  bounds: RetrievalModelProfileBounds;
+  token_aware_writes: boolean;
+}
+
+export interface RetrievalTokenizerFetchPayload {
+  repository: string;
+  revision: string;
+  files?: string[];
+  expected_sha256?: string;
+}
+
+export interface RetrievalTokenizerFetch {
+  state: "ok";
+  job_id: string;
+  job_type: string;
+  status: RetrievalRunStatus;
+  progress: number;
+  stage: string | null;
+  requested: RetrievalTokenizerFetchPayload;
+  deduplicated: boolean;
+  idempotency_key: string | null;
+}
+
+export interface RetrievalTokenizerFetchStatus {
+  state: "ok";
+  job_id: string;
+  status: RetrievalRunStatus;
+  progress: number;
+  stage: string | null;
+  heartbeat_at: string | null;
+  error: string | null;
+  result: {
+    repository: string;
+    revision: string;
+    filename: string;
+    sha256: string;
+    size_bytes: number;
+    cached: boolean;
+    files: Record<string, number>;
+  } | null;
+  requested: RetrievalTokenizerFetchPayload;
+  created_at: string | null;
+  finished_at: string | null;
+}
+
+export interface RetrievalModelProfilePayload {
+  provider_class: string;
+  model: string;
+  tokenizer_kind: string;
+  tokenizer_identifier: string;
+  tokenizer_revision?: string;
+  tokenizer_artifact_sha256?: string;
+  max_input_tokens: number;
+  batch_max_items: number;
+  batch_max_tokens: number;
+  chunk_max_tokens: number;
+  chunk_overlap_tokens: number;
+  chunk_max_chars: number;
+}
+
+export interface RetrievalModelProfileSaveResponse {
+  state: "ok";
+  profile: RetrievalModelProfile;
+  token_aware_writes: boolean;
+}
+
+export interface RetrievalModelProfileDeleteResponse {
+  state: "ok";
+  deleted: boolean;
+  resolution: RetrievalModelProfile;
+  token_aware_writes: boolean;
+}
+
+export interface RetrievalTokenizerReport {
+  state: "ok" | "unconfigured";
+  model: {
+    provider: string;
+    model: string;
+    max_input_assumed: boolean;
+  };
+  tokenizer: {
+    kind: "tiktoken" | "hf_tokenizers" | "sentencepiece" | "heuristic";
+    identifier: string;
+    revision: string | null;
+    artifact_sha256: string | null;
+    exact: boolean;
+    source: "provider" | "curated" | "admin" | "fallback";
+    identity: string;
+    max_input_tokens: number;
+    max_input_assumed: boolean;
+    degraded_reason: string | null;
+  };
+  profile: RetrievalModelProfile;
+  chunking: {
+    view: string;
+    max_chunk_chars: number;
+    overlap_chars: number | null;
+    chunker_version: string;
+    composer_version: string;
+    token_aware: boolean;
+    max_chunk_tokens: number | null;
+    overlap_tokens: number | null;
+    tokenizer_source: RetrievalTokenizerSource | null;
+  };
+  reference: {
+    state: "ok" | "empty";
+    samples: RetrievalTokenizerSample[];
+    total_chars: number;
+    total_tokens: number;
+    chars_per_token: number;
+    exact: boolean;
+    degraded_reason: string | null;
+  };
+  corpus: RetrievalTokenizerBucket & {
+    state: "ok" | "empty";
+    limit_per_kind: number;
+    kinds: (RetrievalTokenizerBucket & { kind: string })[];
+    exact: boolean;
+  };
+  shadow: { writes: false };
 }
 
 export interface RetrievalCoverageStats {
@@ -206,6 +443,27 @@ export interface RetrievalRunScope {
   since: string | null;
 }
 
+export interface RetrievalRunProgress {
+  phase: "queued" | "scanning" | "embedding" | "writing" | "done";
+  processed_documents: number;
+  total_documents: number;
+  processed_chunks: number;
+  pending_chunks: number;
+  total_chunks: number | null;
+  chunks_estimated: boolean;
+  embedded_chunks: number;
+  skipped_chunks: number;
+  failed_chunks: number;
+  embedded_documents: number;
+  skipped_documents: number;
+  failed_documents: number;
+  tokens: number | null;
+  tokens_estimated: boolean;
+  embed_calls: number;
+  exact_tokenizer: boolean;
+  done: boolean;
+}
+
 export interface RetrievalRun {
   run_id: string;
   space_id: string;
@@ -223,6 +481,10 @@ export interface RetrievalRun {
   cancel_requested: boolean;
   idempotency_key: string | null;
   lock_key: string | null;
+  progress_detail?: RetrievalRunProgress | null;
+  token_aware: boolean;
+  tokenizer: RetrievalSpaceTokenizer | null;
+  chunk: RetrievalSpaceChunk | null;
 }
 
 export interface RetrievalRunsResponse {
@@ -478,6 +740,22 @@ export interface ReindexPayload {
   auto_continue?: boolean;
 }
 
+export interface BuildTokenizerPayload {
+  kind: RetrievalSpaceTokenizer["kind"];
+  identifier: string;
+  revision?: string;
+  artifact_sha256?: string;
+  exact?: boolean;
+  max_input_tokens: number;
+  source?: RetrievalTokenizerSource;
+}
+
+export interface BuildChunkPayload {
+  max_chunk_tokens: number;
+  overlap_tokens?: number;
+  max_chars: number;
+}
+
 export interface BuildSpacePayload {
   name: string;
   provider: string;
@@ -487,6 +765,9 @@ export interface BuildSpacePayload {
   normalize?: boolean;
   query_prefix?: string;
   document_prefix?: string;
+  tokenizer?: BuildTokenizerPayload;
+  chunk?: BuildChunkPayload;
+  tokenizer_profile?: { provider: string; model: string };
 }
 
 export type MaintenanceAction =
@@ -561,6 +842,64 @@ export async function fetchDocumentStatuses(
 
 export async function fetchRetrievalHealth(): Promise<RetrievalHealth> {
   const { data } = await api.get<RetrievalHealth>("/admin/retrieval/health");
+  return data;
+}
+
+export async function fetchRetrievalTokenizer(): Promise<RetrievalTokenizerReport> {
+  const { data } = await api.get<RetrievalTokenizerReport>(
+    "/admin/retrieval/tokenizer",
+  );
+  return data;
+}
+
+export async function fetchRetrievalModelProfiles(
+  params: { provider?: string; model?: string } = {},
+): Promise<RetrievalModelProfilesResponse> {
+  const { data } = await api.get<RetrievalModelProfilesResponse>(
+    "/admin/retrieval/model-profiles",
+    { params },
+  );
+  return data;
+}
+
+export async function saveRetrievalModelProfile(
+  payload: RetrievalModelProfilePayload,
+): Promise<RetrievalModelProfileSaveResponse> {
+  const { data } = await api.put<RetrievalModelProfileSaveResponse>(
+    "/admin/retrieval/model-profiles",
+    payload,
+  );
+  return data;
+}
+
+export async function deleteRetrievalModelProfile(
+  provider: string,
+  model: string,
+): Promise<RetrievalModelProfileDeleteResponse> {
+  const { data } = await api.delete<RetrievalModelProfileDeleteResponse>(
+    "/admin/retrieval/model-profiles",
+    { params: { provider, model } },
+  );
+  return data;
+}
+
+export async function startRetrievalTokenizerFetch(
+  payload: RetrievalTokenizerFetchPayload,
+): Promise<RetrievalTokenizerFetch> {
+  const { data } = await api.post<RetrievalTokenizerFetch>(
+    "/admin/retrieval/tokenizer/fetch",
+    payload,
+    idempotentConfig(),
+  );
+  return data;
+}
+
+export async function fetchRetrievalTokenizerFetch(
+  jobId: string,
+): Promise<RetrievalTokenizerFetchStatus> {
+  const { data } = await api.get<RetrievalTokenizerFetchStatus>(
+    `/admin/retrieval/tokenizer/fetch/${jobId}`,
+  );
   return data;
 }
 

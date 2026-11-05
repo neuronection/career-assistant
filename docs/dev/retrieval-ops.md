@@ -61,6 +61,7 @@ Read the run result from the run drawer (or `GET
 | `failed_ids` | Up to 500 affected ids; `failed_ids_truncated` says the list was cut |
 | `gate` | `pass` / `fail` / `unknown` for the run's own gate evaluation |
 | `stage`, `progress` | Worker stage and percentage; not a `run_steps` trace |
+| `progress_detail` | Live counters while the run is queued/running: phase, processed/total documents (exact at scan start), cumulative/estimated chunks, embedded/skipped/failed and tokens. Counts only — never ids or text. Pruned when the result commits |
 | `heartbeat_at`, `error` | Liveness and the terminal failure reason |
 
 A partial run with `auto_continue` queues its successor. A cancelled run
@@ -72,12 +73,30 @@ run's status.
 A model or dimension change is a **new space**, never an in-place rewrite.
 The active space keeps serving reads throughout.
 
+Each space row persists `space_key` — its cutover identity, stamped once
+when the space is created. Activation, the `POSTING_REMAP` payload and the
+space status read compare that stored value verbatim; they never recompute
+it from the row's current configuration. A later tokenizer/chunker version
+therefore cannot silently change a legacy space's identity: migration 0095
+stamped every pre-existing row with its v1 key, and the first post-upgrade
+cutover still remaps the exact key those semantic mappings recorded.
+
 1. **Build.** Tools → Retrieval → **Spaces** → **Build new** (or `POST
    /admin/retrieval/spaces`). Supply the space name, provider, model,
    dimension, metric and optional prefixes. The space starts `building`; its
    physical index is provisioned off the request path. The active row is
    untouched. A matching build is reused idempotently; a different building
    space with the same name is refused until it is retired or dropped.
+   **Token-aware (v2)** is on by default: the form resolves the effective
+   embedding profile for the pair (source, exact flag, pinned revision,
+   artifact checksum, max input), shows a warning when the selection is the
+   labelled fallback, and sends `tokenizer_profile` plus the editable chunk
+   bounds (`chunk.max_chunk_tokens`/`overlap_tokens`/`max_chars`). Turning it
+   off deliberately submits the legacy v1 char-chunk build. A request that
+   supplies a tokenizer without chunk bounds (or the reverse) is refused; the
+   server never guesses a tokenizer from a model name and never accepts an
+   unavailable artifact. A v2 build pins the profile and chunk budget in its
+   space identity; the active v1 space is never re-chunked in place.
 2. **Backfill.** Queue reindex runs **against the building space** for every
    kind you intend to serve. Backfill writes through the ordinary bounded
    reconcile writer and stamps coverage snapshots against the building space;
@@ -112,7 +131,105 @@ missed recall/precision (inspect the per-query misses in Quality and fix the
 content, views or golden set, then re-compare). Never lower the floor to force
 a cutover.
 
-## 4. Maintenance actions
+## 4. Embedding tokenizer profiles (plan 52 T2a/T2b)
+
+The **Tokenizer & limits** card on Tools → Retrieval owns the embedding
+model's tokenizer/limit profile. Resolution is deterministic and keyed on
+**provider class + model id**, never on a model-name substring:
+
+1. **admin** — an `embedding_model_profiles` row (explicit override);
+2. **curated** — the code catalog in `app/ai/tokenizers/registry.py`:
+   the three OpenAI embeddings (`text-embedding-3-small`,
+   `text-embedding-3-large`, `text-embedding-ada-002` → bundled
+   `cl100k_base`) plus verified open-source families with pinned Hugging
+   Face `tokenizer.json` provenance (nomic, mxbai, bge, Qwen3-Embedding,
+   multilingual-e5);
+3. **fallback** — the conservative UTF-8/codepoint heuristic, always
+   `exact=False`.
+
+A known model served by another provider class is **fallback**, and no
+profile is guessed from a model-name substring. Curated open-source rows
+carry their repository, 40-character revision, artifact SHA-256, license and
+source URL; the API and card show them. A family whose repository is gated or
+whose tokenizer cannot be fetched honestly (currently `embeddinggemma`) is
+listed as an **unavailable preset** and stays visibly on the fallback — it
+never claims support. The card and the build-space form preview show the
+source, exact flag, availability, max input tokens, per-request batch limits
+and the default token chunk budget; a fallback or unfetched asset is called
+out with a warning before the space is built.
+
+### Hugging Face tokenizer fetch (plan 52 T2b)
+
+An admin may pin a Hugging Face repository, a full 40-character commit
+revision and the `tokenizer.json` SHA-256. The fetch is a bounded
+`tokenizer_fetch` background job, never a request/boot read: host allowlist
+(`huggingface.co` + its CDN/Xet hosts), small-file allowlist
+(`tokenizer.json` + optional `config.json`/`tokenizer_config.json`/
+`special_tokens_map.json`), 32 MiB artifact cap, redirect validation, no
+`trust_remote_code`, and SHA-256 verification. The artifact is cached at
+`<data_dir>/tokenizers/<sha256>/tokenizer.json`, so a repeat is a cache hit
+with no network. Desktop/offline installs use the cache/bundled assets only;
+a missing/corrupt asset degrades to the labelled heuristic, never fake
+exactness. Selection changes stay `vector.model.changed`; fetch jobs audit
+`vector.tokenizer.fetch_requested`, `vector.tokenizer.fetched` and
+`vector.tokenizer.fetch_failed`.
+
+Admin endpoints (admin-only, aggregates only, no raw text):
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/v1/admin/retrieval/model-profiles` | curated catalog, admin overrides and the assigned model's effective profile |
+| `GET` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | preview the resolution for a build-space pair |
+| `PUT` | `/api/v1/admin/retrieval/model-profiles` | save one bounded override (tiktoken/HF/heuristic, identifier/revision/checksum, max input, batch items/tokens, chunk tokens/overlap/chars) |
+| `DELETE` | `/api/v1/admin/retrieval/model-profiles?provider=<type>&model=<id>` | remove the override; curated/fallback returns |
+| `POST` | `/api/v1/admin/retrieval/tokenizer/fetch` | queue one pinned HF fetch (repo, 40-char commit, allowlisted files, optional expected SHA-256); idempotent and audited |
+| `GET` | `/api/v1/admin/retrieval/tokenizer/fetch/{job_id}` | fetch job status/progress/result (admin-only; no text) |
+
+Validation happens at the domain boundary: the tokenizer contract owns the
+exact/fallback law, the chunk budget must fit the model input and one batch,
+`chunk_max_tokens >= 32`, `overlap * 2 < max_chunk_tokens`, and this build
+accepts the bundled `tiktoken` (`cl100k_base`), a pinned
+`hf_tokenizers` selection (repository + 40-character commit + artifact
+SHA-256) or the `heuristic` kind; `sentencepiece` stays reserved. Unknown or
+out-of-range input answers `400`/`422`. Changes are audited as
+`vector.model.changed` with a `model_profile:<provider-class>/<model>`
+resource — the existing group, no second ledger.
+
+**It is configuration, not a rewrite.** Saving a profile does not rechunk,
+re-embed, re-key or cut over any space; an existing space keeps exactly the
+chunker it was built with.
+
+### Token-aware build and cutover (plan 52 T3b/T3c)
+
+The **Build new space** dialog (and `POST /admin/retrieval/spaces`) accepts a
+v2 identity in two additive forms:
+
+- `tokenizer_profile: {provider, model}` — the server resolves the same
+  effective profile the write path uses (admin → curated → fallback, HF
+  included) and pins that tokenizer; `chunk` optionally overrides the
+  profile's default budget.
+- `tokenizer: {kind, identifier, revision, artifact_sha256, exact,
+  max_input_tokens, source}` plus `chunk: {max_chunk_tokens, overlap_tokens,
+  max_chars}` — an explicit pin. A non-heuristic artifact must be loadable in
+  this instance; the API refuses an unavailable one rather than silently
+  degrading.
+
+Omitting both (and `chunk`) keeps the legacy v1 build. Supplying only one
+half is a `400`, as is a chunk budget that cannot fit the model input. The
+server persists the tokenizer/chunk identity plus the selection source
+(migration `0097`; source is provenance, not part of the frozen space key).
+The space key itself remains the stored v1 or v2 pre-image and is never
+recomputed at cutover.
+
+The **Tokenizer & limits** report reads the active space's persisted chunker:
+a v2 space reports `chunking.token_aware: true` with its token budget; a
+legacy active space (or no active space) reports the v1 char chunker and
+`token_aware: false`. Spaces, runs and the Audit drawers carry the same
+`token_aware`/`tokenizer`/`chunk` evidence and a runbook link. A fallback or
+approximate tokenizer is labelled everywhere; nothing claims exactness it
+does not have.
+
+## 5. Maintenance actions
 
 **Index maintenance** on Tools → Retrieval queues one typed
 `VECTOR_MAINTENANCE` run. Each action is bounded and returns the normal run
@@ -128,7 +245,7 @@ result.
 Maintenance never runs DDL on the request path. The physical action is a
 `background_jobs` row, visible in Audit → Runs.
 
-## 5. Idempotency, locks and crash recovery
+## 6. Idempotency, locks and crash recovery
 
 - **Idempotency key.** Every mutating action requires an
   `Idempotency-Key` header (8–120 characters) or the equivalent body field.
@@ -149,7 +266,7 @@ Maintenance never runs DDL on the request path. The physical action is a
   idempotency scope. Cutover/gate evaluations are synchronous and cannot be
   retried as runs; re-run the action instead.
 
-## 6. Alerts, dedup and recovery
+## 7. Alerts, dedup and recovery
 
 Retrieval alerts go through the existing notification funnel only. All ten
 kinds are boot-seeded; an unknown or disabled kind fails soft and notifies
@@ -175,7 +292,7 @@ window. Daily caps are per channel. The evaluator is the bounded
 latest snapshots, recent runs, 15-minute rollups, the persisted quality
 compare and the token budget, never the corpus.
 
-## 7. Honest degraded and cold states
+## 8. Honest degraded and cold states
 
 - A space that has never been reconciled says **never reconciled**. It does
   not show a fake 0% or 100%.
@@ -193,7 +310,7 @@ compare and the token budget, never the corpus.
   document, query or prompt text. Raw embed text stays on the admin AI tab;
   the status export is aggregates only.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### Is this posting indexed?
 
@@ -242,3 +359,86 @@ After any fix, re-run the smallest scoped action that proves it (one kind or
 one view), read the run result, then widen the scope. Record the run id and
 the audit event in the incident note; the Changes section already has the
 `vector.*` trail.
+
+## 10. Plan 52 handoff (T2b / T3)
+
+**T2b — provider/HF fetch and a wider curated catalog (implemented).**
+
+- The pinned, checksum-verified `tokenizer_fetch` job loads only an
+  allowlisted `tokenizer.json` (+ small config) from `huggingface.co` and its
+  CDN/Xet hosts at a full 40-character commit revision; it is bounded,
+  audited and cached by content hash. No request/boot path fetches.
+- `hf_tokenizers` loads the verified local cache and exposes count/encode/
+  decode; a missing/corrupt artifact degrades visibly. `sentencepiece` stays
+  reserved.
+- Curated open-source profiles (nomic, mxbai, bge, Qwen3-Embedding,
+  multilingual-e5) carry repository/revision/SHA-256/license/source URL;
+  `embeddinggemma` is listed as an unavailable gated preset. Unknown models
+  stay fallback.
+- The admin editor supports the HF kind, fetch action/status and the
+  provenance/availability warnings. Curated rows remain code facts (no
+  migration invents model data).
+- T3a stores each space's v1 key on the row (`vector_spaces.space_key`,
+  migration 0095) and every cutover comparison reads it verbatim; T3b still
+  owns token-aware writes, `space_key` v2 and the cutover that consumes them.
+
+**T3b — token-aware chunk writes and cutover (backend/contract/schema implemented).**
+
+- The contract now has a v2 identity: `VectorSpace.tokenizer` + `VectorSpace.chunk`
+  are both-or-neither, `space_key_v2` folds the tokenizer
+  kind/identifier/revision/artifact sha/exact and the
+  `ChunkConfig.fingerprint` after a version marker, and `space_key` keeps
+  the frozen v1 pre-image. A stored key always wins; a legacy row is never
+  re-keyed. `IndexRecord` carries optional
+  `token_count`/`token_start`/`token_end` (ordered, non-negative,
+  `count == end - start`).
+- Migration `0096` adds the tokenizer/chunk scalars to `vector_spaces`
+  (all NULL on a v1 row; a v2 row requires the complete set,
+  `chunker_version='2'`, a kind-valid exact/revision/checksum combination
+  and a chunk budget that fits the input limit) and the nullable token
+  offsets to `vector_records`. Downgrade drops the columns but keeps the
+  stored `space_key`.
+- `vector_index_service` resolves the **effective DB profile** (admin →
+  curated → fallback, HF included) for write/build paths and token
+  accounting. A v2 space composes every embeddable view (summary,
+  requirements, responsibilities, skills, body) with the token chunker:
+  exact character offsets, token overlap, `max_chars` as a ceiling, the
+  document prefix + safety margin inside `max_input_tokens`. Batches split
+  by both `batch_max_items` and `batch_max_tokens`; an item that cannot fit
+  is a typed `input_too_long` write failure recorded once by reconcile,
+  never a loop or truncation.
+- A v1 active space keeps the char chunker, NULL token columns and is never
+  re-chunked in place. Build a v2 space beside it
+  (`scripts/vector_spaces.py build --token-aware`, or the lifecycle/action
+  service with an explicit tokenizer+chunk), backfill, activate through the
+  existing coverage/quality gate, and the retired row's stored key drives
+  `POSTING_REMAP`; the old space is retained.
+
+**T3c — build/cutover UI, API contract and reports (implemented).**
+
+- `BuildSpaceRequest` accepts `tokenizer_profile` or an explicit
+  `tokenizer` + `chunk`; the OpenAPI contract and generated client carry the
+  same fields. Omitted fields keep the v1 build; a half-configured request,
+  an unavailable artifact or an unsafe chunk budget is refused.
+- Tools → Retrieval shows the resolved profile (source, exact/approx,
+  revision, checksum, max input), warns on the fallback, lets the admin edit
+  the chunk bounds and submits a v2 build (or a deliberate legacy v1 build).
+- `SpaceDTO` / `RunDTO` expose `token_aware`, `tokenizer` and `chunk`; the
+  Tools space card, Audit space drawer and Audit run drawer render them with
+  the existing live progress counters and a runbook link. No Audit action
+  controls were added.
+- Migration `0097` persists the tokenizer selection source. A legacy active
+  space still reports v1/legacy; only a space with persisted tokenizer columns
+  may claim `token_aware: true`.
+- The old space is retained through the normal retire/drop lifecycle. Nothing
+  is re-chunked in place.
+
+**T5 handoff (Study parity + rollout).**
+
+- Port the same tokenizer registry, chunk identity and `space_key_v2` to
+  Study; replace its `len//4` token heuristic and add DTO/fixture parity.
+- Roll out a candidate space on real corpora: backfill, compare coverage and
+  the golden-query quality gate, activate, confirm the `POSTING_REMAP` for the
+  retired stored key, and keep the old space until an explicit drop.
+- Add the fallback/tokenizer-missing alert and the fleet docs pointer. HF
+  auto-fetch and SentencePiece remain last, not prerequisites.

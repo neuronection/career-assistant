@@ -4,6 +4,7 @@ back to the previous shape and upgrade again on the suite's test DB."""
 import asyncio
 import contextlib
 import os
+import uuid
 from datetime import UTC, datetime
 
 import pytest
@@ -150,7 +151,7 @@ def test_0027_cv_synth_items_roundtrip():
     from alembic.script import ScriptDirectory
 
     config = _configured()
-    assert ScriptDirectory.from_config(config).get_heads() == ["0092"], (
+    assert ScriptDirectory.from_config(config).get_heads() == ["0097"], (
         "revision chain stays linear on one head"
     )
 
@@ -162,6 +163,343 @@ def test_0027_cv_synth_items_roundtrip():
 
     command.upgrade(config, "head")
     assert _table_present(), "re-upgrade restores the table"
+
+
+def _spaces_0094_table():
+    """The ``vector_spaces`` shape at 0094, plus the 0095 column for reads."""
+    import sqlalchemy as sa
+
+    return sa.table(
+        "vector_spaces",
+        sa.column("id", sa.Uuid()),
+        sa.column("name", sa.String),
+        sa.column("provider", sa.String),
+        sa.column("model", sa.String),
+        sa.column("dim", sa.Integer),
+        sa.column("metric", sa.String),
+        sa.column("normalize", sa.Boolean),
+        sa.column("chunker_version", sa.String),
+        sa.column("composer_version", sa.String),
+        sa.column("query_prefix", sa.String),
+        sa.column("document_prefix", sa.String),
+        sa.column("status", sa.String),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+        sa.column("space_key", sa.String),
+    )
+
+
+def _space_specs_0094() -> list[dict]:
+    """Two populated 0094 rows with distinct v1 pre-images."""
+    import uuid as _uuid
+
+    return [
+        {
+            "id": _uuid.uuid4(),
+            "name": f"migrate-plain-{_uuid.uuid4().hex[:8]}",
+            "provider": "openai",
+            "model": "text-embedding-3-small",
+            "dim": 1536,
+            "normalize": True,
+            "query_prefix": None,
+            "document_prefix": None,
+            "chunker_version": "1",
+            "composer_version": "1",
+        },
+        {
+            "id": _uuid.uuid4(),
+            "name": f"migrate-asym-{_uuid.uuid4().hex[:8]}",
+            "provider": "Ollama",
+            "model": "embeddinggemma-2:440m ",
+            "dim": 768,
+            "normalize": False,
+            "query_prefix": "query: ",
+            "document_prefix": "passage: ",
+            "chunker_version": "2",
+            "composer_version": "3",
+        },
+    ]
+
+
+def _insert_0094_spaces(specs: list[dict]) -> None:
+    import asyncio
+
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    spaces = _spaces_0094_table()
+    now = datetime.now(UTC)
+
+    async def run() -> None:
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                for spec in specs:
+                    await conn.execute(
+                        spaces.insert().values(
+                            **spec,
+                            metric="cosine",
+                            status="active",
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(run())
+
+
+def _read_0095_space_keys() -> dict[str, str]:
+    import asyncio
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    spaces = _spaces_0094_table()
+
+    async def run() -> dict[str, str]:
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.begin() as conn:
+                rows = (await conn.execute(sa.select(spaces.c.id, spaces.c.space_key))).all()
+            return {str(row[0]): str(row[1]) for row in rows}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def _expected_v1_key(spec: dict) -> str:
+    from app.storage.vector_contract import space_key
+
+    return space_key(
+        spec["provider"],
+        spec["model"],
+        spec["dim"],
+        spec["normalize"],
+        spec["query_prefix"],
+        spec["document_prefix"],
+        spec["chunker_version"],
+        spec["composer_version"],
+    )
+
+
+def test_0095_vector_space_key_stamps_populated_rows_and_roundtrips():
+    """Plan 52 T3a: every existing row keeps its v1 key verbatim, once."""
+    config = _configured()
+    command.upgrade(config, "head")
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key"), "0094 has no stored key"
+
+    specs = _space_specs_0094()
+    _insert_0094_spaces(specs)
+
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "space_key")
+    stored = _read_0095_space_keys()
+    for spec in specs:
+        assert stored[str(spec["id"])] == _expected_v1_key(spec), spec["name"]
+
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key"), "downgrade drops the column"
+
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "space_key")
+
+
+_TOKEN_COLUMNS = (
+    "tokenizer_kind",
+    "tokenizer_identifier",
+    "tokenizer_revision",
+    "tokenizer_artifact_sha256",
+    "tokenizer_exact",
+    "max_input_tokens",
+    "chunk_max_tokens",
+    "chunk_overlap_tokens",
+    "chunk_max_chars",
+)
+_TOKEN_RECORD_COLUMNS = ("token_count", "token_start", "token_end")
+
+
+def _read_0096_spaces() -> dict[str, dict]:
+    import asyncio
+
+    import sqlalchemy as sa
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.core.config import settings
+
+    async def run() -> dict[str, dict]:
+        engine = create_async_engine(settings.database_url)
+        try:
+            async with engine.connect() as conn:
+                rows = (
+                    await conn.execute(
+                        sa.text(
+                            "SELECT id, space_key, tokenizer_kind, tokenizer_identifier, "
+                            "tokenizer_revision, tokenizer_artifact_sha256, tokenizer_exact, "
+                            "max_input_tokens, chunk_max_tokens, chunk_overlap_tokens, "
+                            "chunk_max_chars FROM vector_spaces"
+                        )
+                    )
+                ).mappings()
+                return {str(uuid.UUID(str(row["id"]))): dict(row) for row in rows}
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(run())
+
+
+def test_0096_token_columns_keep_legacy_rows_null_and_roundtrip():
+    """Plan 52 T3b: a populated v1 space gains NULL tokenizer/chunk columns
+    and keeps its stored v1 key verbatim; downgrade removes only the columns."""
+    config = _configured()
+    command.upgrade(config, "head")
+    command.downgrade(config, "0095")
+    assert not _column_present("vector_spaces", "tokenizer_kind")
+    assert not _column_present("vector_records", "token_count")
+
+    spec = {
+        "id": uuid.uuid4(),
+        "name": f"token-migrate-{uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 1536,
+        "normalize": True,
+        "query_prefix": None,
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    spec["space_key"] = _expected_v1_key(spec)
+    _insert_0094_spaces([spec])
+
+    command.upgrade(config, "head")
+    for column in _TOKEN_COLUMNS:
+        assert _column_present("vector_spaces", column), column
+    assert _column_present("vector_spaces", "tokenizer_source")
+    for column in _TOKEN_RECORD_COLUMNS:
+        assert _column_present("vector_records", column), column
+    row = _read_0096_spaces()[str(spec["id"])]
+    assert row["space_key"] == spec["space_key"], "the stored v1 key is untouched"
+    assert all(row[column] is None for column in _TOKEN_COLUMNS), row
+
+    command.downgrade(config, "0095")
+    assert not _column_present("vector_spaces", "tokenizer_kind")
+    assert not _column_present("vector_records", "token_count")
+    assert _read_0095_space_keys()[str(spec["id"])] == spec["space_key"]
+
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "tokenizer_kind")
+
+
+def test_0097_tokenizer_source_is_additive_and_drops_cleanly():
+    """Plan 52 T3c: the provenance column never rewrites the stored key."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("vector_spaces", "tokenizer_source")
+
+    spec = {
+        "id": uuid.uuid4(),
+        "name": f"token-source-{uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 1536,
+        "normalize": True,
+        "query_prefix": None,
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    spec["space_key"] = _expected_v1_key(spec)
+    key = str(spec["id"])
+    command.downgrade(config, "0096")
+    assert not _column_present("vector_spaces", "tokenizer_source")
+    _insert_0094_spaces([spec])
+    command.upgrade(config, "head")
+    assert _read_0095_space_keys()[key] == spec["space_key"]
+    command.downgrade(config, "0096")
+    assert not _column_present("vector_spaces", "tokenizer_source")
+    assert _read_0095_space_keys()[key] == spec["space_key"]
+    command.upgrade(config, "head")
+
+
+def test_populated_sqlite_upgrades_0095_to_0096(tmp_path, monkeypatch):
+    """The desktop profile adds/removes the token columns through batch mode."""
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'vector-spaces-0096.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+
+    command.upgrade(config, "head")
+    command.downgrade(config, "0095")
+    assert not _column_present("vector_spaces", "tokenizer_kind")
+
+    spec = {
+        "id": uuid.uuid4(),
+        "name": f"sqlite-token-{uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 384,
+        "normalize": True,
+        "query_prefix": None,
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    spec["space_key"] = _expected_v1_key(spec)
+    _insert_0094_spaces([spec])
+
+    command.upgrade(config, "0096")
+    row = _read_0096_spaces()[str(spec["id"])]
+    assert row["space_key"] == spec["space_key"]
+    assert all(row[column] is None for column in _TOKEN_COLUMNS), row
+
+    command.downgrade(config, "0095")
+    assert not _column_present("vector_spaces", "tokenizer_kind")
+    assert _read_0095_space_keys()[str(spec["id"])] == spec["space_key"]
+    command.upgrade(config, "head")
+
+
+def test_populated_sqlite_upgrades_0094_to_0095(tmp_path, monkeypatch):
+    """The desktop profile stamps a populated SQLite file through batch mode."""
+    import uuid as _uuid
+
+    from app.core.config import settings
+
+    db_url = f"sqlite+aiosqlite:///{tmp_path / 'vector-spaces-0095.db'}"
+    monkeypatch.setenv("CAREER_DATABASE_URL", db_url)
+    monkeypatch.setattr(settings, "database_url", db_url, raising=False)
+    config = _configured()
+
+    command.upgrade(config, "head")
+    command.downgrade(config, "0094")
+    assert not _column_present("vector_spaces", "space_key")
+
+    spec = {
+        "id": _uuid.uuid4(),
+        "name": f"sqlite-stamp-{_uuid.uuid4().hex[:8]}",
+        "provider": "openai",
+        "model": "text-embedding-3-small",
+        "dim": 384,
+        "normalize": True,
+        "query_prefix": "query: ",
+        "document_prefix": None,
+        "chunker_version": "1",
+        "composer_version": "1",
+    }
+    _insert_0094_spaces([spec])
+
+    command.upgrade(config, "0095")
+    assert _read_0095_space_keys()[str(spec["id"])] == _expected_v1_key(spec)
+
+    command.upgrade(config, "head")
 
 
 def test_0078_search_preset_name_roundtrip():
@@ -3976,9 +4314,10 @@ def _vector_constraint_probe(name: str) -> dict[str, bool]:
         space_columns = (
             "INSERT INTO vector_spaces "
             "(id, name, provider, model, dim, metric, normalize, chunker_version, "
-            "composer_version, index_table, status, created_at, updated_at) "
+            "composer_version, space_key, index_table, status, created_at, updated_at) "
             f"VALUES ({uuid_param('id')}, :name, 'openai', 'text-embedding-3-small', "
-            "4, 'cosine', true, '1', '1', :index_table, :status, :now, :now)"
+            "4, 'cosine', true, '1', '1', "
+            f"'{'a' * 64}', :index_table, :status, :now, :now)"
         )
         rollup_columns = (
             "INSERT INTO retrieval_query_rollups "
@@ -4395,3 +4734,45 @@ def test_0092_profile_link_urls_roundtrip():
     finally:
         asyncio.run(run("DELETE FROM profiles WHERE id = :id", {"id": str(profile_id)}))
         asyncio.run(run("DELETE FROM users WHERE id = :id", {"id": str(user_id)}))
+
+
+def test_0093_job_progress_detail_roundtrip():
+    """Plan 52 T4: the nullable bounded progress detail exists at head,
+    disappears on downgrade and returns on re-upgrade (both dialects)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "progress_detail"), "live detail at head"
+
+    command.downgrade(config, "0092")
+    assert not _column_present("background_jobs", "progress_detail")
+
+    command.upgrade(config, "head")
+    assert _column_present("background_jobs", "progress_detail")
+
+
+def test_0094_embedding_model_profiles_roundtrip():
+    """Plan 52 T2a: the admin profile registry exists at head, disappears on
+    downgrade and returns on re-upgrade (both dialects)."""
+    config = _configured()
+    command.upgrade(config, "head")
+    assert _table_present("embedding_model_profiles"), "profile registry at head"
+    for column in (
+        "provider_class",
+        "model_name",
+        "tokenizer_kind",
+        "max_input_tokens",
+        "batch_max_items",
+        "batch_max_tokens",
+        "chunk_max_tokens",
+        "chunk_overlap_tokens",
+        "chunk_max_chars",
+        "source",
+        "updated_by",
+    ):
+        assert _column_present("embedding_model_profiles", column), column
+
+    command.downgrade(config, "0093")
+    assert not _table_present("embedding_model_profiles")
+
+    command.upgrade(config, "head")
+    assert _table_present("embedding_model_profiles")

@@ -154,6 +154,36 @@ deletion).
 
 ### Migration notes
 
+- **0095–0097** — plan 52 T3a–T3c, the token-aware space identity.
+  `0095` stamps each `vector_spaces` row with its stored v1 cutover key;
+  `0096` adds the flattened tokenizer/chunk scalars and
+  `vector_records.token_count`/`token_start`/`token_end` (all NULL on a
+  legacy row, the complete set on a v2 row, with kind/exact/provenance and
+  chunk-budget CHECKs); `0097` adds `vector_spaces.tokenizer_source`
+  (provenance only — not part of the frozen key, and nullable for legacy
+  rows). Downgrades drop the additive columns but never rewrite a stored
+  `space_key`.
+- **0094** — plan 52 T2a: `embedding_model_profiles`, the admin
+  tokenizer/limit registry. Keyed on `(provider_class, model_name)`
+  (unique `uq_embedding_model_profiles_scope`), with typed scalar columns —
+  no JSONB. Holds the tokenizer kind/identifier/revision/checksum/exact
+  flag, `max_input_tokens`, `batch_max_items`/`batch_max_tokens`, the
+  default `ChunkConfig` preview (`chunk_max_tokens`/`chunk_overlap_tokens`/
+  `chunk_max_chars`), `source` (closed to `curated|admin|fallback`; this
+  slice writes `admin`) and `updated_by` (FK `users.id` SET NULL). CHECKs
+  mirror the contract floor (`chunk_max_tokens >= 32`,
+  `chunk_overlap_tokens * 2 < chunk_max_tokens`, chunk fits input, positive
+  limits). No seed rows: curated OpenAI profiles live in code so a migration
+  never invents model facts. Downgrade drops the table; overrides are
+  rebuildable configuration, and every change is already on
+  `audit_events` as `vector.model.changed`.
+- **0093** — plan 52 T4: `background_jobs.progress_detail` (`StructuredJSON`,
+  nullable; `JSONB` on PostgreSQL). A bounded live counter document
+  (phase, processed/total documents, cumulative/estimated chunks,
+  embedded/skipped/failed, tokens, embed calls) written in the same
+  per-document UPDATE as `progress`/`stage`; pruned when the final `result`
+  commits. Nullable for every other job family; no index or backfill, and
+  downgrade drops the column.
 - **0090** — plan 51 Q1a: the retrieval-operations checkpoint. Adds
   `ai_generations.metadata` (`StructuredJSON`, `NOT NULL` default `'{}'`)
   and `ai_generations.metadata_schema_version` (`SMALLINT`, default 1) —
@@ -434,10 +464,11 @@ deletion).
 | `profile_proposals` | `profile_proposal_model.py` | HITL proposal cards (diff, snapshots, status, lineage); `source` spans `chat`/`mcp`/`autopilot`/`import`, `origin` carries `{tool, session, request_id}` provenance |
 | `ai_providers` | `ai_provider_model.py` | Providers with `api_key_encrypted` (Fernet) + `preset_key` (§15 adoption stamp) |
 | `ai_models`, `ai_task_assignments` | `ai_provider_model.py` | Models (`caps` §15 vocabulary, `decision_transport`) + per-task / capability-slot assignments |
+| `embedding_model_profiles` | `embedding_profile_model.py` | Admin tokenizer/limit override per provider-class + model (plan 52 T2a/T2b): tokenizer kind/identifier/revision/checksum/exact, max input tokens, per-request batch item/token limits and the default token `ChunkConfig` preview. Kinds are `tiktoken`, `hf_tokenizers` and `heuristic`; `sentencepiece` is reserved. Curated rows live in code (`app/ai/tokenizers/registry.py`) with HF provenance (repo/revision/SHA-256/license/source URL); the resolver order is admin → curated → conservative fallback, keyed on `(provider_class, model_name)` — never a model-name substring. A row is configuration, not a chunk/space rewrite. Fetched HF artifacts are cached at `<data_dir>/tokenizers/<sha256>/tokenizer.json`, not in the database |
 | `ai_generations` | `ai_model.py` | The AI audit ledger (task, model, tokens, output, latency, run linkage) plus the caller-supplied retrieval tags (`metadata` + `metadata_schema_version` — space/kind/view/chunk index only, never text) |
 | `ai_budgets` | `ai_model.py` | Budget tracking |
 | `ai_skill_packs` | `skill_pack_model.py` | Versioned instruction data |
-| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces, polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
+| `vector_spaces`, `vector_documents`, `vector_records` | `vector_model.py` | The family vector store (plan 50): versioned embedding spaces (each row persists its `space_key` cutover identity, stamped once and compared verbatim by activation/remap/status), polymorphic source documents (kind + `source_id` + scope), and one record per view/chunk with a content hash, a `text_ref` pointer and — only under the linear backend — the vector BLOB. A token-aware space (plan 52 T3b/T3c) also persists its pinned tokenizer (kind/identifier/revision/artifact sha/exact/max input tokens/source provenance) and `ChunkConfig` scalars, with `chunker_version='2'`; legacy rows keep every tokenizer/chunk column NULL and the frozen v1 key. Records carry nullable `token_count`/`token_start`/`token_end` when token-chunked (NULL on legacy char chunks; `token_count == token_end - token_start`). The physical per-space index (`vec_*`, HNSW or `vec0`) is provisioned by a job/migration, never Alembic |
 | `retrieval_query_rollups`, `retrieval_coverage_snapshots` | `vector_model.py` | Bounded operational telemetry (plan 51 Q0 schema, first written by the P1d reconcile pass): query-health buckets and per-kind coverage points (`total`/`missing`/`stale`/`failed`/`embedded` + the sampled ANN recall) |
 | `ai_mcp_servers` | `mcp_bridge_model.py` | External MCP server registrations |
 | `mcp_tokens` | `mcp_bridge_model.py` | Hashed MCP access tokens (personal or instance-wide), closed `scopes`, rotation + per-token revocation |
@@ -458,7 +489,7 @@ deletion).
 
 | Table(s) | Model | Holds |
 |---|---|---|
-| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) |
+| `background_jobs` | `background_job_model.py` | The job queue (status, result, run linkage) plus the nullable `idempotency_key`/`lock_key` handles and their active-status partial unique indexes (plan 51 Q1a seam; the runtime lands in Q1b) and the bounded live `progress_detail` counters (plan 52 T4). `tokenizer_fetch` rows (plan 52 T2b) are plain jobs: they are not `VECTOR_*` runs and never take a space lock |
 | `schedules` | `schedule_model.py` | Trigger definitions, misfire policy, claimed/queued state |
 | `app_settings` | `settings_model.py` | Instance settings (AI config, web tools, notification config) |
 | `interview_sessions` | `interview_model.py` | Interview plans, rubric aggregates, status |

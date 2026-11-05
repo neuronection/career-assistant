@@ -51,6 +51,7 @@ from app.services.vector_reconcile_service import (
     parse_since,
 )
 from app.services.vector_status import read_space_statuses
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 from app.storage.vector_contract import (
     BACKEND_LINEAR,
     COVERAGE_GATE,
@@ -288,11 +289,16 @@ class VectorSpaceLifecycleService:
         document_prefix: str | None = None,
         chunker_version: str = CHUNKER_VERSION,
         composer_version: str = COMPOSER_VERSION,
+        tokenizer: TokenizerSpec | None = None,
+        chunk: ChunkConfig | None = None,
     ) -> SpaceBuildResult:
         """Create a ``building`` space beside the active one and provision it.
 
         The active row is never touched. A matching building space is reused
         idempotently; a different one is refused until it is retired/dropped.
+        Passing ``tokenizer`` **and** ``chunk`` builds a token-aware v2 space
+        (``chunker_version='2'`` and the v2 key); omitting both keeps the
+        legacy v1 identity.
         """
         self._validate_configuration(
             name=name,
@@ -312,6 +318,8 @@ class VectorSpaceLifecycleService:
             chunker_version=chunker_version,
             composer_version=composer_version,
             status=SpaceStatus.BUILDING,
+            tokenizer=tokenizer,
+            chunk=chunk,
         )
         with self.store.session_factory() as session:
             row = session.get(VectorSpaceRow, uuid.UUID(str(space.space_id)))
@@ -324,7 +332,7 @@ class VectorSpaceLifecycleService:
             space_id=str(row.id),
             name=canonical.name,
             status=canonical.status.value,
-            space_key=canonical.key,
+            space_key=row.space_key,
             backend=provision.backend,
             index_table=provision.index_table,
             dim=canonical.dim,
@@ -418,7 +426,7 @@ class VectorSpaceLifecycleService:
             target_id = row.id
             target_name = row.name
             target_status = row.status
-            target_key = canonical_space(row).key
+            target_key = row.space_key
             if target_status == SpaceStatus.RETIRED.value:
                 raise SpaceStateError(f"space {target_name!r} is retired and cannot be activated")
             if target_status == SpaceStatus.BUILDING.value:
@@ -448,7 +456,7 @@ class VectorSpaceLifecycleService:
                 return ActivationResult(
                     space_id=str(target.id),
                     name=target.name,
-                    space_key=canonical_space(target).key,
+                    space_key=target.space_key,
                     already_active=target.status == SpaceStatus.ACTIVE.value,
                 )
             previous = [
@@ -456,7 +464,7 @@ class VectorSpaceLifecycleService:
                 for candidate in rows
                 if candidate.status == SpaceStatus.ACTIVE.value and candidate.id != target.id
             ]
-            previous_keys = [canonical_space(candidate).key for candidate in previous]
+            previous_keys = [candidate.space_key for candidate in previous]
             previous_ids = [str(candidate.id) for candidate in previous]
             if previous_keys and self.db is None:
                 raise SpaceLifecycleError(
@@ -475,7 +483,7 @@ class VectorSpaceLifecycleService:
             target.activated_at = now
             target.retired_at = None
             session.commit()
-            target_key = canonical_space(target).key
+            target_key = target.space_key
 
         remap_ids: list[str] = []
         for old_key in dict.fromkeys(previous_keys):

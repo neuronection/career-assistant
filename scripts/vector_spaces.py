@@ -94,6 +94,14 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--document-prefix", default=None)
     build.add_argument("--chunker-version", default=CHUNKER_VERSION)
     build.add_argument("--composer-version", default=COMPOSER_VERSION)
+    build.add_argument(
+        "--token-aware",
+        action="store_true",
+        help=(
+            "build a token-aware v2 space using the effective embedding profile "
+            "(admin override → curated → fallback) for this provider/model"
+        ),
+    )
     build.set_defaults(normalize=True)
 
     backfill = sub.add_parser("backfill", help="enqueue a bounded backfill of a building space")
@@ -278,6 +286,14 @@ async def _run(args) -> int:
     if args.command == "build":
         async with AsyncSessionLocal() as db:
             service = _service(db)
+            tokenizer = chunk = None
+            if args.token_aware:
+                from app.services import embedding_profiles
+
+                profile = await embedding_profiles.resolve_for(
+                    db, args.provider, args.model
+                )
+                tokenizer, chunk = profile.tokenizer, profile.chunk
             built = await service.build_space(
                 args.name,
                 provider=args.provider,
@@ -289,6 +305,8 @@ async def _run(args) -> int:
                 document_prefix=args.document_prefix,
                 chunker_version=args.chunker_version,
                 composer_version=args.composer_version,
+                tokenizer=tokenizer,
+                chunk=chunk,
             )
         print(json.dumps(built.as_dict(), indent=2, default=str))
         return 0

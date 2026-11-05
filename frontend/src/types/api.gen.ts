@@ -1839,6 +1839,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/retrieval/model-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Model Profiles
+         * @description The curated catalog + admin overrides + the effective profile.
+         *
+         *     With ``provider`` and ``model`` the ``resolution`` previews that exact
+         *     pair (the build-space selector); without them it describes the assigned
+         *     embedding model. Curated profiles are read-only code facts; admin rows
+         *     are the explicit override. Nothing here rechunks or cuts over a space.
+         */
+        get: operations["retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get"];
+        /**
+         * Retrieval Save Model Profile
+         * @description Save one bounded admin tokenizer/limit override for a model pair.
+         */
+        put: operations["retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put"];
+        post?: never;
+        /**
+         * Retrieval Delete Model Profile
+         * @description Drop the admin override; the curated profile (or fallback) returns.
+         */
+        delete: operations["retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/retrieval/overview": {
         parameters: {
             query?: never;
@@ -2142,6 +2175,74 @@ export interface paths {
          * @description Per-space documents/records, coverage snapshot and last reindex.
          */
         get: operations["retrieval_status_api_v1_admin_retrieval_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/tokenizer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Tokenizer
+         * @description Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.
+         *
+         *     Shadow only — no write, no stored chunk change, no document text. The
+         *     corpus scan is bounded per kind; the multilingual reference block is a
+         *     fixed synthetic fixture.
+         */
+        get: operations["retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/tokenizer/fetch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retrieval Tokenizer Fetch
+         * @description Queue one pinned tokenizer asset fetch (never on the request path).
+         *
+         *     The handler validates the host/file allowlist, size cap and SHA-256,
+         *     caches under the content hash, and audits ``vector.tokenizer.*``. A repeat
+         *     with the same idempotency key and body returns the original job.
+         */
+        post: operations["retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/retrieval/tokenizer/fetch/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieval Tokenizer Fetch Status
+         * @description Read one tokenizer fetch job's status/progress/result (admin-only).
+         */
+        get: operations["retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -10717,10 +10818,41 @@ export interface components {
             window: string;
         };
         /**
+         * BuildChunkRequest
+         * @description The token-aware chunk budget (bounds mirror the tokenizer contract).
+         */
+        BuildChunkRequest: {
+            /** Max Chars */
+            max_chars: number;
+            /** Max Chunk Tokens */
+            max_chunk_tokens: number;
+            /**
+             * Overlap Tokens
+             * @default 0
+             */
+            overlap_tokens: number;
+        };
+        /**
+         * BuildProfileReference
+         * @description Build from the effective embedding profile of one provider/model pair.
+         */
+        BuildProfileReference: {
+            /** Model */
+            model: string;
+            /** Provider */
+            provider: string;
+        };
+        /**
          * BuildSpaceRequest
          * @description Provision a ``building`` space beside the active one.
+         *
+         *     Omitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy
+         *     v1 char-chunk build. Supplying either a resolved-profile reference or an
+         *     explicit tokenizer makes the build token-aware (v2); a half-configured
+         *     request is refused instead of silently falling back to v1.
          */
         BuildSpaceRequest: {
+            chunk?: components["schemas"]["BuildChunkRequest"] | null;
             /** Dim */
             dim: number;
             /** Document Prefix */
@@ -10745,6 +10877,40 @@ export interface components {
             provider: string;
             /** Query Prefix */
             query_prefix?: string | null;
+            tokenizer?: components["schemas"]["BuildTokenizerRequest"] | null;
+            tokenizer_profile?: components["schemas"]["BuildProfileReference"] | null;
+        };
+        /**
+         * BuildTokenizerRequest
+         * @description An explicit pinned tokenizer for a token-aware (v2) build.
+         *
+         *     The server derives nothing from the model name here: these fields are the
+         *     admin's selection. ``exact`` may be omitted (it follows ``kind``), and a
+         *     non-heuristic kind needs its artifact checksum (plus a pinned revision for
+         *     Hugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the
+         *     same effective profile the write path resolves.
+         */
+        BuildTokenizerRequest: {
+            /** Artifact Sha256 */
+            artifact_sha256?: string | null;
+            /**
+             * Exact
+             * @description defaults from kind; heuristic is always false
+             */
+            exact?: boolean | null;
+            /** Identifier */
+            identifier: string;
+            /** Kind */
+            kind: string;
+            /** Max Input Tokens */
+            max_input_tokens: number;
+            /** Revision */
+            revision?: string | null;
+            /**
+             * Source
+             * @default admin
+             */
+            source: string;
         };
         /** BulkJobActionIn */
         BulkJobActionIn: {
@@ -15052,6 +15218,48 @@ export interface components {
             /** Tier */
             tier?: string | null;
         };
+        /**
+         * ModelProfileRequest
+         * @description One bounded admin embedding-tokenizer/limits override.
+         *
+         *     The provider class + model pair is the key. The tokenizer kind is
+         *     restricted to what this build can actually load: bundled ``tiktoken``,
+         *     a pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +
+         *     verified SHA-256) or the conservative heuristic. The server derives
+         *     ``exact`` and ``source`` — a client cannot declare a heuristic as exact.
+         */
+        ModelProfileRequest: {
+            /** Batch Max Items */
+            batch_max_items: number;
+            /** Batch Max Tokens */
+            batch_max_tokens: number;
+            /** Chunk Max Chars */
+            chunk_max_chars: number;
+            /** Chunk Max Tokens */
+            chunk_max_tokens: number;
+            /**
+             * Chunk Overlap Tokens
+             * @default 0
+             */
+            chunk_overlap_tokens: number;
+            /** Max Input Tokens */
+            max_input_tokens: number;
+            /** Model */
+            model: string;
+            /** Provider Class */
+            provider_class: string;
+            /**
+             * Tokenizer Artifact Sha256
+             * @description packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset
+             */
+            tokenizer_artifact_sha256?: string | null;
+            /** Tokenizer Identifier */
+            tokenizer_identifier: string;
+            /** Tokenizer Kind */
+            tokenizer_kind: string;
+            /** Tokenizer Revision */
+            tokenizer_revision?: string | null;
+        };
         /** ModelUpdate */
         ModelUpdate: {
             /** Caps */
@@ -19136,6 +19344,34 @@ export interface components {
                 [key: string]: number;
             };
         };
+        /**
+         * TokenizerFetchRequestBody
+         * @description One pinned, bounded Hugging Face tokenizer fetch (admin-only job).
+         */
+        TokenizerFetchRequestBody: {
+            /**
+             * Expected Sha256
+             * @description optional expected tokenizer.json sha256; a mismatch fails the fetch
+             */
+            expected_sha256?: string | null;
+            /**
+             * Files
+             * @description allowlisted small files; must include tokenizer.json (('tokenizer.json', 'config.json', 'tokenizer_config.json', 'special_tokens_map.json'))
+             */
+            files?: string[];
+            /** Idempotency Key */
+            idempotency_key?: string | null;
+            /**
+             * Repository
+             * @description org/model
+             */
+            repository: string;
+            /**
+             * Revision
+             * @description pinned 40-character commit sha (branches/tags are refused)
+             */
+            revision: string;
+        };
         /** TranscribeOut */
         TranscribeOut: {
             /** Model */
@@ -22975,6 +23211,113 @@ export interface operations {
             };
         };
     };
+    retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get: {
+        parameters: {
+            query?: {
+                /** @description provider type/label for a preview resolution */
+                provider?: string | null;
+                /** @description embedding model id for a preview resolution */
+                model?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelProfileRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete: {
+        parameters: {
+            query: {
+                /** @description provider type/label of the override */
+                provider: string;
+                /** @description embedding model id of the override */
+                model: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     retrieval_overview_api_v1_admin_retrieval_overview_get: {
         parameters: {
             query?: {
@@ -23529,6 +23872,113 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     }[];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get: {
+        parameters: {
+            query?: {
+                /** @description source kinds to shadow-measure; default all supported */
+                kinds?: string[] | null;
+                /** @description source rows per kind (bounded admin sample) */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-generated replay key (8-120 chars); a repeat with the same body is a replay */
+                "Idempotency-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TokenizerFetchRequestBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

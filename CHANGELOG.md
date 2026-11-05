@@ -4,6 +4,139 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Added (retrieval: token-aware chunking and a v2 space identity, 2026-11-04)
+- **A token-aware vector space now chunks every embeddable view by token
+  ids, with exact character offsets, token overlap and token counts.**
+  Summary, requirements, responsibilities, skills and body all split;
+  `max_chars` is a hard ceiling rather than a silent truncation. The model
+  input limit is checked per item (including the document prefix and a small
+  safety margin) and requests are batched by both item count and token sum.
+  An item that still cannot fit is a recorded `input_too_long` failure, not
+  a retry loop.
+- **The tokenizer and chunk configuration are part of the space identity.**
+  `VectorSpace` gains an optional `tokenizer`/`chunk` pair and a
+  `space_key_v2` pre-image; migration `0096` persists the flattened scalars
+  and the record token offsets, while every existing row keeps its stored v1
+  key and NULL tokenizer columns. The effective profile (admin override →
+  curated → fallback, including Hugging Face) drives writes, builds and the
+  live token accounting.
+- **A token-aware space is built beside the legacy one, never re-chunked in
+  place.** `vector_spaces.py build --token-aware` (or the lifecycle/action
+  service with an explicit tokenizer and chunk) builds it, the ordinary
+  backfill writes the token records, and activation still requires the
+  coverage and golden-query quality gates. The retired space's stored key
+  drives the posting remap and the old space is retained.
+
+### Added (retrieval: build and cut over a token-aware space from Tools, 2026-11-04)
+- **Tools → Retrieval can now build a token-aware v2 space beside the active
+  one.** The build dialog resolves the effective embedding profile, shows
+  the tokenizer source, exactness, pinned revision, checksum and model input
+  limit, warns visibly when the selection is the labelled fallback, and
+  lets an admin edit the chunk budget (max tokens, overlap, max chars)
+  within safe bounds. Submitting pins that profile and budget through
+  `POST /admin/retrieval/spaces`; leaving token awareness off deliberately
+  submits the legacy v1 char-chunk build. A half-configured tokenizer/chunk
+  request is refused.
+- **Spaces, runs and the tokenizer report carry the real chunker identity.**
+  The space card, Audit space drawer and Audit run drawer render
+  `token_aware`, the tokenizer source/exactness/revision/checksum, the model
+  input limit and the chunk budget, with a runbook link. The tokenizer report
+  claims `token_aware: true` only when the active space actually persisted a
+  tokenizer and chunk config; a legacy active space still reports v1 char
+  chunks. Migration `0097` persists the selection source; the space key is
+  unchanged and no existing space is re-chunked in place. The old space
+  stays retained until an explicit retire/drop.
+
+### Fixed (retrieval: a space keeps its identity through a cutover, 2026-11-04)
+- **A vector space now stores its space key on the row, so a later
+  tokenizer/chunker version can never change what an existing space is.**
+  Builds stamp the key once; activation, the posting-remap job and the space
+  status read compare that stored value verbatim instead of recomputing it
+  from the row fields. Migration `0095` backfills every existing space with
+  its v1 key (and drops the column cleanly on downgrade), so the first
+  post-upgrade cutover still invalidates exactly the semantic mappings that
+  recorded the old key. No chunk, token-column, token-aware write or
+  `space_key` v2 change in this slice.
+
+### Added (retrieval: pinned HF tokenizers and open-source mappings, 2026-11-04)
+- **Tools → Retrieval can now resolve verified open-source embedding
+  tokenizers instead of only the fallback.** Curated profiles for nomic,
+  mxbai, bge, Qwen3-Embedding and multilingual-e5 carry the Hugging Face
+  repository, pinned revision, `tokenizer.json` SHA-256, license and source
+  link. A known family that cannot be fetched honestly (currently gated
+  `embeddinggemma`) is listed as an unavailable preset and stays visibly on
+  the fallback; unknown models are never guessed from their name.
+- **Admins can fetch a pinned Hugging Face tokenizer as a bounded job.** The
+  editor takes a repository, a full 40-character commit and the expected
+  checksum; **Fetch tokenizer** queues an audited `tokenizer_fetch` job,
+  shows its progress, and fills the verified SHA-256 for saving. Downloads
+  are host/file allowlisted, size-capped, redirect-checked, checksum-verified
+  and cached by content hash under the instance data directory. Nothing
+  downloads on a page load, request path or boot.
+- **`hf_tokenizers` loading is exact when the asset is cached and honestly
+  approximate when it is not.** The service verifies size and SHA-256 before
+  parsing the Rust `tokenizers` JSON, supports count/encode/decode, and keeps
+  the bounded LRU. A missing/corrupt asset degrades to the labelled
+  heuristic; `sentencepiece` remains reserved and unshipped.
+- The family retrieval-ops contract gains the non-space `TOKENIZER_FETCH` job
+  vocabulary and the `vector.tokenizer.fetch_requested` / `.fetched` /
+  `.fetch_failed` audit events. This remains settings only: no token-aware
+  chunk write, `space_key` change or cutover (plan 52 T3).
+
+### Added (retrieval: embedding tokenizer profiles, 2026-11-04)
+- **Tools → Retrieval now resolves an embedding model's tokenizer and limits
+  by precedence: admin override → curated catalog → conservative fallback.**
+  The Tokenizer & limits card shows the source, exact flag, max input tokens,
+  per-request batch item/token limits and the default token chunk
+  (tokens/overlap/chars), with a visible warning when no curated or admin
+  profile matches. An admin can save a bounded override for a
+  provider-class + model pair, or reset it to the curated profile.
+- **The build-space form previews the same profile** for the provider/model
+  being entered, so a fallback is visible before a space exists. The existing
+  provider/model/dimension controls are unchanged.
+- **Curated profiles are the three usable OpenAI embeddings**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → bundled `cl100k_base`). Unknown, Ollama and HF
+  models stay visibly fallback — a model name alone never selects an exact
+  tokenizer, and provider class + model is the key.
+- **A new `embedding_model_profiles` table** (PG + SQLite, typed scalar
+  columns, no JSONB) holds the admin override; changes are audited as
+  `vector.model.changed`. This is settings only: no existing chunk, token
+  column, record or space is rewritten, and token-aware writes/cutover stay
+  in plan 52 T3. Profile changes apply to future spaces.
+
+### Added (retrieval: live indexing progress, 2026-11-04)
+- **Vector reindex/backfill runs now show real indexing progress instead of a
+  bare percentage.** Tools → Retrieval recent runs, Audit → Retrieval → Runs
+  and the run drawer render a progress bar with processed / total documents,
+  pending chunks (marked *estimated* when the corpus-wide chunk total is not
+  known), embedded/skipped/failed documents and chunks, measured tokens and
+  embed calls. Document totals are exact at scan start and are carried across
+  chained reconcile continuations, so the bar never resets mid-backfill.
+- The counters live in a bounded `background_jobs.progress_detail` document
+  written in the same per-document progress UPDATE as `progress`/`stage`
+  (no extra write, no ids or text). The detail is pruned when the final run
+  `result` commits; the result stays the authoritative audit record.
+
+### Added (retrieval: tokenizer/source truth, shadow only, 2026-11-04)
+- **Tools → Retrieval now shows which tokenizer counts the active space's
+  text, whether it is exact, the model input limit and the current
+  char-chunk budget.** The card also shows the measured char-vs-token spread
+  for English, Greek, German, CJK and code/markdown plus a bounded sample of
+  the real corpus. It is read-only evidence: no chunk, token column, space or
+  stored record is written.
+- **Exact `tiktoken` counting ships for the curated OpenAI embedding models**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → `cl100k_base`). The BPE asset is bundled and
+  checksum-verified, so counting never touches the network. Every other model
+  is visibly labelled as the conservative UTF-8/codepoint fallback — never
+  silently treated as exact.
+- **A canonical family `tokenizer_contract`** pins the tokenizer vocabulary,
+  the exact/fallback law, pinned serialization/cache keys and the
+  `ChunkConfig` bounds (`overlap < max/2`, fit after prefixes and safety
+  margin). It is additive: `space_key` and `IndexRecord` are unchanged until
+  the token-aware chunking wave.
+
 ### Fixed (filter rails: one template, one independent scroll owner, 2026-11-04)
 - **The filter side panel now looks and scrolls the same on `/postings`,
   `/catalog`, `/companies`, `/autopilot` and `/rankings`.** Every rail renders

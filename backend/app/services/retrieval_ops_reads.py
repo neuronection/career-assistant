@@ -266,6 +266,29 @@ async def _counts_by_space(db: AsyncSession, column: Any) -> dict[uuid.UUID, int
     return {row[0]: int(row[1] or 0) for row in rows}
 
 
+def _token_aware_parts(
+    row: VectorSpaceRow,
+) -> tuple[bool, ops.SpaceTokenizerDTO | None, ops.SpaceChunkDTO | None]:
+    """The persisted tokenizer/chunk evidence; legacy v1 rows carry neither."""
+    if row.tokenizer_kind is None:
+        return False, None, None
+    tokenizer = ops.SpaceTokenizerDTO(
+        kind=row.tokenizer_kind,
+        identifier=row.tokenizer_identifier or "",
+        revision=row.tokenizer_revision,
+        artifact_sha256=row.tokenizer_artifact_sha256,
+        exact=bool(row.tokenizer_exact),
+        max_input_tokens=int(row.max_input_tokens or 0),
+        source=row.tokenizer_source,
+    )
+    chunk = ops.SpaceChunkDTO(
+        max_chunk_tokens=int(row.chunk_max_tokens or 0),
+        overlap_tokens=int(row.chunk_overlap_tokens or 0),
+        max_chars=int(row.chunk_max_chars or 0),
+    )
+    return True, tokenizer, chunk
+
+
 def _space_dto(
     row: VectorSpaceRow,
     *,
@@ -276,6 +299,7 @@ def _space_dto(
     last_run: BackgroundJob | None,
 ) -> ops.SpaceDTO:
     coverage = _coverage_dto(row, snapshots)
+    token_aware, tokenizer, chunk = _token_aware_parts(row)
     return ops.SpaceDTO(
         space_id=str(row.id),
         name=row.name,
@@ -302,6 +326,9 @@ def _space_dto(
         ),
         gate=coverage.gate,
         as_of=coverage.as_of,
+        token_aware=token_aware,
+        tokenizer=tokenizer,
+        chunk=chunk,
     )
 
 
@@ -440,8 +467,24 @@ async def _vector_jobs(
     return resolved, unattributed, len(jobs) >= scan_limit
 
 
+def _progress_detail(job: BackgroundJob) -> ops.RunProgressDTO | None:
+    """The stored live counters, validated through the family contract.
+
+    ``None`` for jobs that never wrote a detail (every non-vector family) and
+    for a malformed row; the run itself still reads normally.
+    """
+    raw = job.progress_detail
+    if not isinstance(raw, Mapping):
+        return None
+    try:
+        return ops.RunProgressDTO(**dict(raw))
+    except (TypeError, ValueError):
+        return None
+
+
 def _run_dto(run: _Run) -> ops.RunDTO:
     job = run.job
+    token_aware, tokenizer, chunk = _token_aware_parts(run.space)
     return ops.RunDTO(
         run_id=str(job.id),
         space_id=str(run.space.id),
@@ -459,6 +502,10 @@ def _run_dto(run: _Run) -> ops.RunDTO:
         cancel_requested=bool(job.cancel_requested),
         idempotency_key=job.idempotency_key,
         lock_key=job.lock_key,
+        progress_detail=_progress_detail(job),
+        token_aware=token_aware,
+        tokenizer=tokenizer,
+        chunk=chunk,
     )
 
 

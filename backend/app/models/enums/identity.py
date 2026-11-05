@@ -55,6 +55,9 @@ class BackgroundJobType(StrEnum):
     VECTOR_CUTOVER = "vector_cutover"
     RETRIEVAL_ALERT_SWEEP = "retrieval_alert_sweep"
     POSTING_REMAP = "posting_remap"
+    # Plan 52 T2b: a bounded admin fetch of a pinned tokenizer asset. It is
+    # deliberately not a VECTOR_* space run (no space lock, no run DTO).
+    TOKENIZER_FETCH = "tokenizer_fetch"
 
 
 class ScheduleKind(StrEnum):

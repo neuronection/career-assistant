@@ -78,10 +78,40 @@ or the desktop-scale linear fallback), model and dimension, store health,
 coverage and the coverage/quality gates. **Coverage & reindex** queues a
 bounded run by kind, view and since timestamp with a token budget and
 document limit, then shows the queued run and its status — a queued run is
-not a finished reindex. **Spaces** lists active, building and retired
+not a finished reindex. The **Tokenizer & limits** card names the
+tokenizer/source, says whether the count is exact or approximate, shows the
+model input limit and the current character-chunk budget, and measures the
+English/Greek/German/CJK/code char-vs-token spread plus a bounded corpus
+sample. Its **model profile** block shows the auto-resolved profile
+(curated, admin override or the visibly labelled fallback), the per-request
+batch item/token limits and the default token chunk budget; an admin can
+save a bounded tokenizer/limit override for a provider-class + model pair, or
+reset it to the curated profile. Curated open-source profiles show their
+family, license and source link, and an unavailable preset (for example a
+gated repository) is labelled instead of being presented as supported. For a
+Hugging Face tokenizer the editor takes the repository, a full 40-character
+commit revision and the `tokenizer.json` checksum; **Fetch tokenizer** queues
+a bounded, audited admin job (never a page-load download), shows its progress
+and fills the verified checksum so the profile can be saved. A missing or
+corrupt cached asset stays visibly approximate until it is fetched. The
+build-space form previews the same profile for the provider/model being
+entered, so a fallback is visible before the space exists. Profile changes
+are settings only: no existing chunk, token column, record or space is
+rewritten. A profile change therefore applies to **future** spaces; an
+existing space is not re-chunked in place.
+**Spaces** lists active, building and retired
 spaces; changing models means building a new space (never an in-place
 rewrite), activating it only after coverage and the golden-query compare
-pass, then retiring the old one. **Index maintenance** queues an index
+pass, then retiring the old one. **Build new space** defaults to a
+**token-aware (v2)** build: it shows the resolved tokenizer with its source,
+exact/approximate flag, pinned revision, checksum and model input limit, warns
+when the conservative fallback applies, and lets you edit the chunk token
+budget, overlap and character ceiling within safe bounds. The build pins that
+tokenizer and chunk budget in the new space's identity. Switching token
+awareness off deliberately creates a legacy v1 space with character chunks.
+The space card, Audit space drawer and Audit run drawer show the real chunker
+and link the operator runbook. The old space stays retained until you
+explicitly retire and drop it; nothing is re-chunked in place. **Index maintenance** queues an index
 rebuild, vacuum, orphan sweep or failed-document retry, with a dry run where
 supported. **Quality** scores the versioned golden-query set for a candidate
 against its baseline and shows recall, precision and the gate. The **danger

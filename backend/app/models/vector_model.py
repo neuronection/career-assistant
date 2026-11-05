@@ -13,8 +13,9 @@ the DB CHECKs and the contract can never drift apart.
 """
 
 import uuid
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -38,12 +39,20 @@ from app.models.base import (
     UUIDPrimaryKeyMixin,
 )
 from app.models.enums.retrieval import VectorScopeType
+from app.storage.tokenizer_contract import (
+    ChunkConfig,
+    TokenizerKind,
+    TokenizerSource,
+    TokenizerSpec,
+)
 from app.storage.vector_contract import (
     METRICS,
     V1_VIEWS,
     DegradedReason,
     SpaceStatus,
 )
+from app.storage.vector_contract import space_key as make_space_key
+from app.storage.vector_contract import space_key_v2 as make_space_key_v2
 
 # Index tables are named from the space UUID by the provisioning seam:
 # ``vec_`` + 8 lowercase hex characters. The DB CHECK pins the portable
@@ -70,9 +79,141 @@ _INDEX_TABLE_CHECK = (
     f"AND length(index_table) = {INDEX_TABLE_LENGTH})"
 )
 
+_TOKENIZER_KINDS = tuple(member.value for member in TokenizerKind)
+_TOKENIZER_GROUP_CHECK = (
+    "(tokenizer_kind IS NULL AND tokenizer_identifier IS NULL "
+    "AND tokenizer_revision IS NULL AND tokenizer_artifact_sha256 IS NULL "
+    "AND tokenizer_exact IS NULL AND max_input_tokens IS NULL "
+    "AND chunk_max_tokens IS NULL AND chunk_overlap_tokens IS NULL "
+    "AND chunk_max_chars IS NULL) OR "
+    "(tokenizer_kind IS NOT NULL AND tokenizer_identifier IS NOT NULL "
+    "AND tokenizer_exact IS NOT NULL AND max_input_tokens IS NOT NULL "
+    "AND chunk_max_tokens IS NOT NULL AND chunk_overlap_tokens IS NOT NULL "
+    "AND chunk_max_chars IS NOT NULL)"
+)
+_TOKENIZER_KIND_CHECK = f"tokenizer_kind IS NULL OR tokenizer_kind IN ({_quoted(_TOKENIZER_KINDS)})"
+_TOKENIZER_EXACT_CHECK = (
+    "tokenizer_kind IS NULL OR "
+    "(tokenizer_kind = 'heuristic' AND tokenizer_exact = false) OR "
+    "(tokenizer_kind <> 'heuristic' AND tokenizer_exact = true)"
+)
+_TOKENIZER_PROVENANCE_CHECK = (
+    "tokenizer_kind IS NULL OR "
+    "(tokenizer_kind = 'heuristic' AND tokenizer_revision IS NULL "
+    "AND tokenizer_artifact_sha256 IS NULL) OR "
+    "(tokenizer_kind IN ('hf_tokenizers', 'sentencepiece') "
+    "AND tokenizer_revision IS NOT NULL AND tokenizer_artifact_sha256 IS NOT NULL) OR "
+    "(tokenizer_kind = 'tiktoken' AND tokenizer_artifact_sha256 IS NOT NULL)"
+)
+_TOKENIZER_BOUNDS_CHECK = (
+    "tokenizer_kind IS NULL OR "
+    "(max_input_tokens > 0 AND chunk_max_tokens >= 32 "
+    "AND chunk_overlap_tokens >= 0 AND chunk_overlap_tokens * 2 < chunk_max_tokens "
+    "AND chunk_max_chars > 0 AND chunk_max_tokens <= max_input_tokens)"
+)
+_TOKENIZER_CHUNKER_VERSION_CHECK = "tokenizer_kind IS NULL OR chunker_version = '2'"
+_TOKENIZER_SOURCES = tuple(member.value for member in TokenizerSource)
+_TOKENIZER_SOURCE_CHECK = (
+    "tokenizer_source IS NULL OR "
+    f"(tokenizer_kind IS NOT NULL AND tokenizer_source IN ({_quoted(_TOKENIZER_SOURCES)}))"
+)
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def tokenizer_spec_from_columns(values: Mapping[str, Any]) -> TokenizerSpec | None:
+    """Rebuild the pinned tokenizer from persisted scalar columns.
+
+    ``None`` means a legacy v1 row (every tokenizer column NULL). The
+    persisted ``source`` is provenance, not identity, so the space key
+    deliberately does not include it; a row that predates migration 0097
+    reconstructs it as ``fallback`` for the heuristic and ``curated``
+    otherwise.
+    """
+    kind = values.get("tokenizer_kind")
+    if kind is None:
+        return None
+    identifier = values.get("tokenizer_identifier")
+    max_input_tokens = values.get("max_input_tokens")
+    if identifier is None or max_input_tokens is None:  # pragma: no cover - CHECK guards
+        raise ValueError("a tokenizer column set is incomplete")
+    heuristic = str(kind) == TokenizerKind.HEURISTIC.value
+    return TokenizerSpec(
+        kind=str(kind),
+        identifier=str(identifier),
+        revision=(
+            None
+            if values.get("tokenizer_revision") is None
+            else str(values.get("tokenizer_revision"))
+        ),
+        artifact_sha256=(
+            None
+            if values.get("tokenizer_artifact_sha256") is None
+            else str(values.get("tokenizer_artifact_sha256"))
+        ),
+        exact=bool(values.get("tokenizer_exact")),
+        max_input_tokens=int(max_input_tokens),
+        source=(
+            str(values.get("tokenizer_source"))
+            if values.get("tokenizer_source") is not None
+            else (TokenizerSource.FALLBACK if heuristic else TokenizerSource.CURATED)
+        ),
+    )
+
+
+def chunk_config_from_columns(values: Mapping[str, Any]) -> ChunkConfig | None:
+    """Rebuild the token chunk configuration from persisted scalar columns."""
+    if values.get("tokenizer_kind") is None:
+        return None
+    max_chunk_tokens = values.get("chunk_max_tokens")
+    overlap_tokens = values.get("chunk_overlap_tokens")
+    max_chars = values.get("chunk_max_chars")
+    if max_chunk_tokens is None or overlap_tokens is None or max_chars is None:
+        raise ValueError("a chunk config column set is incomplete")
+    return ChunkConfig(
+        max_chunk_tokens=int(max_chunk_tokens),
+        overlap_tokens=int(overlap_tokens),
+        max_chars=int(max_chars),
+    )
+
+
+def _computed_space_key(context) -> str:
+    """Stamp a new row with the key of its configuration (once, at insert).
+
+    A direct ORM insert may carry the flattened tokenizer/chunk columns; the
+    default then computes the *v2* key, so a token-aware row can never be
+    stamped with a legacy v1 key just because the caller omitted ``space_key``.
+    """
+    values = context.get_current_parameters()
+    tokenizer = tokenizer_spec_from_columns(values)
+    if tokenizer is None:
+        return make_space_key(
+            values["provider"],
+            values["model"],
+            int(values["dim"]),
+            bool(values.get("normalize", True)),
+            values.get("query_prefix"),
+            values.get("document_prefix"),
+            str(values.get("chunker_version") or "1"),
+            str(values.get("composer_version") or "1"),
+        )
+    chunk = chunk_config_from_columns(values)
+    if chunk is None:  # pragma: no cover - the group CHECK rejects this earlier
+        raise ValueError("a tokenizer column set needs the complete chunk columns")
+    return make_space_key_v2(
+        values["provider"],
+        values["model"],
+        int(values["dim"]),
+        bool(values.get("normalize", True)),
+        values.get("query_prefix"),
+        values.get("document_prefix"),
+        str(values.get("chunker_version") or "2"),
+        str(values.get("composer_version") or "1"),
+        tokenizer=tokenizer,
+        chunk=chunk,
+    )
 
 
 class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -95,6 +236,13 @@ class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         CheckConstraint(_METRIC_CHECK, name="metric_allowed"),
         CheckConstraint("dim > 0", name="dim_positive"),
         CheckConstraint(_INDEX_TABLE_CHECK, name="index_table_shape"),
+        CheckConstraint(_TOKENIZER_GROUP_CHECK, name="tokenizer_group_all_or_none"),
+        CheckConstraint(_TOKENIZER_KIND_CHECK, name="tokenizer_kind_allowed"),
+        CheckConstraint(_TOKENIZER_EXACT_CHECK, name="tokenizer_exact_matches_kind"),
+        CheckConstraint(_TOKENIZER_PROVENANCE_CHECK, name="tokenizer_provenance_by_kind"),
+        CheckConstraint(_TOKENIZER_BOUNDS_CHECK, name="tokenizer_chunk_bounds"),
+        CheckConstraint(_TOKENIZER_CHUNKER_VERSION_CHECK, name="tokenizer_requires_chunker_v2"),
+        CheckConstraint(_TOKENIZER_SOURCE_CHECK, name="tokenizer_source_allowed"),
         UniqueConstraint("index_table", name="uq_vector_spaces_index_table"),
         Index(
             "uq_vector_spaces_name_active",
@@ -124,6 +272,21 @@ class VectorSpace(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     query_prefix: Mapped[str | None] = mapped_column(String(80), nullable=True)
     document_prefix: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    # Token-aware identity (plan 52 T3b). All NULL on a legacy v1 row; the
+    # full set is present on a v2 row and folded into ``space_key``.
+    tokenizer_kind: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    tokenizer_identifier: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    tokenizer_revision: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    tokenizer_artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tokenizer_exact: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    tokenizer_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    max_input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_max_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_overlap_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    chunk_max_chars: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Persisted identity: stamped once at creation and never recomputed across
+    # tokenizer/chunker versions. Remap/cutover compares this value verbatim.
+    space_key: Mapped[str] = mapped_column(String(64), nullable=False, default=_computed_space_key)
     # Physical ANN table; NULL while the linear backend is the store.
     index_table: Mapped[str | None] = mapped_column(String(40), nullable=True)
     status: Mapped[str] = mapped_column(
@@ -201,6 +364,19 @@ class VectorRecord(UUIDPrimaryKeyMixin, Base):
             "char_start IS NULL OR char_end IS NULL OR char_end >= char_start",
             name="char_range_ordered",
         ),
+        CheckConstraint("token_count IS NULL OR token_count >= 0", name="token_count_non_negative"),
+        CheckConstraint("token_start IS NULL OR token_start >= 0", name="token_start_non_negative"),
+        CheckConstraint("token_end IS NULL OR token_end >= 0", name="token_end_non_negative"),
+        CheckConstraint(
+            "token_start IS NULL OR token_end IS NULL OR token_end >= token_start",
+            name="token_range_ordered",
+        ),
+        CheckConstraint(
+            "(token_count IS NULL AND token_start IS NULL AND token_end IS NULL) OR "
+            "(token_count IS NOT NULL AND token_start IS NOT NULL AND token_end IS NOT NULL "
+            "AND token_count = token_end - token_start)",
+            name="token_fields_consistent",
+        ),
         Index("ix_vector_records_space_view", "space_id", "view"),
     )
 
@@ -216,6 +392,11 @@ class VectorRecord(UUIDPrimaryKeyMixin, Base):
     )
     char_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     char_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Token offsets (plan 52 T3b): all NULL on a legacy char-chunked record,
+    # all present on a token-aware record. ``token_count == token_end - token_start``.
+    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    token_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    token_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     text_ref: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     text_ref_schema_version: Mapped[int | None] = mapped_column(Integer, nullable=True)

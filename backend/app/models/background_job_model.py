@@ -63,6 +63,7 @@ class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stage: Mapped[str | None] = mapped_column(String(200), nullable=True)
     payload: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     result: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
+    progress_detail: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=2)

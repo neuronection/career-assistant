@@ -24,21 +24,26 @@ import {
   dropRetrievalSpace,
   fetchRetrievalCoverage,
   fetchRetrievalHealth,
+  fetchRetrievalModelProfiles,
   fetchRetrievalOverview,
   fetchRetrievalQuality,
   fetchRetrievalRuns,
   fetchRetrievalSpaces,
+  fetchRetrievalTokenizer,
   reindexRetrievalSpace,
   retireRetrievalSpace,
   retryRetrievalRun,
   retrievalActionError,
   runRetrievalMaintenance,
   type BuildSpacePayload,
+  type BuildChunkPayload,
   type MaintenanceAction,
   type RetrievalActionResponse,
   type RetrievalCoverage,
   type RetrievalGate,
   type RetrievalHealth,
+  type RetrievalModelProfile,
+  type RetrievalModelProfilesResponse,
   type RetrievalOverview,
   type RetrievalQuality,
   type RetrievalRefusal,
@@ -46,6 +51,7 @@ import {
   type RetrievalRunsResponse,
   type RetrievalSpace,
   type RetrievalSpacesResponse,
+  type RetrievalTokenizerReport,
 } from "@/api/retrieval";
 import {
   Badge,
@@ -62,6 +68,9 @@ import {
   SwitchRow,
 } from "@/components/ui";
 import { SettingsSectionCard } from "@/components/settings/SettingsSectionCard";
+import { RetrievalModelProfileCard } from "@/components/settings/RetrievalModelProfileCard";
+import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
+import { RETRIEVAL_RUNBOOK_URL } from "@/components/audit/retrieval/retrievalHelpers";
 import { StatTiles, type StatTile } from "@/components/stats/StatTiles";
 import { useRetrievalDebugStore } from "@/stores/retrievalDebugStore";
 import {
@@ -294,6 +303,14 @@ function RunRow({
           {run.scope.kind ?? t("retrieval.kind.all")} · {run.scope.view ?? t("retrieval.view.all")}
           {run.progress > 0 ? ` · ${t("retrieval.reindex.showProgress", { progress: run.progress })}` : ""}
         </p>
+        {run.progress_detail && (
+          <div className="pt-1">
+            <RetrievalProgress
+              detail={run.progress_detail}
+              testId={`retrieval-run-progress-${run.run_id}`}
+            />
+          </div>
+        )}
       </div>
       <div className="flex items-center gap-2">
         {active && !run.cancel_requested && (
@@ -402,6 +419,42 @@ function QualitySummary({
   );
 }
 
+function SpaceChunkerCell({ space }: { space: RetrievalSpace }) {
+  const { t } = useTranslation();
+  const tokenizer = space.tokenizer;
+  if (!space.token_aware || !tokenizer || !space.chunk) {
+    return (
+      <span data-testid={`retrieval-chunker-${space.space_id}`}>
+        {t("retrieval.spaces.legacyChunker")}
+      </span>
+    );
+  }
+  return (
+    <div className="space-y-0.5" data-testid={`retrieval-chunker-${space.space_id}`}>
+      <p className="flex flex-wrap items-center gap-1.5">
+        <Badge variant={tokenizer.exact ? "success" : "warning"}>
+          {tokenizer.exact
+            ? t("retrieval.spaces.tokenAware")
+            : t("retrieval.spaces.tokenAwareApprox")}
+        </Badge>
+        {tokenizer.source && (
+          <span className="text-[11px]">
+            {t(`retrieval.profile.source.${tokenizer.source}`)}
+          </span>
+        )}
+      </p>
+      <p className="break-all text-[11px]">{tokenizer.identifier}</p>
+      <p className="text-[11px]">
+        {t("retrieval.spaces.chunkBudget", {
+          tokens: space.chunk.max_chunk_tokens,
+          overlap: space.chunk.overlap_tokens,
+          chars: space.chunk.max_chars,
+        })}
+      </p>
+    </div>
+  );
+}
+
 export function RetrievalManagementSection() {
   const { t } = useTranslation();
   const [spaces, setSpaces] = useState<RetrievalSpacesResponse | null>(null);
@@ -411,6 +464,15 @@ export function RetrievalManagementSection() {
   const [quality, setQuality] = useState<RetrievalQuality | null>(null);
   const [activeQuality, setActiveQuality] = useState<RetrievalQuality | null>(null);
   const [runs, setRuns] = useState<RetrievalRunsResponse | null>(null);
+  const [tokenizerReport, setTokenizerReport] =
+    useState<RetrievalTokenizerReport | null>(null);
+  const [tokenizerLoading, setTokenizerLoading] = useState(true);
+  const [modelProfiles, setModelProfiles] =
+    useState<RetrievalModelProfilesResponse | null>(null);
+  const [buildPreview, setBuildPreview] = useState<RetrievalModelProfile | null>(
+    null,
+  );
+  const [buildPreviewLoading, setBuildPreviewLoading] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -433,6 +495,7 @@ export function RetrievalManagementSection() {
   const [reindexForce, setReindexForce] = useState(false);
 
   const [buildOpen, setBuildOpen] = useState(false);
+  const [buildTokenAware, setBuildTokenAware] = useState(true);
   const [buildDraft, setBuildDraft] = useState({
     name: "",
     provider: "",
@@ -441,6 +504,12 @@ export function RetrievalManagementSection() {
     queryPrefix: "",
     documentPrefix: "",
   });
+  const [buildChunk, setBuildChunk] = useState<{
+    maxTokens: number | null;
+    overlap: number | null;
+    maxChars: number | null;
+  }>({ maxTokens: null, overlap: null, maxChars: null });
+  const [buildError, setBuildError] = useState("");
 
   const [maintenanceAction, setMaintenanceAction] =
     useState<MaintenanceAction>("index-rebuild");
@@ -515,6 +584,92 @@ export function RetrievalManagementSection() {
     [health, activeSpace],
   );
   const activeSpaceId = activeSpace?.space_id ?? "";
+
+  useEffect(() => {
+    let cancelled = false;
+    setTokenizerLoading(true);
+    fetchRetrievalTokenizer()
+      .then((loaded) => {
+        if (!cancelled) setTokenizerReport(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setTokenizerReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setTokenizerLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRetrievalModelProfiles()
+      .then((loaded) => {
+        if (!cancelled) setModelProfiles(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setModelProfiles(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [reloadKey]);
+
+  useEffect(() => {
+    const provider = buildDraft.provider.trim();
+    const model = buildDraft.model.trim();
+    if (!buildOpen || !provider || !model) {
+      setBuildPreview(null);
+      setBuildPreviewLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setBuildPreviewLoading(true);
+    const timer = window.setTimeout(() => {
+      fetchRetrievalModelProfiles({ provider, model })
+        .then((loaded) => {
+          if (!cancelled) setBuildPreview(loaded.resolution);
+        })
+        .catch(() => {
+          if (!cancelled) setBuildPreview(null);
+        })
+        .finally(() => {
+          if (!cancelled) setBuildPreviewLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [buildOpen, buildDraft.provider, buildDraft.model]);
+
+  useEffect(() => {
+    if (!buildPreview) return;
+    setBuildChunk({
+      maxTokens: buildPreview.chunk.max_chunk_tokens,
+      overlap: buildPreview.chunk.overlap_tokens,
+      maxChars: buildPreview.chunk.max_chars,
+    });
+  }, [buildPreview]);
+
+  const buildChunkError = useMemo(() => {
+    if (!buildTokenAware || !buildPreview) return "";
+    const maxTokens = buildChunk.maxTokens;
+    const overlap = buildChunk.overlap;
+    const maxChars = buildChunk.maxChars;
+    if (maxTokens == null || maxTokens < 32) return t("retrieval.buildProfile.chunkTokensInvalid");
+    if (overlap == null || overlap < 0) return t("retrieval.buildProfile.chunkOverlapInvalid");
+    if (overlap * 2 >= maxTokens) return t("retrieval.buildProfile.chunkOverlapTooLarge");
+    if (maxChars == null || maxChars < 1) return t("retrieval.buildProfile.chunkCharsInvalid");
+    if (maxTokens > buildPreview.max_input_tokens) {
+      return t("retrieval.buildProfile.chunkOverInput", {
+        limit: buildPreview.max_input_tokens,
+      });
+    }
+    return "";
+  }, [buildTokenAware, buildPreview, buildChunk, t]);
 
   useEffect(() => {
     if (!activeSpaceId) {
@@ -620,6 +775,27 @@ export function RetrievalManagementSection() {
     if (!buildDraft.name.trim() || !buildDraft.provider.trim() || !buildDraft.model.trim()) {
       return;
     }
+    if (buildTokenAware) {
+      if (!buildPreview) {
+        setBuildError(t("retrieval.buildProfile.resolveFirst"));
+        return;
+      }
+      if (buildChunkError) {
+        setBuildError(buildChunkError);
+        return;
+      }
+    }
+    setBuildError("");
+    const chunk: BuildChunkPayload | undefined =
+      buildTokenAware &&
+      buildChunk.maxTokens != null &&
+      buildChunk.maxChars != null
+        ? {
+            max_chunk_tokens: buildChunk.maxTokens,
+            overlap_tokens: buildChunk.overlap ?? 0,
+            max_chars: buildChunk.maxChars,
+          }
+        : undefined;
     const payload: BuildSpacePayload = {
       name: buildDraft.name.trim(),
       provider: buildDraft.provider.trim(),
@@ -627,6 +803,15 @@ export function RetrievalManagementSection() {
       dim: buildDraft.dim,
       query_prefix: buildDraft.queryPrefix.trim() || undefined,
       document_prefix: buildDraft.documentPrefix.trim() || undefined,
+      ...(buildTokenAware
+        ? {
+            tokenizer_profile: {
+              provider: buildDraft.provider.trim(),
+              model: buildDraft.model.trim(),
+            },
+            chunk,
+          }
+        : {}),
     };
     try {
       const result = await busyWith("spaces", () => buildRetrievalSpace(payload));
@@ -641,6 +826,7 @@ export function RetrievalManagementSection() {
           queryPrefix: "",
           documentPrefix: "",
         });
+        setBuildChunk({ maxTokens: null, overlap: null, maxChars: null });
         refresh();
       }
     } catch (err) {
@@ -914,6 +1100,24 @@ export function RetrievalManagementSection() {
                   {activeSpace.provider}/{activeSpace.model} · {activeSpace.dim}
                 </strong>
               </span>
+              <span data-testid="retrieval-active-chunker">
+                {t("retrieval.spaces.chunker")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {activeSpace.token_aware && activeSpace.tokenizer
+                    ? activeSpace.tokenizer.identifier
+                    : t("retrieval.spaces.legacyChunker")}
+                </strong>
+                {activeSpace.tokenizer && (
+                  <Badge
+                    className="ml-1.5"
+                    variant={activeSpace.tokenizer.exact ? "success" : "warning"}
+                  >
+                    {activeSpace.tokenizer.exact
+                      ? t("retrieval.tokenizer.exact")
+                      : t("retrieval.tokenizer.approximate")}
+                  </Badge>
+                )}
+              </span>
               <span>
                 {t("retrieval.active.health")}:{" "}
                 <Badge variant={activeHealth?.ok ? "success" : "danger"}>
@@ -922,13 +1126,168 @@ export function RetrievalManagementSection() {
                     : t("retrieval.active.healthFailed")}
                 </Badge>
               </span>
+              <a
+                href={RETRIEVAL_RUNBOOK_URL}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-[var(--as-primary)] hover:underline"
+                data-testid="retrieval-active-runbook"
+              >
+                {t("retrieval.spaces.runbook")}
+              </a>
             </div>
+            {activeSpace.token_aware && activeSpace.tokenizer && !activeSpace.tokenizer.exact && (
+              <p
+                className="flex items-start gap-1.5 text-xs text-[var(--as-warning)]"
+                data-testid="retrieval-active-tokenizer-warning"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>{t("retrieval.spaces.approxWarning")}</span>
+              </p>
+            )}
             <StatTiles tiles={activeStats} layout="auto" testId="retrieval-active-stats" />
             {activeSpace.last_error && (
               <p className="text-xs text-rose-600" data-testid="retrieval-active-last-error">
                 {activeSpace.last_error}
               </p>
             )}
+          </div>
+        )}
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        name="retrieval-tokenizer"
+        icon={Wrench}
+        title={t("retrieval.card.tokenizer.title")}
+        description={t("retrieval.card.tokenizer.description")}
+        adminOnly
+      >
+        {tokenizerLoading ? (
+          <Spinner label={t("retrieval.loading")} />
+        ) : !tokenizerReport ? (
+          <p className="text-xs text-[var(--as-muted-fg)]" role="status">
+            {t("retrieval.tokenizer.unavailable")}
+          </p>
+        ) : (
+          <div className="space-y-3" data-testid="retrieval-tokenizer-report">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-[var(--as-muted-fg)]">
+              <span data-testid="retrieval-tokenizer-model">
+                {t("retrieval.tokenizer.model")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.model.provider}/{tokenizerReport.model.model}
+                </strong>
+              </span>
+              <span data-testid="retrieval-tokenizer-name">
+                {t("retrieval.tokenizer.tokenizer")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.identity}
+                </strong>{" "}
+                <Badge
+                  variant={tokenizerReport.tokenizer.exact ? "success" : "warning"}
+                >
+                  {tokenizerReport.tokenizer.exact
+                    ? t("retrieval.tokenizer.exact")
+                    : t("retrieval.tokenizer.approximate")}
+                </Badge>
+              </span>
+              <span data-testid="retrieval-tokenizer-limit">
+                {t("retrieval.tokenizer.maxInput")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.max_input_tokens}
+                </strong>{" "}
+                {tokenizerReport.tokenizer.max_input_assumed
+                  ? `(${t("retrieval.tokenizer.assumed")})`
+                  : ""}
+              </span>
+              <span>
+                {t("retrieval.tokenizer.source")}:{" "}
+                <strong className="text-[var(--as-fg)]">
+                  {tokenizerReport.tokenizer.source}
+                </strong>
+              </span>
+            </div>
+
+            {(tokenizerReport.tokenizer.degraded_reason ||
+              !tokenizerReport.tokenizer.exact ||
+              tokenizerReport.tokenizer.max_input_assumed) && (
+              <p
+                className="flex items-start gap-1.5 text-xs text-[var(--as-warning)]"
+                data-testid="retrieval-tokenizer-warning"
+                role="status"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span>
+                  {tokenizerReport.tokenizer.degraded_reason
+                    ? t("retrieval.tokenizer.degraded", {
+                        reason: tokenizerReport.tokenizer.degraded_reason,
+                      })
+                    : !tokenizerReport.tokenizer.exact
+                      ? t("retrieval.tokenizer.fallbackWarning")
+                      : t("retrieval.tokenizer.assumedWarning")}
+                </span>
+              </p>
+            )}
+
+            <div className="rounded-lg border border-[var(--as-border)] p-2">
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {tokenizerReport.chunking.token_aware
+                  ? t("retrieval.tokenizer.chunkingTokenAware", {
+                      tokens: tokenizerReport.chunking.max_chunk_tokens ?? "—",
+                      overlap: tokenizerReport.chunking.overlap_tokens ?? 0,
+                      chars: tokenizerReport.chunking.max_chunk_chars,
+                      version: tokenizerReport.chunking.chunker_version,
+                    })
+                  : t("retrieval.tokenizer.chunking", {
+                      chars: tokenizerReport.chunking.max_chunk_chars,
+                      overlap: tokenizerReport.chunking.overlap_chars,
+                      version: tokenizerReport.chunking.chunker_version,
+                    })}
+              </p>
+              <div className="mt-2 grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
+                {tokenizerReport.reference.samples.map((sample) => (
+                  <div
+                    key={sample.language}
+                    className="flex items-center justify-between gap-2 rounded-md bg-[var(--as-muted)] px-2 py-1 text-xs"
+                    data-testid={`retrieval-tokenizer-sample-${sample.language}`}
+                  >
+                    <span className="text-[var(--as-fg)]">{sample.label}</span>
+                    <span className="text-[var(--as-muted-fg)]">
+                      {sample.chars} {t("retrieval.tokenizer.chars")} · {sample.tokens}{" "}
+                      {t("retrieval.tokenizer.tokens")} ·{" "}
+                      {sample.chars_per_token.toFixed(2)}{" "}
+                      {t("retrieval.tokenizer.charsPerToken")}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--as-muted-fg)]" data-testid="retrieval-tokenizer-corpus">
+              {tokenizerReport.corpus.state === "empty"
+                ? t("retrieval.tokenizer.corpusEmpty")
+                : t("retrieval.tokenizer.corpusStats", {
+                    documents: tokenizerReport.corpus.documents,
+                    records: tokenizerReport.corpus.records,
+                    tokens: tokenizerReport.corpus.tokens,
+                    ratio: tokenizerReport.corpus.chars_per_token.toFixed(2),
+                  })}
+              {tokenizerReport.corpus.records_over_limit > 0 &&
+                ` · ${t("retrieval.tokenizer.overLimit", {
+                  count: tokenizerReport.corpus.records_over_limit,
+                  limit: tokenizerReport.tokenizer.max_input_tokens,
+                })}`}
+            </p>
+            <p className="text-xs text-[var(--as-muted-fg)]">
+              {t("retrieval.tokenizer.shadow")}
+            </p>
+          </div>
+        )}
+        {modelProfiles && (
+          <div className="mt-3">
+            <RetrievalModelProfileCard
+              profiles={modelProfiles}
+              onRefresh={refresh}
+            />
           </div>
         )}
       </SettingsSectionCard>
@@ -1120,20 +1479,154 @@ export function RetrievalManagementSection() {
                   testId="retrieval-build-document-prefix"
                 />
               </div>
-              <Button
-                size="sm"
-                disabled={
-                  busy === "spaces" ||
-                  !buildDraft.name.trim() ||
-                  !buildDraft.provider.trim() ||
-                  !buildDraft.model.trim()
-                }
-                loading={busy === "spaces"}
-                onClick={() => void submitBuild()}
-                data-testid="retrieval-build-submit"
-              >
-                {t("retrieval.action.build")}
-              </Button>
+              <ToggleRow
+                label={t("retrieval.buildProfile.tokenAware")}
+                checked={buildTokenAware}
+                onChange={setBuildTokenAware}
+                data-testid="retrieval-build-token-aware"
+              />
+              <p className="text-xs text-[var(--as-muted-fg)]">
+                {buildTokenAware
+                  ? t("retrieval.buildProfile.tokenAwareHint")
+                  : t("retrieval.buildProfile.legacyHint")}
+              </p>
+              {buildTokenAware && buildPreviewLoading && (
+                <p className="text-xs text-[var(--as-muted-fg)]" role="status">
+                  {t("retrieval.buildProfile.resolving")}
+                </p>
+              )}
+              {buildTokenAware && buildPreview && (
+                <div
+                  className="space-y-1 rounded-md bg-[color-mix(in_srgb,var(--as-muted)_35%,transparent)] px-2 py-1.5 text-xs"
+                  data-testid="retrieval-build-profile"
+                >
+                  <p className="flex flex-wrap items-center gap-2 text-[var(--as-muted-fg)]">
+                    <Badge
+                      variant={
+                        buildPreview.source === "fallback" ? "warning" : "secondary"
+                      }
+                    >
+                      {t(`retrieval.profile.source.${buildPreview.source}`)}
+                    </Badge>
+                    <Badge variant={buildPreview.exact ? "success" : "warning"}>
+                      {buildPreview.exact
+                        ? t("retrieval.tokenizer.exact")
+                        : t("retrieval.tokenizer.approximate")}
+                    </Badge>
+                    <span data-testid="retrieval-build-profile-identity">
+                      {t("retrieval.buildProfile.line", {
+                        identity:
+                          buildPreview.counted_identity !== buildPreview.identity
+                            ? `${buildPreview.identity} → ${buildPreview.counted_identity}`
+                            : buildPreview.identity,
+                        limit: buildPreview.max_input_tokens,
+                      })}
+                    </span>
+                  </p>
+                  <p className="text-[var(--as-muted-fg)]" data-testid="retrieval-build-profile-provenance">
+                    {t("retrieval.buildProfile.provenance", {
+                      revision: buildPreview.tokenizer_revision ?? "—",
+                      sha: buildPreview.tokenizer_artifact_sha256
+                        ? buildPreview.tokenizer_artifact_sha256.slice(0, 12)
+                        : "—",
+                    })}
+                  </p>
+                  {(buildPreview.source === "fallback" || !buildPreview.exact) && (
+                    <p
+                      className="flex items-start gap-1.5 text-[var(--as-warning)]"
+                      data-testid="retrieval-build-profile-warning"
+                    >
+                      <AlertTriangle
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                        aria-hidden
+                      />
+                      <span>
+                        {buildPreview.source === "fallback"
+                          ? t("retrieval.profile.fallbackWarning")
+                          : t("retrieval.tokenizer.degraded", {
+                              reason:
+                                buildPreview.degraded_reason ??
+                                t("retrieval.tokenizer.assetUnavailable"),
+                            })}
+                      </span>
+                    </p>
+                  )}
+                  <div className="grid gap-2 pt-1 sm:grid-cols-3">
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkTokens")}
+                      value={buildChunk.maxTokens}
+                      onChange={(value) =>
+                        setBuildChunk({ ...buildChunk, maxTokens: value })
+                      }
+                      min={32}
+                      max={buildPreview.max_input_tokens}
+                      testId="retrieval-build-chunk-tokens"
+                    />
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkOverlap")}
+                      value={buildChunk.overlap}
+                      onChange={(value) => setBuildChunk({ ...buildChunk, overlap: value })}
+                      min={0}
+                      max={Math.max(0, Math.floor((buildChunk.maxTokens ?? 32) / 2) - 1)}
+                      testId="retrieval-build-chunk-overlap"
+                    />
+                    <NumberField
+                      label={t("retrieval.buildProfile.chunkChars")}
+                      value={buildChunk.maxChars}
+                      onChange={(value) => setBuildChunk({ ...buildChunk, maxChars: value })}
+                      min={1}
+                      max={1000000}
+                      testId="retrieval-build-chunk-chars"
+                    />
+                  </div>
+                  {buildChunkError && (
+                    <p
+                      className="text-[var(--as-warning)]"
+                      role="alert"
+                      data-testid="retrieval-build-chunk-error"
+                    >
+                      {buildChunkError}
+                    </p>
+                  )}
+                  <p className="text-[11px] text-[var(--as-muted-fg)]">
+                    {t("retrieval.buildProfile.v2Hint")}
+                  </p>
+                </div>
+              )}
+              {buildError && (
+                <p className="text-xs text-rose-600" role="alert" data-testid="retrieval-build-error">
+                  {buildError}
+                </p>
+              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  size="sm"
+                  disabled={
+                    busy === "spaces" ||
+                    !buildDraft.name.trim() ||
+                    !buildDraft.provider.trim() ||
+                    !buildDraft.model.trim() ||
+                    (buildTokenAware && (!buildPreview || !!buildChunkError))
+                  }
+                  loading={busy === "spaces"}
+                  onClick={() => void submitBuild()}
+                  data-testid="retrieval-build-submit"
+                >
+                  {t("retrieval.action.build")}
+                </Button>
+                <a
+                  href={RETRIEVAL_RUNBOOK_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs font-semibold text-[var(--as-primary)] hover:underline"
+                  data-testid="retrieval-build-runbook"
+                >
+                  {t("retrieval.buildProfile.runbook")}
+                </a>
+              </div>
+              <p className="text-[11px] text-[var(--as-muted-fg)]">
+                {t("retrieval.spaces.retainHint")}
+              </p>
             </div>
           )}
 
@@ -1150,6 +1643,7 @@ export function RetrievalManagementSection() {
                   <tr className="border-b border-[var(--as-border)] text-left text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
                     <th className="px-3 py-2">{t("retrieval.field.space")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.model")}</th>
+                    <th className="px-3 py-2">{t("retrieval.spaces.chunker")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.coverage")}</th>
                     <th className="px-3 py-2">{t("retrieval.active.gate")}</th>
                     <th className="px-3 py-2" />
@@ -1180,6 +1674,9 @@ export function RetrievalManagementSection() {
                         {space.provider}/{space.model} · {space.dim}
                         <br />
                         {space.backend}
+                      </td>
+                      <td className="px-3 py-2 text-xs text-[var(--as-muted-fg)]">
+                        <SpaceChunkerCell space={space} />
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-[var(--as-muted-fg)]">
                         {rate(space.coverage)}

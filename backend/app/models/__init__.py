@@ -32,6 +32,7 @@ from app.models.econ_model import (
     Scenario,
     ScenarioPoint,
 )
+from app.models.embedding_profile_model import EmbeddingModelProfile
 from app.models.engagement_model import (
     Notification,
     NotificationDelivery,
@@ -147,6 +148,7 @@ __all__ = [
     "EconSeries",
     "EconWatchEntry",
     "EducationItem",
+    "EmbeddingModelProfile",
     "ExperienceAchievement",
     "ExperienceItem",
     "ExperienceSkill",

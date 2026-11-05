@@ -25,7 +25,13 @@ import hashlib
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from app.storage.vector_contract import content_hash
+from app.storage.tokenizer_contract import (
+    ChunkConfig,
+    TokenizerKind,
+    TokenizerSpec,
+    heuristic_token_count,
+)
+from app.storage.vector_contract import V1_VIEWS, content_hash
 
 COMPOSER_VERSION = "1"
 CHUNKER_VERSION = "1"
@@ -34,6 +40,46 @@ TEXT_REF_SCHEMA_VERSION = 1
 BODY_CHUNK_CHARS = 1600
 BODY_CHUNK_OVERLAP_CHARS = 240
 SUMMARY_EXCERPT_CHARS = 600
+
+#: Tokens reserved on top of the document prefix when checking a chunk against
+#: the model input limit. It is deliberately small: the tokenizer itself is
+#: exact for v2 spaces, and a provider may add a handful of framing tokens.
+TOKEN_SAFETY_MARGIN = 16
+
+
+class InputTooLong(RuntimeError):
+    """A single embeddable unit cannot fit the model input (write failure).
+
+    This is never a query-time degradation and never triggers a retry loop:
+    the writer records the item as failed with ``reason`` and the reconcile
+    run moves on.
+    """
+
+    reason = "input_too_long"
+
+    def __init__(
+        self,
+        *,
+        view: str | None = None,
+        tokens: int | None = None,
+        limit: int | None = None,
+        detail: str = "",
+    ) -> None:
+        self.view = view
+        self.tokens = tokens
+        self.limit = limit
+        self.detail = detail
+        parts = ["input too long"]
+        if view:
+            parts.append(f"view={view}")
+        if tokens is not None:
+            parts.append(f"tokens={tokens}")
+        if limit is not None:
+            parts.append(f"limit={limit}")
+        if detail:
+            parts.append(detail)
+        super().__init__(" ".join(parts))
+
 
 _PRIORITY_RANK = {"must_have": 0, "nice_to_have": 1}
 _IMPORTANCE_RANK = {"core": 0, "important": 1, "bonus": 2}
@@ -49,8 +95,25 @@ class TextChunk:
 
 
 @dataclass(frozen=True)
+class TokenChunk:
+    """One token window of a view: exact chars plus its token offsets."""
+
+    text: str
+    char_start: int
+    char_end: int
+    token_start: int
+    token_end: int
+    token_count: int
+
+
+@dataclass(frozen=True)
 class ComposedRecord:
-    """One record a composer wants embedded (before any vector exists)."""
+    """One record a composer wants embedded (before any vector exists).
+
+    Legacy char-chunked records leave the ``token_*`` fields ``None``; a
+    token-aware record carries all three, with
+    ``token_count == token_end - token_start``.
+    """
 
     view: str
     text: str
@@ -59,6 +122,9 @@ class ComposedRecord:
     char_end: int | None = None
     text_ref: Mapping[str, str] | None = None
     text_ref_schema_version: int | None = None
+    token_count: int | None = None
+    token_start: int | None = None
+    token_end: int | None = None
 
     @property
     def content_hash(self) -> str:
@@ -138,6 +204,232 @@ def chunk_text(
             break
         start += step
     return chunks
+
+
+def _trimmed_window(text: str, char_start: int, char_end: int) -> tuple[str, int, int] | None:
+    """Trim a character window and return it with exact adjusted offsets."""
+    window = text[char_start:char_end]
+    stripped = window.strip()
+    if not stripped:
+        return None
+    leading = len(window) - len(window.lstrip())
+    trailing = len(window.rstrip())
+    return stripped, char_start + leading, char_start + trailing
+
+
+def _heuristic_chunk_tokens(
+    text: str,
+    *,
+    tokenizer: TokenizerSpec,
+    chunk: ChunkConfig,
+    limit: int,
+) -> list[TokenChunk]:
+    """Conservative split for a labelled heuristic tokenizer (no token ids).
+
+    There is no encoding to slice, so windows are cut by character length
+    under both the configured char ceiling and the conservative token
+    estimate. ``token_start``/``token_end`` are estimated token offsets and
+    are only as exact as the space's ``exact=false`` tokenizer.
+    """
+    chunks: list[TokenChunk] = []
+    start = 0
+    token_cursor = 0
+    total = len(text)
+    while start < total:
+        max_length = min(chunk.max_chars, total - start)
+        if max_length < 1:
+            raise InputTooLong(tokens=1, limit=limit, detail="no character fits")
+        if heuristic_token_count(text[start : start + max_length]) > limit:
+            low, high = 1, max_length
+            while low < high:
+                middle = (low + high + 1) // 2
+                if heuristic_token_count(text[start : start + middle]) <= limit:
+                    low = middle
+                else:
+                    high = middle - 1
+            max_length = low
+        end = start + max_length
+        trimmed = _trimmed_window(text, start, end)
+        if trimmed is None:
+            if end >= total:
+                break
+            start = end
+            continue
+        piece, char_start, char_end = trimmed
+        count = heuristic_token_count(piece)
+        token_start = 0 if not chunks else max(token_cursor - chunk.overlap_tokens, 0)
+        token_end = token_start + count
+        chunks.append(
+            TokenChunk(
+                text=piece,
+                char_start=char_start,
+                char_end=char_end,
+                token_start=token_start,
+                token_end=token_end,
+                token_count=count,
+            )
+        )
+        token_cursor = token_end
+        if end >= total:
+            break
+        overlap_chars = min(
+            int(max_length * chunk.overlap_tokens / max(chunk.max_chunk_tokens, 1)),
+            max(max_length - 1, 0),
+        )
+        next_start = end - overlap_chars
+        start = next_start if next_start > start else end
+    return chunks
+
+
+def chunk_tokens(
+    text: str,
+    *,
+    tokenizer: TokenizerSpec,
+    chunk: ChunkConfig,
+    service=None,
+    document_prefix: str | None = None,
+    view: str | None = None,
+) -> list[TokenChunk]:
+    """Split one view into overlapping token windows with exact char offsets.
+
+    The model input budget is ``max_chunk_tokens`` **and** the model's
+    ``max_input_tokens`` minus the document-prefix tokens and a small safety
+    margin. ``max_chars`` is a ceiling: a window is narrowed until it fits,
+    and a single item that still cannot fit raises :class:`InputTooLong`
+    instead of being truncated. The heuristic tokenizer has no ids and uses
+    the conservative character split (labelled approximate by the space).
+    """
+    if not (text or "").strip():
+        return []
+    if service is None:
+        from app.ai.tokenizers import get_tokenizer_service
+
+        service = get_tokenizer_service()
+    prefix_tokens = 0
+    if document_prefix:
+        prefix_tokens = service.count(tokenizer, document_prefix)
+    budget = tokenizer.max_input_tokens - prefix_tokens - TOKEN_SAFETY_MARGIN
+    limit = min(chunk.max_chunk_tokens, budget)
+    if limit < 1:
+        raise InputTooLong(
+            view=view,
+            tokens=chunk.max_chunk_tokens,
+            limit=tokenizer.max_input_tokens,
+            detail=f"prefix={prefix_tokens} margin={TOKEN_SAFETY_MARGIN}",
+        )
+    if tokenizer.kind is TokenizerKind.HEURISTIC:
+        return _heuristic_chunk_tokens(text, tokenizer=tokenizer, chunk=chunk, limit=limit)
+
+    ids, spans = service.encode_with_offsets(tokenizer, text)
+    total = len(ids)
+    if total < 1:
+        return []
+    overlap = min(chunk.overlap_tokens, max((limit - 1) // 2, 0))
+
+    def _window(start: int, end: int) -> tuple[str, int, int]:
+        trimmed = _trimmed_window(text, spans[start][0], spans[end - 1][1])
+        if trimmed is None:
+            return "", spans[start][0], spans[start][0]
+        piece, char_start, char_end = trimmed
+        decoded = service.decode(tokenizer, ids[start:end])
+        return (decoded if decoded == piece else piece), char_start, char_end
+
+    chunks: list[TokenChunk] = []
+    start = 0
+    while start < total:
+        end = min(start + limit, total)
+        piece, char_start, char_end = _window(start, end)
+        while (not piece or len(piece) > chunk.max_chars) and end > start + 1:
+            end -= 1
+            piece, char_start, char_end = _window(start, end)
+        if not piece:
+            if end >= total:
+                break
+            start = max(end - overlap, start + 1)
+            continue
+        if len(piece) > chunk.max_chars:
+            raise InputTooLong(
+                view=view,
+                tokens=end - start,
+                limit=chunk.max_chars,
+                detail="a single token window exceeds max_chars",
+            )
+        chunks.append(
+            TokenChunk(
+                text=piece,
+                char_start=char_start,
+                char_end=char_end,
+                token_start=start,
+                token_end=end,
+                token_count=end - start,
+            )
+        )
+        if end >= total:
+            break
+        start = max(end - overlap, start + 1)
+    return chunks
+
+
+def compose_token_records(
+    composed: ComposedDocument,
+    *,
+    tokenizer: TokenizerSpec,
+    chunk: ChunkConfig,
+    service=None,
+    document_prefix: str | None = None,
+) -> ComposedDocument:
+    """Recompose every embeddable view of a document as token windows.
+
+    Legacy ``compose_*`` functions stay the v1 path; this is the v2 path used
+    for a token-aware space. It reuses the composed whole-view text (and each
+    view's existing ``text_ref``) and returns a new document whose record set,
+    ``source_hash`` and token offsets describe exactly what will be embedded.
+    """
+    if service is None:
+        from app.ai.tokenizers import get_tokenizer_service
+
+        service = get_tokenizer_service()
+    refs: dict[str, tuple[Mapping[str, str] | None, int | None]] = {}
+    for record in composed.records:
+        if record.view not in refs and record.text_ref is not None:
+            refs[record.view] = (record.text_ref, record.text_ref_schema_version)
+    records: list[ComposedRecord] = []
+    for view in V1_VIEWS:
+        text = str(composed.views.get(view) or "")
+        if not text.strip():
+            continue
+        ref, version = refs.get(view, (None, None))
+        for index, window in enumerate(
+            chunk_tokens(
+                text,
+                tokenizer=tokenizer,
+                chunk=chunk,
+                service=service,
+                document_prefix=document_prefix,
+                view=view,
+            )
+        ):
+            records.append(
+                ComposedRecord(
+                    view=view,
+                    text=window.text,
+                    chunk_index=index,
+                    char_start=window.char_start,
+                    char_end=window.char_end,
+                    text_ref=ref,
+                    text_ref_schema_version=version,
+                    token_count=window.token_count,
+                    token_start=window.token_start,
+                    token_end=window.token_end,
+                )
+            )
+    return ComposedDocument(
+        kind=composed.kind,
+        source_id=composed.source_id,
+        views=composed.views,
+        records=tuple(records),
+        composer_version=composed.composer_version,
+    )
 
 
 def _ref(
@@ -562,13 +854,18 @@ __all__ = [
     "COMPOSER_VERSION",
     "SUMMARY_EXCERPT_CHARS",
     "TEXT_REF_SCHEMA_VERSION",
+    "TOKEN_SAFETY_MARGIN",
     "ComposedDocument",
     "ComposedRecord",
+    "InputTooLong",
     "TextChunk",
+    "TokenChunk",
     "chunk_text",
+    "chunk_tokens",
     "compose_job_views",
     "compose_posting_views",
     "compose_profile_views",
     "compose_skill_text",
     "compose_skill_views",
+    "compose_token_records",
 ]

@@ -15,6 +15,7 @@ import json
 import math
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -39,6 +40,9 @@ GROUPS = (
     "textHash",
     "spaceKeyStability",
     "spaceKeyPinned",
+    "spaceKeyV2",
+    "spaceKeyStored",
+    "indexRecordTokens",
     "rrfMerge",
     "fusedOrder",
     "maxsim",
@@ -61,6 +65,16 @@ def _close(actual: float, expected: float) -> bool:
     return math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-12)
 
 
+def _tokenizer(row: dict) -> SimpleNamespace | None:
+    payload = row.get("tokenizer")
+    return None if payload is None else SimpleNamespace(**payload)
+
+
+def _chunk(row: dict) -> SimpleNamespace | None:
+    payload = row.get("chunk")
+    return None if payload is None else SimpleNamespace(**payload)
+
+
 def _space(row: dict) -> vc.VectorSpace:
     return vc.VectorSpace(
         name="fixture",
@@ -72,6 +86,22 @@ def _space(row: dict) -> vc.VectorSpace:
         document_prefix=row.get("documentPrefix"),
         chunker_version=row["chunkerVersion"],
         composer_version=row["composerVersion"],
+        stored_key=row.get("storedKey"),
+        tokenizer=_tokenizer(row),
+        chunk=_chunk(row),
+    )
+
+
+def _preimage_key(row: dict) -> str:
+    return vc.space_key(
+        row["provider"],
+        row["model"],
+        row["dim"],
+        row["normalize"],
+        row.get("queryPrefix"),
+        row.get("documentPrefix"),
+        row["chunkerVersion"],
+        row["composerVersion"],
     )
 
 
@@ -131,6 +161,30 @@ def test_space_key_stability_fixtures():
 def test_pinned_space_keys():
     for row in _fixtures()["spaceKeyPinned"]:
         assert _space(row["space"]).key == row["expected"], row["name"]
+
+
+def test_pinned_v2_space_keys_differ_from_v1():
+    for row in _fixtures()["spaceKeyV2"]:
+        assert _space(row["space"]).key == row["expected"], row["name"]
+        assert _preimage_key(row["space"]) == row["expectedV1"], row["name"]
+        assert row["expected"] != row["expectedV1"], row["name"]
+
+
+def test_index_record_token_fields_are_optional_and_ordered():
+    for row in _fixtures()["indexRecordTokens"]:
+        record = vc.IndexRecord(**row["record"])
+        assert [record.token_count, record.token_start, record.token_end] == row["expected"], row[
+            "name"
+        ]
+
+
+def test_stored_space_key_wins_over_the_current_preimage():
+    for row in _fixtures()["spaceKeyStored"]:
+        recomputed = _preimage_key(row["space"])
+        assert recomputed == row["recomputed"], f"{row['name']}: v1 pre-image drifted"
+        assert _space(row["space"]).key == row["expected"], row["name"]
+        if row.get("differs"):
+            assert row["expected"] != recomputed, row["name"]
 
 
 def test_rrf_merge_fixtures():
@@ -221,6 +275,8 @@ def test_invalid_arguments_raise_value_error():
                 vc.rrf_merge(row["lists"], k=row["k"], weights=row.get("weights"))
             elif row["call"] == "space":
                 _space(row["space"])
+            elif row["call"] == "indexRecord":
+                vc.IndexRecord(**row["record"])
             else:  # pragma: no cover - a new fixture call must be wired
                 pytest.fail(f"unknown invalidArgs call {row['call']}")
 

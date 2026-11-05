@@ -22,10 +22,13 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
+from app.ai.tokenizers import get_tokenizer_service
 from app.core.database import get_db, sync_engine
 from app.core.errors import NotFoundError, ValidationError
+from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobType
 from app.models.user_model import User
+from app.services import embedding_profiles, tokenizer_fetch, tokenizer_report
 from app.services import retrieval_actions as actions
 from app.services import retrieval_jobs as retrieval_jobs
 from app.services import retrieval_ops_reads as reads
@@ -42,6 +45,7 @@ from app.services.vector_reconcile_service import (
 )
 from app.services.vector_status import read_health, read_space_statuses
 from app.storage import retrieval_ops as ops
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 
 router = APIRouter(
     prefix="/admin/retrieval", tags=["retrieval-admin"], dependencies=[Depends(require_admin)]
@@ -159,8 +163,50 @@ class ActionKeyRequest(BaseModel):
     idempotency_key: str | None = Field(default=None)
 
 
+class BuildTokenizerRequest(BaseModel):
+    """An explicit pinned tokenizer for a token-aware (v2) build.
+
+    The server derives nothing from the model name here: these fields are the
+    admin's selection. ``exact`` may be omitted (it follows ``kind``), and a
+    non-heuristic kind needs its artifact checksum (plus a pinned revision for
+    Hugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the
+    same effective profile the write path resolves.
+    """
+
+    kind: str = Field(..., pattern="^(tiktoken|hf_tokenizers|sentencepiece|heuristic)$")
+    identifier: str = Field(..., min_length=1, max_length=200)
+    revision: str | None = Field(default=None, max_length=120)
+    artifact_sha256: str | None = Field(default=None, max_length=64)
+    exact: bool | None = Field(
+        default=None, description="defaults from kind; heuristic is always false"
+    )
+    max_input_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_INPUT_TOKENS)
+    source: str = Field(default="admin", pattern="^(provider|curated|admin|fallback)$")
+
+
+class BuildChunkRequest(BaseModel):
+    """The token-aware chunk budget (bounds mirror the tokenizer contract)."""
+
+    max_chunk_tokens: int = Field(..., ge=32, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    overlap_tokens: int = Field(default=0, ge=0, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    max_chars: int = Field(..., ge=1, le=embedding_profiles.MAX_CHUNK_CHARS)
+
+
+class BuildProfileReference(BaseModel):
+    """Build from the effective embedding profile of one provider/model pair."""
+
+    provider: str = Field(..., min_length=1, max_length=60)
+    model: str = Field(..., min_length=1, max_length=120)
+
+
 class BuildSpaceRequest(BaseModel):
-    """Provision a ``building`` space beside the active one."""
+    """Provision a ``building`` space beside the active one.
+
+    Omitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy
+    v1 char-chunk build. Supplying either a resolved-profile reference or an
+    explicit tokenizer makes the build token-aware (v2); a half-configured
+    request is refused instead of silently falling back to v1.
+    """
 
     name: str = Field(..., min_length=1, max_length=40)
     provider: str = Field(..., min_length=1, max_length=60)
@@ -170,6 +216,66 @@ class BuildSpaceRequest(BaseModel):
     normalize: bool = True
     query_prefix: str | None = Field(default=None, max_length=80)
     document_prefix: str | None = Field(default=None, max_length=80)
+    tokenizer: BuildTokenizerRequest | None = None
+    chunk: BuildChunkRequest | None = None
+    tokenizer_profile: BuildProfileReference | None = None
+    idempotency_key: str | None = Field(default=None)
+
+
+class ModelProfileRequest(BaseModel):
+    """One bounded admin embedding-tokenizer/limits override.
+
+    The provider class + model pair is the key. The tokenizer kind is
+    restricted to what this build can actually load: bundled ``tiktoken``,
+    a pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +
+    verified SHA-256) or the conservative heuristic. The server derives
+    ``exact`` and ``source`` — a client cannot declare a heuristic as exact.
+    """
+
+    provider_class: str = Field(..., min_length=1, max_length=40)
+    model: str = Field(..., min_length=1, max_length=200)
+    tokenizer_kind: str = Field(..., min_length=1, max_length=30)
+    tokenizer_identifier: str = Field(..., min_length=1, max_length=200)
+    tokenizer_revision: str | None = Field(default=None, max_length=120)
+    tokenizer_artifact_sha256: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern="^[0-9a-fA-F]{64}$",
+        description=(
+            "packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset"
+        ),
+    )
+    max_input_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_INPUT_TOKENS)
+    batch_max_items: int = Field(..., ge=1, le=embedding_profiles.MAX_BATCH_ITEMS)
+    batch_max_tokens: int = Field(..., ge=1, le=embedding_profiles.MAX_BATCH_TOKENS)
+    chunk_max_tokens: int = Field(..., ge=32, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    chunk_overlap_tokens: int = Field(default=0, ge=0, le=embedding_profiles.MAX_CHUNK_TOKENS)
+    chunk_max_chars: int = Field(..., ge=1, le=embedding_profiles.MAX_CHUNK_CHARS)
+
+
+class TokenizerFetchRequestBody(BaseModel):
+    """One pinned, bounded Hugging Face tokenizer fetch (admin-only job)."""
+
+    repository: str = Field(..., min_length=3, max_length=200, description="org/model")
+    revision: str = Field(
+        ...,
+        min_length=40,
+        max_length=40,
+        pattern="^[0-9a-fA-F]{40}$",
+        description="pinned 40-character commit sha (branches/tags are refused)",
+    )
+    files: list[str] = Field(
+        default_factory=lambda: [tokenizer_fetch.PRIMARY_TOKENIZER_FILE],
+        description=(
+            "allowlisted small files; must include tokenizer.json "
+            f"({tokenizer_fetch.ALLOWED_FILES})"
+        ),
+    )
+    expected_sha256: str | None = Field(
+        default=None,
+        pattern="^[0-9a-fA-F]{64}$",
+        description="optional expected tokenizer.json sha256; a mismatch fails the fetch",
+    )
     idempotency_key: str | None = Field(default=None)
 
 
@@ -206,6 +312,76 @@ class QualityCompareRequest(BaseModel):
     space: str = Field(..., description="candidate/new space id or name")
     compare_space: str = Field(..., description="baseline/old space id or name")
     idempotency_key: str | None = Field(default=None)
+
+
+async def _build_tokenizer_and_chunk(
+    db: AsyncSession, request: BuildSpaceRequest
+) -> tuple[TokenizerSpec | None, ChunkConfig | None]:
+    """Resolve the optional v2 identity; refuse a half-configured request.
+
+    ``tokenizer_profile`` pins the same effective profile (admin → curated →
+    fallback, HF included) the write path uses. Explicit ``tokenizer`` fields
+    are validated through the contract and must name an artifact this instance
+    can actually load; no model name is ever guessed into a tokenizer.
+    """
+    has_explicit = request.tokenizer is not None
+    has_profile = request.tokenizer_profile is not None
+    if has_explicit and has_profile:
+        raise ValidationError("supply either tokenizer or tokenizer_profile, not both")
+    if not has_explicit and not has_profile:
+        if request.chunk is not None:
+            raise ValidationError("chunk bounds require a tokenizer or tokenizer_profile")
+        return None, None
+
+    if has_profile:
+        reference = request.tokenizer_profile
+        assert reference is not None
+        profile = await embedding_profiles.resolve_for(db, reference.provider, reference.model)
+        tokenizer, _degraded = get_tokenizer_service().effective_spec(profile.tokenizer)
+        chunk = profile.chunk
+    else:
+        payload = request.tokenizer
+        assert payload is not None
+        if request.chunk is None:
+            raise ValidationError("an explicit tokenizer requires chunk bounds")
+        try:
+            tokenizer = TokenizerSpec(
+                kind=payload.kind,
+                identifier=payload.identifier,
+                revision=payload.revision,
+                artifact_sha256=payload.artifact_sha256,
+                exact=payload.exact,
+                max_input_tokens=payload.max_input_tokens,
+                source=payload.source,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+        service = get_tokenizer_service()
+        if not tokenizer.exact and tokenizer.kind.value != "heuristic":
+            raise ValidationError("a non-heuristic tokenizer must be exact")
+        if tokenizer.kind.value != "heuristic" and not service.available(tokenizer):
+            raise ValidationError(
+                "the selected tokenizer artifact is not available; fetch/configure it "
+                "or build from the resolved profile instead"
+            )
+        chunk = None
+
+    if request.chunk is not None:
+        try:
+            chunk = ChunkConfig(
+                max_chunk_tokens=request.chunk.max_chunk_tokens,
+                overlap_tokens=request.chunk.overlap_tokens,
+                max_chars=request.chunk.max_chars,
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc)) from exc
+
+    assert tokenizer is not None and chunk is not None
+    try:
+        chunk.assert_fits(tokenizer.max_input_tokens)
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    return tokenizer, chunk
 
 
 @router.get("/overview")
@@ -328,6 +504,209 @@ async def retrieval_usage(
     """Embed calls/tokens by day, space and kind, plus the token budget."""
     row = await reads.resolve_space(db, space) if space is not None else None
     return _guarded(await reads.read_usage(db, space=row, kind=kind, window=window))
+
+
+@router.get("/tokenizer")
+async def retrieval_tokenizer(
+    kinds: list[str] | None = Query(
+        default=None,
+        description="source kinds to shadow-measure; default all supported",
+    ),
+    limit: int = Query(
+        default=tokenizer_report.DEFAULT_CORPUS_LIMIT,
+        ge=1,
+        le=tokenizer_report.MAX_CORPUS_LIMIT,
+        description="source rows per kind (bounded admin sample)",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.
+
+    Shadow only — no write, no stored chunk change, no document text. The
+    corpus scan is bounded per kind; the multilingual reference block is a
+    fixed synthetic fixture.
+    """
+    selected = [str(kind).strip() for kind in (kinds or tokenizer_report.REPORT_KINDS)]
+    unknown = sorted(set(selected) - set(INDEXABLE_KINDS))
+    if not selected or unknown:
+        raise ValidationError(
+            f"Unknown retrieval kind(s): {unknown or selected!r} "
+            f"(expected one of {INDEXABLE_KINDS})"
+        )
+    return _guarded(await tokenizer_report.build_report(db, kinds=selected, limit_per_kind=limit))
+
+
+@router.get("/model-profiles")
+async def retrieval_model_profiles(
+    provider: str | None = Query(
+        default=None,
+        max_length=embedding_profiles.MAX_PROVIDER_CLASS_LENGTH,
+        description="provider type/label for a preview resolution",
+    ),
+    model: str | None = Query(
+        default=None,
+        max_length=embedding_profiles.MAX_MODEL_LENGTH,
+        description="embedding model id for a preview resolution",
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The curated catalog + admin overrides + the effective profile.
+
+    With ``provider`` and ``model`` the ``resolution`` previews that exact
+    pair (the build-space selector); without them it describes the assigned
+    embedding model. Curated profiles are read-only code facts; admin rows
+    are the explicit override. Nothing here rechunks or cuts over a space.
+    """
+    if (provider is None) != (model is None):
+        raise ValidationError("pass both provider and model, or neither")
+    return _guarded(await embedding_profiles.list_payload(db, provider=provider, model=model))
+
+
+@router.put("/model-profiles")
+async def retrieval_save_model_profile(
+    request: ModelProfileRequest,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Save one bounded admin tokenizer/limit override for a model pair."""
+    profile = embedding_profiles.build_override(
+        provider=request.provider_class,
+        model=request.model,
+        tokenizer_kind=request.tokenizer_kind,
+        tokenizer_identifier=request.tokenizer_identifier,
+        tokenizer_revision=request.tokenizer_revision,
+        tokenizer_artifact_sha256=request.tokenizer_artifact_sha256,
+        max_input_tokens=request.max_input_tokens,
+        batch_max_items=request.batch_max_items,
+        batch_max_tokens=request.batch_max_tokens,
+        chunk_max_tokens=request.chunk_max_tokens,
+        chunk_overlap_tokens=request.chunk_overlap_tokens,
+        chunk_max_chars=request.chunk_max_chars,
+    )
+    saved = await embedding_profiles.save_override(db, actor=user.id, profile=profile)
+    return _guarded(
+        {
+            "state": "ok",
+            "profile": embedding_profiles.profile_dto(saved),
+            "token_aware_writes": True,
+        }
+    )
+
+
+@router.delete("/model-profiles")
+async def retrieval_delete_model_profile(
+    provider: str = Query(
+        ...,
+        max_length=embedding_profiles.MAX_PROVIDER_CLASS_LENGTH,
+        description="provider type/label of the override",
+    ),
+    model: str = Query(
+        ...,
+        max_length=embedding_profiles.MAX_MODEL_LENGTH,
+        description="embedding model id of the override",
+    ),
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Drop the admin override; the curated profile (or fallback) returns."""
+    deleted = await embedding_profiles.delete_override(
+        db, actor=user.id, provider=provider, model=model
+    )
+    resolved = await embedding_profiles.resolve_for(db, provider, model)
+    return _guarded(
+        {
+            "state": "ok",
+            "deleted": deleted,
+            "resolution": embedding_profiles.profile_dto(resolved),
+            "token_aware_writes": True,
+        }
+    )
+
+
+@router.post("/tokenizer/fetch")
+async def retrieval_tokenizer_fetch(
+    request: TokenizerFetchRequestBody,
+    idempotency_key: str | None = IDEMPOTENCY_HEADER,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Queue one pinned tokenizer asset fetch (never on the request path).
+
+    The handler validates the host/file allowlist, size cap and SHA-256,
+    caches under the content hash, and audits ``vector.tokenizer.*``. A repeat
+    with the same idempotency key and body returns the original job.
+    """
+    key = _key(idempotency_key, request, required=True, action="tokenizer fetch")
+    try:
+        fetch_request = tokenizer_fetch.TokenizerFetchRequest.from_payload(request.model_dump())
+    except ValueError as exc:
+        raise ValidationError(str(exc)) from exc
+    payload = {
+        "repository": fetch_request.repository,
+        "revision": fetch_request.revision,
+        "files": list(fetch_request.files),
+        "expected_sha256": fetch_request.expected_sha256,
+    }
+    audit = emitter.audit_event(
+        actor=user.id,
+        action="vector.tokenizer.fetch_requested",
+        resource_ref=emitter.resource(
+            f"tokenizer:{fetch_request.repository}@{fetch_request.revision}",
+            files=",".join(fetch_request.files),
+        ),
+    )
+    job, deduplicated = await retrieval_jobs.enqueue_retrieval_job(
+        db,
+        job_type=BackgroundJobType.TOKENIZER_FETCH.value,
+        payload=payload,
+        idempotency_key=str(key),
+        user_id=user.id,
+        lock=False,
+        audit=audit,
+    )
+    return _guarded(
+        {
+            "state": "ok",
+            "job_id": str(job.id),
+            "job_type": job.job_type,
+            "status": job.status,
+            "progress": job.progress,
+            "stage": job.stage,
+            "requested": payload,
+            "deduplicated": deduplicated,
+            "idempotency_key": job.idempotency_key,
+        }
+    )
+
+
+@router.get("/tokenizer/fetch/{job_id}")
+async def retrieval_tokenizer_fetch_status(
+    job_id: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Read one tokenizer fetch job's status/progress/result (admin-only)."""
+    try:
+        parsed = uuid.UUID(job_id)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError(f"job_id must be a UUID, got {job_id!r}") from exc
+    job = await db.get(BackgroundJob, parsed)
+    if job is None or job.job_type != BackgroundJobType.TOKENIZER_FETCH.value:
+        raise NotFoundError("tokenizer fetch job not found")
+    return _guarded(
+        {
+            "state": "ok",
+            "job_id": str(job.id),
+            "status": job.status,
+            "progress": job.progress,
+            "stage": job.stage,
+            "heartbeat_at": job.heartbeat_at.isoformat() if job.heartbeat_at else None,
+            "error": job.error,
+            "result": job.result,
+            "requested": job.payload,
+            "created_at": job.created_at.isoformat() if job.created_at else None,
+            "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        }
+    )
 
 
 @router.get("/status")
@@ -528,6 +907,7 @@ async def retrieval_build_space(
 ) -> JSONResponse:
     """Provision a ``building`` space through the lifecycle service."""
     key = _key(idempotency_key, request, required=True, action="build")
+    tokenizer, chunk = await _build_tokenizer_and_chunk(db, request)
     payload = await actions.build_space(
         db,
         name=request.name,
@@ -540,6 +920,8 @@ async def retrieval_build_space(
         document_prefix=request.document_prefix,
         idempotency_key=str(key),
         actor=user.id,
+        tokenizer=tokenizer,
+        chunk=chunk,
     )
     return _action_response(payload)
 

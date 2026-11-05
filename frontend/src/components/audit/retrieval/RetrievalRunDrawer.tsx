@@ -8,8 +8,10 @@ import {
 import { apiDetail } from "@/api/client";
 import { Badge, PanelModal, Spinner } from "@/components/ui";
 import { GateBadge } from "@/components/audit/retrieval/RetrievalCommon";
+import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
 import {
   formatNumber,
+  RETRIEVAL_RUNBOOK_URL,
   shortId,
   statusVariant,
   TOOLS_RETRIEVAL_URL,
@@ -170,6 +172,67 @@ export function RetrievalRunDrawer({
             </MetaRow>
           </dl>
 
+          {run.progress_detail && (
+            <div
+              className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3"
+              data-testid="retrieval-run-live-progress"
+            >
+              <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+                {t("audit.retrieval.runs.liveProgress")}
+              </p>
+              <RetrievalProgress
+                detail={run.progress_detail}
+                testId="retrieval-run-progress"
+              />
+            </div>
+          )}
+
+          <div
+            className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3"
+            data-testid="retrieval-run-tokenizer"
+          >
+            <p className="mb-2 text-[11px] uppercase tracking-wide text-[var(--as-muted-fg)]">
+              {t("retrieval.spaces.chunker")}
+            </p>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <Badge variant={run.token_aware ? "success" : "secondary"}>
+                {run.token_aware
+                  ? t("retrieval.spaces.tokenAware")
+                  : t("retrieval.spaces.legacyChunker")}
+              </Badge>
+              {run.tokenizer && (
+                <>
+                  <span className="break-all font-medium text-[var(--as-fg)]">
+                    {run.tokenizer.identifier}
+                  </span>
+                  <Badge variant={run.tokenizer.exact ? "success" : "warning"}>
+                    {run.tokenizer.exact
+                      ? t("retrieval.tokenizer.exact")
+                      : t("retrieval.tokenizer.approximate")}
+                  </Badge>
+                  {run.tokenizer.source && (
+                    <span className="text-[var(--as-muted-fg)]">
+                      {t(`retrieval.profile.source.${run.tokenizer.source}`)}
+                    </span>
+                  )}
+                  <span className="text-[var(--as-muted-fg)]">
+                    {t("retrieval.tokenizer.maxInput")}:{" "}
+                    {formatNumber(run.tokenizer.max_input_tokens)}
+                  </span>
+                </>
+              )}
+              {run.chunk && (
+                <span className="text-[var(--as-muted-fg)]">
+                  {t("retrieval.spaces.chunkBudget", {
+                    tokens: run.chunk.max_chunk_tokens,
+                    overlap: run.chunk.overlap_tokens,
+                    chars: run.chunk.max_chars,
+                  })}
+                </span>
+              )}
+            </div>
+          </div>
+
           {result ? (
             <div
               className="rounded-[var(--as-radius)] border border-[var(--as-border)] bg-[var(--as-muted)] p-3"
@@ -254,13 +317,24 @@ export function RetrievalRunDrawer({
             </div>
           )}
 
-          <Link
-            to={TOOLS_RETRIEVAL_URL}
-            className="inline-flex text-xs font-semibold text-[var(--as-primary)] hover:underline"
-            data-testid="retrieval-run-tools-link"
-          >
-            {t("audit.retrieval.runs.manageInTools")} →
-          </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to={TOOLS_RETRIEVAL_URL}
+              className="inline-flex text-xs font-semibold text-[var(--as-primary)] hover:underline"
+              data-testid="retrieval-run-tools-link"
+            >
+              {t("audit.retrieval.runs.manageInTools")} →
+            </Link>
+            <a
+              href={RETRIEVAL_RUNBOOK_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex text-xs font-semibold text-[var(--as-primary)] hover:underline"
+              data-testid="retrieval-run-runbook"
+            >
+              {t("retrieval.spaces.runbook")} →
+            </a>
+          </div>
         </div>
       ) : null}
     </PanelModal>

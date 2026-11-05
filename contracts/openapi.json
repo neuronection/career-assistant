@@ -2415,9 +2415,72 @@
         "title": "BudgetOut",
         "type": "object"
       },
-      "BuildSpaceRequest": {
-        "description": "Provision a ``building`` space beside the active one.",
+      "BuildChunkRequest": {
+        "description": "The token-aware chunk budget (bounds mirror the tokenizer contract).",
         "properties": {
+          "max_chars": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Chars",
+            "type": "integer"
+          },
+          "max_chunk_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 32.0,
+            "title": "Max Chunk Tokens",
+            "type": "integer"
+          },
+          "overlap_tokens": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Overlap Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_chunk_tokens",
+          "max_chars"
+        ],
+        "title": "BuildChunkRequest",
+        "type": "object"
+      },
+      "BuildProfileReference": {
+        "description": "Build from the effective embedding profile of one provider/model pair.",
+        "properties": {
+          "model": {
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "BuildProfileReference",
+        "type": "object"
+      },
+      "BuildSpaceRequest": {
+        "description": "Provision a ``building`` space beside the active one.\n\nOmitting ``tokenizer``/``tokenizer_profile`` and ``chunk`` keeps the legacy\nv1 char-chunk build. Supplying either a resolved-profile reference or an\nexplicit tokenizer makes the build token-aware (v2); a half-configured\nrequest is refused instead of silently falling back to v1.",
+        "properties": {
+          "chunk": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildChunkRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "dim": {
             "maximum": 3072.0,
             "minimum": 1.0,
@@ -2486,6 +2549,26 @@
               }
             ],
             "title": "Query Prefix"
+          },
+          "tokenizer": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildTokenizerRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tokenizer_profile": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BuildProfileReference"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2495,6 +2578,77 @@
           "dim"
         ],
         "title": "BuildSpaceRequest",
+        "type": "object"
+      },
+      "BuildTokenizerRequest": {
+        "description": "An explicit pinned tokenizer for a token-aware (v2) build.\n\nThe server derives nothing from the model name here: these fields are the\nadmin's selection. ``exact`` may be omitted (it follows ``kind``), and a\nnon-heuristic kind needs its artifact checksum (plus a pinned revision for\nHugging Face). Prefer ``tokenizer_profile`` when the dialog should pin the\nsame effective profile the write path resolves.",
+        "properties": {
+          "artifact_sha256": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifact Sha256"
+          },
+          "exact": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "defaults from kind; heuristic is always false",
+            "title": "Exact"
+          },
+          "identifier": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Identifier",
+            "type": "string"
+          },
+          "kind": {
+            "pattern": "^(tiktoken|hf_tokenizers|sentencepiece|heuristic)$",
+            "title": "Kind",
+            "type": "string"
+          },
+          "max_input_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Input Tokens",
+            "type": "integer"
+          },
+          "revision": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revision"
+          },
+          "source": {
+            "default": "admin",
+            "pattern": "^(provider|curated|admin|fallback)$",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "identifier",
+          "max_input_tokens"
+        ],
+        "title": "BuildTokenizerRequest",
         "type": "object"
       },
       "BulkJobActionIn": {
@@ -13668,6 +13822,111 @@
         "title": "ModelOut",
         "type": "object"
       },
+      "ModelProfileRequest": {
+        "description": "One bounded admin embedding-tokenizer/limits override.\n\nThe provider class + model pair is the key. The tokenizer kind is\nrestricted to what this build can actually load: bundled ``tiktoken``,\na pinned Hugging Face ``tokenizer.json`` (repo + 40-character commit +\nverified SHA-256) or the conservative heuristic. The server derives\n``exact`` and ``source`` \u2014 a client cannot declare a heuristic as exact.",
+        "properties": {
+          "batch_max_items": {
+            "maximum": 4096.0,
+            "minimum": 1.0,
+            "title": "Batch Max Items",
+            "type": "integer"
+          },
+          "batch_max_tokens": {
+            "maximum": 10000000.0,
+            "minimum": 1.0,
+            "title": "Batch Max Tokens",
+            "type": "integer"
+          },
+          "chunk_max_chars": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Chunk Max Chars",
+            "type": "integer"
+          },
+          "chunk_max_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 32.0,
+            "title": "Chunk Max Tokens",
+            "type": "integer"
+          },
+          "chunk_overlap_tokens": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Chunk Overlap Tokens",
+            "type": "integer"
+          },
+          "max_input_tokens": {
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Max Input Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider_class": {
+            "maxLength": 40,
+            "minLength": 1,
+            "title": "Provider Class",
+            "type": "string"
+          },
+          "tokenizer_artifact_sha256": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "pattern": "^[0-9a-fA-F]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "packaged/local tokenizer artifact checksum; defaults to the pinned cl100k asset",
+            "title": "Tokenizer Artifact Sha256"
+          },
+          "tokenizer_identifier": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Tokenizer Identifier",
+            "type": "string"
+          },
+          "tokenizer_kind": {
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Tokenizer Kind",
+            "type": "string"
+          },
+          "tokenizer_revision": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tokenizer Revision"
+          }
+        },
+        "required": [
+          "provider_class",
+          "model",
+          "tokenizer_kind",
+          "tokenizer_identifier",
+          "max_input_tokens",
+          "batch_max_items",
+          "batch_max_tokens",
+          "chunk_max_tokens",
+          "chunk_max_chars"
+        ],
+        "title": "ModelProfileRequest",
+        "type": "object"
+      },
       "ModelUpdate": {
         "properties": {
           "caps": {
@@ -23951,6 +24210,64 @@
         "title": "TimeseriesPointOut",
         "type": "object"
       },
+      "TokenizerFetchRequestBody": {
+        "description": "One pinned, bounded Hugging Face tokenizer fetch (admin-only job).",
+        "properties": {
+          "expected_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-fA-F]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "optional expected tokenizer.json sha256; a mismatch fails the fetch",
+            "title": "Expected Sha256"
+          },
+          "files": {
+            "description": "allowlisted small files; must include tokenizer.json (('tokenizer.json', 'config.json', 'tokenizer_config.json', 'special_tokens_map.json'))",
+            "items": {
+              "type": "string"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idempotency Key"
+          },
+          "repository": {
+            "description": "org/model",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Repository",
+            "type": "string"
+          },
+          "revision": {
+            "description": "pinned 40-character commit sha (branches/tags are refused)",
+            "maxLength": 40,
+            "minLength": 40,
+            "pattern": "^[0-9a-fA-F]{40}$",
+            "title": "Revision",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository",
+          "revision"
+        ],
+        "title": "TokenizerFetchRequestBody",
+        "type": "object"
+      },
       "TranscribeOut": {
         "properties": {
           "model": {
@@ -30974,6 +31291,180 @@
         ]
       }
     },
+    "/api/v1/admin/retrieval/model-profiles": {
+      "delete": {
+        "description": "Drop the admin override; the curated profile (or fallback) returns.",
+        "operationId": "retrieval_delete_model_profile_api_v1_admin_retrieval_model_profiles_delete",
+        "parameters": [
+          {
+            "description": "provider type/label of the override",
+            "in": "query",
+            "name": "provider",
+            "required": true,
+            "schema": {
+              "description": "provider type/label of the override",
+              "maxLength": 40,
+              "title": "Provider",
+              "type": "string"
+            }
+          },
+          {
+            "description": "embedding model id of the override",
+            "in": "query",
+            "name": "model",
+            "required": true,
+            "schema": {
+              "description": "embedding model id of the override",
+              "maxLength": 200,
+              "title": "Model",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Delete Model Profile Api V1 Admin Retrieval Model Profiles Delete",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Delete Model Profile",
+        "tags": [
+          "retrieval-admin"
+        ]
+      },
+      "get": {
+        "description": "The curated catalog + admin overrides + the effective profile.\n\nWith ``provider`` and ``model`` the ``resolution`` previews that exact\npair (the build-space selector); without them it describes the assigned\nembedding model. Curated profiles are read-only code facts; admin rows\nare the explicit override. Nothing here rechunks or cuts over a space.",
+        "operationId": "retrieval_model_profiles_api_v1_admin_retrieval_model_profiles_get",
+        "parameters": [
+          {
+            "description": "provider type/label for a preview resolution",
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 40,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "provider type/label for a preview resolution",
+              "title": "Provider"
+            }
+          },
+          {
+            "description": "embedding model id for a preview resolution",
+            "in": "query",
+            "name": "model",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "embedding model id for a preview resolution",
+              "title": "Model"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Model Profiles Api V1 Admin Retrieval Model Profiles Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Model Profiles",
+        "tags": [
+          "retrieval-admin"
+        ]
+      },
+      "put": {
+        "description": "Save one bounded admin tokenizer/limit override for a model pair.",
+        "operationId": "retrieval_save_model_profile_api_v1_admin_retrieval_model_profiles_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Save Model Profile Api V1 Admin Retrieval Model Profiles Put",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Save Model Profile",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
     "/api/v1/admin/retrieval/overview": {
       "get": {
         "description": "Instance-wide retrieval KPIs: spaces, coverage, queries, embed usage.",
@@ -31991,6 +32482,186 @@
           }
         },
         "summary": "Retrieval Status",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/tokenizer": {
+      "get": {
+        "description": "Tokenizer/limits report: exact-or-approx source and char-vs-token evidence.\n\nShadow only \u2014 no write, no stored chunk change, no document text. The\ncorpus scan is bounded per kind; the multilingual reference block is a\nfixed synthetic fixture.",
+        "operationId": "retrieval_tokenizer_api_v1_admin_retrieval_tokenizer_get",
+        "parameters": [
+          {
+            "description": "source kinds to shadow-measure; default all supported",
+            "in": "query",
+            "name": "kinds",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "source kinds to shadow-measure; default all supported",
+              "title": "Kinds"
+            }
+          },
+          {
+            "description": "source rows per kind (bounded admin sample)",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "description": "source rows per kind (bounded admin sample)",
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Api V1 Admin Retrieval Tokenizer Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/tokenizer/fetch": {
+      "post": {
+        "description": "Queue one pinned tokenizer asset fetch (never on the request path).\n\nThe handler validates the host/file allowlist, size cap and SHA-256,\ncaches under the content hash, and audits ``vector.tokenizer.*``. A repeat\nwith the same idempotency key and body returns the original job.",
+        "operationId": "retrieval_tokenizer_fetch_api_v1_admin_retrieval_tokenizer_fetch_post",
+        "parameters": [
+          {
+            "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Client-generated replay key (8-120 chars); a repeat with the same body is a replay",
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TokenizerFetchRequestBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Fetch Api V1 Admin Retrieval Tokenizer Fetch Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer Fetch",
+        "tags": [
+          "retrieval-admin"
+        ]
+      }
+    },
+    "/api/v1/admin/retrieval/tokenizer/fetch/{job_id}": {
+      "get": {
+        "description": "Read one tokenizer fetch job's status/progress/result (admin-only).",
+        "operationId": "retrieval_tokenizer_fetch_status_api_v1_admin_retrieval_tokenizer_fetch__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Retrieval Tokenizer Fetch Status Api V1 Admin Retrieval Tokenizer Fetch  Job Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retrieval Tokenizer Fetch Status",
         "tags": [
           "retrieval-admin"
         ]

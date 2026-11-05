@@ -1,0 +1,31 @@
+{
+  "version": "1.0",
+  "truncation": null,
+  "padding": null,
+  "added_tokens": [],
+  "normalizer": null,
+  "pre_tokenizer": {
+    "type": "Whitespace"
+  },
+  "post_processor": null,
+  "decoder": null,
+  "model": {
+    "type": "WordLevel",
+    "vocab": {
+      "[UNK]": 0,
+      "[PAD]": 1,
+      "hello": 2,
+      "world": 3,
+      "career": 4,
+      "assistant": 5,
+      "token": 6,
+      "counts": 7,
+      "γεια": 8,
+      "κόσμε": 9,
+      "a": 10,
+      "b": 11,
+      "c": 12
+    },
+    "unk_token": "[UNK]"
+  }
+}

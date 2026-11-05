@@ -26,6 +26,9 @@ dependencies = [
     "langchain-core>=1.6,<2",
     "langchain-openai>=1.6,<2",
     "langchain-google-genai>=4.3,<5",
+    # Plan 52 T1-min: exact token counting for the curated embedding models.
+    # The encodings ship as data under app/data/tokenizers — never fetched.
+    "tiktoken>=0.14,<0.15",
     "langgraph>=1.2,<2",
     "langgraph-checkpoint-postgres>=3,<4",
     "langgraph-checkpoint-sqlite>=3,<4",
@@ -37,6 +40,7 @@ dependencies = [
     "pillow>=12",
     "fastmcp>=4.0",
     "qrcode>=8.2",
+    "tokenizers>=0.22,<1",
 ]
 dynamic = ["version"]
 
@@ -108,6 +112,7 @@ extend-exclude = [
     "app/ai/flow_events.py",
     "app/storage/retrieval_ops.py",
     "app/storage/vector_contract.py",
+    "app/storage/tokenizer_contract.py",
 ]
 
 [tool.ruff.lint]
@@ -143,6 +148,10 @@ extend-immutable-calls = [
 # scripts/sync-retrieval-ops.sh, byte-identical, never edited here —
 # ADR-0031/ADR-0051): lint findings belong in the dev canonical.
 "app/storage/retrieval_ops.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
+# Vendored family tokenizer contract (dev/contracts canonical via
+# scripts/sync-tokenizer-contract.sh, byte-identical, never edited here —
+# ADR-0031/ADR-0051): lint findings belong in the dev canonical.
+"app/storage/tokenizer_contract.py" = ["E", "W", "F", "I", "UP", "B", "C4", "SIM", "RUF"]
 
 [tool.ruff.format]
 # The generated presets module (sync-ai-presets.mjs from the dev canonical)
@@ -194,6 +203,7 @@ exclude = [
     "app/extensions/contract.py",
     "app/storage/retrieval_ops.py",
     "app/storage/vector_contract.py",
+    "app/storage/tokenizer_contract.py",
 ]
 ignore_missing_imports = true
 follow_imports = "silent"

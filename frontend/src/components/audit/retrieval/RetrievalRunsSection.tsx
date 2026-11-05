@@ -23,6 +23,7 @@ import {
   thClass,
 } from "@/components/audit/retrieval/RetrievalCommon";
 import { RetrievalRunDrawer } from "@/components/audit/retrieval/RetrievalRunDrawer";
+import { RetrievalProgress } from "@/components/audit/retrieval/RetrievalProgress";
 import {
   shortId,
   statusVariant,
@@ -263,7 +264,18 @@ function RunRow({
           {t(`retrieval.status.${run.status}`)}
         </Badge>
       </td>
-      <td className={`${tdClass} tabular-nums`}>{run.progress}%</td>
+      <td className={`${tdClass} align-top`}>
+        <div className="min-w-[7rem] space-y-1">
+          <span className="tabular-nums">{run.progress}%</span>
+          {run.progress_detail && (
+            <RetrievalProgress
+              detail={run.progress_detail}
+              compact
+              testId={`retrieval-run-progress-${run.run_id}`}
+            />
+          )}
+        </div>
+      </td>
       <td className={tdClass}>{run.stage ?? "—"}</td>
       <td className={tdClass}>
         {run.scope.kind ?? t("retrieval.kind.all")} ·{" "}

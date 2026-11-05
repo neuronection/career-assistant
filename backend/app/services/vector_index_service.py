@@ -23,7 +23,7 @@ import logging
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,15 +31,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import AINotConfiguredError
 from app.models.enums.retrieval import VectorScopeType
 from app.models.vector_model import VectorSpace as VectorSpaceRow
+from app.services.progress import ProgressCb
 from app.services.vector_composers import (
     CHUNKER_VERSION,
     COMPOSER_VERSION,
+    TOKEN_SAFETY_MARGIN,
     ComposedDocument,
+    InputTooLong,
     compose_job_views,
     compose_posting_views,
     compose_profile_views,
     compose_skill_views,
+    compose_token_records,
 )
+from app.storage.tokenizer_contract import ChunkConfig, TokenizerSpec
 from app.storage.vector_backends import (
     BACKEND_LINEAR,
     ResolvedEmbedding,
@@ -59,19 +64,28 @@ VECTOR_RECORD_NAMESPACE = uuid.uuid5(
     uuid.NAMESPACE_URL, "https://neuronection.local/career/vector-record"
 )
 
-ProgressCb = Callable[[int, str], Awaitable[None]]
 Embedder = Callable[[Sequence[str]], Awaitable[list[list[float]]]]
 
 
 @dataclass(frozen=True)
 class EmbeddingProfile:
-    """The resolved embedding configuration a write is about to use."""
+    """The resolved embedding configuration a write is about to use.
+
+    ``tokenizer``/``chunk`` are the **effective** profile (admin → curated →
+    fallback) and drive per-item budgeting, batching and token counts. They
+    are also what a v2 build persists; a v1 auto-created space keeps its char
+    chunker and only uses them for limits/accounting.
+    """
 
     provider: str
     model: str
     normalize: bool = True
     query_prefix: str | None = None
     document_prefix: str | None = None
+    tokenizer: TokenizerSpec | None = None
+    chunk: ChunkConfig | None = None
+    batch_max_items: int = EMBED_BATCH_SIZE
+    batch_max_tokens: int | None = None
 
     def to_resolved(self, dim: int) -> ResolvedEmbedding:
         """The writer-guard view of this profile at the embedded dimension."""
@@ -99,6 +113,11 @@ class IndexOutcome:
     written: int = 0
     pruned: int = 0
     degraded: str | None = None
+    failed: int = 0
+    failed_reason: str | None = None
+    tokens: int | None = None
+    tokens_exact: bool = False
+    embed_calls: int = 0
 
     def as_result(self) -> dict[str, Any]:
         """The ``background_jobs.result`` payload (plan 51 §3.2 shape)."""
@@ -112,11 +131,12 @@ class IndexOutcome:
             "skipped": self.skipped,
             "written": self.written,
             "pruned": self.pruned,
-            "failed": 0,
-            "failed_ids": [],
+            "failed": self.failed,
+            "failed_ids": ([f"{self.kind}:{self.source_id}"] if self.failed else []),
             "failed_ids_truncated": False,
             "gate": None,
             "degraded": self.degraded,
+            "failed_reason": self.failed_reason,
         }
 
 
@@ -442,6 +462,7 @@ class VectorIndexService:
         self._provision_backend = provision_backend
         self._user_id = user_id
         self._verified_spaces: set[str] = set()
+        self._embed_calls = 0
 
     async def index_document(
         self,
@@ -494,6 +515,7 @@ class VectorIndexService:
         composed = loaded.composed
         if composed.is_empty:
             return IndexOutcome(kind=kind, source_id=source_id, space=self.space_name)
+        calls_before = self._embed_calls
         self._tags.clear()
         self._tags["kind"] = kind
         await self._release_sqlite_writer()
@@ -515,6 +537,23 @@ class VectorIndexService:
             if healthy is None:
                 return self._degraded(kind, source_id, composed, DegradedReason.INDEX_MISSING)
             space = healthy
+
+        if space.token_aware:
+            try:
+                composed = compose_token_records(
+                    composed,
+                    tokenizer=space.tokenizer,  # type: ignore[arg-type]
+                    chunk=space.chunk,  # type: ignore[arg-type]
+                    document_prefix=space.document_prefix,
+                )
+            except InputTooLong as exc:
+                return self._failed(kind, source_id, composed, exc)
+            except Exception as exc:  # a missing/corrupt exact asset is a write failure
+                from app.ai.tokenizers import TokenizerUnavailable
+
+                if not isinstance(exc, TokenizerUnavailable):
+                    raise
+                return self._failed(kind, source_id, composed, exc, reason="tokenizer_missing")
 
         existing_document = self.store.find_document(space, kind=kind, source_id=source_id)
         existing = (
@@ -540,7 +579,10 @@ class VectorIndexService:
                 self._tags["view"] = next(iter(views))
             if len(changed) == 1:
                 self._tags["chunk_index"] = changed[0].chunk_index
-            vectors = await self._embed([record.text for record in changed], progress)
+            try:
+                vectors = await self._embed(changed, progress, space=space, profile=profile)
+            except InputTooLong as exc:
+                return self._failed(kind, source_id, composed, exc)
             if vectors is None:
                 return self._degraded(kind, source_id, composed)
         if vectors is not None and len(vectors) != len(changed):
@@ -548,6 +590,7 @@ class VectorIndexService:
                 f"embedder returned {len(vectors)} vector(s) for {len(changed)} text(s)"
             )
         vectors = vectors or []
+        tokens, tokens_exact = await self._count_tokens(space, changed) if changed else (0, False)
 
         await self._release_sqlite_writer()
         registered = self.store.register_document(
@@ -571,6 +614,9 @@ class VectorIndexService:
                 content_hash=record.content_hash,
                 char_start=record.char_start,
                 char_end=record.char_end,
+                token_count=record.token_count,
+                token_start=record.token_start,
+                token_end=record.token_end,
             )
             for record, vector in zip(changed, vectors, strict=True)
         ]
@@ -611,6 +657,9 @@ class VectorIndexService:
             skipped=len(composed.records) - len(changed),
             written=written,
             pruned=pruned,
+            tokens=tokens,
+            tokens_exact=tokens_exact,
+            embed_calls=max(self._embed_calls - calls_before, 0),
         )
 
     def _degraded(
@@ -626,6 +675,25 @@ class VectorIndexService:
             space=self.space_name,
             scanned=len(composed.records),
             degraded=reason.value,
+        )
+
+    def _failed(
+        self,
+        kind: str,
+        source_id: str,
+        composed: ComposedDocument,
+        error: Exception,
+        *,
+        reason: str | None = None,
+    ) -> IndexOutcome:
+        """A bounded, retry-safe write failure (never a truncation or loop)."""
+        return IndexOutcome(
+            kind=kind,
+            source_id=source_id,
+            space=self.space_name,
+            scanned=len(composed.records),
+            failed=1,
+            failed_reason=reason or getattr(error, "reason", "write_failed"),
         )
 
     def _ensure_index(self, space: VectorSpace) -> VectorSpace | None:
@@ -679,7 +747,42 @@ class VectorIndexService:
         resolved = await resolve_task_model(self.db, "embed", self._user_id)
         if resolved is None:
             return None
-        return EmbeddingProfile(provider=resolved.provider_type, model=resolved.model_name)
+        return await self._effective_profile(resolved.provider_type, resolved.model_name)
+
+    async def _effective_profile(self, provider: str, model: str) -> EmbeddingProfile:
+        """Resolve the **effective** profile (admin override included) from the DB.
+
+        The code-only registry is only the last-resort fallback when the DB
+        lookup itself fails; a write/build path must see the same tokenizer
+        and limits the admin saved.
+        """
+        from app.services import embedding_profiles
+
+        try:
+            resolved = await embedding_profiles.resolve_for(self.db, provider, model)
+            return EmbeddingProfile(
+                provider=provider,
+                model=model,
+                tokenizer=resolved.tokenizer,
+                chunk=resolved.chunk,
+                batch_max_items=resolved.batch_max_items,
+                batch_max_tokens=resolved.batch_max_tokens,
+            )
+        except Exception:
+            logger.warning(
+                "embedding profile DB resolution failed for %s/%s", provider, model, exc_info=True
+            )
+            from app.ai.tokenizers import resolve_embedding_profile
+
+            fallback = resolve_embedding_profile(provider, model)
+            return EmbeddingProfile(
+                provider=provider,
+                model=model,
+                tokenizer=fallback.tokenizer,
+                chunk=fallback.chunk,
+                batch_max_items=fallback.batch_max_items,
+                batch_max_tokens=fallback.batch_max_tokens,
+            )
 
     def _find_space(self) -> VectorSpace | None:
         try:
@@ -696,7 +799,7 @@ class VectorIndexService:
         progress: ProgressCb | None,
     ) -> tuple[VectorSpace | None, list[list[float]] | None]:
         await self._report(progress, 20, "creating space")
-        vectors = await self._embed([record.text for record in composed.records], progress)
+        vectors = await self._embed(composed.records, progress, space=None, profile=profile)
         if not vectors:
             return None, None
         space = self.store.create_space(
@@ -717,24 +820,139 @@ class VectorIndexService:
             provision_space(session, row, backend=self._provision_backend)
         return self.store.resolve_space(str(space.space_id)), vectors
 
+    def _write_limits(
+        self, space: VectorSpace | None, profile: EmbeddingProfile | None
+    ) -> tuple[TokenizerSpec | None, int | None, int, int | None, str | None]:
+        """The tokenizer, per-item input limit and per-request batch budget."""
+        tokenizer = (
+            cast(TokenizerSpec, space.tokenizer)
+            if space is not None and space.token_aware
+            else (profile.tokenizer if profile is not None else None)
+        )
+        max_input = tokenizer.max_input_tokens if tokenizer is not None else None
+        max_items = profile.batch_max_items if profile is not None else EMBED_BATCH_SIZE
+        max_tokens = profile.batch_max_tokens if profile is not None else None
+        prefix = space.document_prefix if space is not None else None
+        if prefix is None and profile is not None:
+            prefix = profile.document_prefix
+        return tokenizer, max_input, max(int(max_items), 1), max_tokens, prefix
+
     async def _embed(
-        self, texts: Sequence[str], progress: ProgressCb | None
+        self,
+        records: Sequence[Any],
+        progress: ProgressCb | None,
+        *,
+        space: VectorSpace | None = None,
+        profile: EmbeddingProfile | None = None,
     ) -> list[list[float]] | None:
-        """Embed in gateway-sized batches; ``None`` when no provider is assigned."""
+        """Embed in batches split by **both** item count and token sum.
+
+        The per-item ``max_input_tokens`` budget (prefix + safety margin
+        included) is checked first and surfaces :class:`InputTooLong`; the
+        per-request ``batch_max_items``/``batch_max_tokens`` budget then only
+        decides where a batch ends. ``None`` means no provider is assigned.
+        """
+        if not records:
+            return []
+        from app.ai.tokenizers import get_tokenizer_service
+
+        tokenizer, max_input, max_items, max_tokens, prefix = self._write_limits(space, profile)
+        service = get_tokenizer_service()
+        prefix_tokens = 0
+        counts: list[int] = []
+        if tokenizer is not None:
+            counted_prefix = service.count_or_fallback(tokenizer, prefix) if prefix else None
+            prefix_tokens = counted_prefix.tokens if counted_prefix is not None else 0
+            for record in records:
+                if getattr(record, "token_count", None) is not None:
+                    counts.append(int(record.token_count))
+                else:
+                    counts.append(service.count_or_fallback(tokenizer, record.text).tokens)
+            if max_input is not None:
+                for record, count in zip(records, counts, strict=True):
+                    if count + prefix_tokens + TOKEN_SAFETY_MARGIN > max_input:
+                        raise InputTooLong(
+                            view=getattr(record, "view", None),
+                            tokens=count,
+                            limit=max_input,
+                        )
+
+        batches: list[list[Any]] = []
+        if counts and tokenizer is not None:
+            current: list[Any] = []
+            current_tokens = 0
+            for record, count in zip(records, counts, strict=True):
+                cost = count + prefix_tokens
+                if current and (
+                    len(current) >= max_items
+                    or (max_tokens is not None and current_tokens + cost > max_tokens)
+                ):
+                    batches.append(current)
+                    current = []
+                    current_tokens = 0
+                current.append(record)
+                current_tokens += cost
+            if current:
+                batches.append(current)
+        else:
+            batches = [
+                list(records[start : start + max_items])
+                for start in range(0, len(records), max_items)
+            ]
+
         vectors: list[list[float]] = []
-        total = max(len(texts), 1)
+        total = max(len(records), 1)
+        done = 0
         try:
-            for start in range(0, len(texts), EMBED_BATCH_SIZE):
-                batch = list(texts[start : start + EMBED_BATCH_SIZE])
-                vectors.extend(await self._embedder(batch))
+            for batch in batches:
+                vectors.extend(await self._embedder([record.text for record in batch]))
+                self._embed_calls += 1
+                done += len(batch)
                 await self._report(
                     progress,
-                    min(70, 20 + int(50 * (start + len(batch)) / total)),
+                    min(70, 20 + int(50 * done / total)),
                     "embedding",
                 )
         except AINotConfiguredError:
             return None
         return vectors
+
+    async def _count_tokens(
+        self, space: VectorSpace, records: Sequence[Any]
+    ) -> tuple[int | None, bool]:
+        """Local tokenizer count for the run's tokens counter (plan 52 T4).
+
+        Uses the persisted v2 tokenizer when the space has one, otherwise the
+        **effective DB profile** (admin override included) rather than only
+        the code registry. Exactness is labelled; the counter never depends on
+        a working tokenizer.
+        """
+        try:
+            from app.ai.tokenizers import get_tokenizer_service
+
+            service = get_tokenizer_service()
+            tokenizer = cast(TokenizerSpec | None, space.tokenizer)
+            if tokenizer is None:
+                tokenizer = (await self._effective_profile(space.provider, space.model)).tokenizer
+            if tokenizer is None:
+                return None, False
+            effective, _degraded = service.effective_spec(tokenizer)
+            total = 0
+            exact = True
+            for record in records:
+                if getattr(record, "token_count", None) is not None:
+                    total += int(record.token_count)
+                    exact = exact and effective.exact
+                else:
+                    counted = service.count_or_fallback(effective, record.text)
+                    total += counted.tokens
+                    exact = exact and counted.exact
+            return total, exact
+        except Exception:
+            logger.warning(
+                "token counting unavailable for space %r", self.space_name, exc_info=True
+            )
+            return None, False
 
     @staticmethod
     async def _report(progress: ProgressCb | None, value: int, stage: str) -> None:
