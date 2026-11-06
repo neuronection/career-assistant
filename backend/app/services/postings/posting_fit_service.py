@@ -1,0 +1,951 @@
+"""Per-posting match score (Phase 32): deterministic dimensions over
+extracted posting data, cached in `posting_fits` with an inputs-hash
+staleness flag. Unextracted postings fall back to the
+mapped archetype's fit with a visible estimate note — never silently
+blended. Weights reuse's user sliders, dimensions mapped 1:1
+(prereqs→education, location_remote→location, seniority_stage→
+experience); freshness carries a fixed weight (interests has no posting
+analogue and stays unused). A goal's profile-usage toggles (plan 169)
+derive a `FitOverrides` pass: disabled inputs score neutral-7 with a
+`disabled` marker, and goal-adjusted values are pure rescores over the
+canonical cached breakdown — the cache keeps ONE row per user x posting
+and never stores adjusted values."""
+
+import hashlib
+import json
+import re
+import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
+from typing import TypeGuard, cast
+from uuid import UUID
+
+from sqlalchemy import Table, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.enums import CareerStage, EducationLevel, EducationLevelOrder, PostingSkillPriority
+from app.models.posting_model import JobPosting, PostingFit, PostingSkill
+from app.models.user_model import UserSkill
+from app.schemas.autopilot import ProfileUsage
+from app.services.postings.fit.dimensions import FIT_VERSION, NEUTRAL
+
+FRESH_WEIGHT = 1.0
+FRESH_DECAY_PER_WEEK = 0.5
+FRESH_DECAY_CAP = 2.0
+SENIORITY_RANKS = {
+    "intern": 0,
+    "junior": 1,
+    "mid": 2,
+    "senior": 3,
+    "lead": 4,
+    "principal": 5,
+}
+LANGUAGE_ORDER = {"basic": 0, "intermediate": 1, "advanced": 2, "native": 3}
+PRIORITY_WEIGHT = {
+    PostingSkillPriority.MUST_HAVE.value: 3.0,
+    PostingSkillPriority.NICE_TO_HAVE.value: 2.0,
+    PostingSkillPriority.BONUS.value: 1.0,
+}
+
+# The posting engine's dimension list as one code-referenced spec
+# — the breakdown keys above and the metrics API read this.
+POSTING_FIT_DIMENSIONS: tuple[dict, ...] = (
+    {"engine": "posting_fit", "key": "skills", "label": "Skills"},
+    {"engine": "posting_fit", "key": "prereqs", "label": "Prerequisites"},
+    {"engine": "posting_fit", "key": "location_remote", "label": "Location & remote"},
+    {"engine": "posting_fit", "key": "seniority_stage", "label": "Seniority & stage"},
+    {"engine": "posting_fit", "key": "freshness", "label": "Freshness"},
+)
+
+
+def posting_fit_dimension_spec() -> list[dict]:
+    return [dict(entry) for entry in POSTING_FIT_DIMENSIONS]
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
+
+
+def _canonical_hash(payload: dict) -> str:
+    canonical = json.dumps(payload or {}, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _user_skills(db: AsyncSession, user_id: UUID) -> dict[UUID, int]:
+    rows = await db.execute(
+        select(UserSkill.skill_id, UserSkill.level).where(
+            UserSkill.user_id == user_id, UserSkill.derive_enabled
+        )
+    )
+    return dict(rows.all())
+
+
+def _skills_dimension(links: Sequence[PostingSkill], user_levels: dict[UUID, int]) -> dict:
+    """`min(user, required) / required`, priority-weighted; fully-unmet
+    must-haves cap the score (the curve, sharpened by levels)."""
+    live = [
+        (link, required_level)
+        for link in links
+        if (required_level := link.required_level) is not None
+    ]
+    if not live:
+        return {
+            "score": 7.0,
+            "detail": "no extracted skill requirements",
+            "neutral": True,
+        }
+    total_weight = 0.0
+    covered = 0.0
+    must_unmet = 0
+    must_partial = 0
+    for link, required_level in live:
+        weight = PRIORITY_WEIGHT.get(link.priority or "", 1.0)
+        total_weight += weight
+        level = user_levels.get(link.skill_id)
+        if level is None:
+            if link.priority == PostingSkillPriority.MUST_HAVE.value:
+                must_unmet += 1
+            continue
+        ratio = min(level, required_level) / max(1, required_level)
+        covered += weight * ratio
+        if link.priority == PostingSkillPriority.MUST_HAVE.value:
+            if ratio <= 0:
+                must_unmet += 1
+            elif ratio < 1:
+                must_partial += 1
+    if total_weight <= 0:
+        return {
+            "score": 7.0,
+            "detail": "no weighted skill requirements",
+            "neutral": True,
+        }
+    score = 10.0 * covered / total_weight
+    if must_unmet:
+        score = min(score, 4.0)
+    elif must_partial:
+        score = min(score, 6.0)
+    return {
+        "score": round(score, 2),
+        "detail": f"{len(live)} extracted requirement(s) covered",
+    }
+
+
+def _certificate_evidenced(label: str, certifications: set[str]) -> bool:
+    """Token-overlap match: a shared word of length ≥ 4 (case-insensitive)
+    or a full-string containment where the shorter side is itself ≥ 4
+    chars. A one-letter certification never evidences a long label; the
+    acronym case (user holds "Project Management Professional", posting
+    says "PMP") stays honestly unmatched — cap 6.0, never a guess."""
+    label_tokens = {t for t in re.findall(r"[a-z0-9]+", label.lower()) if len(t) >= 4}
+    for cert in certifications:
+        if len(label) >= 4 and (label in cert or cert in label):
+            return True
+        cert_tokens = {t for t in re.findall(r"[a-z0-9]+", cert) if len(t) >= 4}
+        if label_tokens & cert_tokens:
+            return True
+    return False
+
+
+def _prereq_parts(posting: JobPosting, profile, certifications: set[str]) -> dict[str, dict]:
+    """The three prerequisite inputs as per-part sub-scores (plan 169).
+
+    Each part carries ``kind`` (its stable key), ``cap`` (its min-cap
+    contribution; 10.0 = no penalty), ``scored`` (whether it can make the
+    dimension non-neutral — the pre-plan gate: a recognized education
+    comparison caps WITHOUT scoring, every other requirement scores) and
+    ``detail`` (its evidence lines). The public five-dimension contract
+    and the pre-plan merged score are unchanged when every part is on.
+    """
+    parts: dict[str, dict] = {
+        "education": {"kind": "education", "cap": 10.0, "detail": "", "scored": False},
+        "languages": {"kind": "languages", "cap": 10.0, "detail": "", "scored": False},
+        "certificates": {"kind": "certificates", "cap": 10.0, "detail": "", "scored": False},
+    }
+    details: dict[str, list[str]] = {"education": [], "languages": [], "certificates": []}
+
+    required_education = (posting.extract or {}).get("education", {}) or {}
+    level = required_education.get("level") or posting.education_level
+    if level:
+        basics = profile.basics or {}
+        user_level = basics.get("education_level")
+
+        def _as_level(value) -> EducationLevel | None:
+            # Extraction is AI output — levels outside the vocabulary
+            # ("degree") score neutral instead of failing the feed.
+            try:
+                return EducationLevel(str(value).lower())
+            except ValueError:
+                return None
+
+        required = _as_level(level)
+        user = _as_level(user_level) if user_level else None
+        if required is None:
+            details["education"].append(f"requires education: {level} (unrecognized level)")
+            parts["education"].update(scored=True)
+        elif user is None:
+            details["education"].append(f"requires education: {level} (yours unspecified)")
+        else:
+            met = EducationLevelOrder.at_least(user, required)
+            parts["education"].update(cap=10.0 if met else 3.0)
+            details["education"].append(
+                f"education {'meets' if met else 'below'} requirement ({level})"
+            )
+
+    required_languages = [
+        str(lang).lower() for lang in (posting.extract or {}).get("languages") or []
+    ]
+    if required_languages:
+        academics = profile.academics or {}
+        user_languages = {
+            str(lang.get("code", "")).lower(): LANGUAGE_ORDER.get(
+                str(lang.get("level", "basic")), 0
+            )
+            for lang in academics.get("languages") or []
+        }
+        unmet = 0
+        for lang in required_languages:
+            if lang not in user_languages or user_languages[lang] < 1:
+                details["languages"].append(f"language {lang} not evidenced")
+                unmet += 1
+            else:
+                details["languages"].append(f"language {lang} evidenced")
+        parts["languages"].update(cap=5.0 if unmet else 10.0, scored=True)
+
+    unevidenced = 0
+    for row in (posting.extract or {}).get("prerequisites") or []:
+        kind = str(row.get("kind", ""))
+        label = str(row.get("label", "")).strip()
+        if not label or kind in ("language", "other"):
+            continue
+        if kind == "degree":
+            details["certificates"].append(f"degree wording: {label} (level via education)")
+            continue
+        if _certificate_evidenced(label, certifications):
+            details["certificates"].append(f"{kind} {label} evidenced")
+            parts["certificates"].update(scored=True)
+        else:
+            details["certificates"].append(f"{kind} {label} not evidenced (profile has no match)")
+            unevidenced += 1
+            parts["certificates"].update(scored=True)
+    if unevidenced:
+        parts["certificates"].update(cap=6.0)
+
+    for key, lines in details.items():
+        parts[key]["detail"] = "; ".join(lines)
+    return parts
+
+
+def _merge_prereqs(
+    parts: dict[str, dict], *, use_education: bool = True, use_languages: bool = True
+) -> dict:
+    """The pre-plan accumulator as a merge over the parts (plan 169).
+
+    A ``scored`` part makes the dimension non-neutral; the merged score is
+    then the min over ALL enabled parts' caps — an unscored education cap
+    still shifts the min (the pre-plan engine assigned the education score
+    before the languages/certificates min-caps lowered it). With no scored
+    part the dimension reads neutral 7.0 with its details — exactly the
+    pre-plan ``scored`` gate: a recognized education comparison alone
+    (met or below) stays neutral. A disabled part is excluded from BOTH
+    the min and the scored-any check — it never contributes a penalty, so
+    the merged score can only rise or stay — and is stored neutral-7 with
+    a ``disabled`` marker for display. ``parts`` stays internal: the typed
+    posting envelope strips it.
+    """
+    flags = {"education": use_education, "languages": use_languages, "certificates": use_education}
+    display: dict[str, dict] = {}
+    caps: list[float] = []
+    any_scored = False
+    details: list[str] = []
+    for key, part in parts.items():
+        entry = dict(part)
+        if not flags.get(key, True):
+            entry.update(
+                cap=7.0,
+                detail=f"{key} disabled for this goal",
+                disabled=True,
+            )
+        else:
+            entry.pop("disabled", None)
+            caps.append(float(part["cap"]))
+            if part.get("scored"):
+                any_scored = True
+        if entry.get("detail"):
+            details.append(entry["detail"])
+        display[key] = entry
+    if not any_scored:
+        return {
+            "score": 7.0,
+            "detail": "; ".join(details[:3]) or "no explicit prerequisites",
+            "neutral": True,
+            "parts": display,
+        }
+    return {
+        "score": round(min(caps), 2),
+        "detail": "; ".join(details[:3]),
+        "parts": display,
+    }
+
+
+def _disabled_dimension(key: str) -> dict:
+    """A whole dimension switched off for this goal: neutral 7.0 with the
+    engine's no-signal convention plus an explicit ``disabled`` marker."""
+    return {
+        "score": NEUTRAL,
+        "detail": f"{key} disabled for this goal",
+        "neutral": True,
+        "disabled": True,
+    }
+
+
+def _location_remote_dimension(posting: JobPosting, profile) -> dict:
+    """The delta semantics as a standalone 0-10 dimension."""
+    prefs = profile.work_preferences or {}
+    basics = profile.basics or {}
+    location = posting.location or {}
+    if location.get("remote"):
+        if prefs.get("remote_ok", True):
+            return {"score": 10.0, "detail": "remote and you prefer remote"}
+        return {"score": 4.0, "detail": "remote but you prefer on-site"}
+    city = (location.get("city") or "").strip().lower()
+    user_city = str(basics.get("city") or "").strip().lower()
+    if user_city and city:
+        if city == user_city:
+            return {"score": 10.0, "detail": f"in your city ({city})"}
+        return {"score": 5.0, "detail": f"in {city}, not your city"}
+    return {"score": 7.0, "detail": "location neutral", "neutral": True}
+
+
+def _seniority_stage_dimension(posting: JobPosting, stage_value: str) -> dict:
+    rank = SENIORITY_RANKS.get(posting.seniority or "")
+    if rank is None:
+        return {"score": 7.0, "detail": "seniority not stated", "neutral": True}
+    if stage_value == "student":
+        score = 4.0 if rank >= 3 else 10.0 if rank <= 1 else 7.0
+    elif stage_value == "experienced":
+        score = 4.0 if rank <= 1 else 10.0
+    else:
+        score = 10.0 if rank <= 2 else 7.0
+    return {"score": score, "detail": f"{posting.seniority} role for a {stage_value}"}
+
+
+def _freshness_dimension(posting: JobPosting) -> dict:
+    posted = posting.posted_at or posting.created_at
+    if not posted:
+        return {"score": 7.0, "detail": "posting date unknown", "neutral": True}
+    age_weeks = max(0.0, (_utcnow() - posted).total_seconds() / (7 * 86400))
+    decay = min(FRESH_DECAY_CAP, FRESH_DECAY_PER_WEEK * age_weeks)
+    return {
+        "score": round(10.0 - 10.0 * decay / max(FRESH_DECAY_CAP, 0.1), 2),
+        "detail": f"posted {int(age_weeks)} week(s) ago",
+    }
+
+
+async def _load_context(db: AsyncSession, user_id: UUID) -> dict:
+    """Shared per-user inputs (profile, stage, skill levels, weights) —
+    loaded once per request, never per posting."""
+    from app.services.deps import get_profile_for_user
+    from app.services.postings.fit.service import FitService
+    from app.services.profile.stages_service import stage_for_user
+
+    profile = await get_profile_for_user(db, user_id)
+    stage, _source = await stage_for_user(db, user_id)
+    user_levels = await _user_skills(db, user_id)
+    weights = await FitService(db).scoring_weights(profile)
+    certification_names = await _certification_names(db, user_id)
+    return {
+        "profile": profile,
+        "stage": stage,
+        "user_levels": user_levels,
+        "weights": weights,
+        "certifications": certification_names,
+    }
+
+
+async def _certification_names(db: AsyncSession, user_id: UUID) -> list[str]:
+    """The user's ACTIVE certification/license names, lowercased for
+    matching — draft (unreviewed) rows never evidence a requirement."""
+    from app.models.profile_entities_model import Certification
+
+    rows = await db.execute(
+        select(Certification.name).where(
+            Certification.user_id == user_id,
+            Certification.status == "active",
+        )
+    )
+    return [str(name).strip().lower() for name in rows.scalars().all() if name]
+
+
+LIFESTYLE_CONSTRAINT_KEYS = (
+    "salary_min",
+    "salary_negotiable",
+    "travel_days_per_month",
+    "shift_tolerance",
+    "commute_radius_km",
+    "hours_available_per_week",
+)
+
+
+def _inputs_payload(
+    user_id: UUID,
+    posting: JobPosting,
+    user_levels: dict[UUID, int],
+    weights: dict,
+    stage_value: str,
+    certifications: list[str] | None = None,
+    constraints: dict | None = None,
+) -> dict:
+    return {
+        "user_id": str(user_id),
+        "posting_id": str(posting.id),
+        "extract_version": posting.extract_version,
+        "posted_at": posting.posted_at.isoformat() if posting.posted_at else None,
+        "user_skills": {str(k): v for k, v in sorted(user_levels.items())},
+        "weights": weights,
+        "stage": stage_value,
+        "certifications": sorted(certifications or []),
+        "lifestyle_constraints": {
+            key: (constraints or {}).get(key) for key in LIFESTYLE_CONSTRAINT_KEYS
+        },
+    }
+
+
+@dataclass(frozen=True)
+class FitOverrides:
+    """Per-goal fit input switches (plan 169) — the goal's ProfileUsage +
+    seniority resolved once per run and threaded through the graph.
+
+    Disabled inputs score neutral-7 with a ``disabled`` marker; the
+    canonical fit cache (one row per user x posting) is untouched and
+    goal-adjusted values are derived rescores over it, never cached.
+    ``stage`` is the ``stage_source="goal"`` target (``None`` keeps the
+    profile stage); a disabled ``use_experience`` wins over it.
+    """
+
+    use_skills: bool = True
+    use_education: bool = True
+    use_languages: bool = True
+    use_location: bool = True
+    use_experience: bool = True
+    use_lifestyle: bool = True
+    stage: CareerStage | None = None
+
+    @classmethod
+    def from_profile_usage(cls, usage: ProfileUsage, seniority: list[str]) -> "FitOverrides":
+        from app.services.profile.stages_service import stage_from_seniority
+
+        return cls(
+            use_skills=usage.use_skills,
+            use_education=usage.use_education,
+            use_languages=usage.use_languages,
+            use_location=usage.use_location,
+            use_experience=usage.use_experience,
+            use_lifestyle=usage.use_lifestyle,
+            stage=(stage_from_seniority(seniority) if usage.stage_source == "goal" else None),
+        )
+
+    @property
+    def active(self) -> bool:
+        """True when any toggle is off OR the goal stage swap applies —
+        the condition for rescore-over-cache semantics."""
+        all_on = (
+            self.use_skills
+            and self.use_education
+            and self.use_languages
+            and self.use_location
+            and self.use_experience
+            and self.use_lifestyle
+        )
+        return not all_on or self.stage is not None
+
+
+def lifestyle_gates(posting: JobPosting, constraints: dict | None) -> list[str]:
+    """lifestyle constraints vs v2 extract facts.
+
+    gate semantics: reasons move a posting to flag surfaces,
+    never silently exclude. Rules (documented, deterministic):
+    - travel: stated days/month gate when above the user's tolerance;
+      unstated `frequent` gates when tolerance < 10 (frequent ≈ 10+
+      days/month by convention); `occasional`/`none` never gate.
+    - shift: tolerance `none` + any shift/on-call/nights/weekends cue.
+    - hours: stated weekly minimum above `hours_available_per_week`;
+      unstated full_time counts as 35.
+    """
+    gates: list[str] = []
+    constraints = constraints or {}
+    facts = (posting.posting_facts or {}).get("lifestyle") or {}
+
+    travel = facts.get("travel_required") or {}
+    tolerance = constraints.get("travel_days_per_month")
+    level = str(travel.get("level") or "")
+    if tolerance is not None:
+        stated = travel.get("days_per_month")
+        if stated is not None:
+            if int(stated) > int(tolerance):
+                gates.append("travel")
+        elif level == "frequent" and int(tolerance) < 10:
+            gates.append("travel")
+
+    shift = constraints.get("shift_tolerance")
+    cues = {str(cue.get("cue") or "") for cue in facts.get("schedule_cues") or []}
+    if shift == "none" and cues & {"shift_work", "on_call", "nights", "weekends"}:
+        gates.append("shift")
+
+    hours_available = constraints.get("hours_available_per_week")
+    work_hours = facts.get("work_hours") or {}
+    if hours_available is not None and work_hours:
+        minimum = work_hours.get("hours_per_week_min")
+        if minimum is None and work_hours.get("pattern") == "full_time":
+            minimum = 35
+        if minimum is not None and int(minimum) > int(hours_available):
+            gates.append("hours")
+    return gates
+
+
+async def compute_posting_fit(
+    db: AsyncSession,
+    user_id: UUID,
+    posting: JobPosting,
+    context: dict | None = None,
+    *,
+    overrides: FitOverrides | None = None,
+) -> dict:
+    """Full deterministic score: {score, breakdown, extracted, estimate,
+    inputs_hash}. When the posting is not deep-extracted the mapped
+    archetype's fit is the visible fallback (estimate=true) — estimates
+    never carry overrides. ``overrides`` neutralizes the goal's disabled
+    profile inputs (neutral-7 + ``disabled`` markers); the inputs hash is
+    toggle-invariant — flags never ride it."""
+    if context is None:
+        context = await _load_context(db, user_id)
+    profile = context["profile"]
+    stage = context["stage"]
+    user_levels = context["user_levels"]
+    weights = context["weights"]
+    certifications = context.get("certifications") or []
+
+    extracted = posting.extract_version is not None
+    dimension_weights = {
+        "skills": weights["skills"],
+        "prereqs": weights["education"],
+        "location_remote": weights["location"],
+        "seniority_stage": weights["experience"],
+        "freshness": FRESH_WEIGHT,
+    }
+    # Staleness contract: extract_version bumps whenever the posting's
+    # extracted data changes, so the base payload is sufficient — the
+    # cheap check in get_posting_fit hashes exactly this. Lifestyle
+    # constraints ride the hash so gate changes invalidate cached rows.
+    inputs = _inputs_payload(
+        user_id,
+        posting,
+        user_levels,
+        weights,
+        stage.value,
+        certifications=certifications,
+        constraints=profile.constraints,
+    )
+    inputs_hash = _canonical_hash(inputs)
+
+    if not extracted:
+        from app.services.postings.postings_service import posting_fit
+
+        estimate = await posting_fit(db, user_id, posting)
+        return {
+            "score": round(float(estimate), 2),
+            "breakdown": {
+                "archetype_estimate": {
+                    "score": round(float(estimate), 2),
+                    "detail": (
+                        "archetype estimate — deep extraction has not run for this posting yet"
+                    ),
+                    "weight": 5,
+                }
+            },
+            "extracted": False,
+            "estimate": True,
+            "gates": [],
+            "inputs_hash": inputs_hash,
+        }
+
+    flags = overrides if overrides is not None and overrides.active else FitOverrides()
+    goal_stage = (
+        flags.stage.value if flags.use_experience and flags.stage is not None else stage.value
+    )
+    links = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    breakdown = {
+        "skills": (
+            _disabled_dimension("skills")
+            if not flags.use_skills
+            else _skills_dimension(links, user_levels)
+        ),
+        "prereqs": _merge_prereqs(
+            _prereq_parts(posting, profile, set(certifications)),
+            use_education=flags.use_education,
+            use_languages=flags.use_languages,
+        ),
+        "location_remote": (
+            _disabled_dimension("location_remote")
+            if not flags.use_location
+            else _location_remote_dimension(posting, profile)
+        ),
+        "seniority_stage": (
+            _disabled_dimension("seniority_stage")
+            if not flags.use_experience
+            else _seniority_stage_dimension(posting, goal_stage)
+        ),
+        "freshness": _freshness_dimension(posting),
+    }
+    for dim, entry in breakdown.items():
+        entry["weight"] = dimension_weights[dim]
+
+    total_weight = sum(entry["weight"] for entry in breakdown.values())
+    score = (
+        sum(entry["score"] * entry["weight"] for entry in breakdown.values()) / total_weight
+        if total_weight
+        else 7.0
+    )
+    return {
+        "score": round(float(min(10.0, max(0.0, score))), 2),
+        "breakdown": breakdown,
+        "extracted": True,
+        "estimate": False,
+        "gates": ([] if not flags.use_lifestyle else lifestyle_gates(posting, profile.constraints)),
+        "inputs_hash": inputs_hash,
+    }
+
+
+def _expected_hash(user_id: UUID, posting: JobPosting, context: dict) -> str:
+    return _canonical_hash(
+        _inputs_payload(
+            user_id,
+            posting,
+            context["user_levels"],
+            context["weights"],
+            context["stage"].value,
+            certifications=context.get("certifications") or [],
+            constraints=context["profile"].constraints,
+        )
+    )
+
+
+def _cache_is_fresh(cached: PostingFit | None, inputs_hash: str) -> TypeGuard[PostingFit]:
+    return (
+        cached is not None
+        and cached.inputs_hash == inputs_hash
+        and cached.fit_version == FIT_VERSION
+    )
+
+
+def _cached_result(cached: PostingFit, posting: JobPosting, context: dict) -> dict:
+    breakdown = cached.breakdown or {}
+    return {
+        "score": round(float(cached.score), 2),
+        "breakdown": breakdown,
+        "extracted": breakdown.get("archetype_estimate") is None if breakdown else False,
+        "estimate": "archetype_estimate" in breakdown,
+        "gates": lifestyle_gates(posting, context["profile"].constraints),
+        "inputs_hash": cached.inputs_hash,
+    }
+
+
+def _with_weight(entry: dict, stored: dict | None) -> dict:
+    weight = (stored or {}).get("weight")
+    if weight is not None:
+        entry["weight"] = weight
+    return entry
+
+
+def _rescore_cached(
+    base: dict, posting: JobPosting, context: dict, overrides: FitOverrides
+) -> dict:
+    """Goal-adjusted values over a canonical result (plan 169).
+
+    Pure math over the stored breakdown plus one pure stage recompute
+    (``_seniority_stage_dimension`` over the goal stage); the canonical
+    row itself is untouched and this result is never written back.
+    Estimate rows never reach this seam (the archetype estimate predates
+    deep extraction — overrides are a documented no-op there).
+    """
+    from copy import deepcopy
+
+    profile = context["profile"]
+    stored = base.get("breakdown") or {}
+    breakdown = deepcopy(stored)
+    if not overrides.use_skills and "skills" in breakdown:
+        breakdown["skills"] = _with_weight(_disabled_dimension("skills"), stored.get("skills"))
+    if "prereqs" in breakdown:
+        stored_parts = (stored.get("prereqs") or {}).get("parts")
+        if stored_parts:
+            breakdown["prereqs"] = _with_weight(
+                _merge_prereqs(
+                    stored_parts,
+                    use_education=overrides.use_education,
+                    use_languages=overrides.use_languages,
+                ),
+                stored.get("prereqs"),
+            )
+    if "location_remote" in breakdown and not overrides.use_location:
+        breakdown["location_remote"] = _with_weight(
+            _disabled_dimension("location_remote"), stored.get("location_remote")
+        )
+    if "seniority_stage" in breakdown:
+        if not overrides.use_experience:
+            breakdown["seniority_stage"] = _with_weight(
+                _disabled_dimension("seniority_stage"), stored.get("seniority_stage")
+            )
+        elif overrides.stage is not None:
+            breakdown["seniority_stage"] = _with_weight(
+                _seniority_stage_dimension(posting, overrides.stage.value),
+                stored.get("seniority_stage"),
+            )
+    total_weight = sum(entry["weight"] for entry in breakdown.values())
+    score = (
+        sum(entry["score"] * entry["weight"] for entry in breakdown.values()) / total_weight
+        if total_weight
+        else 7.0
+    )
+    return {
+        "score": round(float(min(10.0, max(0.0, score))), 2),
+        "breakdown": breakdown,
+        "extracted": base.get("extracted", True),
+        "estimate": False,
+        "gates": (
+            [] if not overrides.use_lifestyle else lifestyle_gates(posting, profile.constraints)
+        ),
+        "inputs_hash": base.get("inputs_hash", ""),
+    }
+
+
+def _fit_row(user_id: UUID, posting: JobPosting, computed: dict, now: datetime) -> dict:
+    return {
+        "id": uuid.uuid4(),
+        "user_id": user_id,
+        "posting_id": posting.id,
+        "score": Decimal(str(computed["score"])),
+        "breakdown": computed["breakdown"],
+        "inputs_hash": computed["inputs_hash"],
+        "computed_at": now,
+        "fit_version": FIT_VERSION,
+        "created_at": now,
+        "updated_at": now,
+    }
+
+
+async def _write_fit_rows(db: AsyncSession, rows: list[dict]) -> None:
+    """Conflict-safe batch write-through of computed fits.
+
+    The unique `(user_id, posting_id)` constraint referees concurrent
+    requests; the loser adopts the winner's shape by updating the row
+    (deterministic inputs ⇒ identical values).
+    """
+    if not rows:
+        return
+    from sqlalchemy.dialects import postgresql, sqlite
+
+    table = cast("Table", PostingFit.__table__)
+    if db.get_bind().dialect.name == "sqlite":
+        statement: sqlite.Insert | postgresql.Insert = sqlite.insert(table).values(rows)
+    else:
+        statement = postgresql.insert(table).values(rows)
+    updated = {
+        "score": statement.excluded.score,
+        "breakdown": statement.excluded.breakdown,
+        "inputs_hash": statement.excluded.inputs_hash,
+        "computed_at": statement.excluded.computed_at,
+        "fit_version": statement.excluded.fit_version,
+        "updated_at": statement.excluded.updated_at,
+    }
+    await db.execute(
+        statement.on_conflict_do_update(
+            index_elements=["user_id", "posting_id"],
+            set_=updated,
+        )
+    )
+    await db.commit()
+
+
+async def get_posting_fit(
+    db: AsyncSession, user_id: UUID, posting: JobPosting, *, refresh: bool = False
+) -> dict:
+    """Cached read: cheap inputs load → hash → cached row is a hit when
+    the hash matches; stale (or missing) rows recompute and persist."""
+    context = await _load_context(db, user_id)
+    inputs_hash = _expected_hash(user_id, posting, context)
+
+    rows = await db.execute(
+        select(PostingFit).where(PostingFit.user_id == user_id, PostingFit.posting_id == posting.id)
+    )
+    cached = rows.scalars().first()
+    if not refresh and _cache_is_fresh(cached, inputs_hash):
+        return _cached_result(cached, posting, context)
+
+    computed = await compute_posting_fit(db, user_id, posting, context=context)
+    await _write_fit_rows(db, [_fit_row(user_id, posting, computed, datetime.now(UTC))])
+    return computed
+
+
+async def get_posting_fits_batch(
+    db: AsyncSession,
+    user_id: UUID,
+    postings: list[JobPosting],
+    *,
+    write_budget: int | None = None,
+    refresh: bool = False,
+    fit_overrides: FitOverrides | None = None,
+) -> dict[UUID, dict]:
+    """Listing-time batch: one shared context, cache-first per posting.
+
+    Cached rows whose `inputs_hash` still matches are hits; missing or
+    stale rows recompute (bounded by the caller's window) and are written
+    through — `write_budget` caps the persistence when the caller passes a
+    full feed instead of a page. With `fit_overrides` active the RESULT is
+    the goal-adjusted rescore: a canonical hit rescores over the stored
+    breakdown, a miss computes canonically, writes that row, then
+    rescores — adjusted values are never persisted, and estimate rows are
+    returned untouched.
+    """
+    if not postings:
+        return {}
+    context = await _load_context(db, user_id)
+    ids = [posting.id for posting in postings]
+    cached_rows = (
+        (
+            await db.execute(
+                select(PostingFit).where(
+                    PostingFit.user_id == user_id, PostingFit.posting_id.in_(ids)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    cached_by_id = {row.posting_id: row for row in cached_rows}
+    adjust = fit_overrides is not None and fit_overrides.active
+
+    result: dict[UUID, dict] = {}
+    pending: list[dict] = []
+    now = datetime.now(UTC)
+    for posting in postings:
+        cached = cached_by_id.get(posting.id)
+        inputs_hash = _expected_hash(user_id, posting, context)
+        if not refresh and _cache_is_fresh(cached, inputs_hash):
+            base = _cached_result(cached, posting, context)
+            if adjust and not base["estimate"] and fit_overrides is not None:
+                result[posting.id] = _rescore_cached(base, posting, context, fit_overrides)
+            else:
+                result[posting.id] = base
+            continue
+        computed = await compute_posting_fit(db, user_id, posting, context=context)
+        if adjust and not computed["estimate"] and fit_overrides is not None:
+            result[posting.id] = _rescore_cached(computed, posting, context, fit_overrides)
+        else:
+            result[posting.id] = computed
+        if write_budget is None or len(pending) < write_budget:
+            pending.append(_fit_row(user_id, posting, computed, now))
+    await _write_fit_rows(db, pending)
+    return result
+
+
+FEED_FIT_WRITE_BUDGET = 200
+POSTING_FIT_SWEEP_BUDGET = 5000
+POSTING_FIT_SWEEP_AGE = timedelta(days=7)
+POSTING_FIT_SWEEP_BATCH = 200
+
+
+async def sweep_posting_fits(
+    db: AsyncSession,
+    *,
+    user_id: UUID | None = None,
+    budget: int = POSTING_FIT_SWEEP_BUDGET,
+    older_than: timedelta = POSTING_FIT_SWEEP_AGE,
+    progress=None,
+) -> dict:
+    """Backfill and refresh the posting-fit cache off the request path.
+
+    Rows older than `older_than` or stamped with a previous engine
+    version are recomputed in batches, then postings with no cache row
+    are backfilled newest-first. The row `budget` bounds one sweep; the
+    next scheduled run continues where this one stopped. Staleness never
+    becomes a stored boolean — every recompute re-derives `inputs_hash`.
+    """
+    from app.models.user_model import Profile
+
+    if user_id is not None:
+        user_ids: Sequence[UUID] = [user_id]
+    else:
+        user_ids = (await db.execute(select(Profile.user_id).distinct())).scalars().all()
+    cutoff = _utcnow() - older_than
+    processed = 0
+    for current_user in user_ids:
+        if processed >= budget:
+            break
+        while processed < budget:
+            remaining = budget - processed
+            batch_limit = min(POSTING_FIT_SWEEP_BATCH, remaining)
+            stale_ids = (
+                (
+                    await db.execute(
+                        select(PostingFit.posting_id)
+                        .where(
+                            PostingFit.user_id == current_user,
+                            (
+                                (PostingFit.fit_version != FIT_VERSION)
+                                | (PostingFit.computed_at < cutoff)
+                            ),
+                        )
+                        .limit(batch_limit)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            missing_ids: Sequence[UUID] = []
+            if len(stale_ids) < batch_limit:
+                missing_ids = (
+                    (
+                        await db.execute(
+                            select(JobPosting.id)
+                            .where(
+                                JobPosting.status.in_(["mapped", "new"]),
+                                ~JobPosting.id.in_(
+                                    select(PostingFit.posting_id).where(
+                                        PostingFit.user_id == current_user
+                                    )
+                                ),
+                            )
+                            .order_by(JobPosting.posted_at.desc().nulls_last())
+                            .limit(batch_limit - len(stale_ids))
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+            ids = [*stale_ids, *missing_ids]
+            if not ids:
+                break
+            postings = (
+                (
+                    await db.execute(
+                        select(JobPosting)
+                        .where(JobPosting.id.in_(ids))
+                        .order_by(JobPosting.posted_at.desc().nulls_last())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            await get_posting_fits_batch(db, current_user, list(postings), refresh=True)
+            processed += len(postings)
+            if progress is not None:
+                percent = 10 + int(80 * min(processed, budget) / max(1, budget))
+                await progress(percent, "refreshing posting fits")
+            if len(postings) < batch_limit:
+                break
+    return {"rows": processed, "users": len(user_ids), "budget": budget}

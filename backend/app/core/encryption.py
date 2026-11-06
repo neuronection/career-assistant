@@ -83,7 +83,7 @@ def reset_data_cipher() -> None:
 
 def is_encrypted(value: str | None) -> bool:
     """True when the stored value is in encrypted ``enc::`` form."""
-    return bool(value) and value.startswith(ENCRYPTED_PREFIX)
+    return value is not None and value.startswith(ENCRYPTED_PREFIX)
 
 
 def encrypt_secret(plaintext: str | None) -> str | None:

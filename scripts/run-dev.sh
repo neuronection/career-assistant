@@ -5,8 +5,10 @@
 # app — the local SQLite profile (platform data dir, as bootstrapped by
 # `python -m careerassistant`) + desktop identity (open auth, DIM owner;
 # no login UI) — then backend :8100 (uvicorn --reload) + frontend :3100
-# (vite) as one honcho group (Procfile.dev). A single Ctrl+C stops
-# everything; if any process dies honcho exits loud. No Docker needed.
+# (vite) as one honcho group (Procfile.dev). In a linked git worktree the
+# ports come from .env.wt.local (scripts/lib/worktree-env.sh), so
+# concurrent sessions never collide. A single Ctrl+C stops everything; if
+# any process dies honcho exits loud. No Docker needed.
 # Desktop dev binds loopback only (127.0.0.1) — the ungated open-auth API
 # must never face the network; `--web` keeps the 0.0.0.0 LAN binding.
 #
@@ -30,25 +32,31 @@
 #                                         # bootstrap, web skips alembic
 #                                         # (web seed still runs)
 #   ./scripts/run-dev.sh --mock-ai        # opt in to the built-in mock AI
-#                                         # provider (MOCK_AI=1) so AI features
+#                                         # provider (CAREER_MOCK_AI=1) so AI features
 #                                         # work offline; default is off (AI
 #                                         # endpoints 503 until a real provider
 #                                         # is configured in Settings)
 #   ./scripts/run-dev.sh backend          # extra args pass through to honcho
 #   ./scripts/run-dev.sh -h | --help      # print this help and exit
 #
-# Everything runs inside backend/venv — never the system Python (PEP 668).
+# Everything runs through uv (root workspace .venv) — never the system
+# Python (PEP 668).
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_PATH="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
 cd "$SCRIPT_DIR/.."
 # shellcheck source=scripts/lib/dev-common.sh
 source scripts/lib/dev-common.sh
+# shellcheck source=scripts/lib/worktree-env.sh
+source scripts/lib/worktree-env.sh
+dc_wt_load
 
-VENV_DIR=backend/venv
-BACKEND_PORT=8100
-FRONTEND_PORT=3100
-DB_PORT=5433
+BACKEND_PORT="${BACKEND_PORT:-8100}"
+FRONTEND_PORT="${FRONTEND_PORT:-3100}"
+DB_PORT="${POSTGRES_PORT:-5433}"
+export BACKEND_PORT FRONTEND_PORT
+export CA_API_PROXY="${CA_API_PROXY:-http://127.0.0.1:$BACKEND_PORT}"
+export VITE_PORT="$FRONTEND_PORT"
 
 DEV_DB_COMPOSE="docker/docker-compose.dev-db.yml"
 
@@ -78,8 +86,8 @@ while [[ "$#" -gt 0 ]]; do
     --no-migrate) NO_MIGRATE=true ;;
     --web) WEB=true ;;
     --mock-ai)
-      export MOCK_AI=1
-      dc_warn "mock AI provider enabled (MOCK_AI=1) — scores/rationales are synthetic"
+      export CAREER_MOCK_AI=1
+      dc_warn "mock AI provider enabled (CAREER_MOCK_AI=1) — scores/rationales are synthetic"
       ;;
     -h|--help) dc_help "$SCRIPT_PATH" ;;
     *) break ;;
@@ -98,10 +106,9 @@ fi
 
 if [[ "$NO_BOOTSTRAP" = false ]]; then
   dc_step "preparing backend environment"
-  dc_ensure_venv "$VENV_DIR" backend/requirements.txt
+  uv sync --extra pdf
   dc_ensure_node_deps frontend npm
 fi
-export PATH="$PWD/$VENV_DIR/bin:$PATH"
 
 if [[ "$WEB" = true ]]; then
   # Server/web dev — the pre-ADR-0023 behavior, unchanged. Explicit env
@@ -109,8 +116,8 @@ if [[ "$WEB" = true ]]; then
   # is deterministic regardless of what .env pins. Keeps the historical
   # LAN binding (device testing); the identity is server + authenticated.
   export CAREER_IDENTITY_MODE=server
-  : "${DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career}"
-  export DATABASE_URL
+  : "${CAREER_DATABASE_URL:=postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:$DB_PORT/neuronection_career}"
+  export CAREER_DATABASE_URL
   export CA_DEV_HOST="${CA_DEV_HOST:-0.0.0.0}" CA_VITE_HOST="${CA_VITE_HOST:-0.0.0.0}"
   dc_info "web mode     → identity: server, database: postgres @127.0.0.1:$DB_PORT, bind: $CA_DEV_HOST"
 else
@@ -123,20 +130,20 @@ else
   # The shell-less desktop API is UNGATED (no X-Shell-Token gate without
   # a shell) and runs open-auth DIM — so it must bind loopback only, like
   # the shipped desktop app's server does.
-  DATA_DIR="$(cd backend && PYTHONPATH="$(pwd)" python -c 'from app.local import default_data_dir; print(default_data_dir())')"
-  export DATA_DIR
+  CAREER_DATA_DIR="$(cd backend && uv run python -c 'from app.local import default_data_dir; print(default_data_dir())')"
+  export CAREER_DATA_DIR
   export CAREER_IDENTITY_MODE=desktop
-  export DATABASE_URL="sqlite+aiosqlite:///$DATA_DIR/career-assistant.db"
-  export UPLOAD_DIR="$DATA_DIR/uploads"
+  export CAREER_DATABASE_URL="sqlite+aiosqlite:///$CAREER_DATA_DIR/career-assistant.db"
+  export CAREER_UPLOAD_DIR="$CAREER_DATA_DIR/uploads"
   export CA_DEV_HOST="${CA_DEV_HOST:-127.0.0.1}" CA_VITE_HOST="${CA_VITE_HOST:-localhost}"
-  dc_info "desktop mode → identity: desktop, database: $DATABASE_URL, bind: $CA_DEV_HOST"
+  dc_info "desktop mode → identity: desktop, database: $CAREER_DATABASE_URL, bind: $CA_DEV_HOST"
   #
   # honcho re-applies the repo .env OVER our exports in the child env
-  # (`e.update(p.env)`) — its DATABASE_URL/POSTGRES_*/REDIS_URL are the
+  # (`e.update(p.env)`) — its CAREER_DATABASE_URL/POSTGRES_*/CAREER_REDIS_URL are the
   # WEB dev values and would silently point the desktop server at
   # Postgres. Filter them out into a dedicated env file for honcho (-e).
   DEV_ENV_FILE=".env.dev-desktop.local"
-  grep -vE '^(DATABASE_URL|POSTGRES_[A-Z_]+|REDIS_URL)=' .env \
+  grep -vE '^(CAREER_DATABASE_URL|POSTGRES_[A-Z_]+|CAREER_REDIS_URL)=' .env \
     > "$DEV_ENV_FILE" || true
   dc_info "env file    → $DEV_ENV_FILE (web-only keys filtered out)"
 fi
@@ -146,7 +153,13 @@ dc_start_dev_db() {
     return 0
   fi
   dc_step "starting dev DB (postgres :$DB_PORT, redis :6380)"
-  docker compose -f "$DEV_DB_COMPOSE" up -d
+  # --env-file: compose interpolates ${POSTGRES_*} from the *project*
+  # directory's .env — i.e. docker/.env, the production stack's env file
+  # (docs/deploy.md) — and would initialize a fresh dev volume with the
+  # prod password while run-dev.sh connects with the root .env's. Pin the
+  # interpolation to the dev env file; shell exports (worktree.sh) still
+  # win over it.
+  docker compose --env-file .env -f "$DEV_DB_COMPOSE" up -d
   for _ in $(seq 1 30); do
     if docker ps --filter "name=career-postgres" --filter "health=healthy" --format '{{.Names}}' | grep -q career-postgres; then
       dc_ok "Dev DB is healthy."
@@ -163,7 +176,7 @@ dc_migrate() {
     return 0
   fi
   dc_step "applying backend migrations"
-  (cd backend && PYTHONPATH="$(pwd)" alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
+  (cd backend && PYTHONPATH="$(pwd)" uv run alembic upgrade head) || dc_die "alembic upgrade failed — see output above"
 }
 
 dc_bootstrap_desktop() {
@@ -174,7 +187,7 @@ dc_bootstrap_desktop() {
     return 0
   fi
   dc_step "applying desktop migrations + starter catalog (SQLite profile)"
-  (cd backend && PYTHONPATH="$(pwd)" python -m careerassistant seed) \
+  (cd backend && uv run python -m careerassistant seed) \
     || dc_die "desktop bootstrap failed — see output above"
 }
 
@@ -183,14 +196,14 @@ dc_ensure_pdf_engine() {
   # count (polish gate, lint, export) needs playwright + the Chromium
   # headless shell. Offline-tolerant: degrade with a warning, never block.
   dc_step "ensuring the PDF engine (playwright + chromium headless shell)"
-  if ! "$VENV_DIR/bin/python" -c "import playwright" >/dev/null 2>&1; then
-    "$VENV_DIR/bin/pip" install -q -r backend/requirements-pdf.txt \
+  if ! (cd backend && uv run python -c "import playwright") >/dev/null 2>&1; then
+    uv sync --extra pdf \
       || { dc_warn "playwright install failed — PDF export/page counts degrade to estimates"; return 0; }
   fi
   if ls "$HOME/.cache/ms-playwright"/chromium_headless_shell-* >/dev/null 2>&1; then
     return 0
   fi
-  "$VENV_DIR/bin/playwright" install chromium --only-shell \
+  (cd backend && uv run playwright install chromium --only-shell) \
     || dc_warn "chromium download failed — PDF export/page counts degrade to estimates (offline?)"
 }
 
@@ -198,12 +211,12 @@ dc_reset_web() {
   dc_kill_port "$BACKEND_PORT"
   dc_kill_port "$FRONTEND_PORT"
   if [[ ${RESET_ARGS[*]} != *--yes* ]]; then
-    dc_warn "This will DELETE the dev database volume (career_postgres_data) and all local dev data."
+    dc_warn "This will DELETE the dev database volume (career-assistant-dev_career_postgres_data) and all local dev data."
     read -r -p "Type 'reset' to continue: " reply
     [[ "$reply" == "reset" ]] || dc_die "aborted"
   fi
   dc_step "stopping dev DB containers and removing volumes"
-  docker compose -f "$DEV_DB_COMPOSE" down -v
+  docker compose --env-file .env -f "$DEV_DB_COMPOSE" down -v
 }
 
 dc_reset_desktop() {
@@ -211,15 +224,15 @@ dc_reset_desktop() {
   dc_kill_port "$FRONTEND_PORT"
   if [[ ${RESET_ARGS[*]} != *--yes* ]]; then
     dc_warn "This will DELETE the local desktop SQLite profile and all its data:"
-    dc_warn "  $DATA_DIR (career-assistant.db + uploads; backups are kept)"
+    dc_warn "  $CAREER_DATA_DIR (career-assistant.db + uploads; backups are kept)"
     read -r -p "Type 'reset' to continue: " reply
     [[ "$reply" == "reset" ]] || dc_die "aborted"
   fi
   dc_step "removing the local desktop SQLite profile"
-  rm -f "$DATA_DIR/career-assistant.db" \
-        "$DATA_DIR/career-assistant.db-wal" \
-        "$DATA_DIR/career-assistant.db-shm"
-  rm -rf "$DATA_DIR/uploads"
+  rm -f "$CAREER_DATA_DIR/career-assistant.db" \
+        "$CAREER_DATA_DIR/career-assistant.db-wal" \
+        "$CAREER_DATA_DIR/career-assistant.db-shm"
+  rm -rf "$CAREER_DATA_DIR/uploads"
 }
 
 if [[ "$RESET" -eq 1 ]]; then
@@ -248,7 +261,7 @@ if [[ "$WEB" = true ]]; then
   dc_exec_honcho Procfile.dev "$@"
 else
   # -e: honcho must load the FILTERED env file, not the repo .env whose
-  # web-only DATABASE_URL/POSTGRES_*/REDIS_URL would override the desktop
+  # web-only CAREER_DATABASE_URL/POSTGRES_*/CAREER_REDIS_URL would override the desktop
   # exports above (honcho applies env-file values over the inherited env).
   dc_exec_honcho Procfile.dev -e "$DEV_ENV_FILE" "$@"
 fi

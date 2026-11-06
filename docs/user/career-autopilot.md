@@ -7,18 +7,139 @@ deterministic fit score, and delivers a curated shortlist.
 
 Open it at `/autopilot`.
 
+## The findings workspace
+
+The page is organized around the shortlist, not the runs that produced
+it:
+
+- **The feed** (center) lists every finding as a flat job card — the same
+  card `/postings` uses, extended with an **evidence row**: why it
+  matched, the verified quote from the posting's own text, how many of
+  your must-terms it covers, and 👍/👎 buttons. **Mark applied** records a
+  real application; when you have already applied, an **Applied** badge
+  appears (read from your applications, not stored on the finding). Each
+  card shows its provenance: the run that surfaced it, when, and the
+  board it came from. By default you see the **latest evaluation per
+  posting** — the same posting surfaced by several runs shows once.
+- **The runs rail** (right) lists your latest runs across all goals with
+  their status, how many live findings each produced, how many postings
+  were examined, and the tokens spent.
+- **The goal switcher** (top) filters the feed to one goal's findings;
+  selecting a goal also shows its constraints and actions (run now,
+  pause, edit, delete).
+- **The filter rail** (left) narrows the feed: state (open / dismissed /
+  all), the latest-evaluation-per-posting dedupe, hide-applied, a fit
+  score floor, a must-haves floor, an employer-text match, the board,
+  seniority, remote-only and a posted-within window — each with live
+  facet counts that keep their own value counted. Every filter rides the
+  URL, so a filtered view reloads and shares exactly. A sort control
+  (newest / best fit) sits above the feed. On small screens the runs rail
+  collapses into a section above the feed, and the filters become a
+  **Filters** toolbar button that opens a filter sheet (applied filters
+  stay on the page as removable chips).
+
 ## What a run does
 
-1. **Plans** multiple query and filter variants from your goal.
-2. **Filters noise** — postings you have seen or applied to, terms you never
+```mermaid
+flowchart LR
+    G["your goal"] --> S["searches your boards<br/>by keyword, by meaning,<br/>and by related roles"]
+    S --> F["drops what you have seen,<br/>applied to or hidden,<br/>your never-terms<br/>and the per-goal cooldown"]
+    F -->|"too thin"| R["broadens once"]
+    R --> S
+    F --> K["ranks by your must-haves,<br/>then by fit"]
+    K --> P["shortlist with<br/>verified quotes"]
+    P --> FB["more like this / hide like this"]
+    FB --> G
+```
+
+1. **Plans** several query and filter variants from your goal — grounded in
+   your profile: your skills (and the taxonomy skills around them), your
+   education level, your location, and the seniority you asked for. Each
+   variant searches by **keyword**, so multi-word concepts match titles and
+   employers instead of being treated as one exact phrase, and a skill
+   filter can widen over the curated skill graph (its sub-skills and
+   synonyms) instead of matching one exact key.
+2. **Searches three ways** — by keyword variants, **by meaning** over the
+   posting embeddings already stored, and by **related roles**: when a strong
+   match maps to a catalog job, the curated `similar_to`/`alternative_to`
+   neighbours of that role are searched too (QA ↔ test automation — adjacency
+   no wording encodes). All three are recall sources, not shortcuts: every
+   posting any of them proposes still passes the same deterministic gates
+   before it can reach the shortlist.
+3. **Filters noise** — postings you have seen or applied to, terms you never
    want, and a per-goal cooldown.
-3. **Ranks** by your deterministic fit score (see
-   [Matching and rankings](matching-and-rankings.md)).
-4. **Explains** the shortlist: every explanation cites verbatim quotes
+   If the filtered pool is thinner than your shortlist size, it **broadens
+   once** — relaxing the wording and widening the scope, never the terms you
+   banned — before it settles for what it has.
+4. **Ranks** by your must-terms first and your deterministic fit score
+   second — constraints are promises, fit is preference (see
+   [Matching and rankings](matching-and-rankings.md)). Every finding states
+   how many of your must-terms it covers.
+5. **Explains** the shortlist: every explanation cites verbatim quotes
    verified against the posting's own text.
 
-A **"what I searched & why"** timeline shows each run's work, so the agent's
-reasoning is inspectable rather than opaque.
+A **"what I searched & why"** timeline shows each run's work on its run
+page, so the agent's
+reasoning is inspectable rather than opaque. Each search reports how many
+postings it found in total and how many it actually examined, and the windows
+it scans hold **fresh** postings only — ones you have not seen, applied to or
+hidden — so a long browsing history never crowds new vacancies out of a run.
+
+## What the autopilot uses from your profile
+
+By default a goal uses your whole profile: your skills, your education
+level and certificates, your languages, your location, your experience
+(your career stage), and your lifestyle constraints (travel, shifts,
+hours). Every goal carries a **"What the autopilot uses from your
+profile"** section where each of the six inputs can be switched off for
+that goal alone — your profile itself never changes:
+
+- **Skills** — the planner's skill vocabulary and the fit engine's skill
+  dimension. Off, the goal searches from your goal text only, and
+  missing skills stop dragging scores down.
+- **Education & certificates** — the prerequisite checks. Off, education
+  and certificate requirements score neutral instead of penalizing.
+- **Languages** — the language prerequisite check (and the planner's
+  languages note). Off, language requirements score neutral.
+- **Location** — the location & remote dimension. Off, distance stops
+  affecting the score.
+- **Experience** — the seniority & stage dimension. Off, postings stop
+  being scored against your career stage.
+- **Lifestyle constraints** — the travel/shift/hours flags. Off, nothing
+  is flagged for those; the terms you explicitly asked for (must-terms,
+  never-terms, seen/cooldown) always stay on regardless.
+
+You can also choose where the career **stage** comes from: your profile
+(default) or the goal's seniority selection — a career-changer can target
+"experienced" even though their profile says early-career. A live
+summary in the goal form shows exactly what will be used; the goal
+detail and every run's detail view show the same snapshot. Match
+**estimates** (postings that have not been deep-extracted yet) ignore
+these toggles.
+
+## Open a run
+
+Every run opens its own **run page**: click a run in the **runs rail** (or
+a finding card's run/date line for the inline quick-peek). The run page at
+`/autopilot/runs/:id` (deep-linkable; `?run=<id>` on `/autopilot` lands
+there too) shows the **step trace** — what the plan,
+each search, the filters, the ranking, the broaden pass, the budget check, the
+curation and the delivery actually did, with timing and each step's arguments
+and output summaries — plus the run's **AI calls** (which stage served which
+call, its model and spend; an admin also gets a "View call" link into the
+audit ledger), and the shortlist it produced — with a **Dismiss all from
+this run** action that clears the run's open findings from the feed in
+one step (it teaches the goal nothing; per-finding 👍/👎 is what learns).
+Runs from before this trace
+existed fall back to the search timeline — never an empty view. Everything is
+argument/output summaries: the full prompt text stays admin-only in the audit
+ledger.
+
+Semantic coverage grows as your postings get indexed: the daily retrieval
+reconcile (or an operator's `scripts/reindex_vectors.py`) embeds them, so a
+fresh board's postings join the by-meaning pass only once they have a vector.
+Keyword search and related-role expansion work immediately — an embedding
+failure, an unmapped board or a catalog without relations never breaks a run.
 
 ## Cadence and budgets
 

@@ -9,6 +9,7 @@ error. Instance modes / DIM / shell-secret gate live in
 """
 
 from dataclasses import replace
+from datetime import UTC
 
 import pytest
 
@@ -59,9 +60,7 @@ async def test_register_returns_public_user_and_session_cookies(client, db):
     user_id = body["id"]
     assert (await db.execute(select(User).where(User.id == user_id))).scalars().first()
     profile = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().first()
     )
     assert profile is not None, "Default profile auto-provisioned on registration (§6)"
     families = (
@@ -113,17 +112,16 @@ async def test_registration_env_var_reaches_the_register_route(monkeypatch):
     import httpx
     from fastapi import FastAPI
 
-    import app.main as main_module
-    from app.core.config import Settings
+    import app.auth.install as install_module
+    from tests.settings_factory import settings_from_env_file
 
     monkeypatch.setenv("CAREER_REGISTRATION_ENABLED", "false")
-    monkeypatch.setattr(main_module, "settings", Settings())
 
-    fresh = FastAPI()
-    main_module._install_identity(fresh)
-    assert fresh.state.auth.config.registration_enabled is False
+    app = FastAPI()
+    install_module.install_identity(app, settings_from_env_file(None))
+    assert app.state.auth.config.registration_enabled is False
 
-    transport = httpx.ASGITransport(app=fresh)
+    transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as anon:
         response = await anon.post(
             "/api/v1/auth/register",
@@ -138,17 +136,16 @@ async def test_registration_flag_reads_the_dotenv_file_too(monkeypatch, tmp_path
     file, but the file alone has to reach the kit config."""
     from fastapi import FastAPI
 
-    import app.main as main_module
-    from app.core.config import Settings
+    import app.auth.install as install_module
+    from tests.settings_factory import settings_from_env_file
 
     env_file = tmp_path / ".env"
     env_file.write_text("CAREER_REGISTRATION_ENABLED=false\n")
     monkeypatch.delenv("CAREER_REGISTRATION_ENABLED", raising=False)
-    monkeypatch.setattr(main_module, "settings", Settings(_env_file=str(env_file)))
 
-    fresh = FastAPI()
-    main_module._install_identity(fresh)
-    assert fresh.state.auth.config.registration_enabled is False
+    app = FastAPI()
+    install_module.install_identity(app, settings_from_env_file(str(env_file)))
+    assert app.state.auth.config.registration_enabled is False
 
 
 # ------------------------------------------------------------------- login
@@ -196,7 +193,7 @@ async def test_me_requires_session(client, auth_headers):
 
 @pytest.mark.contract  # §18.4 — lockout after N failures ⇒ 423
 async def test_lockout_after_threshold(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from sqlalchemy import select
 
@@ -225,15 +222,13 @@ async def test_lockout_after_threshold(client, db):
     assert locked.status_code == 423
 
     user = (
-        (await db.execute(select(User).where(User.email == "lockout@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "lockout@example.com"))).scalars().one()
     )
     assert user.locked_until is not None
 
     # Lock window elapsed (§7 unlocks after LOCKOUT_MINUTES) — the next
     # successful login resets the counters.
-    kit.users.set_login_failures(user.id, 2, datetime.now(timezone.utc))
+    kit.users.set_login_failures(user.id, 2, datetime.now(UTC))
     recovered = await client.post(
         "/api/v1/auth/login",
         json={"email": "lockout@example.com", "password": PASSWORD},
@@ -241,9 +236,7 @@ async def test_lockout_after_threshold(client, db):
     assert recovered.status_code == 200
     db.expire_all()
     user = (
-        (await db.execute(select(User).where(User.email == "lockout@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "lockout@example.com"))).scalars().one()
     )
     assert user.failed_login_attempts == 0
     assert user.locked_until is None
@@ -260,11 +253,7 @@ async def test_failed_login_counts_failures(client, db):
 
     from app.models.user_model import User
 
-    user = (
-        (await db.execute(select(User).where(User.email == "reset@example.com")))
-        .scalars()
-        .one()
-    )
+    user = (await db.execute(select(User).where(User.email == "reset@example.com"))).scalars().one()
     assert user.failed_login_attempts == 2
 
 
@@ -281,11 +270,9 @@ async def test_cookie_flags_are_exact(client):
 
     lines = response.headers.get_list("set-cookie")
     assert_cookie_flags(lines, "nx_access", http_only=True, secure=False, path="/")
-    assert_cookie_flags(
-        lines, "nx_refresh", http_only=True, secure=False, path="/api/v1/auth"
-    )
+    assert_cookie_flags(lines, "nx_refresh", http_only=True, secure=False, path="/api/v1/auth")
     assert_cookie_flags(lines, "nx_csrf", http_only=False, secure=False, path="/")
-    same_site = [ln for ln in lines if ln.startswith("nx_access=")][0]
+    same_site = next(ln for ln in lines if ln.startswith("nx_access="))
     assert "samesite=lax" in same_site.lower()
 
 
@@ -300,9 +287,7 @@ async def test_csrf_enforced_on_cookie_posts(client, auth_headers):
         "Cookie": auth_headers["Cookie"],
         "X-CSRF-Token": "not-the-cookie",
     }
-    assert (
-        await client.post("/api/v1/auth/logout", headers=mismatched)
-    ).status_code == 403
+    assert (await client.post("/api/v1/auth/logout", headers=mismatched)).status_code == 403
 
     good = await client.post("/api/v1/auth/logout", headers=auth_headers)
     assert good.status_code == 200
@@ -341,9 +326,7 @@ async def test_forged_and_wrong_key_tokens_rejected(client, auth_headers):
     from nx_auth.testing import forge_token
 
     real = _access_token(auth_headers)
-    assert (
-        await client.get("/api/v1/auth/me", headers=auth_headers)
-    ).status_code == 200
+    assert (await client.get("/api/v1/auth/me", headers=auth_headers)).status_code == 200
 
     forged = forge_token(
         "wrong-key-0123456789abcdefghijklmnop",
@@ -374,9 +357,7 @@ async def test_kind_mismatch_and_key_separation(client, auth_headers):
         auth_mode=AuthMode.PASSWORD,
     )
     assert (
-        await client.get(
-            "/api/v1/auth/me", headers={"Cookie": f"nx_access={refresh_as_access}"}
-        )
+        await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={refresh_as_access}"})
     ).status_code == 401
 
     # A refresh token signed with the SESSION key must not verify as a
@@ -421,9 +402,7 @@ async def test_expired_access_is_401_and_refresh_recovers(client):
         auth_mode=AuthMode.PASSWORD,
         ttl_seconds=-60,
     )
-    stale = await client.get(
-        "/api/v1/auth/me", headers={"Cookie": f"nx_access={expired}"}
-    )
+    stale = await client.get("/api/v1/auth/me", headers={"Cookie": f"nx_access={expired}"})
     assert stale.status_code == 401
 
     # The refresh cookie rotates the session back to life (§8/§12).
@@ -453,15 +432,11 @@ async def test_refresh_rotation_and_reuse_detection(client, db):
     assert second_refresh and second_refresh != first_refresh
 
     # Replay of the rotated-out token: family revoked + ver bump (§8).
-    replay = await client.post(
-        "/api/v1/auth/refresh", headers=_refresh_headers(first_refresh)
-    )
+    replay = await client.post("/api/v1/auth/refresh", headers=_refresh_headers(first_refresh))
     assert replay.status_code == 423
 
     user = (
-        (await db.execute(select(User).where(User.email == "rotate@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "rotate@example.com"))).scalars().one()
     )
     assert user.token_version == 2, "reuse bumps token_version (global sign-out)"
 
@@ -487,9 +462,7 @@ async def test_logout_revokes_only_this_family(client):
     out = await client.post("/api/v1/auth/logout", headers=my_headers)
     assert out.status_code == 200
 
-    rotated = await client.post(
-        "/api/v1/auth/refresh", headers=_refresh_headers(my_refresh)
-    )
+    rotated = await client.post("/api/v1/auth/refresh", headers=_refresh_headers(my_refresh))
     assert rotated.status_code == 401, "the family is revoked — refresh is dead"
     assert (await client.get("/api/v1/auth/me", headers=other)).status_code == 200, (
         "other families of other users are untouched"
@@ -504,17 +477,13 @@ async def test_logout_all_bumps_token_version(client, auth_headers, db):
     same_user_again = mint_session_headers(email="student@example.com")
     out = await client.post("/api/v1/auth/logout-all", headers=auth_headers)
     assert out.status_code == 200
-    assert (
-        await client.get("/api/v1/auth/me", headers=auth_headers)
-    ).status_code == 401
-    assert (
-        await client.get("/api/v1/auth/me", headers=same_user_again)
-    ).status_code == 401, "every session of the user dies (ver bump)"
+    assert (await client.get("/api/v1/auth/me", headers=auth_headers)).status_code == 401
+    assert (await client.get("/api/v1/auth/me", headers=same_user_again)).status_code == 401, (
+        "every session of the user dies (ver bump)"
+    )
 
     user = (
-        (await db.execute(select(User).where(User.email == "student@example.com")))
-        .scalars()
-        .one()
+        (await db.execute(select(User).where(User.email == "student@example.com"))).scalars().one()
     )
     assert user.token_version == 2
 
@@ -524,17 +493,11 @@ async def test_inactive_user_is_rejected_everywhere(client, auth_headers):
     kit = auth_kit()
     user_id = user_id_from_headers(auth_headers)
     kit.users.set_active(user_id, False)
-    assert (
-        await client.get("/api/v1/auth/me", headers=auth_headers)
-    ).status_code == 401
+    assert (await client.get("/api/v1/auth/me", headers=auth_headers)).status_code == 401
     # Enforced domain routes reject too (§18.9).
-    assert (
-        await client.get("/api/v1/me/bootstrap", headers=auth_headers)
-    ).status_code == 401
+    assert (await client.get("/api/v1/me/bootstrap", headers=auth_headers)).status_code == 401
     kit.users.set_active(user_id, True)
-    assert (
-        await client.get("/api/v1/auth/me", headers=auth_headers)
-    ).status_code == 200
+    assert (await client.get("/api/v1/auth/me", headers=auth_headers)).status_code == 200
 
 
 async def test_session_list_and_revoke(client):
@@ -550,14 +513,10 @@ async def test_session_list_and_revoke(client):
     assert len(families) == 1
     assert families[0]["current"] is True
 
-    revoked = await client.delete(
-        f"/api/v1/me/sessions/{families[0]['id']}", headers=headers
-    )
+    revoked = await client.delete(f"/api/v1/me/sessions/{families[0]['id']}", headers=headers)
     assert revoked.status_code == 204
     # The revoked family's refresh token is dead (§12 device revocation).
-    rotated = await client.post(
-        "/api/v1/auth/refresh", headers=_refresh_headers(my_refresh)
-    )
+    rotated = await client.post("/api/v1/auth/refresh", headers=_refresh_headers(my_refresh))
     assert rotated.status_code == 401
 
 
@@ -596,18 +555,10 @@ async def test_delete_me_requires_password_and_cascades(client, db):
     )
     assert wrong.status_code == 403
 
-    ok = await client.request(
-        "DELETE", "/api/v1/me", json={"password": PASSWORD}, headers=headers
-    )
+    ok = await client.request("DELETE", "/api/v1/me", json={"password": PASSWORD}, headers=headers)
     assert ok.status_code == 204
-    assert (
-        await db.execute(select(User).where(User.id == user_id))
-    ).scalars().first() is None
-    profiles = (
-        (await db.execute(select(Profile).where(Profile.user_id == user_id)))
-        .scalars()
-        .all()
-    )
+    assert (await db.execute(select(User).where(User.id == user_id))).scalars().first() is None
+    profiles = (await db.execute(select(Profile).where(Profile.user_id == user_id))).scalars().all()
     assert profiles == []
     families = (
         (await db.execute(select(AuthSession).where(AuthSession.user_id == user_id)))
@@ -635,7 +586,5 @@ async def test_audit_trail_records_auth_actions(client, db):
         json={"email": "audited@example.com", "password": PASSWORD},
     )
     await client.post("/api/v1/auth/logout", headers=headers)
-    actions = {
-        row.action for row in (await db.execute(select(AuditEvent))).scalars().all()
-    }
+    actions = {row.action for row in (await db.execute(select(AuditEvent))).scalars().all()}
     assert {"auth.register", "auth.login", "auth.logout"} <= actions

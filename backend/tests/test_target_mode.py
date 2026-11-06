@@ -1,21 +1,22 @@
 """Phase 27 express start + target mode: resolve, e2e, nudges, merge."""
 
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 from sqlalchemy import select
 
-from app.connectors.base import (
+from app.extensions.registry import register_connector, reset_registry
+from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorResult,
     PostingConnector,
     RawPosting,
 )
-from app.connectors.registry import register_connector, reset_registry
-from tests.conftest import decode_session_token
 from app.models.engagement_model import NotificationRule
 from app.models.taxonomy_model import Skill
+from tests.conftest import decode_session_token
 
 
 def _user_id(auth_headers) -> uuid_mod.UUID:
@@ -32,11 +33,12 @@ async def kinds(db):
 
 class SyntheticConnector(PostingConnector):
     key = "synthetic"
+    manifest_file = Path(__file__).resolve().parent / "fixtures" / "synthetic-connector.json"
     title = "Synthetic"
     capabilities = ConnectorCapabilities(supports_incremental=True)
 
     def config_model(self):
-        from app.connectors.base import EmptyConfig
+        from app.extensions.sdk import EmptyConfig
 
         return EmptyConfig
 
@@ -44,13 +46,13 @@ class SyntheticConnector(PostingConnector):
         if state and state.get("etag"):
             return ConnectorResult(next_state=state)
         return ConnectorResult(
-            postings=[
+            items=[
                 RawPosting(
                     external_id="syn-1",
                     title="QA Automation Engineer",
                     org="SynthCo",
                     url="https://syn.example/1",
-                    posted_at=datetime(2026, 8, 20, tzinfo=timezone.utc),
+                    posted_at=datetime(2026, 8, 20, tzinfo=UTC),
                     skills_raw=["programming", "problem-solving"],
                     raw={"description": "programming and problem-solving"},
                 )
@@ -72,11 +74,7 @@ def synthetic():
 async def test_resolve_alias_and_trigram_hits(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == "programming")))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == "programming"))).scalars().first()
     skill.aliases = ["coding"]
     await db.commit()
 
@@ -90,9 +88,7 @@ async def test_resolve_alias_and_trigram_hits(
     assert "software-developer" in codes
 
     trigram = (
-        await client.get(
-            "/api/v1/onboarding/resolve?q=software develpr", headers=auth_headers
-        )
+        await client.get("/api/v1/onboarding/resolve?q=software develpr", headers=auth_headers)
     ).json()
     assert trigram["archetypes"]
     assert trigram["archetypes"][0]["code"] == "software-developer"
@@ -105,18 +101,14 @@ async def test_resolve_ai_fallback_and_unresolved(
     client, auth_headers, profile_ready, seeded_catalog, db
 ):
     fallback = (
-        await client.get(
-            "/api/v1/onboarding/resolve?q=zzzunresolvablezzz", headers=auth_headers
-        )
+        await client.get("/api/v1/onboarding/resolve?q=zzzunresolvablezzz", headers=auth_headers)
     ).json()
     # The mock resolver maps to the first family key — taxonomy keys only.
     assert fallback["resolved_by"] == "ai"
     assert fallback["archetypes"]
     assert all(a["family_key"] for a in fallback["archetypes"])
 
-    empty = (
-        await client.get("/api/v1/onboarding/resolve?q=x", headers=auth_headers)
-    ).json()
+    empty = (await client.get("/api/v1/onboarding/resolve?q=x", headers=auth_headers)).json()
     assert empty["resolved_by"] == "empty"
     assert empty["archetypes"] == []
 
@@ -129,7 +121,7 @@ async def test_express_end_to_end(
 ):
     from app.models.posting_model import JobSource
     from app.services.notification_service import NotificationService
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     response = await client.post(
         "/api/v1/onboarding/express",
@@ -150,9 +142,7 @@ async def test_express_end_to_end(
     rules = (
         (
             await db.execute(
-                select(NotificationRule).where(
-                    NotificationRule.user_id == _user_id(auth_headers)
-                )
+                select(NotificationRule).where(NotificationRule.user_id == _user_id(auth_headers))
             )
         )
         .scalars()
@@ -175,9 +165,7 @@ async def test_express_end_to_end(
     assert feed["items"][0]["catalog_job_id"] is not None
 
     assert await NotificationService(db).unread_count(_user_id(auth_headers)) >= 1
-    notifications = (
-        await client.get("/api/v1/notifications", headers=auth_headers)
-    ).json()
+    notifications = (await client.get("/api/v1/notifications", headers=auth_headers)).json()
     assert any(n["kind"] == "new_posting_match" for n in notifications["items"])
 
     # Express interests merge cleanly with later assessment results
@@ -187,9 +175,7 @@ async def test_express_end_to_end(
     interests = (
         (
             await db.execute(
-                select(UserInterest).where(
-                    UserInterest.user_id == _user_id(auth_headers)
-                )
+                select(UserInterest).where(UserInterest.user_id == _user_id(auth_headers))
             )
         )
         .scalars()
@@ -198,9 +184,7 @@ async def test_express_end_to_end(
     assert any(i.source == "express" for i in interests)
 
 
-async def test_express_unknown_target_rejected(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_express_unknown_target_rejected(client, auth_headers, profile_ready, seeded_catalog):
     response = await client.post(
         "/api/v1/onboarding/express",
         json={"targets": ["no-such-thing"]},
@@ -212,9 +196,7 @@ async def test_express_unknown_target_rejected(
 # ------------------------------------------------------ sparse-fit sanity
 
 
-async def test_sparse_profile_target_dashboard(
-    client, auth_headers, seeded_catalog, db, synthetic
-):
+async def test_sparse_profile_target_dashboard(client, auth_headers, seeded_catalog, db, synthetic):
     """No onboarding at all: express targets alone produce a sane
     dashboard — no crashes, no zero-score rows required."""
     from app.models.posting_model import JobSource
@@ -230,13 +212,11 @@ async def test_sparse_profile_target_dashboard(
     db.add(source)
     await db.commit()
     await db.refresh(source)
-    from app.services.postings_service import sync_source
+    from app.services.postings.postings_service import sync_source
 
     await sync_source(db, source)
 
-    dashboard = (
-        await client.get("/api/v1/dashboard/target", headers=auth_headers)
-    ).json()
+    dashboard = (await client.get("/api/v1/dashboard/target", headers=auth_headers)).json()
     assert "technology-software" in dashboard["families"]
     assert dashboard["open_postings"]["total"] == 1
     assert dashboard["completeness"]["percent"] >= 0
@@ -270,7 +250,7 @@ async def test_nudge_caps_and_dismiss_forever(
         profile = await get_profile_for_user(db, _user_id(auth_headers))
         nudges = (profile.preferences or {}).get("nudges") or {}
         fired = {
-            k: (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+            k: (datetime.now(UTC) - timedelta(days=5)).isoformat()
             for k in (nudges.get("last_fired") or {})
         }
         profile.preferences = {
@@ -293,9 +273,7 @@ async def test_nudge_caps_and_dismiss_forever(
 # ------------------------------------------------------------ completeness
 
 
-async def test_completeness_ring_math(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_completeness_ring_math(client, auth_headers, profile_ready, seeded_catalog):
     ring = (await client.get("/api/v1/me/completeness", headers=auth_headers)).json()
     assert 0 <= ring["percent"] <= 100
     keys = {s["key"] for s in ring["segments"]}

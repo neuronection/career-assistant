@@ -1,10 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { JobCard } from "@/components/JobCard";
+import { JobCard } from "@/features/catalog/components/JobCard";
 import { NotificationBell } from "@/components/NotificationBell";
-import { RecentSearches } from "@/components/RecentSearches";
+import { RecentSearches } from "@/features/postings/components/RecentSearches";
 import {
   deleteSearch,
   fetchFeed,
@@ -19,7 +19,8 @@ import {
   updateNotificationPreferences,
   updateRule,
 } from "@/api/engagement";
-import type { FeedResponse, Job, NotificationItem, SearchRecord } from "@/types";
+import type { FeedResponse, Job, SearchRecord } from "@/types/wire";
+import type { NotificationItem } from "@/types/wire";
 
 vi.mock("@/api/engagement", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/engagement")>();
@@ -71,6 +72,8 @@ vi.mock("@/api/stages", async (importOriginal) => {
         values: 3,
       },
       weights_overridden: false,
+      fit_stale: false,
+      target_mode: false,
       notification_channels: ["in_app", "desktop"],
     }),
   };
@@ -91,11 +94,11 @@ vi.mock("@/api/profile", () => ({
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
   fetchGraph: vi.fn().mockResolvedValue({ nodes: [], edges: [] }),
 }));
 
-import { Dashboard } from "@/pages/Dashboard";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
 import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
@@ -111,6 +114,7 @@ function makeJob(overrides: Partial<Job> = {}): Job {
     code: "software-developer",
     title: "Software Developer",
     family_key: "technology-software",
+    family_label: "",
     short_description: "Builds software.",
     status: "published",
     source: "seed",
@@ -137,7 +141,7 @@ describe("JobCard engagement state", () => {
   it("shows the education chip, saved marker and seen state", () => {
     render(<JobCard job={makeJob()} saved seen />);
     expect(screen.getByTestId("education-chip")).toHaveTextContent("Bachelor's");
-    expect(screen.getByText("seen")).toBeInTheDocument();
+    expect(screen.getByTestId("job-seen")).toHaveAttribute("title", "seen");
   });
 
   it("shows notes and the exploration chip", () => {
@@ -148,6 +152,17 @@ describe("JobCard engagement state", () => {
 });
 
 describe("Recent searches", () => {
+  const makeRecord = (id: string, over: Partial<SearchRecord> = {}): SearchRecord => ({
+    id,
+    scope: "catalog",
+    query: `query-${id}`,
+    filters: {},
+    result_count: 1,
+    saved: false,
+    created_at: "2026-08-31T00:00:00Z",
+    ...over,
+  });
+
   it("lists records, re-runs on click and deletes", async () => {
     const onApply = vi.fn();
     const record: SearchRecord = {
@@ -169,6 +184,69 @@ describe("Recent searches", () => {
 
     fireEvent.click(screen.getByLabelText("Delete search"));
     await waitFor(() => expect(deleteSearch).toHaveBeenCalledWith("s1"));
+  });
+
+  it("keeps the rankings list at six records including filters-only rows", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([
+      makeRecord("f", { scope: "rankings", query: "", result_count: 0 }),
+      makeRecord("1", { scope: "rankings" }),
+      makeRecord("2", { scope: "rankings" }),
+      makeRecord("3", { scope: "rankings" }),
+      makeRecord("4", { scope: "rankings" }),
+      makeRecord("5", { scope: "rankings" }),
+      makeRecord("6", { scope: "rankings" }),
+      makeRecord("7", { scope: "rankings" }),
+    ]);
+
+    render(<RecentSearches scope="rankings" onApply={vi.fn()} />);
+    const root = await screen.findByTestId("recent-searches-rankings");
+    expect(within(root).getAllByTestId("recent-search-item")).toHaveLength(6);
+    expect(within(root).getByText("filters only")).toBeInTheDocument();
+    expect(screen.queryByTestId("catalog-recent-panel")).not.toBeInTheDocument();
+  });
+
+  it("caps the catalog rail at four real records and drops filters-only rows", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([
+      makeRecord("f", { query: "", result_count: 0 }),
+      makeRecord("1"),
+      makeRecord("2"),
+      makeRecord("3"),
+      makeRecord("4"),
+      makeRecord("5"),
+    ]);
+
+    render(
+      <RecentSearches
+        scope="catalog"
+        onApply={vi.fn()}
+        max={4}
+        hideEmptyFiltersOnly
+        rail
+        panelTestId="catalog-recent-panel"
+      />
+    );
+    const panel = await screen.findByTestId("catalog-recent-panel");
+    expect(await within(panel).findAllByTestId("recent-search-item")).toHaveLength(4);
+    expect(within(panel).queryByText("filters only")).not.toBeInTheDocument();
+  });
+
+  it("renders nothing when the catalog panel has only filters-only records", async () => {
+    vi.mocked(fetchSearches).mockResolvedValue([makeRecord("f", { query: "", result_count: 0 })]);
+
+    const { container } = render(
+      <RecentSearches
+        scope="catalog"
+        onApply={vi.fn()}
+        max={4}
+        hideEmptyFiltersOnly
+        rail
+        panelTestId="catalog-recent-panel"
+      />
+    );
+    await waitFor(() => expect(fetchSearches).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="catalog-recent-panel"]')).toBeNull()
+    );
   });
 });
 
@@ -287,6 +365,8 @@ describe("NotificationBell", () => {
           values: 3,
         },
         weights_overridden: false,
+        fit_stale: false,
+        target_mode: false,
         notification_channels: ["in_app", "desktop"],
       },
       loaded: true,
@@ -351,6 +431,8 @@ describe("NotificationBell", () => {
           values: 3,
         },
         weights_overridden: false,
+        fit_stale: false,
+        target_mode: false,
         notification_channels: ["in_app", "browser"],
       },
       loaded: true,

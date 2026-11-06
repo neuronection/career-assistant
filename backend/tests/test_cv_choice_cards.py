@@ -13,12 +13,11 @@ from app.core.errors import ValidationError
 from app.models.profile_proposal_model import ProfileProposal
 from app.models.user_model import User
 from app.schemas.profile_proposal import CvChoiceOpPayload
-from app.services.experience_service import ExperienceService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import (
     ProfileProposalService,
     proposal_event,
 )
-
 from tests.test_profile_proposals import _auth_user
 
 
@@ -68,15 +67,13 @@ async def test_choice_validates_option_payloads(db, auth_headers) -> None:
             },
         ],
     }
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         await ProfileProposalService(db).create(
             user.id, kind="cv_choice", action="create", payload=bad
         )
 
 
-async def test_choice_rejects_nested_choices_and_single_option(
-    db, auth_headers
-) -> None:
+async def test_choice_rejects_nested_choices_and_single_option(db, auth_headers) -> None:
     nested = {
         "question": "Pick",
         "min_select": 2,
@@ -98,7 +95,7 @@ async def test_choice_rejects_nested_choices_and_single_option(
             },
         ],
     }
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         CvChoiceOpPayload.model_validate(nested)
     single = {
         "question": "Pick",
@@ -113,13 +110,11 @@ async def test_choice_rejects_nested_choices_and_single_option(
             },
         ],
     }
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 -- intentional broad rejection assertion
         CvChoiceOpPayload.model_validate(single)
 
 
-async def test_create_persists_options_and_event_carries_payload(
-    db, auth_headers
-) -> None:
+async def test_create_persists_options_and_event_carries_payload(db, auth_headers) -> None:
     user = await _user(db)
     proposal = await ProfileProposalService(db).create(
         user.id,
@@ -202,11 +197,7 @@ async def test_approve_requires_selection_and_fans_out(db, auth_headers) -> None
     assert [entry["key"] for entry in resolved["children"]] == ["go", "achie"]
 
     stored = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -260,9 +251,7 @@ async def test_approve_endpoint_serializes_children(db, client, auth_headers) ->
     assert child["destructive"] is False
 
 
-async def test_approve_fanout_drops_invalid_children_with_reason(
-    db, auth_headers
-) -> None:
+async def test_approve_fanout_drops_invalid_children_with_reason(db, auth_headers) -> None:
     user = await _user(db)
     item = await ExperienceService(db).create_item(
         user.id,
@@ -302,7 +291,7 @@ async def test_approve_fanout_drops_invalid_children_with_reason(
             ],
         },
     )
-    approved, applied, _ = await service.approve(
+    _approved, applied, _ = await service.approve(
         user.id, parent.id, option_keys=["title", "bogus"]
     )
     assert len(applied["children"]) == 1
@@ -339,11 +328,7 @@ async def test_reject_leaves_children_uncreated(db, auth_headers) -> None:
     rejected = await service.reject(user.id, parent.id)
     assert rejected.status == "rejected"
     stored = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -385,11 +370,7 @@ async def test_unknown_option_keys_and_bounds_are_hard_errors(db, auth_headers) 
         await service.approve(user.id, parent.id, option_keys=[])
     assert parent.status == "pending"
     stored = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )
@@ -425,17 +406,11 @@ async def test_choice_revert_is_not_available(db, auth_headers) -> None:
     )
     await service.approve(user.id, parent.id, option_keys=["go"])
     await db.refresh(parent)
-    assert parent.status == "approved", (
-        f"parent {parent.status} error={parent.resolve_error}"
-    )
+    assert parent.status == "approved", f"parent {parent.status} error={parent.resolve_error}"
     with pytest.raises(ValidationError):
         await service.revert(user.id, parent.id)
     stored = (
-        (
-            await db.execute(
-                select(ProfileProposal).where(ProfileProposal.user_id == user.id)
-            )
-        )
+        (await db.execute(select(ProfileProposal).where(ProfileProposal.user_id == user.id)))
         .scalars()
         .all()
     )

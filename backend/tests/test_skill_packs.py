@@ -5,14 +5,13 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from tests.conftest import _uid
-
 from app.ai.gateway import ainvoke_structured
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.models.skill_pack_model import AISkillPack
 from app.schemas.interview import InterviewTurn
 from app.seeds.skill_packs import BANK_PACKS, seed_skill_packs
+from tests.conftest import _uid
 
 
 async def test_seed_is_idempotent_and_versioned(
@@ -135,9 +134,7 @@ async def test_gateway_pins_pack_on_audit_rows(
     assist = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.ASSIST.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.ASSIST.value)
             )
         )
         .scalars()

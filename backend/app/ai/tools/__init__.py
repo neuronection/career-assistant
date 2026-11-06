@@ -10,7 +10,7 @@ connectors). The chatbot consumes the registry today; autopilot and the
 MCP layer (41b) consume the same definitions.
 """
 
-from enum import Enum
+from enum import StrEnum
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
 from app.ai.tools.registry import (
@@ -23,6 +23,7 @@ from app.ai.tools.registry import (
 
 __all__ = [
     "AITool",
+    "ToolAudience",
     "ToolContext",
     "ToolScope",
     "get_tool",
@@ -30,11 +31,10 @@ __all__ = [
     "register_tool",
     "reset_registry",
     "run_tool",
-    "ToolAudience",
 ]
 
 
-class ToolAudience(str, Enum):
+class ToolAudience(StrEnum):
     """Surfaces that may invoke a tool."""
 
     CHAT = "chat"

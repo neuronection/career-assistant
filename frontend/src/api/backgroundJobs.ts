@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 export interface BackgroundJob {
   id: string;
@@ -23,7 +23,7 @@ export interface BackgroundJob {
   finished_at: string | null;
 }
 
-export const TERMINAL_STATUSES = ["succeeded", "failed", "cancelled"] as const;
+const TERMINAL_STATUSES = ["succeeded", "failed", "cancelled"] as const;
 
 export function isTerminal(job: BackgroundJob): boolean {
   return (TERMINAL_STATUSES as readonly string[]).includes(job.status);
@@ -33,12 +33,6 @@ export async function fetchBackgroundJob(id: string): Promise<BackgroundJob> {
   const { data } = await api.get<BackgroundJob>(`/background-jobs/${id}`);
   return data;
 }
-
-export async function fetchBackgroundJobs(params: Record<string, unknown> = {}): Promise<BackgroundJob[]> {
-  const { data } = await api.get<BackgroundJob[]>("/background-jobs", { params });
-  return data;
-}
-
 export async function cancelBackgroundJob(id: string): Promise<BackgroundJob> {
   const { data } = await api.post<BackgroundJob>(`/background-jobs/${id}/cancel`);
   return data;

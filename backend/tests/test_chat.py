@@ -26,18 +26,12 @@ async def test_chat_session_flow(client, auth_headers, profile_ready, seeded_cat
     refs = messages[1]["metadata_json"]["referenced_job_codes"]
     assert "software-developer" in refs
 
-    history = await client.get(
-        f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
-    )
+    history = await client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers)
     assert len(history.json()) == 2
 
 
-async def test_chat_isolated_between_users(
-    client, auth_headers, profile_ready, seeded_catalog
-):
-    session = (
-        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
-    ).json()
+async def test_chat_isolated_between_users(client, auth_headers, profile_ready, seeded_catalog):
+    session = (await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)).json()
     other = await client.post(
         "/api/v1/auth/register",
         json={"email": "chatsnoop@example.com", "password": "password123"},
@@ -52,9 +46,7 @@ async def test_chat_isolated_between_users(
 async def test_chat_without_relevant_catalog_words(
     client, auth_headers, profile_ready, seeded_catalog
 ):
-    session = (
-        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
-    ).json()
+    session = (await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)).json()
     reply = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
         json={"content": "hello there"},
@@ -80,18 +72,12 @@ async def test_quick_assist(client, auth_headers, profile_ready, seeded_catalog)
     assert body["answer"]
 
 
-async def test_sessions_listed_newest_first(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_sessions_listed_newest_first(client, auth_headers, profile_ready, seeded_catalog):
     first = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers)
     ).json()
     second = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "Two"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "Two"}, headers=auth_headers)
     ).json()
     await client.post(
         f"/api/v1/chat/sessions/{first['id']}/messages",
@@ -111,14 +97,10 @@ async def test_sessions_without_messages_are_not_listed(
     client, auth_headers, profile_ready, seeded_catalog
 ):
     first = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "One"}, headers=auth_headers)
     ).json()
     second = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "Two"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "Two"}, headers=auth_headers)
     ).json()
     listed = (await client.get("/api/v1/chat/sessions", headers=auth_headers)).json()
     assert listed == []
@@ -143,9 +125,7 @@ async def test_sessions_without_messages_are_not_listed(
 async def test_first_exchange_autotitles_the_session(
     client, auth_headers, profile_ready, seeded_catalog
 ):
-    session = (
-        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
-    ).json()
+    session = (await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)).json()
     await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
         json={"content": "How do I become a data analyst?"},
@@ -166,9 +146,7 @@ async def test_autotitle_falls_back_to_the_message_text(
 
     monkeypatch.setattr(chat_title, "ainvoke_structured", unconfigured)
 
-    session = (
-        await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)
-    ).json()
+    session = (await client.post("/api/v1/chat/sessions", json={}, headers=auth_headers)).json()
     content = (
         "I want to move from retail into backend engineering, "
         "where should I start learning Python and system design?"

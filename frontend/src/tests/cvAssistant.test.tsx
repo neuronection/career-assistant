@@ -1,8 +1,8 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
-import { openCvChat } from "@/components/chat/cvChatLink";
+import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
+import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import { useCvBuilderLink } from "@/stores/cvBuilderLinkStore";
 import type { CvAssistantState } from "@/types/cvAssistant";
@@ -118,16 +118,9 @@ describe("openCvChat (plan 78: normal chat + CV attachment)", () => {
     expect(useChatStore.getState().activeSessionId).toBe("s-9");
   });
 
-  it("never adopts a builder-bound (legacy) or interview session", async () => {
+  it("never adopts an interview session", async () => {
     useChatStore.setState({
       sessions: [
-        {
-          id: "s-bound",
-          title: "Legacy",
-          context: { surface: "cv_builder", cv_id: "other" },
-          created_at: "2026-09-14T12:00:00Z",
-          last_activity_at: "2026-09-14T12:00:00Z",
-        },
         {
           id: "s-int",
           title: "Interview",
@@ -170,6 +163,7 @@ describe("ChatWidget view switcher (bubble ↔ docked ↔ page)", () => {
           title: "CV assistant",
           context: { surface: "cv_builder", cv_id: "cv-1" },
           created_at: "2026-09-07T00:00:00Z",
+          last_activity_at: "2026-09-07T00:00:00Z",
         },
       ],
     });
@@ -183,16 +177,17 @@ describe("ChatWidget view switcher (bubble ↔ docked ↔ page)", () => {
 });
 
 describe("ChatDock (the docked shape of the one chatbot)", () => {
-  it("renders the shared surface with the view switcher in a CV-bound session", () => {
+  it("renders the shared surface with the view switcher", () => {
     useChatStore.setState({
       activeSessionId: "s-1",
       messages: [],
       sessions: [
         {
           id: "s-1",
-          title: "CV assistant",
-          context: { surface: "cv_builder", cv_id: "cv-1" },
+          title: "Career chat",
+          context: {},
           created_at: "2026-09-07T00:00:00Z",
+          last_activity_at: "2026-09-07T00:00:00Z",
         },
       ],
     });
@@ -205,36 +200,10 @@ describe("ChatDock (the docked shape of the one chatbot)", () => {
     expect(screen.getByTestId("chat-dock-resize-handle")).toBeInTheDocument();
     expect(screen.getByTestId("chat-view-popup")).toBeInTheDocument();
     expect(screen.getByTestId("chat-view-page")).toBeInTheDocument();
-    // CV-bound: prompt chips instead of the generic suggestions
-    expect(screen.getAllByTestId("cv-chat-prompt").length).toBeGreaterThan(0);
   });
 });
 
-describe("CV-bound empty state + builder link", () => {
-  it("shows CV prompt suggestions when the active session is CV-bound", () => {
-    useChatStore.setState({
-      activeSessionId: "s-1",
-      messages: [],
-      sessions: [
-        {
-          id: "s-1",
-          title: "CV assistant",
-          context: { surface: "cv_builder", cv_id: "cv-1" },
-          created_at: "2026-09-07T00:00:00Z",
-        },
-      ],
-    });
-    render(
-      <MemoryRouter>
-        <ChatWidget />
-      </MemoryRouter>,
-    );
-    // bubble mode: open the launcher panel to see the transcript
-    fireEvent.click(screen.getByRole("button", { name: /open chat assistant/i }));
-    expect(screen.getAllByTestId("cv-chat-prompt").length).toBeGreaterThan(0);
-    expect(screen.queryAllByTestId("chat-suggestion")).toHaveLength(0);
-  });
-
+describe("builder link store", () => {
   it("applies builder_state through the link store", () => {
     const seen: CvAssistantState[] = [];
     useCvBuilderLink.subscribe((s) => seen.push(s.lastBuilderState as CvAssistantState));

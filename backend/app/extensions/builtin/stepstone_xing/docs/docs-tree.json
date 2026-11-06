@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the StepStone/Xing alert connector fetches and why the URL is a secret.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "usage",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Usage",
+          "description": "Creating the board alert, adding the RSS URL as a sealed slot, and incremental sync.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "troubleshooting",
+      "items": [
+        {
+          "id": "troubleshooting",
+          "file": "troubleshooting.md",
+          "title": "Troubleshooting",
+          "description": "Symptom → cause → fix for empty alerts and rejected URLs.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}

@@ -1,32 +1,108 @@
 import axios from "axios";
 
-import { api, apiDetail } from "./client";
+import { api, apiDetail } from "@/api/client";
 
 export interface AIProvider {
   id: string;
   name: string;
   scope: "system" | "user";
   user_id: string | null;
-  provider_type: "mock" | "openai" | "openai_compatible" | "google";
+  provider_type: "mock" | "openai" | "openai_compatible" | "google" | "decision";
   api_base: string;
   api_key: string | null;
   is_active: boolean;
   is_local: boolean | null;
   country: string | null;
+  preset_key: string | null;
   is_mine: boolean;
   created_at: string;
+}
+
+export interface PreferredModel {
+  id: string;
+  name: string;
+  caps: string[];
+}
+
+export interface DecisionModelData {
+  id: string;
+  name: string;
+  transport: string;
+  base_url_override?: string;
+  caps: string[];
+  provisional?: boolean;
 }
 
 export interface ProviderPreset {
   name: string;
   type: string;
   base_url: string;
+  fixed_base?: boolean;
   local: boolean;
+  key_url?: string | null;
+  preferred_model?: PreferredModel | null;
+  curated_models?: string[] | null;
+  stt_model?: string | null;
+  decision_models?: DecisionModelData[] | null;
+  decision_default?: string | null;
+  provisional?: boolean | null;
+  steps?: string[] | null;
+  free_tier_note?: string | null;
 }
 
 export async function fetchProviderPresets(): Promise<Record<string, ProviderPreset>> {
   const { data } = await api.get<Record<string, ProviderPreset>>("/ai/providers/presets");
   return data;
+}
+
+export interface ProviderSetupOptions {
+  curated_ids?: string[];
+  bind_chat: boolean;
+  bind_vision: boolean;
+  bind_stt: boolean;
+  bind_decision: boolean;
+}
+
+export interface ProviderSetupResult {
+  ok: boolean;
+  provider: AIProvider;
+  catalog_count: number;
+  curated_missed: boolean;
+  assigned_chat_model: string | null;
+  assigned_vision_model: string | null;
+  assigned_stt_model: string | null;
+  assigned_decision_slots: Record<string, string> | null;
+}
+
+export async function setupProviderPreset(
+  presetKey: string,
+  body: {
+    api_key: string | null;
+    name?: string | null;
+    scope?: "user" | "system";
+    options?: ProviderSetupOptions;
+  }
+): Promise<ProviderSetupResult> {
+  const { data } = await api.post<ProviderSetupResult>(`/ai/providers/${presetKey}/setup`, body);
+  return data;
+}
+
+/** §15 classified setup failure (the API's 422 detail shape). */
+export interface ProviderSetupErrorDetail {
+  code: string;
+  suspected_vendor: string | null;
+  detail: string;
+}
+
+export function setupErrorDetail(detail: unknown): ProviderSetupErrorDetail | null {
+  if (typeof detail !== "object" || detail === null) return null;
+  const candidate = detail as { code?: unknown; suspected_vendor?: unknown; detail?: unknown };
+  if (typeof candidate.code !== "string") return null;
+  return {
+    code: candidate.code,
+    suspected_vendor: typeof candidate.suspected_vendor === "string" ? candidate.suspected_vendor : null,
+    detail: typeof candidate.detail === "string" ? candidate.detail : "",
+  };
 }
 
 export interface AIModel {
@@ -39,6 +115,7 @@ export interface AIModel {
   max_tokens: number | null;
   reasoning_effort: string | null;
   caps: string[] | null;
+  decision_transport?: string | null;
 }
 
 export interface AITaskInfo {
@@ -47,6 +124,7 @@ export interface AITaskInfo {
   description?: string;
   requires?: string;
   tier?: string;
+  is_slot?: boolean;
 }
 
 export interface EffectiveAssignment {
@@ -83,6 +161,10 @@ export interface AiToolInfo {
   title: string;
   description: string;
   scope: string;
+  /** ADR-0011 risk class (D20): read-only | state-changing | destructive. */
+  risk_class?: string;
+  /** The caller's catalog grant (state-changing tools only). */
+  granted?: boolean;
   audiences: string[];
   cost_hint: string | null;
   requires_user: boolean;
@@ -108,6 +190,18 @@ export async function fetchAiTools(options?: {
     },
   });
   return data;
+}
+
+/** The tools-catalog toggle ON: per-user enablement of one state-changing
+ * tool (D20 per-grant law — destructive tools confirm every call and are
+ * never grantable; the backend rejects those keys). */
+export async function grantAiTool(key: string): Promise<void> {
+  await api.put(`/ai/tools/${encodeURIComponent(key)}/grant`);
+}
+
+/** The tools-catalog toggle OFF. */
+export async function revokeAiToolGrant(key: string): Promise<void> {
+  await api.delete(`/ai/tools/${encodeURIComponent(key)}/grant`);
 }
 
 export async function fetchConfigSummary(): Promise<ConfigSummary> {
@@ -190,7 +284,10 @@ export async function setAssignment(taskType: string, body: { scope: "user" | "s
   return data;
 }
 
-export async function testConnection(providerId: string, modelId: string): Promise<{ ok: boolean; reply?: string; error?: string }> {
+export async function testConnection(
+  providerId: string,
+  modelId: string
+): Promise<{ ok: boolean; reply?: string; error?: string; code?: string }> {
   const { data } = await api.post("/ai/test", null, { params: { provider_id: providerId, model_id: modelId } });
   return data;
 }
@@ -213,8 +310,6 @@ export function classifyDictationError(error: unknown): { kind: "unsupported" | 
 }
 
 export interface WebSettings {
-  searxng_url: string;
-  searxng_probe: { status: string; status_code?: number };
   github_token_set: boolean;
 }
 
@@ -223,9 +318,119 @@ export async function fetchWebSettings(): Promise<WebSettings> {
   return data;
 }
 
-export async function updateWebSettings(
-  payload: Partial<Pick<WebSettings, "searxng_url">> & { github_token?: string }
-): Promise<WebSettings> {
+export async function updateWebSettings(payload: { github_token?: string }): Promise<WebSettings> {
   const { data } = await api.put<WebSettings>("/ai/web", payload);
+  return data;
+}
+
+// ------------------------------------------------------------- web search
+// Family web-search contract (ADR-0035 / plan 28): an ordered multi-provider
+// list — the first enabled provider that answers wins. Career's guarded
+// searxng transport serves it; keyed POST providers join with guarded
+// adapters (plan 28 Phase 4 note).
+
+export interface SearchProvider {
+  id: string;
+  name: string;
+  type: string;
+  enabled: boolean;
+  base_url: string;
+  google_cx: string | null;
+  key_hint: string | null;
+  max_results: number;
+  timeout_ms: number;
+  key_set: boolean;
+}
+
+export interface SearchProviderCatalogField {
+  id: string;
+  label: string;
+  required: boolean;
+  placeholder?: string | null;
+  type?: "text" | "number";
+  advanced?: boolean;
+  hint?: string | null;
+}
+
+export interface SearchProviderCatalog {
+  providerOrder: string[];
+  providers: Record<string, {
+    label: string;
+    requiresKey: boolean;
+    keyUrl: string | null;
+    baseUrl: string | null;
+    baseUrlRequired: boolean;
+    baseUrlHint?: string | null;
+    notes?: string | null;
+    hosting?: string;
+    fields?: SearchProviderCatalogField[];
+  }>;
+  limits?: {
+    maxResults?: { default: number; min: number; max: number };
+    timeoutMs?: { default: number; min: number; max: number };
+  };
+}
+
+export interface SearchProviderProbe {
+  status: string;
+  latency_ms: number;
+  result_count: number | null;
+  error: string | null;
+}
+
+// The create/update wire body (backend `SearchProviderIn`): `api_key: null`
+// keeps the stored key, absent tuning fields keep their stored/default
+// values, `base_url: null` folds back to the catalog default.
+export interface SearchProviderSaveBody {
+  type?: string | null;
+  name?: string | null;
+  base_url?: string | null;
+  enabled?: boolean | null;
+  max_results?: number | null;
+  timeout_ms?: number | null;
+  google_cx?: string | null;
+  api_key?: string | null;
+}
+
+export async function listSearchProviders(): Promise<SearchProvider[]> {
+  const { data } = await api.get<{ providers: SearchProvider[] }>("/ai/web/search-providers");
+  return data.providers;
+}
+
+export async function getSearchProviderCatalog(): Promise<SearchProviderCatalog> {
+  const { data } = await api.get<SearchProviderCatalog>("/ai/web/search-providers/catalog");
+  return data;
+}
+
+export async function createSearchProvider(body: SearchProviderSaveBody): Promise<SearchProvider> {
+  const { data } = await api.post<SearchProvider>("/ai/web/search-providers", body);
+  return data;
+}
+
+export async function updateSearchProvider(
+  providerId: string,
+  body: SearchProviderSaveBody,
+): Promise<SearchProvider> {
+  const { data } = await api.put<SearchProvider>(`/ai/web/search-providers/${providerId}`, body);
+  return data;
+}
+
+export async function moveSearchProvider(
+  providerId: string,
+  direction: "up" | "down",
+): Promise<SearchProvider[]> {
+  const { data } = await api.post<{ providers: SearchProvider[] }>(
+    `/ai/web/search-providers/${providerId}/move`,
+    { direction },
+  );
+  return data.providers;
+}
+
+export async function deleteSearchProvider(providerId: string): Promise<void> {
+  await api.delete(`/ai/web/search-providers/${providerId}`);
+}
+
+export async function testSearchProvider(providerId: string): Promise<SearchProviderProbe> {
+  const { data } = await api.post<SearchProviderProbe>(`/ai/web/search-providers/${providerId}/test`);
   return data;
 }

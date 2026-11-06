@@ -37,19 +37,13 @@ class AssessmentTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "assessment_templates"
     __table_args__ = (
-        UniqueConstraint(
-            "author_key", "key", "version", name="uq_assessment_templates_version"
-        ),
-        CheckConstraint(
-            "source IN ('bank', 'ai', 'user', 'imported')", name="source_allowed"
-        ),
+        UniqueConstraint("author_key", "key", "version", name="uq_assessment_templates_version"),
+        CheckConstraint("source IN ('bank', 'ai', 'user', 'imported')", name="source_allowed"),
         CheckConstraint(
             "visibility IN ('private', 'unlisted', 'public')",
             name="visibility_allowed",
         ),
-        CheckConstraint(
-            "status IN ('draft', 'published', 'retired')", name="status_allowed"
-        ),
+        CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         CheckConstraint("version >= 1", name="version_positive"),
         Index("ix_assessment_templates_key", "key"),
     )
@@ -68,9 +62,7 @@ class AssessmentTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     visibility: Mapped[str] = mapped_column(
         String(20), nullable=False, default=TemplateVisibility.PRIVATE.value
     )
-    audience_stages: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
+    audience_stages: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
     schema_version: Mapped[int] = mapped_column(default=1, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)

@@ -8,9 +8,10 @@ translates the given variant text exactly, no invention. Deterministic
 mock fixture rides the registered `cv_synth` task for tests/dev/E2E.
 """
 
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.models.enums import AITaskType
 from app.schemas.cv_synth import CvSynthBatch
@@ -115,11 +116,11 @@ def build_user_prompt(
     *,
     posting: dict | None = None,
     language: str = "en",
-    target_language: Optional[str] = None,
-    variant_texts: Optional[dict[str, str]] = None,
-    tone: Optional[str] = None,
-    length: Optional[str] = None,
-    instruction: Optional[str] = None,
+    target_language: str | None = None,
+    variant_texts: dict[str, str] | None = None,
+    tone: str | None = None,
+    length: str | None = None,
+    instruction: str | None = None,
 ) -> str:
     """The allowlist + brief (the deterministic mock reads the same)."""
     assert action in ACTIONS, action
@@ -162,22 +163,20 @@ def build_user_prompt(
 def compose_system(
     action: str,
     *,
-    tone: Optional[str] = None,
-    length: Optional[str] = None,
-    instruction: Optional[str] = None,
+    tone: str | None = None,
+    length: str | None = None,
+    instruction: str | None = None,
 ) -> str:
     """System prompt = base + action guide + the requested voice."""
 
     parts = [SYSTEM, ACTION_GUIDES[action]]
     if tone:
         parts.append(
-            TONES.get(tone)
-            or f"Register: honor the requested tone ({tone}) while staying factual."
+            TONES.get(tone) or f"Register: honor the requested tone ({tone}) while staying factual."
         )
     if length:
         parts.append(
-            LENGTHS.get(length)
-            or f"Length: honor the requested length ({length}) briefly."
+            LENGTHS.get(length) or f"Length: honor the requested length ({length}) briefly."
         )
     if instruction:
         parts.append(
@@ -197,12 +196,12 @@ async def synthesize(
     targets: list[dict],
     posting: dict | None = None,
     language: str = "en",
-    target_language: Optional[str] = None,
-    variant_texts: Optional[dict[str, str]] = None,
-    tone: Optional[str] = None,
-    length: Optional[str] = None,
-    instruction: Optional[str] = None,
-    run: Optional[RunRef] = None,
+    target_language: str | None = None,
+    variant_texts: dict[str, str] | None = None,
+    tone: str | None = None,
+    length: str | None = None,
+    instruction: str | None = None,
+    run: RunRef | None = None,
 ) -> CvSynthBatch:
     """One audited CV_SYNTH call for the given action."""
     if action not in ACTIONS:
@@ -223,9 +222,7 @@ async def synthesize(
         db,
         AITaskType.CV_SYNTH,
         CvSynthBatch,
-        system=compose_system(
-            action, tone=tone, length=length, instruction=instruction
-        ),
+        system=compose_system(action, tone=tone, length=length, instruction=instruction),
         user=user,
         user_id=user_id,
         run=run,
@@ -243,9 +240,7 @@ def _mock_synth(schema: type, user_prompt: str) -> dict:
 
     targets_marker = "TARGETS (synthesize variants for exactly these):"
     targets_section = (
-        user_prompt.split(targets_marker, 1)[1]
-        if targets_marker in user_prompt
-        else user_prompt
+        user_prompt.split(targets_marker, 1)[1] if targets_marker in user_prompt else user_prompt
     )
     section_marker = "\n\nOUTPUT:"
     targets_block = (
@@ -271,17 +266,13 @@ def _mock_synth(schema: type, user_prompt: str) -> dict:
             text_out = f"{body} — delivered measurable outcomes."[:2000]
             rationale = "Compressed to the strongest grounded lines."
         elif action == "detail":
-            text_out = _placeholder(
-                f"{body} — scaled tooling impact by <your number>%."
-            )[:2000]
+            text_out = _placeholder(f"{body} — scaled tooling impact by <your number>%.")[:2000]
             rationale = "Metric placeholder kept explicit for the user."
         elif action == "restyle":
             text_out = f"{body} — restyled, same facts."[:2000]
             rationale = "Register rewrite only; no fact changes."
         else:
-            posting_match = re.search(
-                r"^POSTING: (.+?) — must-have skills", user_prompt, re.M
-            )
+            posting_match = re.search(r"^POSTING: (.+?) — must-have skills", user_prompt, re.M)
             aim = posting_match.group(1) if posting_match else "the posting"
             text_out = f"{body} — aimed at {aim}."[:2000]
             rationale = "Posting aim built from the allowlisted evidence."

@@ -1,0 +1,41 @@
+
+        User-agent: *
+        Sitemap:https://remotive.com/sitemap.xml
+        Disallow: /website/translations
+        Disallow: /*search=
+        Disallow: /job/apply/*
+        Disallow: /job/track/*
+        Disallow: /job/application/*
+        Disallow: /job/detail/*
+        Disallow: /jobs/*
+        Disallow: /job/report/*
+        Disallow: /*sort=
+        Disallow: /remote-job/detail/*
+        Disallow: /remote-companies/page
+        Disallow: /website_payment*
+        Disallow: /api/*
+        Disallow: /web/image/hr.job/*
+        Disallow: /ajax/session*
+        Disallow: /my/
+        Disallow: /web/login
+        Disallow: /web/signup
+        Disallow: /web/session/
+        Disallow: /shop/
+        Disallow: /payment/
+        Disallow: /v2/feed
+        Disallow: /remote-jobs/digest/feed
+        Disallow: /remote-jobs/get_tags
+        Disallow: /remote-companies/get_tags
+        Disallow: /remote-companies/get_hiring_from
+        Disallow: /*query=
+        Disallow: /*category=
+        Disallow: /*location=
+        Disallow: /*occupation=
+        Disallow: /*experience=
+        Disallow: /*employment-type=
+        Disallow: /*skills=
+        Disallow: /*lang=
+        Disallow: /*min_salary=
+        Disallow: /*posted=
+        Disallow: /*skillsOperator=
+        

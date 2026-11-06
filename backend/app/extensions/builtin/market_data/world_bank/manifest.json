@@ -1,0 +1,104 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-world-bank-wdi",
+  "version": "1.0.0",
+  "description": "World Bank World Development Indicators \u2014 country-level economic series for the whole world (open data, no credentials).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "categories": [
+    "data"
+  ],
+  "capabilities": [
+    "net",
+    "sync"
+  ],
+  "domains": [
+    "api.worldbank.org"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "countries": {
+        "type": "array",
+        "title": "Countries (ISO 3166-1 alpha-2)",
+        "description": "One series per country and indicator.",
+        "maxItems": 50,
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "DE"
+        ]
+      },
+      "indicators": {
+        "type": "array",
+        "title": "WDI indicator codes",
+        "description": "One series per country and code; unknown codes keep the code as metric.",
+        "maxItems": 20,
+        "items": {
+          "type": "string"
+        },
+        "default": [
+          "NE.CON.PRVT.ZS"
+        ]
+      },
+      "start_year": {
+        "type": "number",
+        "minimum": 1960,
+        "maximum": 2100
+      },
+      "end_year": {
+        "type": "number",
+        "minimum": 1960,
+        "maximum": 2100
+      }
+    }
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "series_key": {
+        "type": "string",
+        "title": "Series key"
+      },
+      "metric": {
+        "type": "string",
+        "title": "Metric"
+      },
+      "unit": {
+        "type": "string",
+        "title": "Unit"
+      },
+      "period": {
+        "type": "string",
+        "title": "Period"
+      },
+      "value": {
+        "type": "number",
+        "title": "Value"
+      },
+      "is_estimate": {
+        "type": "boolean",
+        "title": "Estimate",
+        "default": false
+      }
+    },
+    "required": [
+      "series_key",
+      "period",
+      "value"
+    ]
+  },
+  "supportsIncremental": false,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "World Bank indicators",
+        "summary": "Country-level World Development Indicators series \u2014 open data, no credentials, no secret slots."
+      }
+    }
+  }
+}

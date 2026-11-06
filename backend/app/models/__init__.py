@@ -1,29 +1,38 @@
 from app.models.ai_model import AIGeneration
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
-from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
-from app.models.background_job_model import BackgroundJob
-from app.models.assessment_template_model import AssessmentTemplate
+from app.models.application_model import Application, ApplicationEvent
 from app.models.assessment_model import (
     AssessmentAnswer,
     AssessmentQuestion,
     AssessmentRun,
 )
-from app.models.interview_model import InterviewSession
-from app.models.embedding_model import AIEmbedding
-from app.models.mcp_bridge_model import AIMCPServer
+from app.models.assessment_template_model import AssessmentTemplate
+from app.models.autopilot_model import AutopilotFinding, AutopilotGoal, AutopilotRun
+from app.models.background_job_model import BackgroundJob
 from app.models.base import Base
-from app.models.career_path_model import CareerPath, CareerPathStep
+from app.models.career_path_model import CareerPath, CareerPathStep, UserPathFlag
 from app.models.chat_model import ChatMessage, ChatSession
+from app.models.company_model import CompanyProfile
+from app.models.cv_intake_model import CvParseDraft
 from app.models.cv_model import CvDocument, CvVersion
 from app.models.cv_synth_model import CvSynthItem  # noqa: F401
-from app.models.cv_intake_model import CvParseDraft
 from app.models.cv_template_model import CvTemplate
 from app.models.document_model import Document
-from app.models.growth_model import (
-    GrowthPlan,
-    GrowthPlanStep,
-    LearningResource,
+from app.models.econ_model import (
+    Claim,
+    ClaimEvent,
+    CodeCrosswalk,
+    EconObservation,
+    EconPack,
+    EconSeries,
+    EconWatchEntry,
+    ExposureScore,
+    GeoRegion,
+    GeoRegionAlias,
+    Scenario,
+    ScenarioPoint,
 )
+from app.models.embedding_profile_model import EmbeddingModelProfile
 from app.models.engagement_model import (
     Notification,
     NotificationDelivery,
@@ -34,6 +43,44 @@ from app.models.engagement_model import (
     NotificationRule,
     NotificationSubscription,
     SearchHistory,
+    UserChannelConfig,
+)
+from app.models.experience_model import (
+    ExperienceAchievement,
+    ExperienceItem,
+    ExperienceSkill,
+    Organization,
+    OrganizationAlias,
+    OrganizationMatchExclusion,
+    OrganizationMatchPair,
+    OrganizationMergeSuggestion,
+    SkillEvidence,
+)
+from app.models.extension_model import ExtensionInstall, ExtensionSource
+from app.models.followup_model import FollowupRule, UserFeedToken
+from app.models.growth_model import (
+    GrowthPlan,
+    GrowthPlanStep,
+    LearningResource,
+)
+from app.models.identity_model import AuditEvent, AuthSession, InstanceSetting
+from app.models.interview_model import InterviewSession
+from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
+from app.models.localization_model import LabelOverride
+from app.models.market_model import MarketSnapshot  # noqa: F401
+from app.models.matching_model import MatchInsight
+from app.models.mcp_bridge_model import AIMCPServer, McpToken
+from app.models.metric_model import (
+    MetricDimension,
+    SkillTransferability,
+    UserMetricProfile,
+)
+from app.models.posting_model import (
+    JobPosting,
+    JobSource,
+    PostingInteraction,
+    PostingSkill,
+    WebhookEndpoint,
 )
 from app.models.profile_entities_model import (
     Certification,
@@ -41,31 +88,13 @@ from app.models.profile_entities_model import (
     ProfileAchievement,
 )
 from app.models.profile_proposal_model import ProfileProposal
-from app.models.experience_model import (
-    ExperienceAchievement,
-    ExperienceItem,
-    ExperienceSkill,
-    Organization,
-    SkillEvidence,
-)
-from app.models.job_model import Job, JobFamily, JobRelation, JobSkill, JobTag
-from app.models.matching_model import MatchInsight
-from app.models.market_model import MarketSnapshot  # noqa: F401
-from app.models.skill_pack_model import AISkillPack  # noqa: F401
-from app.models.metric_model import (
-    MetricDimension,
-    SkillTransferability,
-    UserMetricProfile,
-)
+from app.models.radar_model import JobRadar
 from app.models.schedule_model import Schedule
 from app.models.settings_model import AppSetting
-from app.models.posting_model import (
-    JobPosting,
-    JobSource,
-    PostingInteraction,
-    PostingSkill,
-)
-from app.models.taxonomy_model import InterestTag, Skill
+from app.models.skill_pack_model import AISkillPack  # noqa: F401
+from app.models.smart_search_model import SmartQueryCache  # noqa: F401 -- registry import
+from app.models.taxonomy_model import InterestTag, Skill, SkillRelation
+from app.models.tool_grant_model import UserToolGrant
 from app.models.university_model import (
     Department,
     DepartmentAdmission,
@@ -73,77 +102,123 @@ from app.models.university_model import (
     University,
 )
 from app.models.user_model import Profile, User, UserInterest, UserSkill
+from app.models.vector_model import (
+    RetrievalCoverageSnapshot,
+    RetrievalQueryRollup,
+    VectorDocument,
+    VectorRecord,
+    VectorSpace,
+)
 
 __all__ = [
-    "Base",
-    "AssessmentRun",
-    "AssessmentQuestion",
-    "AssessmentAnswer",
-    "AssessmentTemplate",
-    "BackgroundJob",
-    "User",
-    "Profile",
-    "InterestTag",
-    "Skill",
-    "JobFamily",
-    "Job",
-    "JobRelation",
-    "JobSkill",
-    "JobTag",
-    "CareerPath",
-    "CareerPathStep",
-    "UserInterest",
-    "UserSkill",
-    "University",
-    "Department",
-    "DepartmentAdmission",
-    "JobDepartmentLink",
-    "Document",
-    "CvDocument",
-    "CvVersion",
-    "CvTemplate",
-    "CvParseDraft",
-    "EducationItem",
-    "Certification",
-    "ProfileAchievement",
-    "SearchHistory",
-    "NotificationKind",
-    "Notification",
-    "NotificationRecipient",
-    "NotificationDelivery",
-    "NotificationSubscription",
-    "NotificationKindPref",
-    "NotificationPreference",
-    "NotificationRule",
-    "AppSetting",
-    "Organization",
-    "ExperienceItem",
-    "ExperienceSkill",
-    "ExperienceAchievement",
-    "SkillEvidence",
-    "MatchInsight",
-    "MetricDimension",
-    "SkillTransferability",
-    "UserMetricProfile",
-    "Schedule",
-    "GrowthPlan",
-    "GrowthPlanStep",
-    "LearningResource",
-    "JobSource",
-    "JobPosting",
-    "PostingSkill",
-    "PostingInteraction",
-    "ChatSession",
-    "ChatMessage",
     "AIGeneration",
-    "AIProvider",
+    "AIMCPServer",
     "AIModel",
+    "AIProvider",
     "AITaskAssignment",
+    "AppSetting",
+    "Application",
+    "ApplicationEvent",
+    "AssessmentAnswer",
+    "AssessmentQuestion",
+    "AssessmentRun",
+    "AssessmentTemplate",
+    "AuditEvent",
+    "AuthSession",
+    "AutopilotFinding",
     "AutopilotGoal",
     "AutopilotRun",
-    "AutopilotFinding",
+    "BackgroundJob",
+    "Base",
+    "CareerPath",
+    "CareerPathStep",
+    "Certification",
+    "ChatMessage",
+    "ChatSession",
+    "Claim",
+    "ClaimEvent",
+    "CodeCrosswalk",
+    "CompanyProfile",
+    "CvDocument",
+    "CvParseDraft",
+    "CvTemplate",
+    "CvVersion",
+    "Department",
+    "DepartmentAdmission",
+    "Document",
+    "EconObservation",
+    "EconPack",
+    "EconSeries",
+    "EconWatchEntry",
+    "EducationItem",
+    "EmbeddingModelProfile",
+    "ExperienceAchievement",
+    "ExperienceItem",
+    "ExperienceSkill",
+    "ExposureScore",
+    "ExtensionInstall",
+    "ExtensionSource",
+    "FollowupRule",
+    "GeoRegion",
+    "GeoRegionAlias",
+    "GrowthPlan",
+    "GrowthPlanStep",
+    "InstanceSetting",
+    "InterestTag",
     "InterviewSession",
-    "AIEmbedding",
-    "AIMCPServer",
+    "Job",
+    "JobDepartmentLink",
+    "JobFamily",
+    "JobPosting",
+    "JobRadar",
+    "JobRelation",
+    "JobSkill",
+    "JobSource",
+    "JobTag",
+    "LabelOverride",
+    "LearningResource",
+    "MatchInsight",
+    "McpToken",
+    "MetricDimension",
+    "Notification",
+    "NotificationDelivery",
+    "NotificationKind",
+    "NotificationKindPref",
+    "NotificationPreference",
+    "NotificationRecipient",
+    "NotificationRule",
+    "NotificationSubscription",
+    "Organization",
+    "OrganizationAlias",
+    "OrganizationMatchExclusion",
+    "OrganizationMatchPair",
+    "OrganizationMergeSuggestion",
+    "PostingInteraction",
+    "PostingSkill",
+    "Profile",
+    "ProfileAchievement",
     "ProfileProposal",
+    "RetrievalCoverageSnapshot",
+    "RetrievalQueryRollup",
+    "Scenario",
+    "ScenarioPoint",
+    "Schedule",
+    "SearchHistory",
+    "Skill",
+    "SkillEvidence",
+    "SkillRelation",
+    "SkillTransferability",
+    "University",
+    "User",
+    "UserChannelConfig",
+    "UserFeedToken",
+    "UserInterest",
+    "UserMetricProfile",
+    "UserPathFlag",
+    "UserSkill",
+    "UserToolGrant",
+    "VectorDocument",
+    "VectorRecord",
+    "VectorSpace",
+    "WebhookEndpoint",
 ]

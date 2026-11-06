@@ -16,12 +16,18 @@ import time
 import webbrowser
 from collections.abc import Callable, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any, Optional, TypedDict
+from typing import Any, TypedDict
 
 import uvicorn
 
 from app.core.config import settings
-from app.main import create_app
+
+# §11 gate: a shell attaches — arm it BEFORE `app.main` is imported so
+# the process's single application build (plan 20 Phase 4) carries the
+# gate; both flows below reuse that module-level app.
+os.environ.setdefault("CAREER_SHELL", "1")
+
+from app.main import app as shared_app
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +94,7 @@ def _software_render_env(env: MutableMapping[str, str]) -> None:
 
 def apply_webkit_compat_env(
     environ: MutableMapping[str, str] | None = None,
-    marker: Optional[Path] = None,
+    marker: Path | None = None,
 ) -> MutableMapping[str, str]:
     """Force software WebKit rendering when the machine has no usable GPU.
 
@@ -150,20 +156,15 @@ def _watch_renderer(
     relaunch()
 
 
-def _start_renderer_sentinel(app, marker: Optional[Path] = None) -> None:
+def _start_renderer_sentinel(app, marker: Path | None = None) -> None:
     gpu_forced = os.environ.get("CA_WEBKIT_GPU") == "1"
     render_mode = (
         "forced-gpu"
         if gpu_forced
-        else (
-            "software"
-            if os.environ.get("WEBKIT_DISABLE_DMABUF_RENDERER") == "1"
-            else "gpu"
-        )
+        else ("software" if os.environ.get("WEBKIT_DISABLE_DMABUF_RENDERER") == "1" else "gpu")
     )
     logger.warning(
-        "webkit render mode: %s (soft_fallback=%s persisted=%s mesa_json=%s "
-        "session=%s)",
+        "webkit render mode: %s (soft_fallback=%s persisted=%s mesa_json=%s session=%s)",
         render_mode,
         os.environ.get("CA_WEBKIT_SOFT_FALLBACK", "0"),
         bool(marker is not None and marker.exists()),
@@ -233,10 +234,7 @@ def default_window_state() -> WindowState:
 
 def _screen_for(x: int, y: int, screens: Sequence[Any]) -> Any | None:
     for screen in screens:
-        if (
-            screen.x <= x < screen.x + screen.width
-            and screen.y <= y < screen.y + screen.height
-        ):
+        if screen.x <= x < screen.x + screen.width and screen.y <= y < screen.y + screen.height:
             return screen
     return None
 
@@ -306,9 +304,7 @@ def save_window_state(data_dir: Path, state: WindowState) -> None:
 class WindowGeometryTracker:
     """Tracks window geometry events into a persistable WindowState."""
 
-    def __init__(
-        self, width: int, height: int, x: int, y: int, maximized: bool = False
-    ) -> None:
+    def __init__(self, width: int, height: int, x: int, y: int, maximized: bool = False) -> None:
         self._placed = (x, y)
         self._base: tuple[int, int] | None = None
         self._pre_maximize: tuple[int, int] | None = None
@@ -354,9 +350,8 @@ def run_browser() -> None:
     # Attach the shell gate (identity-auth §11) before the app is built:
     # create_app arms the X-Shell-Token gate only for shell-attached
     # processes (shell-less desktop dev — run-dev.sh — stays ungated).
-    os.environ["CAREER_SHELL"] = "1"
-    app = create_app()
-    port = settings.API_PORT
+    app = shared_app
+    port = settings.api_port
     try:
         with socket.socket() as probe:
             probe.bind(("127.0.0.1", port))
@@ -388,7 +383,7 @@ def _maybe_start_tray(
 
     try:
         import pystray  # noqa: F401
-    except Exception:  # noqa: BLE001 — optional desktop dependency
+    except Exception:
         logger.info("pystray unavailable — running without a tray icon")
         return None
     try:
@@ -398,7 +393,7 @@ def _maybe_start_tray(
         thread = threading.Thread(target=_tray_loop, args=(tray,), daemon=True)
         thread.start()
         return tray
-    except Exception:  # noqa: BLE001 — a missing systray host must not kill us
+    except Exception:
         logger.warning("Tray init failed — continuing without a tray", exc_info=True)
         return None
 
@@ -409,7 +404,7 @@ def _tray_loop(tray) -> None:
     while True:
         try:
             tray.poll()
-        except Exception:  # noqa: BLE001 — the loop must survive
+        except Exception:
             logger.debug("Tray poll failed", exc_info=True)
         time.sleep(tray.POLL_SECONDS)
 
@@ -424,17 +419,13 @@ def run(tray_only: bool = False) -> None:
     """
     import webview
 
-    from app.desktop import shell_token
-    from app.desktop import notifier
+    from app.desktop import notifier, shell_token
     from app.desktop.bridge import DesktopApi, DesktopBridge
     from app.desktop.single_instance import SingleInstance
     from app.services.notification_channels import unregister_channel
 
     sanitize_environment()
-    # Attach the shell gate (identity-auth §11) before create_app — see
-    # run_browser().
-    os.environ["CAREER_SHELL"] = "1"
-    data_dir = settings.data_dir_path
+    data_dir = settings.data_dir
     data_dir.mkdir(parents=True, exist_ok=True)
 
     bridge = DesktopBridge()
@@ -451,12 +442,10 @@ def run(tray_only: bool = False) -> None:
     _settings_holder["settings"] = desktop_settings
     _settings_holder["data_dir"] = data_dir
 
-    app = create_app()
+    app = shared_app
     port = find_free_port()
     apply_webkit_compat_env(marker=data_dir / "webkit_soft_fallback")
-    server = uvicorn.Server(
-        uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info")
-    )
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="info"))
     thread = threading.Thread(target=server.run, name="uvicorn", daemon=True)
     thread.start()
     _start_renderer_sentinel(app, marker=data_dir / "webkit_soft_fallback")
@@ -476,7 +465,7 @@ def run(tray_only: bool = False) -> None:
 
     state = load_window_state(data_dir, webview.screens)
     window = webview.create_window(
-        settings.APP_NAME,
+        settings.app_name,
         f"http://127.0.0.1:{port}/?shell={shell_query}",
         width=state["width"],
         height=state["height"],
@@ -501,7 +490,7 @@ def run(tray_only: bool = False) -> None:
         if should_hide_on_close(data_dir):
             try:
                 window.hide()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.warning("Could not hide to tray", exc_info=True)
             return False  # cancels the close (pywebview closing event)
         return None
@@ -523,7 +512,7 @@ def run(tray_only: bool = False) -> None:
     def on_quit() -> None:
         try:
             window.destroy()
-        except Exception:  # noqa: BLE001 — the shell is quitting anyway
+        except Exception:
             logger.warning("Window destroy failed", exc_info=True)
 
     tray = _maybe_start_tray(
@@ -536,7 +525,7 @@ def run(tray_only: bool = False) -> None:
     # cancelled silently by every pywebview backend unless enabled here.
     webview.settings["ALLOW_DOWNLOADS"] = True
 
-    webview.start(private_mode=False, debug=settings.DEBUG)
+    webview.start(private_mode=False, debug=settings.debug)
 
     # Window gone (quit or real close): same shutdown order as —
     # stop uvicorn last (lifespan cancels the scheduler, drains the queue).

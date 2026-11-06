@@ -10,7 +10,7 @@ other.
 
 ```
 ├── backend/
-│   ├── app/            # FastAPI: api/, services/, models, ai/, connectors/
+│   ├── app/            # FastAPI: api/, services/, models, ai/, extensions/
 │   ├── alembic/        # migrations (dialect-aware)
 │   ├── careerassistant/  # desktop entrypoint (python -m careerassistant)
 │   ├── tests/          # pytest (async; neuronection_career_test DB)
@@ -32,9 +32,9 @@ flowchart LR
     subgraph Server["One process: API + SPA (same origin)"]
         API["FastAPI REST · family auth sessions<br/>(cookie + CSRF; desktop DIM or login)"]
         BG[Background tasks<br/>PDF parsing · AI generation]
-        REG[Registries<br/>connectors · scheduler triggers<br/>chat tools · skill packs]
+        REG[Registries<br/>extensions · scheduler triggers<br/>chat tools · skill packs]
         MCP[MCP server<br/>/mcp · read-scope tools]
-        EMB[Embeddings<br/>ai_embeddings · hybrid retrieval]
+        EMB[Vector retrieval<br/>vector_* store · pgvector/sqlite-vec]
     end
     subgraph Data
         DB[(Postgres web / SQLite desktop<br/>typed columns + JSONB)]
@@ -64,7 +64,7 @@ There is no side door around it.
 
 ## Extension points are registries
 
-- **Posting sources** only via the connector SDK (`app/connectors/`,
+- **Posting sources** only via the connector SDK (`app/extensions/`,
   entry-point group `career_assistant.connectors`, admin allowlist).
 - **Periodic work** only via the scheduler (`app/services/scheduler/`;
   triggers via `career_assistant.scheduler_triggers`). The scheduler decides
@@ -72,7 +72,7 @@ There is no side door around it.
 - **Notifications** always flow through `NotificationService.emit` (single
   funnel; alert rules and their triggers live on `EngagementService`).
 - **CV context sources** register in
-  `app/services/cv_context_service.py` (`register_context_source`): each
+  `app/services/cv/cv_context_service.py` (`register_context_source`): each
   source binds a profile entity to a typed resolver; selection resolves
   deterministically into the renderer snapshot with per-item traceability.
   Ineligible profile data is not registered — it cannot reach a CV.
@@ -82,7 +82,7 @@ There is no side door around it.
   machinery's `section kind == source_key` invariant, so generated CVs
   emit separate Work Experience / Projects / Volunteering sections.
 - **Synthesized CV variants** (plan 62) live in the user-level
-  `cv_synth_items` library (`app/services/cv_synth_service.py`), not in
+  `cv_synth_items` library (`app/services/cv/cv_synth_service.py`), not in
   the profile: each variant cites typed source refs + source content
   hashes (staleness/orphan detection) and applies through the per-CV
   `context.synth_mode` overlay BEFORE editor overrides — precedence is
@@ -101,11 +101,13 @@ There is no side door around it.
   star never goes silently dead. `snapshotted variants apply through
   `match_for_user` scope-agnostically; the synth_items highlights
   block filters rows by payload presence (bullets-only winners render
-  via their item, not an empty highlight). Legacy `:bullets`-suffixed
-  pin keys are read-tolerant everywhere (old immutable versions) while
+  via their item, not an empty highlight). The pin map carries one plain
+  key per item (`{ref}`) — the `:bullets`-suffixed form is gone (plan
+  114; nothing reads it any more) and
   all write paths, the bullets editor and `variant_pin` emit only the
-  single `{ref}` key; one data migration (0041) folded existing stars
-  preserving per-field winners. Pins are written SURGICALLY —
+  single key; the retired plan-110 fold (formerly revision 0041) folded the
+  legacy stars preserving per-field winners before the v0.17 baseline
+  absorbed the result. Pins are written SURGICALLY —
   `PUT /cv/{id}/context/pin` (`{source_key, item_id, synth_id|null}`)
   read-modify-writes the one slot and promotes a pinned draft to active
   in the same commit, so a stale client map can never erase another
@@ -151,7 +153,7 @@ There is no side door around it.
   the SectionsPanel reorder disclosure; `snapshot` rows carry their
   context item id (stamped in `resolution`) to make `order` robust
   against removed items.
-- **CV block kinds** register in `app/services/cv_blocks.py`
+- **CV block kinds** register in `app/services/cv/cv_blocks.py`
   (`register_block_kind`): a kind binds a props schema + renderer
   behavior; blocks carry an `area` mark (`main`/`sidebar`, legacy
   `column` accepted) that sidebar layouts honor when grouping columns
@@ -201,7 +203,7 @@ There is no side door around it.
   (`POST /cv/templates/{id}/visual-review`), and the copilot's
   structured critique renders in the AI tab with one-click
   `safe_token_fixes` apply.
-- **Language-display registries** live in `app/services/cv_languages.py`:
+- **Language-display registries** live in `app/services/cv/cv_languages.py`:
   ISO code → human name (30 languages, on-demand values render via
   title-cased fallback when the extraction/combobox vocabulary grows),
   profile level → representative CEFR band, and
@@ -248,10 +250,10 @@ There is no side door around it.
   guards outbound requests (resolve-then-connect SSRF blocklist, manual
   redirect hops, size/time caps) and reduces HTML to text; JS-shell pages
   escalate to the plan-76 persistent browser when present. `web_search`
-  calls the user-hosted SearXNG instance
-  (`web.searxng_url` in `app_settings`, never bundled; probe status
-  `ok/unreachable/json_disabled`, and the tool answers its absence
-  gracefully). `github_repo` uses the GitHub REST API with an optional
+  runs the ordered web-search provider list from settings (plan 28,
+  `web.search_providers` in `app_settings` — SearXNG plus keyed providers,
+  catalog `contracts/search-providers.json`; the first enabled provider
+  that answers wins, and the tool answers "none configured" gracefully). `github_repo` uses the GitHub REST API with an optional
   Fernet-encrypted token (`web.github_token`). Fetched content is
   untrusted: capped and wrapped as reference data in the prompt, never
   treated as instructions. The generate pipeline reuses them
@@ -276,6 +278,10 @@ There is no side door around it.
   (`job.result.polish.llm_calls`) and the finalized polish trace carry
   the run's compact call ledger; an opt-in `with_audit_ref` on the
   gateway returns the audit row just written without a second SELECT.
+  The read side over all the ledgers is the audit & monitoring surface
+  (`/settings/audit`, plans 151–157 — `app/services/audit/`,
+  `app/api/v1/audit.py`): the family reference implementation of
+  ADR-0044 / `guidelines/observability.md` in the family dev repo.
   `GET /cv/{id}/runs` assembles per-CV runs (generation + every polish
   re-run) from the job rows and their run-linked audit rows — the
   builder's "Runs & metrics" popup (65.5) reads this, not a new ledger.
@@ -286,26 +292,151 @@ There is no side door around it.
   `app/ai/mcp_server.py` exposes the registry's **read-scope tools
   only** over Streamable HTTP at `/mcp` (FastMCP; token persisted in
   the data dir, live admin rotation `POST /ai/mcp/token`; per-host
-  rate limiting via `MCP_RATE_LIMIT`). The client bridge
-  (`app/services/mcp_bridge_service.py` + `ai_mcp_servers`) keeps
+  rate limiting via `CAREER_RATELIMIT_MCP`). The client bridge
+  (`app/extensions/mcp_bridge.py` + `ai_mcp_servers`) keeps
   registration/discovery/allowlist; protocol plumbing stays in
   `app/ai/mcp_client.py` (alignment R2). Bridge invocations are audited
   + budgeted as `mcp_tool_call`.
-- **Embeddings** flow through the `embed` task
-  (EMBEDDINGS capability) into `ai_embeddings` (`app/models/
-  embedding_model.py`, `app/services/embedding_service.py`) — packed
-  JSONB vectors are the single source of truth on every dialect;
-  pgvector is provisioned best-effort, never required. Hybrid retrieval
-  (`app/services/hybrid_search.py`) RRF-fuses lexical + cosine rankings
-  over the hard-filtered candidate set in explore's relevance sort —
-  semantic is a ranking signal, never a filter gate.
+- **Vector retrieval** (plan 50) is one logical store with two deployment
+  backends: `vector_spaces` / `vector_documents` / `vector_records`
+  (`app/models/vector_model.py`) plus a per-space physical index —
+  pgvector + HNSW on PostgreSQL, `sqlite-vec` `vec0` on desktop, and a
+  capped exact-linear fallback without either extension. Composers
+  (`app/services/vector_composers.py`) turn a posting, catalog job, skill or
+  profile into named views; the `VECTOR_INDEX`/`VECTOR_RECONCILE` jobs embed
+  only changed content and write through `app/storage/vector_store.py`. Reads
+  go through `app/services/vector_retrieval_service.py` (query embedding →
+  per-view ANN → chunk aggregation → weighted RRF), and
+  `app/services/hybrid_search.py` keeps the lexical RRF math. `match_documents`
+  compares a stored job/posting document's views on pinned view pairs (the
+  catalog matching read in `app/services/catalog/job_match_service.py`), and
+  `app/services/postings/semantic_rescue.py` turns that match into the bounded
+  plan-185 rescue under the shared-skill gate. Semantic is a ranking signal,
+  never a filter gate; every failure degrades to lexical with a structured
+  reason. The legacy `ai_embeddings` store is gone (absent from the v0.17
+  baseline).
 - **Follow-up automation** is a scheduler slot
   (`system_followups` → `followup_sweep` job,
-  `app/services/followups_service.py`): a stateless sweep over applied
-  `posting_interactions` (+7d/+14d nudges, interview/offer check-ins)
+  `app/services/postings/followups_service.py`): a stateless sweep over applied
+  `applications` (+7d/+14d nudges, interview/offer check-ins)
   emitting through the notification funnel; sent-state lives in
   notification dedup keys, prefs in `preferences["followups"]`
   (`GET/PATCH /me/followups`).
+- **Applications are an event-sourced pipeline** (plan 113): the
+  `applications` row holds the current stage and the typed refs, while
+  `application_events` is the append-only timeline — every stage
+  transition goes through `app/services/postings/applications_service.py` and
+  writes exactly one `stage_change` event. Future writers (116's
+  follow-up sweep, 119's MCP proposals, 122's inbound webhooks) append
+  events instead of introducing status columns.
+- **Notification channels are a registry**
+  (`app/services/notification_channels.py`): the `NotificationChannel`
+  vocabulary now spans `in_app`/`desktop`/`browser`/`email`/`webhook`
+  and `user_channel_configs` stores typed per-channel config, so 117
+  registers the email/webhook dispatchers without a schema change.
+  SMS is a stated non-goal; nothing reserves a slot for it.
+
+## Deep extraction pipeline (extraction v5)
+
+- **Two speeds, one queue.** The sync path's fast alias/keyword mapping
+  stays as it was; the queued deep pass
+  (`app/services/postings/extract_service.py`, `POSTING_EXTRACT`) is two
+  bounded gateway calls. **Pass 1** is taxonomy-blind: the prompt carries
+  no skill catalog and emits verbatim `raw_label`s with level, priority and
+  evidence — honest
+  new-skill discovery instead of model-echoed keys. **Pass 2**
+  (`POSTING_SKILL_RESOLVE`, fast tier, `app/ai/agents/skill_resolver.py`)
+  is one batched adjudication per posting — `match_key | new` for each
+  label against that label's own candidate list; a returned key outside
+  the offered set degrades to `new`.
+- **Deterministic candidate matcher**
+  (`app/services/postings/skill_candidates.py`). Top-k candidates (at most
+  5) come from the exact `_taxonomy_index` claim first (terminal; the
+  plan-138 precedence law —
+  deprecated rows are unmatched-exact fallbacks, never shadows), then
+  in-repo trigram similarity over key/label/aliases, then skill-embedding
+  cosine as a **ranking signal only** (missing/degraded vectors leave the
+  lexical order intact). Proposed rows are full candidates, so a label can
+  corroborate a still-proposed skill.
+- **Apply, then promote.** Exact hits resolve without an AI call; matched
+  keys tag `posting_skills` (level/priority from pass 1); unmatched labels
+  go through the existing `propose()` seam and plan-147 corroboration. The
+  corroborated auto-promote loop runs **after** the apply transaction
+  commits (`TaxonomyService.promote` commits on its own terms), behind the
+  near-duplicate dedup gate: an active skill at/above the trigram or
+  cosine bar keeps the row proposed and stamps
+  `provenance["auto_promote_blocked"]` — never auto-merged.
+- **Stored shape and replay.** `posting.extract["skills"]` entries keep
+  both `raw_label` and `skill_key` (null when new) plus bounded
+  `resolution` provenance (`via` = exact|pass2|new, ≤5 candidates, verdict
+  confidence); `EXTRACT_VERSION = 5`. A `POSTING_EXTRACT` payload with
+  `mode: "resolve"` re-runs only the matcher + pass 2 over those stored
+  labels, journaled as `extract_llm` with `operation.replay`, so taxonomy
+  merges and promotions replay without pass-1 spend; pre-v5 rows carry no
+  replayable `raw_label` and re-extract on demand.
+- **Observability and tuning.** Job results carry `labels`, `exact_hits`,
+  `pass2_matches`, `new_proposals`, `gate_blocks`, `degraded` and `replay`;
+  `GET /admin/taxonomy/resolution/stats` aggregates the last run and
+  rolling rates from `background_jobs.result` on both dialects. The admin
+  `/settings/taxonomy` **Relations → Resolution** section edits the
+  `posting_resolve.thresholds` `AppSetting` (candidate floors, top-k,
+  dedup bars, corroboration minimum/cap) and enqueues bulk replays
+  (`/admin/postings/replay`). Skill vectors live in the family vector store
+  (`vector_documents.kind="skill"`, key+label+aliases; content-hash
+  reconciled by the `VECTOR_RECONCILE` pass).
+
+## Postings & Explore read path
+
+- **Filtering and paging happen in SQL** (`app/services/postings/explore_service.py`,
+  plan 120). Every filter dimension — including `education_min` (normalized
+  education tokens ranked by `EducationLevelOrder`) and `languages` (the
+  posting's extracted language list) — compiles to a SQL predicate, so the
+  database selects candidates instead of loading the whole table into
+  Python. `total` is one exact count over the same predicate set.
+- **Cursor pagination is keyset-based** on `(sort key, id)`. `fresh` and
+  `salary` page entirely in SQL (id as the stable tiebreak, NULLs last),
+  so a cursor page never drifts when rows are inserted above it.
+- **Fit and relevance rank a bounded recency window.** A global fit order
+  would require scoring every posting — the O(all-postings) cliff this
+  plan removes. Both sorts fetch the newest `limit × 5` matching postings
+  (floor 100, cap 500) and rank inside it; `total` stays the exact
+  filtered count and cursors pin the window frontier (same cursor ⇒ same
+  window across writes). Relevance keeps hybrid RRF as a ranking signal
+  over that window — semantic never becomes a filter gate.
+- **`posting_fits` is the fit cache** (`app/services/postings/posting_fit_service.py`):
+  detail, Explore's fit window and the feed read it; misses/stale rows
+  recompute and write through (the feed bounds its writes with
+  `FEED_FIT_WRITE_BUDGET`). Staleness is still derived — `inputs_hash`
+  mismatch or a bumped `FIT_VERSION` ⇒ recompute; there is no stored
+  "stale" boolean. `SYSTEM_REFIT_SWEEP` (`fit_refit`, payload
+  `{"scope": "stale"}`) backfills missing rows newest-first and refreshes
+  rows older than seven days in batches under a row budget, off the
+  request path.
+- **Facets are self-excluding and grouped**: one GROUP BY per value
+  dimension (a single pass cannot honor per-dimension self-exclusion)
+  instead of one COUNT per value; counts stay live (no approximation).
+
+## Locales and catalog labels
+
+The UI locale is data, not a build setting: `users.locale` (NULL = the
+instance default in `app_settings` `i18n.default_locale`, else `en`).
+`app/services/locale_service.py` is the one resolver; `/me/bootstrap`
+carries the result and the SPA re-initialises i18next and `<html lang>`
+without a reload. UI chrome lives in `frontend/src/locales/`; catalog data
+is never JSON-translated.
+
+Catalog entity labels use **review-first overlays** (`label_overrides`,
+plan 113 shape): `app/services/catalog/label_overlay_service.py` resolves an
+approved row per `(entity_kind, entity_id, locale, field)`, then falls
+back to the base label, then the stable key. Draft and rejected rows never
+render. `app/services/catalog/localized_view.py` is the single read-model seam for
+jobs (catalog, rankings, feed), family trees, skill lists and the CV
+context — endpoints resolve the locale once and call it. AI drafts land as
+`draft` through the audited `translate` gateway task
+(`app/services/translation_service.py`, also the maintainer batch path for
+locale files); only an admin approval reaches `approved`. University and
+department names stay authoritative — an overlay translates the display
+label only.
 
 ## AI flows are LangGraph graphs
 
@@ -335,7 +466,7 @@ loop ride the standard chat turn with a `context.surface` branch;
 their durable state lives in app tables (`cv_documents` working content /
 `interview_sessions` plan + rubric), and resumability comes from the chat
 transcript itself. Checkpoint retention: the desktop prunes its SQLite
-`checkpoints.db` at boot (`CHECKPOINT_TTL_DAYS`); the server prunes
+`checkpoints.db` at boot (`CAREER_CHECKPOINT_TTL_DAYS`); the server prunes
 Postgres on the daily `system_checkpoint_prune` schedule
 (`checkpoint_prune` job).
 
@@ -443,8 +574,9 @@ digest next turn — no TTLs, no write-path hooks. Cached digests ride
 turn trace records a `profile_digests` tool row with status `cached`.
 
 **One chat, CVs as references, builder on demand** (plan 78): chat
-sessions are never re-routed by a CV binding for new sessions (plan 53's
-`surface: "cv_builder"` context is a legacy read path only). CVs /
+sessions are never bound to a CV (plan 114 removed plan 53's
+`surface: "cv_builder"` context read path — a session's context is
+`interview` or nothing). CVs /
 cover letters enter as per-message **attachments** (`MessageIn
 .attachments`, ≤2, ownership-validated, snapshots on the user message
 metadata) and resolve into a deterministic `cv_references` prompt block
@@ -464,13 +596,38 @@ the on-demand path made both edges visible).
 PDF parsing and AI generation run as FastAPI background tasks; Redis ships
 in the compose file for a later worker split (no Celery in v1).
 
+## Error surfaces
+
+Three layers, one rule: **only our own words reach the screen.**
+
+- **Domain errors** (`app/core/errors.py`: `DomainError` and its typed
+  subclasses) are the only exceptions whose message is user-facing. API
+  handlers map them to a status (`400/403/404/409/503`) and pass the
+  message through; anything else is a bug and surfaces as a generic error.
+- **Untrusted text** (model output, connector/provider messages, fetched
+  documents) crosses into a user-visible field only through
+  `sanitize_error_detail` — credential-shaped material is scrubbed and the
+  message is capped at 300 chars (500 for stored document errors). Raw
+  `str(exc)` from an untrusted boundary never lands in an SSE event, a job
+  row, a run ledger entry or an error card.
+- **Fail-soft sites** keep the documented degradation (sidecar telemetry,
+  optional PDF engine, plugin/tool isolation, shutdown/teardown) but record
+  why: `logger.warning(..., exc_info=True)` for a real degradation,
+  `debug` for an expected fallback. A bare `except Exception: pass` is
+  reserved for process shutdown and best-effort teardown; everything else
+  either logs or converts to a typed error.
+
+Mechanical enforcement is partial by design — a `try/except` cannot be
+linted for intent — so review treats a new silent broad catch as a defect,
+and plan 124's sweep inventory lives in the wave record.
+
 ## AI configuration is data, not env
 
 AI providers/models/task assignments live exclusively in the database
 (Settings → AI Configuration). There are deliberately no `AI_*` env vars.
 Production starts unconfigured (AI endpoints answer `503` until an admin
 adds a provider). The built-in mock provider is strictly opt-in: with the
-`MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
+`CAREER_MOCK_AI=1` infra knob (dev/test only — `./scripts/run-dev.sh --mock-ai`,
 `.env.test` sets it) a system mock provider is auto-provisioned so the app
 works without keys; with the knob off, mock rows are invisible to task
 resolution and dev AI stays unconfigured (503). The gateway refuses mock

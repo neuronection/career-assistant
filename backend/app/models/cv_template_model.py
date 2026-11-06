@@ -30,9 +30,7 @@ class CvTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "cv_templates"
     __table_args__ = (
-        UniqueConstraint(
-            "author_key", "key", "version", name="uq_cv_templates_version"
-        ),
+        UniqueConstraint("author_key", "key", "version", name="uq_cv_templates_version"),
         CheckConstraint(
             "source IN ('bank', 'ai', 'user', 'imported', 'duplicated')",
             name="source_allowed",
@@ -41,9 +39,7 @@ class CvTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "visibility IN ('private', 'unlisted', 'public')",
             name="visibility_allowed",
         ),
-        CheckConstraint(
-            "status IN ('draft', 'published', 'retired')", name="status_allowed"
-        ),
+        CheckConstraint("status IN ('draft', 'published', 'retired')", name="status_allowed"),
         CheckConstraint("version >= 1", name="version_positive"),
         CheckConstraint("page_size IN ('a4', 'letter')", name="page_size_allowed"),
         Index("ix_cv_templates_key", "key"),
@@ -60,9 +56,7 @@ class CvTemplate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source: Mapped[str] = mapped_column(String(20), nullable=False, default="user")
     # `public` exists in the enum but is rejected at write time —
     # the community-sharing phase flips it on later.
-    visibility: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="private"
-    )
+    visibility: Mapped[str] = mapped_column(String(20), nullable=False, default="private")
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
     page_size: Mapped[str] = mapped_column(String(10), nullable=False, default="a4")
     # Lint-verified claim: template renders with standard headings and no

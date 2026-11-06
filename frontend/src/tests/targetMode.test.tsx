@@ -2,14 +2,15 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Dashboard } from "@/pages/Dashboard";
-import { ExpressOnboarding } from "@/pages/ExpressOnboarding";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
+import { ExpressOnboarding } from "@/features/profile/pages/ExpressOnboarding";
 import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { expressStart, resolveTarget, fetchTargetDashboard } from "@/api/onboarding";
 import { fetchPostings } from "@/api/postings";
-import type { JobPostingItem, TargetDashboard } from "@/types";
+import type { TargetDashboard } from "@/types/wire";
+import type { PostingOut } from "@/types/wire";
 
 vi.mock("@/api/onboarding", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/onboarding")>();
@@ -52,7 +53,7 @@ vi.mock("@/api/postings", async (importOriginal) => {
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
 }));
 
 const mockResolve = vi.mocked(resolveTarget);
@@ -60,16 +61,20 @@ const mockExpressStart = vi.mocked(expressStart);
 const mockFetchTargetDashboard = vi.mocked(fetchTargetDashboard);
 const mockFetchPostings = vi.mocked(fetchPostings);
 
-function postingRow(id: string): JobPostingItem {
+function postingRow(id: string): PostingOut {
   return {
     id,
     source_id: "s1",
     external_id: id,
     title: "QA Automation Engineer",
     org: "SynthCo",
+    org_key: "",
     location: { city: "Athens", country: "GR", remote: true },
     url: `https://jobs.example/${id}`,
     status: "mapped",
+    ref: id,
+    mapping_reason: "",
+    needs_review: false,
     catalog_job_id: "j1",
     fit: 7.2,
     seen: false,
@@ -204,6 +209,7 @@ describe("Dashboard target mode", () => {
           values: 4,
         },
         weights_overridden: false,
+        fit_stale: false,
         target_mode: true,
         target_families: ["technology-software"],
       },
@@ -289,6 +295,8 @@ describe("Required-aware completeness banner", () => {
           values: 3,
         },
         weights_overridden: false,
+        fit_stale: false,
+        target_mode: false,
       },
       loaded: true,
     });

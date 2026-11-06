@@ -1,3 +1,5 @@
+import { apiRequestHeaders } from "@/api/client";
+
 export type NotificationStreamEvent =
   | { event: "notification"; data: Record<string, unknown> }
   | { event: "unread"; data: { unread_count: number } };
@@ -51,6 +53,7 @@ export async function streamNotifications(
     try {
       const response = await fetch("/api/v1/notifications/stream", {
         headers: {
+          ...(await apiRequestHeaders("/api/v1/notifications/stream", "GET")),
           ...(lastEventId ? { "Last-Event-Id": lastEventId } : {}),
         },
         signal,

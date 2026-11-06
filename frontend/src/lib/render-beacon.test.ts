@@ -8,7 +8,7 @@ async function loadBeacon() {
   // from firing the real priming GET (jsdom has no server).
   const client = await import('@/api/client')
   client.setActiveProfile('profile-1')
-  return await import('./render-beacon')
+  return await import('@/lib/render-beacon')
 }
 
 function stubFramesAndFetch() {

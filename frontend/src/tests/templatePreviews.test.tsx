@@ -4,7 +4,7 @@ import { render, screen } from "@testing-library/react";
 import {
   LiveTemplatePreviews,
   MessageTemplatePreviews,
-} from "@/components/chat/TemplatePreviews";
+} from "@/features/chat/components/chat/TemplatePreviews";
 import { useTemplatePreviewsStore } from "@/stores/templatePreviewsStore";
 import type { ChatMessage, ChatTemplatePreview } from "@/types";
 

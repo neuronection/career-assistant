@@ -24,3 +24,26 @@ useDefault = true
     '''smoke-refresh-key-0123456789abcdefghijklmnop''',
     '''legacy-jwt-secret-0123456789abcdef''',
   ]
+
+# Synthetic literals the unit suites use to stand in for identifiers and
+# cache keys (plan 209). They are key-SHAPED test vocabulary — hashes of
+# fixture content, family slugs, idempotency keys — never credentials.
+# Exact values only: a real secret of the same shape stays flagged.
+[[allowlists]]
+  description = "unit-test fixture vocabulary (key-shaped, not credentials)"
+  regexes = [
+    '''0f25f4959455509604dd75a2e30d41f5421607ce7639cedcfad3281d21c7fb63''',
+    '''1514c466cfde2c6d102c1fd2cde7d01cf7e11301ba8ec2029ed3962949942491''',
+    '''15b568bcad93c4580ddf7e77e3c8c25a49994239631f64f376e8367fea16ecd3''',
+    '''28462846aea8fe78618cfe39e0688a4364f7b75f3c03dc30e40146b3f7e9b4a3''',
+    '''3e410cd305f660e98376ce7109da748d82aff60db8e11491a20ea9566e16b26c''',
+    '''5cebaa12eeed5b4403f39b4351a61c1c74283e977d2c40d9afa8eb9f75db75a8''',
+    '''e9b6763023c676ca8431644204f50c2b100d9aab''',
+    '''golden-family-1''',
+    '''golden-family-2''',
+    '''join-family10''',
+    '''populated-0051''',
+    '''req-abc12345''',
+    '''req-ghi12345''',
+    '''utf8-heuristic-v1''',
+  ]

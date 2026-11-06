@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-import { Education } from "@/pages/Education";
+import { Education } from "@/features/profile/pages/Education";
 import {
   createAchievement,
   createCertification,
@@ -729,6 +729,7 @@ describe("Education workspace — selection, bulk and filters", () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Education" }));
     await screen.findByTestId("education-item-ed1");
+    fireEvent.click(screen.getByTestId("education-select"));
     fireEvent.click(
       within(await screen.findByTestId("education-item-ed1")).getByRole("checkbox")
     );
@@ -749,7 +750,9 @@ describe("Education workspace — selection, bulk and filters", () => {
       expect.objectContaining({ status: "draft" })
     );
     expect(screen.getByTestId("education-item-ed1")).toHaveTextContent("Draft");
-    expect(screen.queryByTestId("bulk-bar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("education-bulk-mode")).toHaveTextContent(
+      "Selection mode"
+    );
   });
 
   it("bulk-deletes education entries with undo restoring both", async () => {
@@ -757,6 +760,7 @@ describe("Education workspace — selection, bulk and filters", () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Education" }));
     await screen.findByTestId("education-item-ed1");
+    fireEvent.click(screen.getByTestId("education-select"));
     fireEvent.click(within(screen.getByTestId("education-item-ed1")).getByRole("checkbox"));
     fireEvent.click(within(screen.getByTestId("education-item-ed2")).getByRole("checkbox"));
     fireEvent.click(screen.getByTestId("bulk-delete"));

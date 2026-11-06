@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Seeded CV template bank: starter layouts.
 
 Bank rows carry author_key='bank', source='bank' and are read-only for
@@ -9,9 +10,9 @@ from sqlalchemy import select
 from app.models.cv_template_model import CvTemplate
 from app.models.enums import CvTemplateSource, CvTemplateStatus
 from app.schemas.cv_template import TemplateContent
-from app.services.engagement_service import canonical_hash
+from app.services.postings.engagement_service import canonical_hash
 
-DESIGN_A4_SANS = {}
+DESIGN_A4_SANS: dict[str, object] = {}
 
 
 def _content(

@@ -16,12 +16,15 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from importlib import metadata
-from typing import Optional
-from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from app.models.enums import DeliveryStatus
+
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +42,8 @@ class DeliveryContext:
     body: str
     payload: dict = field(default_factory=dict)
     severity: str = "info"
+    delivery_id: UUID | None = None
+    db: AsyncSession | None = None
 
 
 class BaseChannel:
@@ -49,7 +54,7 @@ class BaseChannel:
     def available(self) -> bool:
         raise NotImplementedError
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         """Deliver; returns (status, error). Never raises by contract."""
         raise NotImplementedError
 
@@ -62,11 +67,47 @@ class InAppChannel(BaseChannel):
     def available(self) -> bool:
         return True
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         return DeliveryStatus.DELIVERED.value, None
 
 
-_BUILTINS_KEYS = ("in_app", "browser")
+class EmailChannel(BaseChannel):
+    """SMTP/inbox transport with double opt-in and kind-aware copy."""
+
+    key = "email"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_email
+
+        return await notification_email.deliver(ctx)
+
+
+class WebhookChannel(BaseChannel):
+    """Queued HTTP POST transport; the durable queue owns retries."""
+
+    key = "webhook"
+
+    def available(self) -> bool:
+        return True
+
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
+        from app.services import notification_webhook
+
+        if ctx.db is None or ctx.delivery_id is None:
+            return DeliveryStatus.FAILED.value, "no delivery session"
+        row = await notification_webhook.channel_row(ctx.db, ctx.user_id)
+        public = notification_webhook.public_config(row)
+        if row is None or not public["enabled"] or not public["url"]:
+            return DeliveryStatus.FAILED.value, "webhook channel disabled"
+        await notification_webhook.enqueue_delivery(ctx.db, ctx)
+        return DeliveryStatus.PENDING.value, None
+
+
+_BUILTINS_KEYS = ("in_app", "browser", "email", "webhook")
+
 
 _registry: dict[str, BaseChannel] = {}
 _plugins_loaded = False
@@ -81,6 +122,10 @@ def _ensure_builtins() -> None:
     """
     if "in_app" not in _registry:
         _registry["in_app"] = InAppChannel()
+    if "email" not in _registry:
+        _registry["email"] = EmailChannel()
+    if "webhook" not in _registry:
+        _registry["webhook"] = WebhookChannel()
     if "browser" not in _registry:
         try:
             from app.services.webpush_service import BrowserPushChannel
@@ -94,7 +139,7 @@ def _ensure_builtins() -> None:
 def plugin_allowed(key: str) -> bool:
     from app.core.config import settings
 
-    allowlist = getattr(settings, "NOTIFICATION_CHANNELS_ALLOWLIST", None) or []
+    allowlist = getattr(settings, "notification_channels_allowlist", None) or []
     return key in allowlist
 
 
@@ -111,7 +156,7 @@ def _load_plugins() -> None:
     for ep in eps:
         try:
             channel = ep.load()()
-        except Exception as exc:  # noqa: BLE001 — one bad plugin never breaks boot
+        except Exception as exc:
             logger.warning("Notification channel %s failed to load: %s", ep.name, exc)
             continue
         if not isinstance(channel, BaseChannel):
@@ -137,7 +182,7 @@ def unregister_channel(key: str) -> None:
     _registry.pop(key, None)
 
 
-def get_channel(key: str) -> Optional[BaseChannel]:
+def get_channel(key: str) -> BaseChannel | None:
     _load_plugins()
     return _registry.get(key)
 
@@ -152,13 +197,18 @@ def available_channels() -> list[str]:
 
     One build, capabilities declared: the desktop shell registers its
     channel in-process at boot; web deployments carry the `browser`
-    (VAPID) slot.
+    (VAPID) slot. Sorted by the closed registry order so API responses and
+    settings UI are deterministic.
     """
+    from app.models.enums import NotificationChannel
+
     _load_plugins()
-    return [key for key, channel in _registry.items() if channel.available()]
+    order = {member.value: index for index, member in enumerate(NotificationChannel)}
+    keys = [key for key, channel in _registry.items() if channel.available()]
+    return sorted(keys, key=lambda key: (order.get(key, len(order)), key))
 
 
-def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) -> bool:
+def within_quiet_hours(quiet: dict | None, now: datetime | None = None) -> bool:
     """True when `now` (UTC) falls inside {start, end} HH:MM quiet hours.
 
     Overnight windows (start > end) wrap midnight. Per-rule pings (plan
@@ -168,7 +218,7 @@ def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) ->
         return False
     from datetime import datetime as dt
 
-    moment = (now or dt.now(timezone.utc)).time()
+    moment = (now or dt.now(UTC)).time()
     try:
         start = dt.strptime(quiet["start"], "%H:%M").time()
         end = dt.strptime(quiet["end"], "%H:%M").time()
@@ -180,4 +230,4 @@ def within_quiet_hours(quiet: Optional[dict], now: Optional[datetime] = None) ->
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)

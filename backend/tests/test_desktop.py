@@ -4,6 +4,7 @@ auto-start, the desktop notification channel and the shutdown drain."""
 import asyncio
 import os
 import uuid
+from datetime import UTC
 from pathlib import Path
 
 import pytest
@@ -240,18 +241,14 @@ async def test_quiet_hours_suppress_toast_but_inbox_filled(db, kinds):
             desktop_channel_enabled=True,
             quiet_hours={"start": "00:00", "end": "23:59"},
         )
-        row = await NotificationService(db).emit(
-            "fit_threshold", [user_id], title="Strong fit"
-        )
+        row = await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit")
         assert row is not None  # inbox filled
         assert bridge.toasts == []  # toast suppressed at dispatch
 
         await NotificationService(db).set_global_prefs(
             user_id, desktop_channel_enabled=True, quiet_hours=None
         )
-        await NotificationService(db).emit(
-            "fit_threshold", [user_id], title="Strong fit 2"
-        )
+        await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit 2")
         assert len(bridge.toasts) == 1
         assert bridge.toasts[0]["link"] == ""
         await db.rollback()
@@ -268,12 +265,8 @@ async def test_channel_disabled_means_no_dispatch(db, kinds):
     notification_channels.register_channel(DesktopChannel(bridge))
     try:
         user_id = await _make_user(db, "disabled@example.com")
-        await NotificationService(db).set_global_prefs(
-            user_id, desktop_channel_enabled=False
-        )
-        row = await NotificationService(db).emit(
-            "fit_threshold", [user_id], title="Strong fit"
-        )
+        await NotificationService(db).set_global_prefs(user_id, desktop_channel_enabled=False)
+        row = await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit")
         assert row is not None
         assert bridge.toasts == []
         await db.rollback()
@@ -293,9 +286,7 @@ async def test_dispatcher_failure_does_not_break_emit(db, kinds):
     notification_channels.register_channel(_BrokenChannel(_FakeBridge()))
     try:
         user_id = await _make_user(db, "broken@example.com")
-        row = await NotificationService(db).emit(
-            "fit_threshold", [user_id], title="Strong fit"
-        )
+        row = await NotificationService(db).emit("fit_threshold", [user_id], title="Strong fit")
         assert row is not None
         await db.rollback()
     finally:
@@ -303,14 +294,14 @@ async def test_dispatcher_failure_does_not_break_emit(db, kinds):
 
 
 def test_within_quiet_hours_overnight_window():
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     from app.services.notification_channels import within_quiet_hours
 
     quiet = {"start": "22:00", "end": "07:00"}
-    late = datetime(2026, 8, 31, 23, 0, tzinfo=timezone.utc)
-    early = datetime(2026, 8, 31, 6, 0, tzinfo=timezone.utc)
-    noon = datetime(2026, 8, 31, 12, 0, tzinfo=timezone.utc)
+    late = datetime(2026, 8, 31, 23, 0, tzinfo=UTC)
+    early = datetime(2026, 8, 31, 6, 0, tzinfo=UTC)
+    noon = datetime(2026, 8, 31, 12, 0, tzinfo=UTC)
     assert within_quiet_hours(quiet, late) is True
     assert within_quiet_hours(quiet, early) is True
     assert within_quiet_hours(quiet, noon) is False
@@ -323,14 +314,12 @@ def test_within_quiet_hours_overnight_window():
 
 async def test_preferences_default_then_update(client, auth_headers, kinds):
     """The preferences endpoint returns the full kind matrix."""
-    response = await client.get(
-        "/api/v1/notifications/preferences", headers=auth_headers
-    )
+    response = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
     assert body["desktop_channel_enabled"] is True
     assert body["quiet_hours"] is None
-    assert body["channels"] == ["in_app", "browser"]
+    assert body["channels"] == ["in_app", "browser", "email", "webhook"]
     kind_keys = {kind["key"]: kind for kind in body["kinds"]}
     assert "fit_threshold" in kind_keys
     assert kind_keys["fit_threshold"]["enabled"] is True
@@ -402,10 +391,15 @@ async def test_preferences_reject_bad_quiet_hours(client, auth_headers):
 async def test_bootstrap_declares_web_channels(client, auth_headers):
     from app.core.config import settings
 
-    assert settings.DESKTOP_MODE is False
+    assert settings.desktop_mode is False
     response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
     assert response.status_code == 200
-    assert response.json()["notification_channels"] == ["in_app", "browser"]
+    assert response.json()["notification_channels"] == [
+        "in_app",
+        "browser",
+        "email",
+        "webhook",
+    ]
 
 
 async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeypatch):
@@ -419,17 +413,21 @@ async def test_bootstrap_declares_desktop_channels(client, auth_headers, monkeyp
     notification_channels.registered_channels()
     notification_channels.register_channel(DesktopChannel(_FakeBridge()))
     try:
-        monkeypatch.setattr(settings, "DESKTOP_MODE", True)
+        monkeypatch.setattr(settings, "desktop_mode", True)
         assert set(notification_channels.available_channels()) == {
             "in_app",
             "browser",
             "desktop",
+            "email",
+            "webhook",
         }
         response = await client.get("/api/v1/me/bootstrap", headers=auth_headers)
         assert response.json()["notification_channels"] == [
             "in_app",
-            "browser",
             "desktop",
+            "browser",
+            "email",
+            "webhook",
         ]
     finally:
         notification_channels.unregister_channel("desktop")
@@ -461,14 +459,13 @@ def test_menu_model_shape():
         autostart=False,
     )
     ids = [item["id"] for item in menu]
-    assert ids[:2] == ["open", "sync_now"]
+    assert ids[:2] == ["open", "configure_ai"]
+    assert ids[2] == "sync_now"
     assert "notifications" in ids and "quit" in ids
     notifications = next(item for item in menu if item["id"] == "notifications")
     assert notifications["label"] == "Notifications (4)"
     assert {"id": "notification:n1", "label": "Strong fit"} in notifications["items"]
-    assert {"id": "notifications:mark_read", "label": "Mark all read"} in (
-        notifications["items"]
-    )
+    assert {"id": "notifications:mark_read", "label": "Mark all read"} in (notifications["items"])
     searches = next(item for item in menu if item["id"] == "saved_searches")
     assert {"id": "search:s1:run", "label": "Run now — qa"} in searches["items"]
     assert {"id": "search:s1:toggle", "label": "Disable qa"} in searches["items"]
@@ -482,6 +479,52 @@ def test_menu_model_shape():
         "label": "Start on login",
         "checked": False,
     } in menu
+
+
+def test_menu_model_offers_ai_setup():
+    """Plan 118.2: the tray is a first-run entry into AI configuration."""
+    from app.desktop.tray import build_menu_model
+
+    menu = build_menu_model(
+        saved_searches=[],
+        notifications=[],
+        unread=0,
+        close_to_tray=False,
+        autostart=False,
+    )
+    assert {"id": "configure_ai", "label": "Configure AI provider"} in menu
+    assert [item["id"] for item in menu[:2]] == ["open", "configure_ai"]
+
+
+class _RecordingWindow:
+    def __init__(self):
+        self.scripts = []
+
+    def evaluate_js(self, script):
+        self.scripts.append(script)
+
+    def show(self):
+        return None
+
+    def restore(self):
+        return None
+
+
+def test_bridge_navigates_the_spa_router():
+    """The shell never owns the router: it only asks the SPA to route."""
+    from app.desktop.bridge import DesktopBridge
+
+    bridge = DesktopBridge()
+    window = _RecordingWindow()
+    bridge.attach(window)
+    assert bridge.navigate("/settings/ai") is True
+    assert window.scripts[-1] == (
+        'window.__caDesktopNavigate && window.__caDesktopNavigate("/settings/ai")'
+    )
+    assert bridge.navigate("settings/ai") is False
+    assert bridge.show_and_navigate("/onboarding/setup") is True
+    bridge.detach()
+    assert bridge.navigate("/settings/ai") is False
 
 
 # ---------------------------------------------------------- tray actions (API)
@@ -514,6 +557,34 @@ async def _first_admin_id(conn):
         return rows.scalars().first()
 
 
+async def test_tray_configure_ai_opens_the_ai_settings_route(clean_db):
+    """Plan 118.2: the tray entry lands on Settings → AI."""
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from app.desktop.tray import TrayActions
+
+    class _NavBridge:
+        def __init__(self):
+            self.paths: list[str] = []
+
+        def show_and_focus(self):
+            return None
+
+        def show_and_navigate(self, path):
+            self.paths.append(path)
+            return True
+
+    bridge = _NavBridge()
+    factory = async_sessionmaker(
+        bind=clean_db,
+        class_=AsyncSession,
+        expire_on_commit=False,
+        join_transaction_mode="create_savepoint",
+    )
+    await TrayActions(factory, bridge).configure_ai()
+    assert bridge.paths == ["/settings/ai"]
+
+
 async def test_tray_actions_use_admin_inbox(db, clean_db, client, auth_headers, kinds):
     """First registered user is admin ⇒ the tray reads their inbox."""
     from app.services.notification_service import NotificationService
@@ -535,9 +606,7 @@ async def test_tray_actions_use_admin_inbox(db, clean_db, client, auth_headers, 
     assert unread == 0
 
 
-async def test_tray_sync_now_and_saved_search(
-    db, clean_db, client, auth_headers, kinds
-):
+async def test_tray_sync_now_and_saved_search(db, clean_db, client, auth_headers, kinds):
     """Sync-now + run/toggle hit the same scheduler service the API uses."""
     from app.services.scheduler.runner import SchedulerService
 
@@ -593,9 +662,7 @@ async def test_tray_endpoints_contract(client, auth_headers):
     assert listed.status_code == 200
     assert listed.json() == {"items": [], "unread_count": 0}
 
-    marked = await client.post(
-        "/api/v1/notifications/read", json={"ids": []}, headers=auth_headers
-    )
+    marked = await client.post("/api/v1/notifications/read", json={"ids": []}, headers=auth_headers)
     assert marked.status_code == 200 and marked.json() == {"marked": 0}
 
     prefs = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
@@ -619,9 +686,7 @@ async def test_quit_drains_queue(db):
     assert drained == 1
     await db.refresh(job)
     assert job.status == "failed"  # executed (unknown type fails terminally)
-    rows = await db.execute(
-        select(BackgroundJob).where(BackgroundJob.status == "queued")
-    )
+    rows = await db.execute(select(BackgroundJob).where(BackgroundJob.status == "queued"))
     assert rows.scalars().all() == []
 
 
@@ -667,9 +732,9 @@ def test_main_app_tray_flag(monkeypatch):
         called.clear()
         assert entry.main(["app"]) == 0
         assert called["tray_only"] is False
-        assert os.environ.get("DESKTOP_MODE") == "1"
+        assert os.environ.get("CAREER_DESKTOP_MODE") == "1"
     finally:
-        os.environ.pop("DESKTOP_MODE", None)
+        os.environ.pop("CAREER_DESKTOP_MODE", None)
 
 
 def test_main_rejects_unknown_mode():

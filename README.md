@@ -7,7 +7,7 @@
 
 **For students, career switchers and returners alike — anyone navigating a career path.**
 
-[![Version](https://img.shields.io/badge/version-v0.16.0-blue.svg)](https://github.com/neuronection/career-assistant/releases)
+[![Version](https://img.shields.io/badge/version-v0.17.0-blue.svg)](https://github.com/neuronection/career-assistant/releases)
 [![Status](https://img.shields.io/badge/status-beta-yellow.svg)](#scope--limitations)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20Docker%20%7C%20Self--Hosted-lightgrey.svg)](#quick-start)
@@ -87,11 +87,38 @@ It is **beta** software, built for anyone exploring career paths and for technic
 
 The short tour; the exhaustive one — including Autopilot, deep posting extraction, growth toolkit, variant library, MCP and more — lives in the [feature catalog](docs/user/features.md).
 
+### Feature status
+
+Every user-facing surface carries a state. The sidebar, the in-app beta
+banner, the demo tour and this table read the same registry
+(`frontend/src/config/features.json`); `backend/tests/test_docs_claims.py`
+fails when a claim here drifts from the code.
+
+| Surface | Route | State | Documented in |
+|---|---|---|---|
+| First-run AI setup | `/onboarding/setup` | on | [user/ai-setup.md](docs/user/ai-setup.md) |
+| Live postings | `/postings` | on | [user/postings-and-search.md](docs/user/postings-and-search.md) |
+| Companies | `/companies` | on | [user/companies.md](docs/user/companies.md) |
+| Market intelligence | `/postings/stats` | beta | [user/market-stats.md](docs/user/market-stats.md) |
+| Application tracker | `/applications` | on | [user/applications.md](docs/user/applications.md) |
+| Career Autopilot | `/autopilot` | beta | [user/career-autopilot.md](docs/user/career-autopilot.md) |
+| Interview prep | `/interviews` | beta | [user/interviews.md](docs/user/interviews.md) |
+| Growth toolkit | `/growth` | beta | [user/growth.md](docs/user/growth.md) |
+| Career paths | `/paths` | beta | [user/career-paths.md](docs/user/career-paths.md) |
+| Skill relations admin | `/settings/taxonomy` | on | [user/skills-taxonomy.md](docs/user/skills-taxonomy.md) |
+| Company matching rules | `/settings/companies` | on | [user/companies.md](docs/user/companies.md) |
+| Audit & monitoring | `/settings/audit` | on | [user/settings.md](docs/user/settings.md) |
+| Retrieval operations | `/settings/tools` | on | [user/settings.md](docs/user/settings.md) |
+
+`beta` means the surface works end to end and carries a visible Beta chip
+plus one expectation line in the app; everything else the catalog lists is
+shipped (`on`).
+
 - **Explore a living job catalog** — browse job families as a tree, follow typed relations in an interactive graph, and enrich the catalog with AI-generated jobs that map onto the existing taxonomy. Search and filter across everything.
 - **Build a deep, structured profile** — an onboarding wizard with start paths (answer only what applies), CV intake with review-first import, and an AI analysis of your profile. Everything is typed, so matching is computed, not vibes.
 - **Get matched, with reasons** — AI scores with structured rationale (positives, negatives, missing prerequisites), your own score and interest status alongside, filterable rankings, and a side-by-side compare tray (`/compare`).
 - **Find the university pathway** — upload your university's admission PDF, get a reviewable draft of universities, departments and yearly baselines, and approve every write before it lands. Degrees link to jobs through rich link rows.
-- **Search live postings** — connector engines for ATS APIs, JSON-LD, RSS, CSV and paste-a-URL; a deep extraction pass turns postings into auditable skill/salary/benefit data; filter it all on the Explore page and let **Career Autopilot** hunt a goal on cadence with budgets and explainable shortlists.
+- **Search live postings** — connector engines for ATS APIs, JSON-LD, RSS, CSV and paste-a-URL plus three real job boards live out of the box (Arbeitnow, Remotive, Jobicy — free public APIs, zero config); import external connectors from git sources (consent-gated, digest-pinned, never auto-applied); a deep extraction pass turns postings into auditable skill/salary/benefit data; filter it all on the Explore page and let **Career Autopilot** hunt a goal on cadence with budgets and explainable shortlists.
 - **CV Studio** — the most mature surface: a full CV workspace with a versioned template bank and design-token editor (incl. per-section containers and elevation), intake from an existing CV, one-shot AI generation from your profile with an agentic step that reads your own linked pages (GitHub repos, portfolios) and a configurable vision polish loop that can escalate a style brief to the AI template designer, an item-variant library (text and bullets-only variants), cover letters per posting, ATS lint, honest page counting, and a copilot with vision that operates the builder. Exports to PDF/DOCX/Markdown/JSON/ATS text.
 - **An assistant that helps — carefully** — a chat grounded in your catalog and postings via tool-calling, profile edits proposed as review cards with before/after previews and one-click revert, interview prep, and contextual "Ask AI" buttons throughout.
 - **A scheduler that works while you don't** — one periodic engine for scheduled searches, digests, source syncs and refit sweeps; on the desktop, the tray keeps it running in the background with native notifications.
@@ -107,6 +134,7 @@ Career Assistant is a student tool today, but the foundation is the same one the
 - **Career paths as data** — curated and AI-drafted routes to each job, computed over the typed relation edges.
 - **Career stages, not just students** — one stage switch retunes suggested fit weights, assessment scenarios and path ordering; presets are suggestions, never hidden scoring branches.
 - **Registries as extension points** — posting sources plug in via the connector SDK, periodic work only via the scheduler, AI only via the structured-output gateway — there is no side door.
+- **Imported extensions never run in-process** — git-imported connectors execute as external MCP scripts (T3) or in a sandboxed subprocess behind the capability RPC (T2: audited, watchdogged, memory-capped, network only through the host's polite runtime, secrets never crossing the seam) — sandboxing limits blast radius; it is not a review of intent.
 - **Dialect-aware, portable schema** — PostgreSQL (web/self-host) and SQLite (desktop) verified against one migration chain.
 - **Family-compatible conventions** — same stack, settings architecture and AI configuration patterns as the other assistant-family apps.
 
@@ -151,11 +179,11 @@ Run it as a local desktop application (pywebview window, SQLite database, everyt
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
-./venv/bin/python -m careerassistant              # window + tray (default mode)
-./venv/bin/python -m careerassistant app --tray   # tray-only boot (auto-start)
-./venv/bin/python -m careerassistant web          # loopback server + system browser
-./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
+uv sync --extra desktop
+uv run python -m careerassistant              # window + tray (default mode)
+uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
+uv run python -m careerassistant web          # loopback server + system browser
+uv run python -m careerassistant seed         # migrations + starter catalog only
 ```
 
 **Prebuilt packages** (no Python needed) are published on the
@@ -174,7 +202,7 @@ First launch creates a strong `secret.key`, applies migrations and seeds the sta
 ### Prerequisites
 
 - **Docker** and Docker Compose (for the dev database), or **Python 3.12+ / Node 18+** for the app itself.
-- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → AI Configuration**. For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `MOCK_AI=1`), so the app works fully without one.
+- **An OpenAI-compatible LLM provider** (API key + endpoint) for job generation, relation suggestion, matching, PDF parsing and the chatbot. Configure it in **Settings → AI Configuration**. For offline dev you can opt into the built-in mock provider with `./scripts/run-dev.sh --mock-ai` (or `CAREER_MOCK_AI=1`), so the app works fully without one.
 - **PostgreSQL** — the dev compose ships one on port 5433; Redis (6380) is included for a future worker split.
 
 ## Architecture at a glance
@@ -185,7 +213,7 @@ flowchart LR
         FE[React SPA<br/>Vite + Zustand + reactflow]
     end
     subgraph Server["FastAPI server"]
-        API[REST API<br/>JWT bearer auth]
+        API[REST API<br/>cookie session + CSRF]
         BG[Background tasks<br/>PDF parsing · AI generation]
     end
     subgraph Datastore
@@ -239,15 +267,16 @@ Interactive API docs are also available at `/docs` on a running backend.
 | Cache / Queue | Redis (composed in; worker split planned) |
 | Migrations | Alembic |
 | AI / NLP | OpenAI-compatible providers (`base_url` override → OpenAI / OpenRouter / Ollama / LM Studio), pydantic-validated structured outputs, deterministic dev-only mock |
-| Auth | JWT bearer (PyJWT) + bcrypt |
+| Auth | Cookie sessions (auth-kit) + double-submit CSRF, bcrypt password hashing |
 | Tests | pytest + pytest-asyncio + httpx, vitest + testing-library, ruff |
 | Container | Docker + Docker Compose (dev database) |
 
 ## Scope & limitations
 
-Career Assistant is in **public beta** (`0.10.x`). The points below are honest boundaries — not every limitation is a bug.
+Career Assistant is in **public beta** (`0.17.x`). The points below are honest boundaries — not every limitation is a bug.
 
 - **Pre-1.0 APIs.** REST endpoints and DB schemas may change before `1.0`. Pin a version if you depend on it.
+- **Fresh-baseline schema.** v0.17 replaces the whole migration history with one baseline; a pre-v0.17 database is not upgradeable. Recreate dev/test/production databases (`alembic upgrade head` + seed) instead of migrating.
 - **Single-container scale.** One uvicorn process serves the API and the built SPA (see [Deployment](docs/dev/deployment.md)); there is no horizontal-scaling story yet. A worker split is on the roadmap.
 - **No Celery in v1.** PDF parsing and AI generation run as in-process FastAPI background tasks. Redis ships in the compose file for a later worker split; today the FastAPI process does the work itself.
 - **Single-tenant.** Students are `users`; there is no tenancy model. Multi-school/organization support is not on the v1 roadmap.
@@ -266,8 +295,14 @@ Career Assistant is in **public beta** (`0.10.x`). The points below are honest b
 
 **Up next**:
 
-- Notification-center library unification and health-assistant adoption — shared work in the assistant-ui and health repos.
-- Pending rescope: match staleness/bulk re-score, E2E + typing gates, broader i18n coverage, demand-history trends; sustainability model.
+- **Phase 2 of the 2026-10-21 wave** — applications and follow-ups, the
+  notification-integration loop, AI first-run setup, assistant-surface
+  parity, explore/fit performance, i18n completion, the connector
+  platform, a codebase restructure, the quality gates and the career-path
+  explorer (plans 116–125).
+- **Notification-center library unification** and health-assistant
+  adoption — shared work in the assistant-ui and health repos.
+- **Sustainability model** — how the family of assistants stays funded.
 
 ## Community & support
 
@@ -279,7 +314,7 @@ Support development: [Buy Me a Coffee](https://buymeacoffee.com/neuronection)
 
 Contributions are welcome. To set up a working dev environment, follow [Quick start](#quick-start) and read [CONTRIBUTING.md](CONTRIBUTING.md) for code style, testing and the PR checklist.
 
-For backend changes, run `ruff check` / `ruff format --check` and the pytest suite before submitting. For frontend changes, `npm run build`, `npm run test -- --run` and `npm run lint` must pass. Security issues go through [SECURITY.md](SECURITY.md), never public issues.
+For backend changes, run `ruff check` / `ruff format --check` and the pytest suite before submitting. For frontend changes, `npm run build`, `npm run test -- --run` and `npm run lint` must pass. Security issues go through [SECURITY.md](SECURITY.md), never public issues. Community expectations are in [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 ## Security
 
@@ -289,54 +324,16 @@ Found a vulnerability? Do not open a public issue — see
 <!-- NEURONECTION:ECOSYSTEM:START -->
 ---
 
-<div align="center">
-
 ### Part of the Neuronection family
 
 **Career Assistant** is one of four connected, open-source (Apache-2.0) AI assistants
 for life's big decisions — structured data instead of text dumps, AI that explains
 its reasoning, and you in control of your information.
 
-<table>
-  <tr>
-    <td width="50%" align="center" valign="top">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://neuronection.com/logos/health-light.svg">
-        <img src="https://neuronection.com/logos/health.svg" height="34" alt="Health Assistant">
-      </picture>
-      <br>
-      <a href="https://neuronection.com/en/health/"><strong>Health Assistant</strong></a>
-      <br><sub>Self-hosted, privacy-first health records — lab results, biomarkers, documents and AI-powered insights into your own data.</sub>
-      <br><sub><a href="https://github.com/health-assistant-io/health-assistant">GitHub</a> · <a href="https://health-assistant.io">health-assistant.io</a></sub>
-    </td>
-    <td width="50%" align="center" valign="top">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="https://neuronection.com/logos/career-light.svg">
-        <img src="https://neuronection.com/logos/career.svg" height="34" alt="Career Assistant">
-      </picture>
-      <br>
-      <a href="https://neuronection.com/en/career/"><strong>Career Assistant</strong> <sub>· this repo</sub></a>
-      <br><sub>A mapped universe of jobs — family tree + relation graph, AI match scoring and university pathways, built for students deciding their future.</sub>
-      <br><sub><a href="https://github.com/neuronection/career-assistant">GitHub</a> · <a href="https://github.com/neuronection/career-assistant/tree/main/docs">Docs</a></sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" align="center" valign="top">
-      <img src="https://neuronection.com/logos/study.svg" height="34" alt="Study Assistant">
-      <br>
-      <a href="https://neuronection.com/en/study/"><strong>Study Assistant</strong></a>
-      <br><sub>A local-first study workbench, in browser or on desktop — AI-powered course library, handwriting, chat and practice; math-first, subject-agnostic.</sub>
-      <br><sub><a href="https://github.com/neuronection/study-assistant">GitHub</a> · <a href="https://github.com/neuronection/study-assistant/tree/main/docs">Docs</a></sub>
-    </td>
-    <td width="50%" align="center" valign="top">
-      <img src="https://neuronection.com/logos/desktop.svg" height="34" alt="Desktop Assistant">
-      <br>
-      <a href="https://neuronection.com/en/desktop/"><strong>Desktop Assistant</strong></a>
-      <br><sub>A system-tray AI launcher for Windows, Linux and macOS — global hotkey, streaming chat, voice input, attachments; local-only history.</sub>
-      <br><sub><a href="https://github.com/neuronection/desktop-assistant">GitHub</a> · <a href="https://github.com/neuronection/desktop-assistant/tree/main/docs">Docs</a></sub>
-    </td>
-  </tr>
-</table>
+| | |
+| --- | --- |
+| [![Health Assistant](https://neuronection.com/logos/health.svg?v=2)](https://neuronection.com/en/health/) — **Health Assistant** · Self-hosted, privacy-first health records — lab results, biomarkers, documents and AI-powered insights into your own data. · [GitHub](https://github.com/health-assistant-io/health-assistant) · [health-assistant.io](https://health-assistant.io) | [![Career Assistant](https://neuronection.com/logos/career.svg?v=2)](https://neuronection.com/en/career/) — **Career Assistant** · A mapped universe of jobs — family tree + relation graph, AI match scoring and university pathways, built for students deciding their future. · [GitHub](https://github.com/neuronection/career-assistant) · [Docs](https://github.com/neuronection/career-assistant/tree/main/docs) |
+| [![Study Assistant](https://neuronection.com/logos/study.svg?v=2)](https://neuronection.com/en/study/) — **Study Assistant** · A local-first study workbench, in browser or on desktop — AI-powered course library, handwriting, chat and practice; math-first, subject-agnostic. · [GitHub](https://github.com/neuronection/study-assistant) · [Docs](https://github.com/neuronection/study-assistant/tree/main/docs) | [![Desktop Assistant](https://neuronection.com/logos/desktop.svg?v=2)](https://neuronection.com/en/desktop/) — **Desktop Assistant** · A system-tray AI launcher for Windows, Linux and macOS — global hotkey, streaming chat, voice input, attachments; local-only history. · [GitHub](https://github.com/neuronection/desktop-assistant) · [Docs](https://github.com/neuronection/desktop-assistant/tree/main/docs) |
 
 Created and maintained by [Ilias Chatzopoulos](https://github.com/constLiakos)
 · [LinkedIn](https://www.linkedin.com/in/ilias-chatzopoulos-aabb22163/)
@@ -344,8 +341,6 @@ Created and maintained by [Ilias Chatzopoulos](https://github.com/constLiakos)
 
 [neuronection.com](https://neuronection.com) — one ecosystem, four guides
 · [♥ Support development](https://buymeacoffee.com/neuronection) · star what you use
-
-</div>
 <!-- NEURONECTION:ECOSYSTEM:END -->
 
 ## License

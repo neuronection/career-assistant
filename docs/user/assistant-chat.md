@@ -12,6 +12,13 @@ The chatbot searches jobs, pulls job details and looks up your matches through
 tool-calling over your own data. Answers cite what they used, and long AI runs
 show a progress trace you can read (the notes and timeline behind a reply).
 
+It also reads your own activity: the application pipeline and one
+application's timeline, upcoming application and university-admission
+deadlines, your saved searches, recorded market history for a job family or
+role, and the dimensions behind a single fit score. When there is nothing to
+read it says **nothing tracked yet** and points at the page that creates it —
+it never fills the gap with an invented summary.
+
 ## Proposals, never auto-apply
 
 When you ask the assistant to change your profile, it does not just do it. It
@@ -59,9 +66,31 @@ Explore" deep-links straight from chat replies.
 Your career data is drivable from external MCP clients (Claude Desktop, IDE
 agents):
 
-- The tool registry's **read-scope tools** expose over Streamable HTTP at
-  `/mcp` with a locally generated token (admin rotation), per-host rate
-  limiting and read-only defaults.
+- The MCP server speaks **Streamable HTTP at `/mcp`**, authenticated by a
+  bearer **token**. Manage tokens in **Settings → Tools → Connectors →
+  MCP server**: mint one (the secret is shown exactly once), label it,
+  **rotate** it (the predecessor dies immediately) or revoke it. Copy-ready
+  snippets for Claude Desktop and generic HTTP clients live next to the
+  endpoint URL.
+- The tool list is the **registry projection** — it always matches the
+  assistant's own tools, with their `read`/`write` scopes shown. Read tools
+  are always exposed; write tools need the admin write switch.
+- **Resources** give a client read-first entry points:
+  `career://profile` (privacy-minimized digest), `career://applications`
+  (pipeline rows), `career://saved-searches` and `career://cv/{id}` (that
+  CV's items and bullets). They are scoped to the token's owner; a token
+  not bound to a user sees no user-data resources.
+- **Prompts** package the common flows — `tailor_cv_to_posting`,
+  `prepare_interview_plan`, `summarize_my_fit`. They carry references
+  (ids) and instructions, never your data.
+- **Every call is audited** (`mcp_tool_call`, visible in the recent-call
+  list) and rate-limited per client host.
+- **Writes are approval cards, never direct changes.** While an admin has
+  write access on, a write-scope token sees `profile_update`,
+  `application_transition` and `cv_ops`. Each call creates a pending card
+  in the MCP section of the settings page (with its token label and request
+  id as origin); approving it applies the change through the same service
+  the app's forms use. Read-only tokens never see these tools.
 - Admins can also register **external MCP servers** — tools are namespaced,
   disabled by default, enabled per tool, and every invocation is audited and
   budgeted.
@@ -74,7 +103,7 @@ Configuration** — stored in the database, encrypted at rest, with no AI
 environment variables at all.
 
 For offline development, the built-in **mock provider** is opt-in via
-`MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`); production refuses to serve
+`CAREER_MOCK_AI=1` (or `./scripts/run-dev.sh --mock-ai`); production refuses to serve
 mock results regardless.
 
 ## Related

@@ -3,4 +3,6 @@
      only if career needs a deliberate identity divergence. */
   --as-focus-ring: var(--as-accent);
   --as-radius: 0.75rem;
+  /* Skill heat ramp (plan 140): ordinal requirement strength, not state. */
+  --ca-heat-hot: #ea580c;
 }

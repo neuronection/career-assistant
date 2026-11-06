@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { Onboarding } from "@/pages/Onboarding";
+import { Onboarding } from "@/features/profile/pages/Onboarding";
 import { useProfileStore } from "@/stores/profileStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { fetchProfile, saveProfileSection, analyzeProfile } from "@/api/profile";
@@ -10,7 +10,8 @@ import {
   createEducationItem,
   fetchEducation,
 } from "@/api/education";
-import type { Bootstrap, OnboardingPath, Profile } from "@/types";
+import type { Bootstrap, OnboardingPath } from "@/types/wire";
+import type { Profile } from "@/types";
 
 vi.mock("@/api/profile", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/profile")>();
@@ -67,6 +68,8 @@ function makeBootstrap(
     suggested_scoring_weights: weights,
     effective_scoring_weights: weights,
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
   };
 }
 
@@ -410,7 +413,7 @@ describe("Explore wizard (path-scoped steps)", () => {
     );
     expect(screen.getByTestId("finish-explore")).toHaveAttribute(
       "href",
-      "/postings/search"
+      "/postings"
     );
 
     vi.mocked(analyzeProfile).mockResolvedValue({

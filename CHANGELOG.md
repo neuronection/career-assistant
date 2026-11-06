@@ -4,6 +4,3808 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Changed (schema baseline, 2026-11-06)
+- **One no-BC migration baseline.** The plan-113 `0001` plus the
+  `0002`–`0100` chain (55 revisions since v0.16.0) are replaced by one
+  model-generated `0001_baseline_schema.py`. v0.16.0 → v0.17 is a declared
+  breaking release with no production users: `downgrade()` restores an
+  empty schema and a pre-v0.17 database is **not** upgradeable — start from
+  a fresh database (dev/test databases are recreated). The baseline carries
+  the final CHECKs, indexes and server defaults exactly as the models
+  declare them, plus the only non-default DATA the old chain seeded — the
+  company quality denylist (18 editable rows).
+
+### Fixed (release hardening, 2026-11-06)
+- **Packaged desktop builds boot again.** The PyInstaller bundle now ships
+  every builtin extension bundle — its `manifest.json` and per-bundle docs
+  tree — so registration no longer fails closed on a frozen build (the
+  manifests became files in plan 32/35 and were never added to the spec).
+- **The self-host Docker image boots again.** The runtime stage copies the
+  vendored `contracts/` set (manifest schema, docs-tree schema, charter,
+  fixtures) and the builtin docs trees; the container reaches `/health` and
+  serves the SPA instead of refusing registration.
+- **Live notifications work in web mode.** The notification SSE stream now
+  rides the same identity headers as every other API call (`X-Profile-Id`
+  and, on desktop, `X-Shell-Token`), so the unread badge and toast previews
+  update instead of the stream answering 400 on every page.
+- **Release tags require green CI.** The release workflow now waits for a
+  successful `CI` run on the tagged SHA and refuses to publish otherwise.
+- **The backend type wall is clear.** `uv run mypy` reports zero errors in
+  the pinned `files` set (was 19–21), and the market dashboard's `basis` /
+  `bucket` parameters are typed literals in the OpenAPI contract.
+
+### Added (mapping coverage console, 2026-11-06)
+- **Tools → Mappings** ships its first slice: a new admin settings section
+  (family `tools.mappings` domain) with an Overview view backed by
+  `GET /admin/mappings/overview` — the honest funnel over active postings
+  (described → extracted → mapped → **accounted for**, with the
+  accounted-for floor and the mapped / machine-terminal / human-terminal
+  split shown separately), the unmapped reason counts, the mapping method
+  mix, pending job-proposal count, the last remap state and the retrieval
+  health link. `POST /admin/mappings/backfill` enqueues the bounded,
+  idempotent derivation of the new typed outcome columns for legacy rows.
+- **Typed mapping outcomes** (`0098_mapping_outcome`): every mapping
+  decision (auto, manual, proposal apply) now writes a machine-readable
+  outcome state/reason pair on the posting (`mapped`/`unmapped` + a closed
+  reason vocabulary) and carries the human ignore overlay columns for the
+  console. `posting_facts` stays the display/trace projection; the funnel
+  buckets never-extracted/no-description/needs-review rows at read time.
+  The triage queue, trace and actions follow in the next slices.
+- **The unmapped triage queue is live** (`GET /admin/mappings/unmapped`,
+  keyset-paginated, filterable by funnel state/source/detail/needs-review/
+  title) with the per-posting **decision trace**
+  (`GET /admin/mappings/postings/{id}/trace` — outcome, signals, bounded
+  candidates, journal and AI-generation ids, never prompt/response text)
+  and the bulk actions extract / re-decide / ignore / unignore / unmap /
+  mark-reviewed (bounded 200, one audit event + per-posting journal rows
+  each; ignore answers 409 "unmap first" on a mapped posting; unmap
+  writes `unmapped_by_admin` and clears a stale overlay). The unused bare
+  `GET /admin/postings` review list is retired — one surface, the console.
+- **The breakdowns land** (`GET /admin/mappings/sources` and
+  `GET /admin/mappings/job-types`): the per-source funnel (active /
+  described / extracted / mapped / accounted, top unmapped bucket, detail
+  mode, last sync) and the per-job-type table (mapped postings, open
+  roles, the zero-posting flag) plus the capped proposed-type clusters
+  from the v2 job-proposal queue — both in the console's Types & sources
+  view with links to Sources, the catalog pages and the proposal queue.
+- **The Overview and Runs views compose phase 1**: funnel stat tiles with
+  distribution bars, the accounted-for gate (floor + pass/fail + the
+  mapped / machine-terminal / human-reviewed split), the run controls'
+  three mapping switches shown **read-only** with a link to their
+  Taxonomy → Relations → Resolution home (no switch move), the job-index
+  link to Tools → Retrieval, audit and runbook links, the pending
+  proposal count and the legacy-outcome backfill action. New user page
+  `docs/user/mapping-coverage.md` and the `catalog-mapping-ops`
+  capability.
+- **The quality review set lands** (`0099_mapping_reviews`): the human
+  golden set and the sampled audit rows live in one table — one row per
+  posting (`kind` golden|sample, `status` pending|approved|rejected,
+  nullable `expected_job_id` RESTRICTing on deleted types so a positive
+  expectation cannot silently become "no good type"). Golden add/update,
+  a bounded deterministic source-stratified sample batch
+  (`POST /admin/mappings/quality/sample`, excludes ignored/terminal),
+  resolve correct/wrong from the review row, and
+  `GET /admin/mappings/quality` with precision/recall/agreement over the
+  resolved rows ("none" is a class), confusion pairs and the **advisory**
+  gate (no-golden until a golden set exists — never a release gate).
+- **The Quality view composes the review set**: the golden/sample
+  precision-recall-agreement cards, the confusion pairs, the pending
+  review rows with Mark correct/wrong, the bounded sampled-audit batch
+  card, and the gate badge (pass / below floor / No golden set) — advisory
+  only. The posting trace drawer carries Add-to-golden and the
+  Mark correct/wrong actions for a pending review row.
+- **The mapping policy is editable** (`app_settings["catalog.mapping_policy"]`,
+  `GET/PUT /admin/mappings/policy`): the four thresholds — τ_job, δ, the
+  semantic rescue threshold and the min shared skills — are admin-editable
+  with the blend weights and candidate cap read-only; the defaults are
+  bit-identical to the shipped constants, so an unconfigured deployment
+  decides exactly as before. Every decision now records the effective
+  policy hash in its trace. `POST /admin/mappings/policy/dry-run` runs the
+  candidate policy over ≤50 selected postings and restores the rows'
+  prior state in place (explicit restore on both dialects) — no
+  indexing/embedding/spend (both semantic stages skip the index write and
+  report a degrade), no deferred enqueue, no commit — and reports the
+  per-posting before/after diff. The Runs view carries the policy card
+  (edit, bounded dry-run over the oldest triage rows, confirmed save with
+  an audit event).
+- **Coverage snapshots, trend and admin alerts** (`0100_mapping_ops`): a
+  daily `mapping_coverage_capture` job folds the funnel into
+  `mapping_coverage_snapshots` (90-day retention, pruned on capture), the
+  Overview tile carries the accounted-for sparkline and a manual
+  **Capture snapshot** action (`GET /admin/mappings/trend`,
+  `POST /admin/mappings/snapshot`). The daily `mapping_alert_sweep` job
+  emits `mapping_alert` notifications to admins through the single
+  notification funnel — accounted-for floor breach, a source that
+  extracts but maps nothing, a failed re-decide run, degraded semantic
+  signals, aging proposals — each rule with severity, a rule+scope+day
+  dedup key (recovered keys release so a later recurrence re-alerts), a
+  daily cap and the console as the manage link. The schedule and task
+  CHECKs widen in the same migration (both mirrored CHECKs).
+
+### Changed (job proposals are catalog job types, 2026-11-06)
+- **Job proposals now describe catalog job types, not posting titles.** A
+  proposal is an occupation archetype — level-, employer- and team-agnostic
+  — so the queue shows the **source posting** separately from the proposed
+  type. The flow prefers an existing catalog type (an exact title maps with
+  no AI call), offers one-action **Map to existing** or **Create job type**
+  with an archetype-level description, and blocks exact duplicate types with
+  a structured warning (an explicit override is the only path to a `-2`).
+  **Catalog hygiene** retires duplicate published types into a survivor with
+  every posting, skill, tag, relation, fit and plan repointed and one audit
+  record. Old v1 proposals are regenerated or cleared by a bounded backfill,
+  and the posting detail now shows its **catalog job type** plus a short
+  **similar catalog job types** row instead of the ingest candidate trace.
+
+### Fixed (mapping console review round, 2026-11-06)
+- **The console can map again.** The triage trace now offers a **Map**
+  action with a searchable picker over **any published catalog type**
+  (the trace's candidates are pinned first), so a posting with no good
+  candidate is still mappable; it delegates to the manual-map seam, so
+  draft/retired catalog types are refused (409) and the posting gets the
+  manual outcome, a journal row and one audit event.
+- **Every console action's audit event is persisted.** The eight action
+  routes wrote their `AuditEvent` after the final commit, so the request
+  session rolled it back; the audit row is now written in the same
+  transaction as the action.
+- **The mapping schedules actually run.** `system_mapping_coverage`
+  (daily 02:45 UTC) and `system_mapping_alerts` (daily 02:50 UTC) are now
+  boot-provisioned by `ensure_system_schedules`; previously the job
+  handlers existed but nothing enqueued them.
+- **The semantic threshold is a real gate.** The editable
+  `semantic_threshold` now reaches the semantic rescue signal (and a
+  threshold of 0.0 no longer falls back to the shipped default); a
+  boundary test pins both directions.
+- **Multi-source alerts keep their dedup keys.** The alert sweep releases
+  a rule's stale keys once per rule with the full active set, so two
+  sources under one rule no longer free each other's key and re-alert.
+- **The mapping cursor is the shared keyset helper** (`app/core/keyset.py`
+  from plan 206, after merging `main`) and the accounted-for floor is
+  editable from the Runs view.
+- Smaller fixes: the triage total respects the active filters, the trace's
+  funnel state agrees with the queue for failed extracts, the sources
+  breakdown runs one aggregate instead of an N+1, the dry-run restores
+  every field the decision writes, and the duplicate job-type queue stays
+  keyset-paged with its legacy-v1 banner.
+
+### Changed (compact filter rails and a filter sheet on narrow windows, 2026-11-06)
+- **Filters collapse instead of stacking.** Below 64rem of page width the
+  filter rail is one row — the search field plus a **Filters** button with an
+  active-count badge — and the sections open in a filter sheet whose footer
+  clears them or returns to the list (**Show N jobs**). Results now start at
+  the top of the page instead of a full screen of collapsible rows. Applies to
+  `/catalog`, `/postings`, `/companies` and `/autopilot` (whose own rail toggle
+  is gone in favour of the shared one); `/rankings` stays inline because its
+  rail also carries the score chart and recent searches.
+- **Only active filters take up page space.** A removable chip row renders
+  only while something is filtered, one chip per applied value, and the sheet
+  opens with its active sections already expanded. Toggles still apply
+  instantly, so the URL stays shareable with the sheet open.
+- Wide windows keep the inline rail unchanged. The compact band lives in the
+  shared rail template (`components/filters/FilterRail.tsx`) and the chip row
+  in `components/filters/ActiveFilterChips.tsx`.
+
+### Changed (taxonomy enrichment queue: paged, and the proposal cap is gone, 2026-11-06)
+- **Both review queues on Taxonomy → Enrichment are paged.** The enrichment
+  cards load 25 at a time and the next window appends automatically when you
+  near the bottom (the same auto-load as `/postings`); job proposals load 50
+  at a time and auto-load the same way, with the **Load more** control kept
+  as a manual fallback. The old silent 50-row cap that hid every later
+  proposal is gone. `GET /admin/jobs/enrichment` and
+  `GET /admin/postings/job-proposals` now take `cursor`/`limit` and answer
+  `{items, next_cursor, total}`.
+- **A review decision no longer throws away the loaded queue.** Applying,
+  discarding or batch-moderating removes the reviewed rows in place instead
+  of refetching page one (which also refetched the whole family tree); the
+  tab badge and the stats bar recount from the server.
+- **The work-queue bar counts job proposals.** `taxonomy/stats` gained
+  `queue.job_proposals`, so the Enrichment tab badge is the sum of both
+  queues and no longer derives a count from loaded rows.
+
+### Changed (market intelligence: a tabbed dashboard, one filter vocabulary, 2026-11-04)
+- **`/postings/stats` is now the Market intelligence workspace.** The one
+  long scroll became five tabs — **Overview**, **Demand**, **Skills**,
+  **Pay** and **Companies** — that all read the same window, status basis
+  and filter set. Every card the page had before is still there (the
+  weekday × hour clock lives in Demand; the openings-per-company histogram
+  is now rendered in Companies).
+- **One filter bar and one request.** Time presets/custom range, basis,
+  compare and segments (source, company, career family, seniority, work
+  mode, employment, contract, education, city, country, skills, salary
+  floor) scope every card. The page loads through one `/postings/stats/
+  dashboard` request sharing a single `as_of`; a failed or timed-out card
+  shows an inline error with **Retry** instead of blanking the page or
+  claiming "No data". The custom comparison range is compiled through the
+  same filters as the main series; the "include hidden postings" escape
+  hatch is admin-only.
+- **Drills are honest.** A structure row or skill opens `/postings` with
+  the page window as `posted_within`, the status basis (new `basis=open|
+  all` on the list) and every active filter — so the list count matches
+  the card it came from. `basis=all` is every status except system-hidden
+  and postings you hid, exactly like the list.
+- **The workspace adapts to its own width**: on narrow windows the filters
+  move behind a Filters sheet with an active count, tables render as cards
+  with a "view all" expansion and the heatmap becomes Data-first; the chat
+  dock opening or closing reflows the page the same way. The combined CSV
+  export and Copy link live in the header and cover the whole view.
+### Fixed (retrieval coverage snapshot 500, 2026-11-06)
+- **An impossible coverage snapshot bricked the retrieval admin surface.** A
+  chained reconcile wrote a posting snapshot with `embedded=2470 > total=2400`
+  (the chain's embedded counter accumulates across batches while `total` is
+  re-counted per batch, so postings leaving the population mid-chain push it
+  over) and the contract validator rejected the derived `coverage > 1`,
+  500ing `GET /admin/retrieval/spaces` — which also took down the Tools →
+  Retrieval console whose space picker reads it. Two fixes: the writer clamps
+  `embedded` to the partition the snapshot itself claims before storing it,
+  and the reads layer clamps an impossible historical row instead of raising.
+  Repaired the stored dev row in place.
+
+### Changed (audit tab strips wrap, 2026-11-06)
+- **The Audit & monitoring tab strips wrap instead of scrolling.** With eight
+  entries each, both strips — the page tabs and the retrieval sections —
+  overflowed common desktop widths inside a horizontal-scroll wrapper, and a
+  deep link like `/settings/audit?tab=retrieval&section=query-health` landed
+  on an entry that was not even visible. They now use the library
+  `SegmentedTabs` `wrap` mode: entries flow onto a second row when they do
+  not fit, and the sliding thumb follows the selection across rows. Library
+  change rides the next `assistant-ui` release (tarball overlay until then;
+  restart the dev server to see it).
+
+### Fixed (chained reconcile continuations never ran, 2026-11-05)
+- **A reindex that needed more than one 200-document run died at its first
+  continuation** with `after[posting] must be an object`: the cursor map was
+  parsed twice (once in the job handler, once in the service), and the
+  second parse saw already-parsed `(updated_at, id)` tuples as "not an
+  object". The cursor parser now accepts both shapes, so the chain resumes
+  from its cursor and indexes the whole corpus (regression test runs the
+  chained payload through the real handler). This is why coverage could
+  stall at a small percentage with the coverage gate failing.
+
+
+### Added (cross-document embedding windows, 2026-11-05)
+- **Repeated queries stop paying twice.** Query embeddings are cached
+  per process, keyed on the space's identity and a digest of the normalized
+  query text — a repeat (or a whitespace/case variant) is served from cache,
+  makes no provider call, and writes no audit row.
+- **A reconcile window embeds many documents per provider request.** The
+  bounded reindex run now prepares a window of documents (default 128, tunable
+  per run), dedupes their records by content hash, and sends them through as
+  few embedding requests as the model's batch limits allow — a 200-document
+  run costs a handful of requests instead of 200. A failed batch retries once
+  per document so failures stay attributable, and identical texts (shared
+  boilerplate) are embedded once per window.
+- **Embedding requests can overlap.** `CAREER_EMBED_CONCURRENCY` (unset = auto:
+  1 on SQLite, 4 on web) pipelines the provider calls of one window under a
+  semaphore; the audit rows are written after the calls settle, so SQLite's
+  single writer is never held across a network call.
+- **The run's token counter is the deduped sent total**, matching the audit
+  rows; shared texts sent once count once.
+
+### Added (embedding spend is auditable, and the client is reused, 2026-11-05)
+- **Embedding calls record their real token usage.** Every `embed` audit row
+  now carries the caller-counted input tokens, so Analytics → Usage and the
+  **EMBED token budget** reflect actual embedding spend (they read `0` before).
+  Consequence: an EMBED budget that was silently inert now applies — a reindex
+  that hits it **defers** its remaining documents (they stay `missing`, never
+  `failed`), and an AI request on an exhausted budget answers **429** instead
+  of 400.
+- **Transient embedding failures retry inside the gateway** (3 attempts with
+  backoff, honouring `Retry-After`), so one 429/timeout no longer fails a whole
+  document and its job retry.
+- **One embedding client per process.** The embeddings model (and its HTTP
+  connection pool) is cached instead of rebuilt for every request, and the
+  configured batch limits — not a hidden 1000-item default — decide how many
+  texts travel in one request.
+
+### Added (ingest queue fairness, 2026-11-05)
+- **The extraction backlog is bounded now.** A source sync queues at most 200
+  never-extracted postings per run (`CAREER_EXTRACT_BACKLOG_LIMIT`, oldest
+  first so every row eventually drains; `0` disables the automatic backlog), so
+  the first sync of a large source no longer floods the job queue and starves
+  digests, CV generation and the vector index. The sync report carries
+  `extract_queued` and `backlog_remaining`.
+- **Job families can run in their own worker lane.**
+  `CAREER_JOBS_INGEST_WORKERS` (posting sync, detail enrichment, extraction,
+  company triage, remap) and `CAREER_JOBS_VECTOR_WORKERS` (the `VECTOR_*` runs)
+  give a family a dedicated serial worker and remove it from the generic pool's
+  claim set; the web compose stack ships the ingest lane on. Desktop stays
+  single-lane (SQLite has one writer).
+
+### Added (uniform bulk selection across every queue, 2026-11-05)
+- **Every admin queue and the CV variant library now batch through one
+  selection mode.** A single *Select* entry opens a bar with a count, a
+  select-all that names its scope (what the filters match, a named subset
+  such as proposed skills or archived variants, or everything loaded), the
+  queue's actions with per-action counts, and keyboard support (`Esc`,
+  `Ctrl/⌘+A`, `Shift`-click ranges). Every group header carries a tri-state
+  checkbox.
+- **A filtered-out selection is never deleted blindly.** Changing a search
+  or status filter keeps the selection; the bar reports how many selected
+  rows are hidden and offers to show or drop them, and a destructive
+  confirmation restates the count and the hidden subset.
+- **Interests, enrichment proposals, draft paths and job proposals gained
+  batching for the first time.** Enrichment applies a batch with one fit
+  refit and one transferability rebuild, and reports a warning (rather than
+  a failed apply) if that derived refresh fails after the rows committed.
+  Job proposals batch dismiss only — applying one still needs a family and
+  code per row.
+- **Profile workspaces (experience, education, achievements) and job
+  sources use the same bar**, replacing their local bulk widgets.
+
+
+### Added (retrieval: token-aware chunking and a v2 space identity, 2026-11-04)
+- **A token-aware vector space now chunks every embeddable view by token
+  ids, with exact character offsets, token overlap and token counts.**
+  Summary, requirements, responsibilities, skills and body all split;
+  `max_chars` is a hard ceiling rather than a silent truncation. The model
+  input limit is checked per item (including the document prefix and a small
+  safety margin) and requests are batched by both item count and token sum.
+  An item that still cannot fit is a recorded `input_too_long` failure, not
+  a retry loop.
+- **The tokenizer and chunk configuration are part of the space identity.**
+  `VectorSpace` gains an optional `tokenizer`/`chunk` pair and a
+  `space_key_v2` pre-image; migration `0096` persists the flattened scalars
+  and the record token offsets, while every existing row keeps its stored v1
+  key and NULL tokenizer columns. The effective profile (admin override →
+  curated → fallback, including Hugging Face) drives writes, builds and the
+  live token accounting.
+- **A token-aware space is built beside the legacy one, never re-chunked in
+  place.** `vector_spaces.py build --token-aware` (or the lifecycle/action
+  service with an explicit tokenizer and chunk) builds it, the ordinary
+  backfill writes the token records, and activation still requires the
+  coverage and golden-query quality gates. The retired space's stored key
+  drives the posting remap and the old space is retained.
+
+### Added (retrieval: build and cut over a token-aware space from Tools, 2026-11-04)
+- **Tools → Retrieval can now build a token-aware v2 space beside the active
+  one.** The build dialog resolves the effective embedding profile, shows
+  the tokenizer source, exactness, pinned revision, checksum and model input
+  limit, warns visibly when the selection is the labelled fallback, and
+  lets an admin edit the chunk budget (max tokens, overlap, max chars)
+  within safe bounds. Submitting pins that profile and budget through
+  `POST /admin/retrieval/spaces`; leaving token awareness off deliberately
+  submits the legacy v1 char-chunk build. A half-configured tokenizer/chunk
+  request is refused.
+- **Spaces, runs and the tokenizer report carry the real chunker identity.**
+  The space card, Audit space drawer and Audit run drawer render
+  `token_aware`, the tokenizer source/exactness/revision/checksum, the model
+  input limit and the chunk budget, with a runbook link. The tokenizer report
+  claims `token_aware: true` only when the active space actually persisted a
+  tokenizer and chunk config; a legacy active space still reports v1 char
+  chunks. Migration `0097` persists the selection source; the space key is
+  unchanged and no existing space is re-chunked in place. The old space
+  stays retained until an explicit retire/drop.
+
+### Fixed (retrieval: a space keeps its identity through a cutover, 2026-11-04)
+- **A vector space now stores its space key on the row, so a later
+  tokenizer/chunker version can never change what an existing space is.**
+  Builds stamp the key once; activation, the posting-remap job and the space
+  status read compare that stored value verbatim instead of recomputing it
+  from the row fields. Migration `0095` backfills every existing space with
+  its v1 key (and drops the column cleanly on downgrade), so the first
+  post-upgrade cutover still invalidates exactly the semantic mappings that
+  recorded the old key. No chunk, token-column, token-aware write or
+  `space_key` v2 change in this slice.
+
+### Added (retrieval: pinned HF tokenizers and open-source mappings, 2026-11-04)
+- **Tools → Retrieval can now resolve verified open-source embedding
+  tokenizers instead of only the fallback.** Curated profiles for nomic,
+  mxbai, bge, Qwen3-Embedding and multilingual-e5 carry the Hugging Face
+  repository, pinned revision, `tokenizer.json` SHA-256, license and source
+  link. A known family that cannot be fetched honestly (currently gated
+  `embeddinggemma`) is listed as an unavailable preset and stays visibly on
+  the fallback; unknown models are never guessed from their name.
+- **Admins can fetch a pinned Hugging Face tokenizer as a bounded job.** The
+  editor takes a repository, a full 40-character commit and the expected
+  checksum; **Fetch tokenizer** queues an audited `tokenizer_fetch` job,
+  shows its progress, and fills the verified SHA-256 for saving. Downloads
+  are host/file allowlisted, size-capped, redirect-checked, checksum-verified
+  and cached by content hash under the instance data directory. Nothing
+  downloads on a page load, request path or boot.
+- **`hf_tokenizers` loading is exact when the asset is cached and honestly
+  approximate when it is not.** The service verifies size and SHA-256 before
+  parsing the Rust `tokenizers` JSON, supports count/encode/decode, and keeps
+  the bounded LRU. A missing/corrupt asset degrades to the labelled
+  heuristic; `sentencepiece` remains reserved and unshipped.
+- The family retrieval-ops contract gains the non-space `TOKENIZER_FETCH` job
+  vocabulary and the `vector.tokenizer.fetch_requested` / `.fetched` /
+  `.fetch_failed` audit events. This remains settings only: no token-aware
+  chunk write, `space_key` change or cutover (plan 52 T3).
+
+### Added (retrieval: embedding tokenizer profiles, 2026-11-04)
+- **Tools → Retrieval now resolves an embedding model's tokenizer and limits
+  by precedence: admin override → curated catalog → conservative fallback.**
+  The Tokenizer & limits card shows the source, exact flag, max input tokens,
+  per-request batch item/token limits and the default token chunk
+  (tokens/overlap/chars), with a visible warning when no curated or admin
+  profile matches. An admin can save a bounded override for a
+  provider-class + model pair, or reset it to the curated profile.
+- **The build-space form previews the same profile** for the provider/model
+  being entered, so a fallback is visible before a space exists. The existing
+  provider/model/dimension controls are unchanged.
+- **Curated profiles are the three usable OpenAI embeddings**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → bundled `cl100k_base`). Unknown, Ollama and HF
+  models stay visibly fallback — a model name alone never selects an exact
+  tokenizer, and provider class + model is the key.
+- **A new `embedding_model_profiles` table** (PG + SQLite, typed scalar
+  columns, no JSONB) holds the admin override; changes are audited as
+  `vector.model.changed`. This is settings only: no existing chunk, token
+  column, record or space is rewritten, and token-aware writes/cutover stay
+  in plan 52 T3. Profile changes apply to future spaces.
+
+### Added (retrieval: live indexing progress, 2026-11-04)
+- **Vector reindex/backfill runs now show real indexing progress instead of a
+  bare percentage.** Tools → Retrieval recent runs, Audit → Retrieval → Runs
+  and the run drawer render a progress bar with processed / total documents,
+  pending chunks (marked *estimated* when the corpus-wide chunk total is not
+  known), embedded/skipped/failed documents and chunks, measured tokens and
+  embed calls. Document totals are exact at scan start and are carried across
+  chained reconcile continuations, so the bar never resets mid-backfill.
+- The counters live in a bounded `background_jobs.progress_detail` document
+  written in the same per-document progress UPDATE as `progress`/`stage`
+  (no extra write, no ids or text). The detail is pruned when the final run
+  `result` commits; the result stays the authoritative audit record.
+
+### Added (retrieval: tokenizer/source truth, shadow only, 2026-11-04)
+- **Tools → Retrieval now shows which tokenizer counts the active space's
+  text, whether it is exact, the model input limit and the current
+  char-chunk budget.** The card also shows the measured char-vs-token spread
+  for English, Greek, German, CJK and code/markdown plus a bounded sample of
+  the real corpus. It is read-only evidence: no chunk, token column, space or
+  stored record is written.
+- **Exact `tiktoken` counting ships for the curated OpenAI embedding models**
+  (`text-embedding-3-small`, `text-embedding-3-large`,
+  `text-embedding-ada-002` → `cl100k_base`). The BPE asset is bundled and
+  checksum-verified, so counting never touches the network. Every other model
+  is visibly labelled as the conservative UTF-8/codepoint fallback — never
+  silently treated as exact.
+- **A canonical family `tokenizer_contract`** pins the tokenizer vocabulary,
+  the exact/fallback law, pinned serialization/cache keys and the
+  `ChunkConfig` bounds (`overlap < max/2`, fit after prefixes and safety
+  margin). It is additive: `space_key` and `IndexRecord` are unchanged until
+  the token-aware chunking wave.
+
+### Fixed (filter rails: one template, one independent scroll owner, 2026-11-04)
+- **The filter side panel now looks and scrolls the same on `/postings`,
+  `/catalog`, `/companies`, `/autopilot` and `/rankings`.** Every rail renders
+  through the shared `FilterRail` shell — header (title, live active count,
+  **Clear all**) and the shared library `SearchInput` — with the page's
+  sections as children. The shell is transparent and borderless, so the bordered filter
+  sections are the only boxes and the panel no longer reads as a card nested
+  inside another card.
+- **The catalog search moved into the rail**, above the collapsible sections,
+  matching `/postings`, `/companies` and `/rankings`; the results column now
+  starts with the family drill chips and the count/sort strip.
+- **Only the rail scrolls, and only where it should.** Scroll ownership now
+  lives in `.ca-stats-rail`: above 64rem of page width the rail sticks below
+  the app header and scrolls on its own; below that the card stacks in normal
+  page flow. The old per-page `sticky`/`max-h`/`overflow` utilities put a
+  percentage `max-height` scroll box inside an auto-height aside, so the box
+  never actually scrolled — `/postings`, `/companies` and `/autopilot` behaved
+  differently from `/catalog`.
+- `Section` and the tri-state chips now use the semantic `--as-*` tokens
+  everywhere; the last hard-coded `slate`/`primary` filter chrome is gone. The
+  dead legacy feed `FilterRail` component was removed.
+
+### Fixed (desktop: the embed audit write no longer re-locks the index, 2026-11-04)
+- **The inline vector index no longer stalls the API for 30 seconds while
+  writing.** The embedding call audits itself by flushing an `ai_generations`
+  row into the caller's session — which takes SQLite's single writer lock after
+  the pre-index release, so the store's own connection still waited the busy
+  timeout and the rescue degraded to overlap-only. The indexer now releases the
+  session again between the embed and the store write (SQLite only; Postgres
+  keeps one transaction), so the document lands and the semantic rescue works.
+
+### Fixed (profile: legacy bare link URLs no longer 500 the profile, 2026-11-04)
+- **The profile page loads again when a stored contact link has no scheme.**
+  Profile links require an `http(s)` URL, but rows written before that rule
+  (or by a hand-edited local profile) carry bare hosts such as
+  `github.com/x`; the read validates the stored JSON, so the whole profile
+  endpoint answered 500. A data migration (`0092`) prefixes `https://` on any
+  link URL without a scheme and leaves already-schemed links untouched — the
+  read stays strict, the stored rows are now legal.
+
+### Fixed (desktop: the inline semantic index no longer freezes SQLite, 2026-11-04)
+- **Desktop: a posting's inline semantic index write no longer deadlocks the
+  database.** The vector store commits through its own connection and SQLite
+  allows one writer, so the rescue now commits the caller's pending
+  transaction before indexing (Postgres keeps the single transaction). Before
+  this, every inline rescue waited the 30s busy timeout, stalled the API while
+  it waited, and degraded the mapping to overlap-only; now the document lands
+  in milliseconds. The caught failure still logs one info line, with the
+  traceback moved to debug.
+
+### Changed (catalog layout — the /postings template and readable cards, 2026-11-04)
+- **`/catalog` now uses the `/postings` page template**: a filter rail on the
+  left, the results in the middle and a recent-searches rail on the right.
+  Below 64rem of page width the filter card stacks above the results and the
+  recent panel follows them. The separate **Job families** navigation list is
+  gone — the filter rail's **Job family** section (live counts + a
+  select/clear cycle; families are include-only) is the one family surface,
+  and the `family` URL parameter is unchanged, so old links still filter.
+- **Result columns follow the results column's own width** (`ca-card-grid`:
+  1 → 2 at 32rem → 3 at 54rem), never viewport breakpoints — the shell rails
+  and the chat dock no longer crush cards into per-word wrapping. On
+  `/catalog` that is 2 cards of ≈340px in the three-column mode at 1440px
+  (rails narrowed to 190-210px) and 3 cards of ≈320px when the page stacks
+  at 1280px.
+- **Catalog cards adapt to their own width**: the open-roles count and salary
+  band are one node that reads as a leading rail on wide cards and as one
+  inline strip above the body on narrow cards. The catalog type floor is now
+  11px (11px kickers, 12px meta/footer, 12.5px family), titles wrap to two
+  lines instead of truncating, descriptions clamp to three lines, and skill
+  and badge chips never wrap inside their label (a `max-w-[12rem]` truncate
+  guard keeps long labels in one line).
+- **Recent searches moved to the right rail**: the panel keeps at most four
+  real records and prunes `filters only · 0 results` rows; applying a record
+  restores both the query and its job family. Rankings is unchanged.
+
+### Changed (catalog cards and filters — posting anatomy and a URL-driven rail, 2026-11-04)
+- **Catalog job cards now carry the facts a student acts on**: a metric rail
+  with the job's **open live-role count** and **salary band**, `CardMeta`
+  facts (education, typical experience, contract, travel, schedule cues, work
+  hours), required **skill chips with their levels** (skill peek included),
+  the work-style/physical summary and interests. Cards render only facts the
+  job has; the compact density keeps the rail and skills for narrow
+  containers. The footer's **"N open roles →"** link opens
+  `/postings?job=<code>`.
+- **`/catalog` gained a full filter rail in the `/postings` grammar**:
+  tri-state include/exclude chips with live facet counts, skills with
+  per-skill and global minimum levels plus any/all mode, interests,
+  education, demand, salary band, contract, schedule, travel, experience,
+  environment and a **has open roles** flag. A zero-count value is disabled;
+  the header strip carries the result count, removable active chips,
+  **Clear all** and the sort (title, demand, salary, open roles, family).
+  The URL is the state and the family nav writes the same `family` parameter.
+- **`GET /api/v1/jobs` returns a page DTO** (`items`, `total`, `facets`)
+  instead of a bare list, with the new filter axes and **`open_roles`**
+  filled by one grouped aggregate per page. The detail endpoint leaves
+  `open_roles` empty. The frontend client and every consumer moved in the
+  same change.
+- **`/postings` gained a `job` axis** mapping a catalog job code to its
+  mapped postings, with a bounded `job` facet — the destination behind the
+  catalog card's open-roles link.
+
+### Added (per-posting retrieval status — admin detail row and debug card marker, 2026-11-04)
+- **A posting's own page now tells an admin whether the semantic index has
+  reached it**: one line under the facts with the state (Indexed, Indexed ·
+  text changed since, Not indexed, Index incomplete or Semantic index is
+  off), the active space's name, model, dimension and backend, and the
+  record count, linking to Tools → Retrieval. A failed read says “status
+  unavailable” instead of hiding. The state is computed at read time from
+  the existing vector tables — no schema change, no new `PostingOut` field.
+- **Operators can opt into a per-browser debug marker**: Settings → Tools →
+  Retrieval gains a switch that draws a small state dot on the `/postings`
+  cards (one batched read per page, never per card). The flag lives in this
+  browser only; it is not server state and changes nothing for a normal
+  user.
+- **New admin endpoint** `GET /api/v1/admin/retrieval/documents/status`
+  (`kind` + up to 50 `source_ids`) returns the five-state enum with record
+  counts and space facts — aggregates only, never document text. Empty or
+  oversized id lists are a 400 rather than a silent truncation.
+
+### Added (retrieval operations — operator runbook and doc links, 2026-11-04)
+- **The vector-index operations now have a developer runbook** at
+  `docs/dev/retrieval-ops.md`: where Tools → Retrieval and Audit →
+  Retrieval live, how to reindex by kind/view/since and read a run result,
+  the build → backfill → coverage+quality gate → activate → remap →
+  retire/drop sequence, the four maintenance actions, idempotency keys and
+  the one-active-run-per-space lock, stale-heartbeat recovery, the ten alert
+  kinds with their dedup/recovery and manage URLs, honest cold/degraded
+  states, the no-raw-text rule and a troubleshooting table. The family
+  contract remains `the family retrieval-ops.md standard`.
+- **The user settings page now deep-links the exact surfaces** —
+  `/settings/tools?section=retrieval` and
+  `/settings/audit?tab=retrieval&section=overview` — and names the cold and
+  degraded states (“never reconciled”, “not sampled”, lexical-fallback
+  reason) instead of leaving them implicit.
+
+### Changed (retrieval operations UI — responsive and accessible, 2026-11-04)
+- **The Audit → Retrieval and Tools → Retrieval surfaces now hold up on a
+  phone**: the eight-section strips scroll instead of clipping their labels
+  (the selected section scrolls into view from a deep link), wide tables are
+  keyboard-focusable horizontal regions, and section-card actions stack under
+  the card header on narrow screens instead of squeezing the title/description.
+- **Clickable run, space and golden-query rows now expose a real labelled
+  button** for keyboard and screen-reader activation (row clicks still work),
+  drawers keep their accessible title/close label and return focus to the row
+  that opened them (or the active section for a `?detail=` deep link), and the
+  usage budget bar reports as a progressbar.
+- **The empty-store Quality section reports an honest “no vector space yet”
+  state** instead of surfacing the API's validation error, and notification
+  kind rows give each “Manage” link the kind's name as its accessible label.
+  The notification kind matrix keeps its first column readable on a phone.
+
+### Added (retrieval operations — the Audit observation tab, 2026-11-03)
+- **Audit → Retrieval is the read-only observation tab**: URL-addressable
+  sections (`?section=overview|spaces|runs|quality|query-health|failures|usage|changes`)
+  cover spaces and backend/model, coverage, query latency and degradation,
+  run stage/progress/result counters with bounded failed ids and truncation,
+  the versioned golden-query compare and bad-match ids/scores, failure groups
+  by embed/indexing/cutover/maintenance, embed usage and budget versus usage,
+  and the `vector.*` change trail. `?detail=<id>` opens the matching run,
+  space, golden-query or failure drawer.
+- **Retrieval adds a 90d window preset** without widening the existing audit
+  endpoints; the change trail caps at 30d and says so. The AI ledger task
+  filter is URL-synced (`?tab=ai&task=embed`) for alert and quality deep
+  links.
+- **Notification-kind rows now expose their existing `manage_url`** as a
+  link, so retrieval alerts point at the exact Tools/Audit section instead
+  of a second preference UI. The tab is strictly read-only: cancel, retry,
+  reindex and lifecycle hand off to Tools → Retrieval.
+
+### Added (retrieval operations — the Tools management surface, 2026-11-03)
+- **Tools → Retrieval is the vector-index management surface**: an active
+  space card (honest backend label, model/dimension, health, coverage and
+  the coverage/quality gates), a bounded reindex form by kind/view/since
+  with budget and document limit, active/building/retired space rows with
+  build/activate/retire/drop (typed name), index maintenance with dry-run,
+  the golden-query quality compare, and a danger zone that exports aggregate
+  status JSON and deletes retired spaces. Every mutating action sends an
+  `Idempotency-Key`; a 409 gate refusal keeps its structured payload and
+  gate reasons. A queued reindex is reported as queued (never as finished)
+  and links observation to Audit → Retrieval.
+- **The Taxonomy embeddings card keeps only mapping-behavior switches** and
+  links the store operations to Tools → Retrieval; the Failures-tab
+  embeddings maintenance link now points there instead of the AI page.
+- **`tools.retrieval` is aligned in the family settings map** (career
+  products block + `TOOLS_TAB_SECTIONS` + the pinned conformance test), and
+  the canonical map is re-vendored byte-identically.
+
+### Added (retrieval operations — the alert layer, 2026-11-03)
+- **The ten retrieval alerts now reach admins through the notification
+  funnel**: coverage below the gate, failed and stalled runs, a quality
+  compare below the floor, query p95 over budget, an excessive degraded
+  share, an unassigned embeddings task, a missing pgvector index, an
+  exhausted token budget and a retired space past its drop grace. Each is
+  boot-seeded with its contract threshold, dedup scope and daily cap, and
+  points at the real Tools/Usage/Audit destination.
+- **Dedup recovers instead of silencing forever**: an alert whose condition
+  clears releases its dedup key, so a later recurrence notifies again; a
+  still-true condition is not repeated inside the dedup window. Every
+  payload carries ids, counts, scores and reasons only — never document,
+  query or prompt text.
+- **The evaluator is a bounded system job**, `retrieval_alert_sweep` on a
+  five-minute schedule: one pass reads the latest snapshots, recent runs,
+  the 15-minute rollups, the persisted quality compare and the token budget,
+  never the corpus or the full history. Missing kinds, muted recipients and
+  a cold/empty store fail soft. Migration `0091`.
+
+### Added (retrieval operations — the admin action API and its runtime guards, 2026-11-03)
+- **`/admin/retrieval` now has the only retrieval write seam**: reindex,
+  cancel/retry, build/activate/retire/drop a space, typed maintenance
+  (index rebuild, vacuum, orphan sweep, retry failed documents) and the
+  golden-query quality compare. Every action is admin-only, CSRF-protected
+  and rate-limited by the existing middleware, and audited under the
+  `vector.*` group.
+- **Idempotency is persisted, not assumed**: an `Idempotency-Key` replay
+  within 24 hours returns the original run; reusing the key with a different
+  body is a 409. Bulk runs take `vector_space:<id>` and one active run per
+  space is enforced at the database, so two admins cannot race a reindex.
+  A stale-heartbeat reaper fails a crashed `running` run after 15 minutes,
+  releases its lock and records `vector.run.stalled` instead of blocking the
+  space until restart.
+- **Activation now needs coverage and quality**: the pre-cutover compare
+  scores the versioned golden-query set on the active and building space
+  (recall/precision@k and per-query misses, no query text in the response)
+  and its result is stored on the cutover run, so the activation decision is
+  reproducible. A missing golden set is an honest refusal, never a fabricated
+  score.
+- **Maintenance is dialect-aware**: `REINDEX INDEX CONCURRENTLY` and
+  `VACUUM` run on an AUTOCOMMIT PostgreSQL connection; SQLite uses its
+  `VACUUM` path. A linear desktop store reports the action as skipped rather
+  than pretending it ran.
+
+### Added (retrieval operations — the admin read API and its data checkpoint, 2026-11-03)
+- **The admin retrieval surface now has a composed read API** under
+  `/admin/retrieval` (admin-only, desktop owner included): instance
+  `overview`, per-space `spaces` and `coverage`, `runs` and `runs/{id}`,
+  `quality`, `query-health`, `failures` and `usage`. Every response is an
+  explicit state — `ok`, `empty`, `never_reconciled`, `not_sampled` or
+  `no_golden_set` — so a space that was never reconciled reports “never
+  reconciled” instead of a fake 0 %/100 %.
+- **`ai_generations` now carries caller-supplied retrieval tags**
+  (`metadata` plus a schema-version sibling): embed calls record the space,
+  kind, view and chunk index they served, and embeddings are attributable in
+  the usage and query-health reads. No prompt, document or query text is
+  selected or returned by any retrieval read.
+- **`background_jobs` now has `idempotency_key` and `lock_key`** with
+  active-status partial unique indexes — the database-level request-replay
+  and one-active-run-per-space invariants the Q1b action API will use.
+  Migration `0090`.
+- The vendored family retrieval-operations contract
+  (`app/storage/retrieval_ops.py` + its fixture table) is now in the tree,
+  byte-identical to the dev canonical and covered by a contract test.
+
+### Added (job detail — similar jobs and live postings, 2026-11-03)
+- **`/jobs/:code` now shows two read-only rails: similar catalog jobs and
+  live postings for this job.** Each card opens a per-view drawer with the
+  overall score, source and the cosine behind each text view, and links to
+  the full job or posting. Both rails load after the job without blocking
+  its render; an empty or failed rail hides itself instead of breaking the
+  page. When the vector match is unavailable the cards fall back to the
+  deterministic skill-overlap/catalog lists and say so, with the structured
+  reason.
+- **Live posting matches now carry `per_view`,** so their drawer shows the
+  same per-view detail as similar jobs; the catalog fallback reports an
+  empty breakdown.
+
+### Changed (catalog matching — mapping controls and the deferred pass in the UI, 2026-11-03)
+- **Settings → Taxonomy → Relations now exposes all three mapping switches
+  side by side:** job proposals, semantic rescue (default ON) and semantic
+  rerank (default OFF), each read from the API per decision and saved
+  through the existing settings endpoint — no restart.
+- **A job proposal whose semantic stage was deferred shows a pending chip
+  and reason** instead of pretending the decision finished. Re-decide still
+  runs, then says whether it recorded only the deterministic decision or
+  also queued the semantic pass and disables itself to prevent duplicate
+  clicks; **Check again** reloads the list once the worker settles. Manual
+  and terminal 409 messages are shown verbatim.
+- **The frontend dependency `@neuronection/assistant-ui` moved to 0.78.0**
+  (ModalContent padding rhythm, `SwitchRow.hideLabel`), and the posting card
+  menu uses the library's current `ContextMenuItem` API (no local fork, no
+  separator variant).
+
+### Changed (catalog matching — the semantic pass moves off the request path, 2026-11-03)
+- **Ingest, extract, retag and admin remap now decide deterministically and
+  defer the semantic rerank/rescue to one background pass per posting.** The
+  request path no longer embeds or matches a posting: it writes the
+  deterministic verdict, records `mapping_signals.semantic_pending` with the
+  reason, and queues one single-posting `POSTING_REMAP` job in the same
+  transaction (deduplicated across queued/running jobs). The worker re-decides
+  with both semantic stages and overwrites the trace; it never queues another
+  pass. With both semantic switches off — or when no stage would run — no
+  marker, job, embed, index or match happens, and the deterministic decision
+  is unchanged. Manual and terminal postings are never queued or overwritten,
+  and the cutover batch mode of `POSTING_REMAP` is unchanged.
+- **A committed local benchmark proves the switch-off path is zero-cost**:
+  over 40 request decisions, 0 index/match calls and 0 jobs with both switches
+  off, and 0 index/match calls with exactly one deduped job when the stages
+  are needed. Local timings (2.21 ms p50 / 2.46 ms p95 off, 2.66 ms p50 /
+  3.56 ms p95 on) are deterministic fixture timings, not provider latency.
+
+### Added (catalog matching — rerank kill switch, calibration sweep and expanded golden set, 2026-11-03)
+- **The bounded semantic rerank is now behind its own per-decision kill
+  switch, `catalog.semantic_rerank`, default OFF.** It is independent of
+  `catalog.semantic_rescue`: turning rescue off leaves the rerank available
+  and turning the rerank off leaves the rescue available. With the rerank
+  switch off there is no rerank call and no rerank candidates/provenance
+  beyond the deterministic mapping, so an unconfigured deployment behaves
+  exactly as it did before the rerank landed. The switch is exposed in the
+  admin mapping-settings GET/PUT payload and generated OpenAPI/frontend
+  types; no UI card ships in this slice.
+- **The golden mapping corpus grew from 17 to 164 cases over 123 jobs and 13
+  families.** It keeps the P2b slice and adds synthetic clear matches, wrong
+  deterministic winners, below-threshold lifts, margin/threshold abstentions,
+  delta/blend boundary cases, misleading semantic signals, draft-gated
+  candidates, family-only (S3-pending) rows, no-shared-skill rows, manual rows
+  and terminal postings. All data is public/synthetic; no private-integration
+  or scraped personal data is present.
+- **A committed calibration sweep measures the full policy matrix**
+  (`τ_job ∈ {0.34, 0.40, 0.45}`, `δ ∈ {0.05, 0.08, 0.10}`, blend
+  `0.75/0.25`, `0.70/0.30`, `0.80/0.20`, K=25 fixed) on the expanded corpus,
+  with precision@1, family recall, abstention, candidate recall@25/@200 and
+  a compact failure breakdown. On the measured corpus the shipped
+  `0.34 / 0.08 / 0.75-0.25` point scores precision@1 1.0, family_recall@1
+  1.0, abstention 0.194 and candidate recall 1.0, and is the recommended
+  point. The recommendation is **advisory**: the live constants stay
+  unchanged until the owner ratifies them.
+
+### Added (vector retrieval — embedding-space lifecycle and the real cutover, 2026-11-03)
+- **A model or dimension change is now an operable cutover, not an in-place
+  rewrite.** `VectorSpaceLifecycleService`
+  (`backend/app/services/vector_space_lifecycle.py`) builds a `building`
+  space beside the active one, provisions its physical table off the request
+  path, backfills it through the ordinary bounded reconcile writer (a
+  `VECTOR_RECONCILE` payload now accepts `space_id`, and coverage snapshots
+  are stamped against that space), and activates it only after the physical
+  index and the latest coverage snapshot of every selected kind clear the
+  configurable gate (default 99.5%). Activation flips active/retired in one
+  transaction, enforces one active space per name and, when there was a
+  previous space, calls `invalidate_mapping_space` with the retired key —
+  the `POSTING_REMAP` hook is no longer dead. Manual and terminal mappings
+  stay untouched.
+- **Non-interactive space operations.** `scripts/vector_spaces.py` exposes
+  `list`, `status`, `build`, `backfill`, `activate`, `retire` and `drop`.
+  `backfill` only enqueues the job; `drop` only accepts a retired space,
+  after a seven-day grace period or with `--force --confirm <name>`, and an
+  active space can never be dropped. The plan-51 HTTP action API wraps this
+  service rather than duplicating it.
+
+### Added (catalog matching — bounded semantic rerank and mapping provenance, 2026-11-03)
+- **Ambiguous catalog decisions get a bounded semantic rerank.** The
+  deterministic weighted skill overlap remains the gate and the only
+  decision score; where its outcome is ambiguous (best below the job floor
+  or a runner-up margin under 0.08), the new stage-2 rerank scores only the
+  deterministic candidate set (top 25) against the posting with the
+  job↔posting match and applies plan 164's pinned
+  `0.75·deterministic + 0.25·semantic` blend. A rerank is accepted only when
+  its top candidate clears the job floor with the margin, so semantic can
+  reorder a decision but never introduce a candidate or map a gated-out
+  row. It is recorded as `semantic_rerank`, distinct from the existing
+  plan-185 `semantic` rescue; every embedding/index failure degrades to the
+  deterministic verdict.
+- **Every automatic mapping now records versioned provenance.**
+  `job_postings.mapping_version` and `mapping_features` (migration `0089`)
+  carry the top candidates with deterministic/semantic/blend scores, shared
+  taxonomy keys, per-view scores, the pinned policy thresholds, the
+  embedding `space_key` and any degradation reason — bounded to five
+  candidates and twenty shared skills, four decimals. The existing
+  `posting_facts.mapping_signals` trace is unchanged and gains a `rerank`
+  block.
+- **Space cutover invalidates semantic mappings through one seam.**
+  `invalidate_mapping_space(space_key=…)` enqueues a bounded
+  `POSTING_REMAP` job over rows whose method is `semantic`/`semantic_rerank`
+  (never `manual`, never terminal postings), re-running the catalog decision
+  without rewriting skill rows or firing alerts. Plan 51's space-retirement
+  action calls the hook; no second sweep exists.
+- **Golden mapping benchmark.** A versioned posting↔catalog fixture pins
+  `precision@1`, `family_recall@1`, abstention and
+  `candidate_recall@25/@200` for the deterministic baseline and the rerank,
+  with the measured floors recorded in the test.
+
+### Added (catalog matching — the semantic rescue and the job match reads, 2026-11-03)
+- **Catalog jobs are indexed as documents, and postings are matched against
+  them by long text.** A catalog job now composes the same views as a
+  posting (summary, requirements, responsibilities, skills and a chunked
+  short-description body) with pointers at the `jobs` row instead of copied
+  text, and joins the `VECTOR_INDEX`/`VECTOR_RECONCILE` vocabulary (`job`).
+  The reconcile backfills jobs; publishing or editing one queues its index.
+- **The semantic catalog rescue is back, on the family vector store.** Where
+  the deterministic weighted skill overlap misses, `decide_catalog` asks the
+  new job↔posting match (bounded MaxSim on view pairs — requirements and
+  responsibilities lead, body is the fallback) for candidates. Every
+  candidate must pass the same shared-skill gate and be published, so a
+  semantic hit can never map a job the deterministic evidence excluded;
+  reruns record `top`, `threshold`, `space_key` and the per-view candidate
+  scores in `posting_facts.mapping_signals.semantic`. The posting is indexed
+  through the sanctioned synchronous writer first (one embed batch only when
+  its content changed; a fresh install records `index_missing` until the
+  index/reconcile job provisions the space — provisioning never runs inside
+  an ingest request), and any embedding/index failure degrades to the
+  overlap-only decision — a posting write never fails because of embeddings.
+  The `catalog.semantic_rescue` run switch is back on the catalog-mapping
+  settings endpoint (default ON, effective on the next decision).
+- **Two job-detail reads.** `GET /api/v1/jobs/{ref}/similar` returns similar
+  published catalog jobs and `GET /api/v1/jobs/{ref}/postings` the live
+  postings ranked against the job, both with per-view scores and a
+  structured degradation reason. A job the index has not reached yet answers
+  from its composed text embedded once as the query; when the vector store is
+  unavailable they fall back to the skill-overlap / already-mapped lists, and
+  the posting read keeps the feed's visibility rules (live statuses, never a
+  hidden posting).
+
+### Changed (retrieval read cutover — semantic now runs on the family vector store, 2026-11-03)
+- **Semantic ranking moved onto the new retrieval store, and the old
+  embedding table is gone.** Explore's relevance fusion and smart-sort
+  interest affinity, the autopilot by-meaning sweep and the skill-candidate
+  matcher now read `vector_spaces`/`vector_documents`/`vector_records`
+  through one retrieval service (query embedding → per-view search → chunk
+  aggregation → weighted RRF), with pgvector/HNSW on web and sqlite-vec (or
+  the exact linear fallback) on desktop. The legacy `ai_embeddings` table is
+  dropped (migration `0088`): no dual read path remains. Every semantic
+  degrade — no provider, a failed embed, a missing space, a dimension
+  mismatch, an over-cap desktop store — falls back to the lexical/neutral
+  result with a structured reason instead of an error.
+- **A backfill/reconcile job fills and repairs the index.**
+  `VECTOR_RECONCILE` (daily at 04:15 UTC, `system_vector_reconcile`)
+  composes postings, skills and profiles in bounded keyset batches, indexes
+  only the documents whose content changed (a rerun of unchanged content
+  costs zero embedding calls), sweeps orphans, and writes a per-kind coverage
+  snapshot once that kind's chain completes. Each run is bounded by a source
+  scan limit, a document cap and an embed budget; a partial batch returns its
+  cursor and automatically enqueues the next bounded batch (unless
+  `auto_continue` is off), so the whole corpus is covered without loading it
+  into memory. Admins can enqueue one from
+  `POST /api/v1/admin/retrieval/reconcile`; operators run
+  `scripts/reindex_vectors.py`. Embed spend lands on the system budget, never
+  an admin's personal one.
+- **Behavior notes.** The smart sort no longer embeds anything per request:
+  the affinity is a stored-document similarity, and a profile the index has
+  not reached yet keeps the neutral 7.0 affinity. The semantic catalog
+  rescue (plan 185) is temporarily removed with the old store — it returns
+  with the long-text job↔posting matcher (plan 50 P2), so the mapping
+  decision is the deterministic skill overlap until then and the trace keeps
+  its empty semantic block. The `template` kind had no writer or reader in
+  this app (only served-kind labels in the retired status read), so it is
+  dropped with the store rather than migrated. The `TaxonomyEmbeddingsCard` keeps only the job
+  proposals switch (the embeddings buckets/recompute are gone with the
+  store). Explore's hybrid relevance ordering is now best-first (the fused
+  score replaced the inverted rank-as-score assignment).
+
+### Added (internal — retrieval index pipeline, 2026-11-03)
+- **The retrieval store now fills itself.** Versioned, pure composers turn a
+  posting, skill or profile into named views (summary, requirements,
+  responsibilities, skills, chunked body) with source pointers instead of
+  copied text, and a `VECTOR_INDEX` background job embeds only the records
+  whose content changed, keeps unchanged records, and prunes the ones that
+  no longer compose. A re-index of unchanged content makes zero embedding
+  calls, and a missing embedding provider reports a degraded result rather
+  than failing. Admins get two read-only facts for ops — space documents/
+  records/coverage (`GET /api/v1/admin/retrieval/status`) and backend,
+  extension and per-space health (`GET /api/v1/admin/retrieval/health`) —
+  plus `POST /api/v1/admin/retrieval/index` to enqueue one document.
+  Explore, autopilot and mapping still use the existing embedding store;
+  the read cutover lands next.
+
+### Changed (internal — vector retrieval foundation, 2026-11-03)
+- **Groundwork for multi-view semantic retrieval.** The database now carries
+  versioned embedding-space, document and record tables (plus two bounded
+  operational rollups), the app vendors the family vector contract, and a
+  metadata-owning store service drives three physical backends: exact linear,
+  pgvector/HNSW and sqlite-vec. Provisioning creates the per-space index
+  (pgvector table + HNSW on web, `vec0` + rowid map on desktop) off the
+  request path, and Alembic ignores those extension-managed objects. The
+  sqlite-vec extension is now an explicit `sqlite`/`desktop` dependency.
+  No existing embedding call site, ranking surface or stored vector changes
+  in this step — the read cutover and the remaining `VECTOR_*` jobs land
+  next.
+
+### Added (card entity menu on /postings, 2026-11-02)
+- **Filter straight from the cards.** On `/postings`, clicking or
+  right-clicking a skill chip or the company name — and right-clicking a
+  spec value (work mode, seniority, contract type) — opens an entity
+  menu: include or exclude that exact value using the rail's tri-state
+  filter language, remove it again, jump to the skill peek or open the
+  full skill/company page. Excluding refetches with an **Undo** strip;
+  remaining cards tint their chips with the include/exclude state. On
+  the company name, Ctrl/Cmd-click keeps the native open-in-new-tab. No
+  schema or API change — the menu drives the existing URL filters.
+
+### Added (ATS catalog import, 2026-11-02)
+- **Layer curated ATS catalogs over the bundled presets.** Admins can
+  import preset catalogs from an operator/community **URL** or a local
+  **JSON file** (schema-validated, size-capped, connector-key
+  allowlisted) — imported entries merge into the preset gallery by slug
+  (imported wins) and every card shows its **provenance tier**
+  (bundled · operator · community · user) with a tier filter.
+  Provider connection hints open the custom-source wizard prefilled.
+  Fetching happens in your browser (no server-side URL fetches); the
+  per-catalog **Refresh** uses conditional requests (304 = already
+  latest) and reports `revision`/content changes precisely. Refresh
+  never creates sources — it updates the gallery only. Stored
+  instance-wide (`app_settings`), admin-scoped API.
+
+### Changed (explore — handled postings leave the feed, 2026-11-02)
+- **The feed no longer re-shows postings you've already handled.** Seen,
+  applied and hidden postings are excluded from Explore by default — the
+  include-hidden filter brings them back when you want the full history.
+  Autopilot searches follow the same rule, and hiding a card drops it
+  from the list immediately.
+
+### Added (two-pass skill resolution, 2026-11-02)
+- **Postings now read skill labels verbatim before matching them to your
+  catalog.** Deep extraction runs in two passes: the first records each
+  skill label exactly as the posting writes it — level, priority and its
+  evidence quote intact, with no skill catalog in view — a deterministic
+  matcher proposes the existing skills the label might mean, and one
+  batched AI step decides per label between an offered match and a
+  genuinely new skill. Exact matches skip the AI step entirely, and every
+  label keeps its resolution trail (which route resolved it, the
+  candidate shortlist, the verdict's confidence), so "why is this posting
+  tagged X?" has an answer on the posting itself.
+- **Auto-promotion gained a near-duplicate guard.** A label two different
+  postings corroborate still promotes itself, but when an active skill is
+  already a near-duplicate — similar wording or meaning — the promotion
+  stops, the block is stamped on the proposal, and the row waits for your
+  merge instead of creating a second active skill.
+- **Resolution has its own admin controls.** Settings → Taxonomy →
+  Relations → Resolution shows last-run and rolling match / new / block /
+  replay / degrade rates, edits the candidate floors, dedup-gate bars and
+  corroboration threshold, replays stored labels across up to 200
+  postings after a merge or alias change, and reconciles skill
+  embeddings — all without paying for the expensive first pass again.
+- **Bulk replay** is exposed as `POST /admin/postings/replay` for the
+  wave after a taxonomy cleanup; postings on an older extraction version
+  are reported as skipped and re-extract when next needed.
+
+### Fixed (job-proposal apply crashed on repeated skill keys, 2026-11-02)
+- **Applying a job proposal whose extract mentioned the same skill twice
+  (two mentions, one taxonomy key) hit the `job_skills` UNIQUE constraint
+  with a 500.** Apply now keeps the best entry per key (must-have first,
+  then strongest level) — one link per skill, never a 500.
+
+### Added (hybrid catalog mapping, 2026-11-02)
+- **The catalog decision is now a join of two signals.** A posting still
+  maps by weighted skill overlap first (unchanged verdicts), but when the
+  overlap misses, a semantic cosine ranking against the embedded catalog
+  jobs can rescue the map — only with a similarity ≥ 0.6 AND at least one
+  resolved skill shared with the job; draft jobs are never candidates and
+  any embedding failure degrades to the overlap-only decision. Both raw
+  scores and runner-ups land in the posting's `mapping_signals` facts and
+  the `retag` audit row.
+- **Unmatched postings become job proposals an admin can apply.** When
+  the join ends unmapped and the deep extract is rich enough (a kept
+  title + at least three kept skills), the posting lands in the new
+  "Job proposals" queue on the Taxonomy settings page. Applying creates
+  the catalog job published (slug deduped, skills from the extract with
+  must-have→core priority mapping, capped at the catalog's 15-link
+  contract — must-have first), maps the posting manual and embeds
+  the new job — one transaction; dismissal clears the proposal with an
+  explicit audit trail. Applying preselects the job family by skill
+  affinity with the published catalog — only on decisive evidence (at
+  least two shared skills and a clear margin over the runner-up; generic
+  overlap ties leave the picker empty), and the picker offers the full
+  family tree (child families included, e.g. "Technology & IT › IT
+  Operations & Security"). The proposed archetype title is
+  level-generic — seniority qualifiers ("Senior …") are stripped, the
+  posting keeps its own title and seniority attribute, and the proposal's
+  description standardizes too: the deep extract now also writes a
+  2–3-sentence catalog summary in the instance's default language
+  (Settings → default locale; English when unset), free of board
+  scaffolding ("Job Title:" / "Job Location:" headers), and the proposal
+  shows that summary — truncating at a sentence end, never mid-word.
+  Re-extract a posting (its detail page) to normalize an existing
+  proposal. A posting the join has since mapped (the
+  "Re-decide" action) leaves the queue, and an unmapped verdict's reason
+  names the signal that actually blocked it. New admin endpoints:
+  `GET /admin/postings/job-proposals`,
+  `POST /admin/postings/{id}/job-proposal/apply`,
+  `POST /admin/postings/{id}/job-proposal/dismiss`.
+- **The join is observable and steerable from Settings.** Every catalog
+  decision journals its signals (method, overlap score, semantic top and
+  the closest candidates) into the `retag` row the audit console already
+  renders; the Taxonomy settings page gains an "Embeddings & mapping"
+  card with the per-kind embedding buckets, admin recompute passes for
+  postings and catalog jobs, a per-proposal "Re-decide" action
+  (`POST /admin/postings/{id}/remap` — re-runs the join without re-paying
+  the extract, manual mappings refused), and two run switches (semantic
+  rescue, job proposals) that are read per decision — effective on the
+  next decision, no restart.
+- **The deep extract re-decides the catalog mapping.** After the extract
+  fills skill levels on the resolved rows, the two-signal join
+  runs again before the extract commits — a job published (or embedded)
+  while the posting waited in the queue is picked up there. A manual
+  mapping always stands, and the re-decision never touches the extracted
+  skill rows. Requeued `posting_extract` jobs (plan 184 bulk reprocess)
+  re-run the join through the same handler.
+- **Catalog jobs are now embedded.** The admin embeddings pass gained a
+  kind: `POST /admin/embeddings/recompute?kind=job` embeds every
+  published catalog job (title, short description and its skill
+  requirements, content-hash deduped — postings stay the default kind).
+  Draft jobs never embed; the `/admin/embeddings/status` buckets show
+  the new `job` kind alongside the existing ones. This is the substrate
+  for the semantic catalog mapping above.
+
+### Added (sources list country lens, 2026-11-02)
+- **Your integrations, organized by country.** The job-sources list
+  gained the same country lens as the preset gallery: multi-select chips
+  derived from where each source came from (preset-added sources carry
+  their preset's country; everything else groups under ⚙️ Custom), with
+  counts and a flag badge on every preset row. A **Problems only**
+  toggle isolates failing, paused and needs-secret sources in one click
+  — the fastest path from "something's wrong" to the exact source.
+  No schema change: countries derive from the preset catalog.
+
+### Fixed (hide now curates /postings, 2026-11-02)
+- **Hiding a posting finally removes it from the list.** The card's
+  **hide** action wrote the curation marker correctly, but the explore
+  query only excluded hidden postings behind an opt-in filter nothing
+  sent — so the card silently stayed in place (reported on the hide
+  button). Explore now excludes hidden postings **by default** — the same
+  rule every other posting list already had — with `hidden_include=true`
+  as the explicit opt-back-in. Autopilot drops its now-redundant
+  `hidden_exclude` default.
+
+### Added (job-source presets, 2026-11-02)
+- **Find your country's sources at a glance.** The preset gallery gained
+  a country lens: multi-select chips (🇬🇷 Greece · 🌍 Worldwide — counts
+  per chip) derived from the preset catalog, so new countries appear
+  automatically as presets land. The app language preselects the chip
+  when that country has presets (Greek opens on Greece); "All sources"
+  clears the lens. Chips only filter the curated presets — the global
+  bring-your-own-tenant connectors stay one click away under Custom
+  source, and the chip row combines with search and the ATS/Remote tabs.
+
+### Added (bulk AI-job reprocessing, 2026-11-02)
+- The admin audit console can now **reprocess failed AI jobs in bulk**: a
+  new Failures preview (`GET /admin/audit/jobs/failures`) groups terminally
+  failed background jobs by type × error family with dedupe/cap estimates,
+  and a confirmed action (`POST /admin/audit/jobs/requeue`) requeues them
+  as fresh queue rows (`requeue_of` markers in both directions) — dedupe
+  against queued/running twins, 200-job cap per action, one bulk action at
+  a time.
+- The audit console gains the **Failures tab** (`?tab=failures`): grouped
+  failure cards with the top error, window selector, an explicit confirm
+  step showing counts/cap/dedupe before requeueing, an outcome summary
+  (`requeued / skipped_dup / skipped_cap`), per-row requeue with a detail
+  drawer, related-maintenance links (embeddings recompute, scheduled
+  sweeps), and failure badges on the AI activity + Jobs tabs linking into
+  Failures pre-filtered.
+
+### Added (preset freshness + tile parity, 2026-11-02)
+- Preset cards now carry **freshness signals**: a live-verified openings
+  count and the verification date per tenant (all 17 ATS tenants
+  re-probed on 2026-11-02 — ~530 open roles across the catalog), rendered
+  as muted meta on every card; remote boards show Worldwide + verified.
+- The wizard's connector tiles match the preset-card grammar and show the
+  connector's own description.
+- Sources created from presets keep their identity: the list card and the
+  source page header show the preset logo (monogram until artwork is
+  dropped into `public/presets/<slug>.svg`), and the source page header
+  prefers the display title.
+
+### Fixed (ATS integration honesty wave, 2026-11-01)
+- **Remotive sources can finally sync.** Remotive's robots.txt disallows
+  its JSON API (`Disallow: /api/*`), so every Remotive sync died with
+  `net-denied: robots.txt disallows /api/remote-jobs` and never ingested
+  anything. The connector now rides the feed robots allows
+  (`remotive.com/remote-jobs/feed`) — same listings, plus the full job
+  description per row (better than the old API, which truncated them).
+  The optional category filter is now applied client-side (robots
+  disallows `category=` URLs); existing sources keep working.
+- **Failed runs no longer show "Last run —"** on the source page: a
+  connector failure (robots denial, network error) now stamps the last
+  run time like any completed run.
+- **The "Follow my job radar" label no longer lies on feed connectors.**
+  Sources created before the mode picker knew about connector
+  capabilities could sit in radar mode over connectors that ingest whole
+  boards (no query rotation). Such a source now normalizes to static on
+  its next sync, so the label matches the behavior.
+- **AI connection tests are audited.** The Settings → AI connection
+  probe spends tokens like any other model call and now lands an
+  `ai_generations` audit row (task `connection_test`) for both the OK
+  and the failing probe, visible in `/settings/audit?tab=ai`.
+
+### Fixed (JOIN.com connector, 2026-11-01)
+- **JOIN.com postings now carry full descriptions.** The board's public
+  list feed has no description field, so JOIN postings previously never
+  got one — and because detail enrichment drives extraction, they never
+  gained skills either. The connector now honors the same `detail_ids`
+  targeted-fetch knob the enrichment funnel already sends: it fetches
+  each job's own page (addressable by the list id) and reads its embedded
+  schema.org JobPosting JSON-LD, so descriptions, employment type,
+  salary and skills extraction land like on every other connector.
+  Existing description-less JOIN postings backfill on the next
+  enrichment run.
+
+### Fixed (integrations UI audit, 2026-11-01)
+- **Job-source configs are editable again.** The source page's
+  Configuration tab now renders the connector's own settings form for
+  every builtin source (Recruitee, Workable, RSS, CSV…) — previously only
+  managed bundles had a form, so a wrong company slug or a size cap could
+  not be fixed after adding the source. The list page's ⋯ menu also gained
+  **Edit**, opening the source wizard in update mode.
+- **The mode picker no longer promises what a connector can't do**:
+  sources whose connector ingests a whole board (no search rotation) show
+  the radar option disabled with an explanation, and preset-added tenants
+  now start in **static** mode instead of an inert radar.
+- **The "needs secret" badge only fires for required credentials** —
+  optional slots (e.g. an unused bearer token) no longer paint a working
+  source as incomplete.
+- **Run history shows ingestion runs**: detail-enrichment ticks (the 3 ms
+  "Completed · 0 items" rows) are no longer mixed into the sync history,
+  where they could mask a fully-failed source.
+### Added (smart discovery, 2026-11-01)
+- **Daily smart digest (opt-in).** Enable **Daily smart matches** in
+  Settings → Notifications and the daily job ranks fresh, unseen,
+  unapplied postings with the smart recipe and notifies you — only on
+  days when at least one new match exists, once per day (payload carries
+  the count and date; the notification deep-links into the living smart
+  view `/postings?sort=smart`). The same job prunes the smart-search
+  cache (7-day TTL). Zero AI in the daily path.
+- **Smart search on `/postings`.** Describe what you are looking for in
+  plain language ("remote junior python roles") and the smart search box
+  maps the sentence onto the real explore filters through one small
+  cached AI call — the feed reruns with live facets, and an
+  "Interpreted as …" chip row shows (and lets you remove) every applied
+  filter. Repeat phrasings cost nothing: the mapping is cached
+  cross-user, resolved against the skill taxonomy (exact names and
+  aliases), and never personalized.
+- **Smart sort on `/postings`.** The new **Smart** option ranks the feed
+  by your fit score blended with a semantic interest-affinity signal
+  (`0.65·fit + 0.35·affinity`), demotes already-seen postings (they stay
+  visible, just lower) and caps the first page at two postings per
+  employer. Zero AI per request: the interest signal reads stored
+  embeddings, refreshed lazily only when your profile changes
+  (content-hash deduped). Missing interest data, a dimension mismatch or
+  an unconfigured AI provider all degrade to the neutral fit ranking —
+  the request never fails. Cards show a small **Smart** chip while the
+  sort is active.
+
+### Changed (autopilot findings workspace, 2026-11-01)
+- **"Dismiss all from this run"** on the run page clears that run's open
+  findings from the feed in one action — cleanup, not feedback: it
+  teaches the goal nothing. **Mark applied** on a finding card records a
+  real application through the same path as the posting page, and the
+  Applied badge appears.
+- **Each run gets a full page: `/autopilot/runs/:id`.** The runs rail
+  links there, `?run=<id>` deep links land on the page, and the deliver
+  notification points at it — old notifications keep working. The page
+  shows the step trace, the graph, the run's AI calls (admin-gated
+  audit links), the "what I searched & why" timeline and the run's
+  findings with a one-click "show in the feed" filter; the feed's
+  finding cards open the quick-peek modal from their run/date line, now
+  with an "Open full view" shortcut.
+- **`/autopilot` is now a findings workspace.** The shortlist is the
+  surface: a flat feed of the same job cards `/postings` uses — each with
+  its evidence row (why, verified quote, must-have coverage, 👍/👎), a
+  **Mark applied** button (an Applied badge appears when the posting is
+  already in your applications), and run/date provenance. A **runs rail**
+  on the right lists the latest runs across all goals with status, live
+  findings, examined counts and tokens; the goal switcher filters the
+  feed, and Flat/By-run toggles between the latest evaluation per posting
+  and the full history. **The filter rail** narrows the feed server-side
+  — state, dedupe, hide-applied, fit-score and must-haves floors,
+  employer text, board, seniority, remote-only and posted-within, with
+  self-excluding facet counts, a newest/best-fit sort and keyset
+  pagination; the whole filter set rides the URL. Dismissed findings are
+  hidden by default; both rails collapse on small screens. The old
+  run-grouped listing with the inline timeline is replaced (the run
+  detail keeps the searched-queries timeline; a dedicated run page
+  follows).
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Add source*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters. Cards **multi-select**: tick as many
+  as you like (already-added presets show an *Added* badge and stay
+  inert) and the footer adds them all in one action, reporting per-item
+  failures. Ships 12 Greek-employer tenants (Recruitee, Teamtailor,
+  Workable), the three remote boards; the catalog is a JSON file with a
+  contract test, and missing artwork degrades to a deterministic monogram
+  until the logo is dropped into `public/presets/<slug>.svg`.
+
+### Added (Workable connector, 2026-11-01)
+- **New bundled connector: Workable careers feed** — Workable is the ATS
+  behind much of the Greek product scene (Skroutz, Hack The Box, Plum,
+  Epignosis, Spotawheel…), and its public careers-widget API needs no
+  credentials. One source per account (the slug of the tenant's
+  `apply.workable.com/<account>` URL), free like the Recruitee/Teamtailor
+  feeds, with title, department, city/country, remote flag and publish
+  date per posting — fetched with `details=true` so every posting carries
+  its full description for skills extraction. Ships with 5 Greek tenants
+  as presets (Skroutz, Spotawheel, Hack The Box, Plum, Epignosis — 130+
+  open roles combined) and a captured-payload connector wall.
+
+### Fixed (first ingest of a known employer crashed, 2026-11-01)
+- A **new posting whose organization resolved to an existing org** (exact
+  name match) crashed the whole sync with `ValueError: badly formed
+  hexadecimal UUID string` — the change journal received the posting's id
+  before the row's first flush. The preset gallery's ATS tenants exposed
+  it (their employers already existed in the org catalog from other
+  sources); it also affected every connector ingesting a known employer.
+  New postings now get their id assigned before any journal record.
+
+### Added (job-source presets, 2026-11-01)
+- **Adding a job source is now one click.** A new preset gallery (Tools →
+  Connectors → *Browse presets*) lists verified employers and boards as
+  provider cards — logo, company, provider, country — with search and
+  All / Company ATS / Remote filters; picking one opens the source wizard
+  with the connector, company slug and display title already filled.
+  Ships 12 Greek-employer tenants (Recruitee, Teamtailor) and the three
+  remote boards; the catalog is a JSON file with a contract test, and
+  missing artwork degrades to a deterministic monogram until the logo is
+  dropped into `public/presets/<slug>.svg`.
+
+### Fixed (blocked sources pause themselves, 2026-11-01)
+- A job source that hits a **non-retryable operator-action error** — a
+  provider block, a sign-in wall, missing credentials, or an unsupported
+  host — now **pauses itself** with the reason on the source row and
+  alerts admins once (the existing background-failure notification
+  funnel). Previously the hourly schedule kept retrying an external block,
+  refreshing the provider's bot score and extending it, while the ledger
+  filled with identical failures. Retryable errors (empty result pages,
+  rate limits) keep scheduling as before; resuming a paused source stays
+  an explicit user act.
+
+### Fixed (run status honesty, 2026-11-01)
+- A radar-mode sync whose searches fail (e.g. Indeed served pages with no
+  readable job cards) is now recorded as **degraded**, not **skipped** —
+  every radar run carries a rotation note, and the old precedence let that
+  note mask real provider errors at zero items, hiding failed runs in the
+  ledger. Genuine polite skips ("radar has no keywords yet") are still
+  skipped.
+
+### Changed (sources — radar by default, card picker, 2026-10-30)
+- **New job sources follow your job radar by default.** `query_mode`
+  now ships a `radar` default (migration 0081, model + create/update
+  fallbacks + the add-source wizard) — a fresh source rotates your
+  radar's role groups instead of asking for manual keywords; existing
+  sources keep their mode until you switch. The Configuration tab's
+  "Search source" control is now a two-card picker (radar / static, with
+  icons and accessible radio semantics) instead of a native dropdown.
+
+### Fixed (source config guard, 2026-11-01)
+- A managed bundle source can no longer be saved into a state that only
+  fails at sync: the `options` passthrough is now validated against the
+  bundle's own config schema when the source is created, edited, switched
+  between static and radar mode, or enabled — a missing required field
+  (e.g. search keywords) is a clear 400 naming the field instead of every
+  run dying with `config rejected: keywords Field required`. Radar mode
+  stays exempt for keywords/location (the radar supplies them per sync),
+  and the source page now blocks the static-mode switch with the same
+  message while the fields are still empty.
+
+### Fixed (source display names, 2026-11-01)
+- Imported job sources show their board's name: the extension manifest
+  grows an optional root `title` ("LinkedIn", "Kariera.gr", "Indeed"),
+  the managed import seeds it as the source's display name and keeps it
+  fresh on every consented re-apply, and the posting page's
+  **Open on …** button + source attribution show it instead of the
+  generic connector label ("MCP script (external process)"). Admins can
+  also name manual sources; untitled bundles keep the old fallback.
+
+### Fixed (list return state, 2026-10-31)
+- Opening a posting no longer costs you the list: coming back to
+  `/postings` — via the browser's back button or the **All postings**
+  link (and after hiding from the posting page) — keeps the filters, the
+  sort, every already-loaded infinite-scroll page and the scroll height.
+  The same contract now covers `/companies` and its **All companies**
+  link. Actions taken on the posting keep the restored list honest
+  (hidden postings drop out; read/saved state updates in place), while a
+  fresh visit from the navigation still starts at the top.
+
+### Added (market statistics stretch, 2026-10-31)
+- **The posting clock** (plan 171 slice 1): `GET /postings/stats/clockwork`
+  joins the market stats API — a complete 7x24 weekday-by-hour matrix over
+  the shared effective-posted predicate (always UTC, stated on the wire),
+  with per-cell previous-window deltas and a deterministic peak
+  (ties break weekday-then-hour). Two stats tightenings ride the same
+  slice: the rail sparkline is clipped to today (future-dated rows still
+  count in every KPI) and the "skill lead changed" insight card now
+  requires the new leader's rise to clear the trailing-baseline gate.
+- **"When the market posts"** (plan 171 slice 2): the stats page renders
+  the clock — a weekday × hour heat grid over the `--ca-heat-hot` token
+  ramp in its own row after the volume card, zero cells muted, the
+  deterministic peak ringed and named ("Busiest: Wed 09:00 UTC"), the
+  weekday axis localized and hour ticks at 0/6/12/18/23, plus a
+  screen-reader summary of the condensed totals. UTC is stated in the
+  docs (`docs/user/market-stats.md`).
+- **Chart⇄Data table views** (plan 171 slice 3): every data card on the
+  stats page (volume, dimensions, salary, top hiring, the posting clock)
+  grows a segmented Chart⇄Data toggle — default Chart, local state — and
+  the Data view renders the same rows the card's CSV export downloads
+  (the shared per-card builders), so the table is the chart's textual
+  twin by construction. Backed by the assistant-ui `Table` module; the
+  skills lists and the demand quadrant carry `sr-only` captions instead.
+- **Custom comparison + copy link** (plan 171 slice 4): the market-stats
+  comparison becomes URL state (`compare=off|previous|custom`, default
+  `previous` — the old local ghost toggle dies same-commit). `custom`
+  overlays an arbitrary B window beside the selected one — seeded to the
+  equally-long span before A, with an inline date pair (its end
+  auto-mirrors A's span; in `window=all` nothing pre-fills and a hint
+  asks for both dates). The B fetch reuses A's resolved bucket and the
+  overlay aligns by bucket offset — longer grids crop, shorter ones
+  zero-pad, and a `compare-hint` chip names the shift; while a split is
+  on, the overlay pauses with a hint instead. A too-long B window degrades
+  on the API's real HTTP 400 into the same localized hint, page intact.
+  The volume chart renders the B series as a dashed token line over the
+  bars with a localized legend. Header gains a `Copy link` action
+  (family clipboard with the execCommand fallback) with a transient
+  "Link copied ✓" state announced politely.
+
+### Added (market statistics rails, 2026-10-31)
+- **Market pulse rails** (plan 170 slice 3): a consolidated stats rail now
+  sits on the right edge of `/postings` and `/companies` — pulse tiles
+  (new in 24h/7d/30d with deltas), the 14-day volume sparkline, rising
+  skills and top sources on the postings feed; companies hiring, the
+  new-companies chip, top hiring companies and the industry mix on the
+  directory. Every chip that has an honest filter mapping applies it to
+  the host page's URL state (posted-within, skill include, source
+  include, new-companies status, industry facet), the rest render plain,
+  and both rails link into the full `/postings/stats` analysis. The rail
+  keys off the page column's own width (container query — chat-dock
+  safe) and collapses to a "Market pulse" card above the results when
+  the page is narrow.
+
+### Added (market statistics page, 2026-10-31)
+- **Market statistics page** (plan 170 slice 2): `/postings/stats`, reached
+  from the sidebar (after Companies), turns the market statistics API into
+  a first-class analysis page — window presets (24h/7d/30d/90d/all plus a
+  custom date range), an open/all status-basis toggle, a previous-period
+  comparison, the deterministic "what changed" insight cards, pulse tiles
+  with deltas and a sparkline, volume-over-time charts with split
+  selectors, the skills suite (top list, rising/cooling, volume ×
+  momentum quadrant, category donut, level histogram, priority mix), a
+  nine-dimension market-structure explorer including demand by career
+  family, per-currency salary bands and histograms, the companies card,
+  and the coverage + source-freshness footer. Chart marks that have a
+  filter vocabulary link straight into `/postings` and `/companies` with
+  the matching filters; the URL carries the whole view so analysis
+  windows are shareable. Documented in `docs/user/market-stats.md`;
+  registered in the feature registry (beta, with a demo-tour scene).
+- **Market stats CSV export** (plan 170 slice 4): the header button downloads the
+  whole loaded dashboard and every data card its own payload; cells beginning
+  with `=`, `+`, `-` or `@` are quote-guarded against spreadsheet formula
+  execution.
+
+### Added (market statistics API, 2026-10-31)
+- **Market statistics, computed live** (plan 170): new read-only
+  endpoints under `/postings/stats/*` — pulse summary (fixed-window
+  counts with deltas and a 14-day sparkline), overview with deterministic
+  "what changed" insight cards and data-coverage chips, volume over time
+  with the previous-period comparison, skills demand with rising/cooling
+  trends, market-structure breakdowns (including demand by career
+  family) and per-currency salary bands — plus `/companies/stats/*`
+  (companies hiring, new companies, top hiring, industry mix). Every
+  count carries an explicit status basis (open vs all) and its delta
+  against the previous window of equal length, and a freshness footer
+  names stale or paused ingestion sources. The pages and rails that
+  surface these numbers land with the frontend slices.
+
+### Changed (market statistics groundwork, 2026-10-31)
+- **One posted-date truth across the postings surfaces** (plan 170): the
+  "posted within" windows of the explore feed, the filter-spec search
+  (`POST /postings/filter`), the RSS saved-search feeds and the explore
+  date facets now read the effective posted date — the market date, or
+  the ingestion date when the source never supplied one — instead of the
+  market date alone. Postings without a market date no longer fall in no
+  window; they surface by the date they were ingested, so "new in the
+  last 7 days" finally matches what the feed shows. The RSS wire
+  vocabulary keeps its `1d` key (translated to the shared `24h` window).
+
+### Added (autopilot profile usage, 2026-10-31)
+- **Per-goal profile controls** (plan 169): every autopilot goal gains a
+  "What the autopilot uses from your profile" section — six toggles
+  (skills, education & certificates, languages, location, experience,
+  lifestyle constraints) plus a stage source (your profile or the goal's
+  seniority). Defaults reproduce today's behavior; a live preview shows
+  the effective snapshot ("Skills: react, python · Stage: student …")
+  while you edit, each goal card carries chips for the inputs you
+  switched off, and the run detail's Inputs panel shows exactly which
+  profile inputs a run used. Disabled inputs score neutral instead of
+  penalizing, and the search itself honors them.
+
+### Changed (autopilot profile usage, 2026-10-31)
+- **Disabled profile inputs stop dragging scores down** (plan 169): a
+  goal-run's fit scoring neutralizes exactly the toggles you switched
+  off — a disabled dimension or prerequisite reads a neutral 7/10 with a
+  visible "disabled for this goal" note, prerequisite sub-scores merge
+  over the inputs still in play (switching one off can only raise or
+  keep the merged score), and the goal's seniority selection can drive
+  the career stage (`stage_source=goal`: intern→student,
+  junior/mid→early career, senior+→experienced). The search windows,
+  the ranking, the sweep recall and the findings all rank on the
+  goal-adjusted score; the posting-detail card and chat "my fit" keep
+  showing the canonical score, and match estimates ignore the toggles.
+- **The planner honors the same toggles** (plan 169): disabled profile
+  inputs are dropped from the planner's context (with everything off it
+  plans from your goal text and the job-market vocabulary alone), your
+  languages join the context when enabled, and the run trace's Inputs
+  panel shows exactly which profile inputs a run used. Autopilot
+  explanations never cite a dimension you switched off as a strength or
+  a weakness.
+
+### Added (autopilot run trace, 2026-10-31)
+- **Every autopilot call is now linked to its run in the AI audit ledger**
+  (plan 168): plan, replan, curation and the semantic-sweep embedding call
+  record which run and stage they served, so the `/settings/audit` run-id
+  filter works for autopilot like it already did for CV runs.
+- **Each run now persists a durable step trace** (plan 168): plan → search
+  → filter → replan → evaluate → graph sweep → budget guard → curate →
+  deliver record timing and argument/output summaries on the run row —
+  surviving restarts and checkpoint pruning — including failed and
+  cancelled runs, which used to lose everything.
+- **`GET /autopilot/runs/{run_id}` opens one run's detail** (plan 168):
+  the step trace, the graph's node list, the run's AI calls (metadata
+  only — no prompt text), its findings and its timeline, addressed by id
+  so runs beyond the 30-row history resolve. A foreign and a missing run
+  answer the same 404.
+- **The Autopilot page opens any run in a detail modal** (plan 168): a
+  "Details" action (or `?run=<id>` deep link) shows the step-by-step trace
+  with each step's arguments and outputs, the replan branch, the graph
+  strip, the run's AI calls — with a "View call" link into the audit
+  ledger for admins — and its findings. Pre-trace runs fall back to the
+  search timeline.
+- **Optional OpenTelemetry span export** (plan 168): opt in per
+  environment with `CAREER_OTEL_EXPORT=console|otlp` (plus
+  `CAREER_OTEL_ENDPOINT` and `CAREER_OTEL_SERVICE_NAME`, an infra knob
+  like `CAREER_MOCK_AI` — install the new `otel` extra). Off by default;
+  without the extra every span is a no-op, so desktop stays zero-setup.
+  Spans (`autopilot.run`, `autopilot.node` on every graph node including
+  `deliver`, `llm.call`) carry run/node
+  metadata only — never prompt or output text — and a misconfiguration
+  degrades to disabled with one warning, never a crash.
+
+
+### Changed (autopilot retrieval quality, 2026-10-30)
+- **Autopilot plans from your profile and searches by keyword** (plan 158):
+  the planner now sees your skills (plus the taxonomy skills around them),
+  education level, location and target seniority, and it writes keyword
+  variants that match titles and employers — instead of one
+  natural-language phrase that matched almost nothing. The plan prompt also
+  lists the real explore vocabulary, so variants stop inventing filter keys
+  and being dropped. A literal `%` or `_` in a search phrase is matched
+  literally instead of acting as a wildcard, and the keyword axis (a list of
+  terms, any of which may match a title or employer) now applies to every
+  search that uses it — it was parsed but never applied, so keyword variants
+  silently matched everything.
+- **Your must-terms are a guarantee, not a hint** (plan 158): a shortlist
+  is ordered by must-term coverage first and fit second, so a posting that
+  matches what you said you must have always outranks a higher-scoring one
+  that matches none. Each finding's card shows its coverage (for example
+  "Must-haves 2/3"), its evidence records it, and the curator weighs it when
+  writing the explanation.
+- **Autopilot looks deeper and wastes less work** (plan 158): each search
+  variant now ranks a 200-posting window (40 examined per variant) instead
+  of 125, the curated pool widens with the goal's shortlist size, and the
+  windows hold fresh postings only — seen, applied and hidden vacancies no
+  longer consume slots before the filters drop them. Runs also stop
+  computing the explore sidebar facets they never render, and the timeline
+  shows how many postings each search examined next to its total.
+- **Autopilot broadens once instead of coming back empty** (plan 158): when
+  a run's filtered pool is thinner than the shortlist size, one bounded
+  replan relaxes the wording and widens the scope (never-terms stay
+  respected) and searches again; the timeline shows the broaden step with
+  the queries it chose. A run whose budget is already spent skips the extra
+  call, so a capped goal still ships its deterministic findings.
+- **Skill filters can widen over the curated skill graph** (plan 158):
+  explore, the chat's `search_postings` tool and saved searches accept
+  `skill_expand=off|down|related` (default `off`, so nothing changes unless
+  asked). `down` also matches sub-skills and synonyms of a listed skill;
+  `related` additionally walks related concepts. Exclusions only ever widen
+  the precision-losing mode never widens what you banned.
+- **Autopilot also searches related roles** (plan 158): the strongest mapped
+  matches seed a one-hop walk over the catalog's curated
+  `similar_to`/`alternative_to` edges, and open postings for those neighbour
+  roles join the pool — deterministic, no embeddings and no AI, so it works
+  on the desktop profile too. The same gates (open, unseen, never-terms,
+  cooldown) apply, and a catalog without relations simply adds a no-op
+  timeline entry.
+- **The Autopilot graph is documented as a reference flow** (plan 158): the
+  developer docs now carry its topology, the candidate funnel with the real
+  bounds, the checkpointed state channels, the three recall signals (keyword,
+  semantic, curated job relations) and the budget/abort routing table, plus a
+  plain-language diagram on the user page. A docs-truth test pins every
+  number and node name to the code, so a stale diagram fails CI.
+- **Autopilot also searches by meaning** (plan 158): one semantic pass over
+  the posting embeddings already stored adds vacancies whose wording never
+  matches a keyword variant. It is a recall source, never a bypass — every
+  semantic candidate passes the same open/seen/never-term/cooldown gates, and
+  a missing or failing embedding simply leaves the keyword results intact.
+  Coverage grows as postings get embedded (admin recompute today).
+### Changed (filters — excluded picker chips, 2026-10-30)
+- **Excluded skills and organizations now look excluded**: the chips of
+  the "Excluded skills" and "Exclude organization" pickers render in the
+  same rose as the tri-state exclude chips (with the `−` marker) instead
+  of the picker's default accent, so one value reads the same however it
+  was excluded.
+
+### Added (postings — presets, 2026-10-30)
+- **Saved views are one click away**: a preset bar above `/postings`
+  results saves the whole search (text, facets, state toggles, sort) as a
+  named chip. Chips re-apply on click and highlight when active; the `⋯`
+  menu shows what the preset holds and offers **Update with current
+  filters**, **Rename** and **Delete** (confirmed). Saving a view that
+  already exists updates it instead of duplicating; names are unique per
+  user.
+- Presets are **saved searches** (`search_history.name`, new
+  `PATCH /me/searches/{id}`), so the existing scheduler, digest and RSS
+  surfaces can run them; the old "Save this search" button is replaced
+  by the bar.
+
+### Changed (filter chips — one cycle, one clear, 2026-10-30)
+- **Every filter chip now cycles off → include → exclude → off.** The
+  rails on `/postings` and `/companies` previously bounced between
+  include and exclude forever on click (clearing needed a right-click);
+  a third click now clears, and right-click still jumps straight to
+  exclude.
+- **Selected chips carry their own ×**: one click clears the value
+  without cycling through the other state. The remove control is a
+  sibling button (a nested button would be invalid markup), with a
+  "Remove …" accessible name.
+- **Companies industries can now be excluded** too (`industry_exclude`
+  on `GET /companies`), so the last include-only facet axis follows the
+  same tri-state rule as work mode, seniority and employment.
+
+### Added (taxonomy backlog bar, 2026-10-30)
+- **`/settings/taxonomy` shows the backlog**: a work-queue bar over the
+  skill ontology (active, proposed, deprecated, auto-promoted all-time and
+  the last seven days) plus every review queue's live count — relations,
+  enrichment, draft paths, translations. Queue tabs carry their counts, so
+  pending work is visible without opening each section. Counts come from
+  one server-side aggregation (`GET /admin/taxonomy/stats`), so the bar and
+  the tabs can never disagree, and the enrichment moderation queue now
+  filters its proposals in SQL instead of loading every published job.
+
+### Changed (URL state + company sorting, 2026-10-30)
+- **A `/postings` search now lives in the URL**: the search text, every
+  facet (includes, excludes, skills with their levels, organizations,
+  sources, the state toggles) and the sort ride the address bar, so a
+  reload, the back button, a bookmark or a shared link all reopen the
+  same view. Malformed or unknown values are dropped and the page falls
+  back to its defaults.
+- **`/companies` sorts the directory**: Most open roles (default), Name
+  A–Z and Recently hiring (latest open posting first). **Its whole filter
+  rail is URL state too** — name search, status chips, every tri-state
+  facet, location, the open-roles floor and the sort
+  (`/companies?status=new&work_mode=remote&min_open=5&sort=recent`); the
+  open-roles select gains an "Any number of roles" entry for no floor.
+
+### Changed (postings — hide seen + sorting, 2026-10-30)
+- **Hide seen** joins the `/postings` filter rail: one toggle drops the
+  postings you already opened (and still counts as an active filter), so
+  a long list can be reduced to what is actually new.
+- **Results sort from the header**: Best fit (default), Newest, Highest
+  salary (annualized, unknown last) and Relevance once a query is typed —
+  all four orders the explore engine already implemented, now reachable.
+  Every sort still carries the deterministic fit score on the returned
+  page, so score rings never go blank when you change the order.
+
+### Changed (posting cards — one-click seen + a seen rail, 2026-10-30)
+- **Unseen postings on `/postings` carry a one-click seen action** — a
+  quiet "Mark as seen" action in the card's status line (no menu, no trip
+  to the detail page); clicking it turns that same slot into the seen
+  mark in place. Apply and opening the detail still mark seen as before.
+- **Seen postings are visible at a glance**: the card's leading edge
+  gains a 3 px neutral bar next to the existing quiet double-check — a
+  read marker, not a warning colour, and the card keeps full contrast
+  (nothing is dimmed). The same rail marks seen cards on `/catalog` and
+  the dashboard feed.
+
+### Fixed (postings — live-instance findings from the kariera review, 2026-10-30)
+- **Salary annualization no longer crashes on database numerics.** The
+  extraction path multiplied the `Numeric` column value (a `Decimal` on
+  both dialects) by a float factor — "unsupported operand type(s) for *:
+  'decimal.Decimal' and 'float'" failed one posting's deep extraction
+  live on the desktop profile. `annualized()` now normalizes to floats;
+  a regression test pins the Decimal inputs.
+- **Detail enrichment drains the backlog in one run.** It processed a
+  single knob-sized batch per run (the 5-batch cap existed but the loop
+  ignored it); it now drains up to `MAX_BATCHES_PER_RUN` batches, reports
+  the batch count and the bundle's `run_summary` (previously discarded),
+  and carries the detail rung's provenance (`detail_extractor` /
+  `source_page`) into the posting's raw bag — the data now shows whether
+  a description came from JSON-LD or the DOM fallback.
+
+### Changed (sources — clickable cards + custom pacing values, 2026-10-30)
+- **Job-source cards open their manage page on click** — the whole row is
+  the target (title is the keyboard-reachable affordance); the enable
+  toggle, Test and the ⋯ overflow keep working on their own. Cards follow
+  the app-wide item-card grammar (hover accent, focus ring), so the
+  sources list reads like every other card grid.
+- **Pacing knobs take custom values, not only presets**: role groups per
+  sync (1–6), time budget (20–90 s) and any bundle numeric field with
+  choices (pages per sync, …) gain a trailing **Custom…** entry that
+  swaps the chips for a bounded number input — a stored value outside the
+  presets opens the input prefilled. New defaults: every integration
+  fetches all detail pages, role groups 2, budget 90 s, detail fetch
+  session Guest.
+- Status chips render their labels instead of raw i18n keys.
+
+### Changed (audit auto-refresh + export coverage, 2026-10-30)
+- **Overview gains an auto-refresh toggle** (plan 157): a 30-second
+  cadence refetches the KPIs, charts and failure feed in place — the
+  monitoring console no longer needs manual reloads. **CSV export covers
+  every stream**: source runs and the data-change journals
+  (`stream=changes&entity=postings|skills`) join the existing AI,
+  security and jobs exports, with export buttons on the Jobs tab's
+  source-runs card and the Changes tab.
+
+### Fixed (failure-alert deep links, 2026-10-30)
+- **Scheduler failure notifications and the seeded notification kinds
+  follow the Automations move** (plan 156): the failure-alert payload and
+  the `manage_url` of `digest_ready`, `background_failed` and
+  `checkin_due` now point at `/settings/automations` instead of the
+  legacy `/settings/scheduler` redirect; existing databases heal via
+  migration `0076`. The scheduler's failure alerting itself (threshold 3,
+  deduped re-alerts, admin/owner routing, recovery reset) was already in
+  place and is now link-pinned by a test.
+
+### Changed (connectors — full-length job descriptions, 2026-10-30)
+- **The 8 KB raw-bag cap for MCP-script sources is now 64 KB** — job
+  descriptions arrive complete instead of trimmed around ~6,000
+  characters (the envelope's progressive shrink remains the last-resort
+  guard; `next_state` stays at 8 KB — cursors don't need more). The AI
+  deep-extraction prompt slice rises with it (6,000 → 24,000 chars), so
+  skills/seniority/salary extraction sees the full text. The connector
+  template's authoring guide and the SDK caps table document the new
+  bound.
+
+### Fixed (extensions — one source per origin+subpath, 2026-10-30)
+- **Multi-bundle repositories can register one source per bundle.** The
+  "source already exists" rule now keys on origin **+ subpath**: the
+  same repo at different subpaths (the integrations shape — several
+  `*/src/` bundles side by side) registers cleanly, each source
+  discovering and offering only its own subpath's manifests. A new
+  `extension_sources.subpath` column backs the rule (migration 0075,
+  backfilled from the descriptors); GitOps reconcile disambiguates
+  same-origin sources by the install they host (an uninstalled
+  extension drifts typed instead of guessing); and the sources list
+  shows each row's subpath. Discovery hardening included: a declared
+  subpath that is missing from the fetched ref is a typed `not-found`
+  instead of a raw crash.
+
+### Added (update checks — family version API, plan 48 W6)
+- **A discreet update badge in the sidebar footer**, backed by
+  `GET /api/v1/instance/update-check`: a public, 6 h-cached endpoint over
+  the synced family version-check contract
+  (`backend/app/core/version_check.py`, canonical in `the family contract canonical/` —
+  ADR-0048) that checks the neuronection.com version API with real semver
+  ordering and the stable-channel law (prereleases are never offered to
+  stable clients; validation before use; failures read as "no update",
+  never a blocker; no telemetry). Clicking the badge opens the release
+  links; dismissing isn't needed — the dot is a status, not an
+  interruption. Updates still install through the package manager or
+  installer — check-only by family law. Accepted by the shared
+  cross-language fixture wall
+  (`backend/tests/fixtures/version_check.fixtures.json`).
+- **The badge anchors the sidebar footer's version text** (compact and
+  full layouts), and the About page names the installed version with
+  direct links to the new release and its notes whenever an update is
+  out.
+
+### Changed (AI-call detail drawer, 2026-10-30)
+- **AI activity rows open a detail drawer instead of inline expansion**
+  (plan 154): parsed and raw views over one call — parsed renders the
+  output as labelled pairs/chips (never raw JSON strings) with a
+  copyable prompt block; raw shows the full prompt + pretty JSON with
+  copy buttons; a meta grid carries exact tokens, latency, tier, skill
+  pack, prompt version and run/stage; prev/next steps through the loaded
+  page without closing. Deep-linkable via `?detail=<id>` — the
+  generations endpoint gains an `id` filter so reloads resolve rows that
+  are not on the loaded page.
+
+### Changed (postings + companies graduate from beta, 2026-10-30)
+- **Live postings (`/postings`) and Companies (`/companies`) are
+  shipped** — the beta chips leave the navigation; the feature
+  registry, README status table and banner tests reflect the
+  graduation.
+
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
+### Changed (tools — connectors split into MCP and Sources, 2026-10-30)
+- **The Tools tab grows a third section: Web search | MCP | Sources.**
+  The old connectors view stacked six differently-scoped surfaces in
+  one scroll; the MCP server subsystem (endpoint, tokens, live tools,
+  call audit, GitHub credential) now has its own URL
+  (`?section=mcp`), and data ingestion — job-source connectors plus
+  extension sources — has another (`?section=sources`). Legacy
+  `?section=connectors` deep links land on MCP. The settings-map
+  contract narrows `tools.connectors` to the MCP surface and adds
+  `tools.sources` for ingestion (canonical + re-vendored).
+
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+### Changed (audit slice 3: usage & throughput, 2026-10-30)
+- **The audit surface gains a Usage & throughput tab** (plan 153): a
+  per-model usage view (calls, tokens in/out, average latency and errors
+  grouped by provider/model), a token-usage trend chart, and production
+  throughput metrics — postings ingested (with processing activity by
+  actor: sync runs, extractions, detail fetches, re-tags), skill
+  lifecycle events (created/promoted/merged/deprecated), company
+  profiles created and catalog jobs created split by status and origin
+  (seed/AI/user), tying content production back to the AI ledger. New
+  `GET /admin/audit/production` endpoint; `/admin/audit/breakdown` gains
+  `dimension=model`. No schema change — aggregation over existing tables
+  and journals.
+
+### Changed (companies — postings-derived filters, 2026-10-30)
+- **The companies directory filters by the hiring those companies are
+  doing right now**: work mode, seniority, employment type and
+  industries as tri-state chips with live facet counts (company counts
+  computed over their active postings), plus a location box and a
+  minimum open-roles floor — `GET /api/v1/companies` grows the filter
+  params and an optional facet envelope (plan 154). The chips reuse
+  the Explore filter language (the filter bits moved to
+  `components/filters/`, app-level shared).
+
+### Changed (audit & monitoring slice 2, 2026-10-30)
+- **Two new audit tabs + drill-down affordances** (plan 152).
+  **Jobs & runs** shows every user's background jobs (status, owner,
+  attempts, expandable payload/result, job-type facets) and the
+  cross-source ingestion ledger with deep links into each source, plus a
+  failing-schedules strip that links to Automations for management.
+  **Data changes** unifies the append-only `posting_changes` and
+  `skill_changes` journals into one cross-entity "who changed what" view
+  with actor/outcome filters. Every read endpoint accepts a custom
+  `from`/`to` range alongside the presets, and the AI ledger, security
+  trail and jobs views export the filtered rows as CSV
+  (`GET /admin/audit/export`, capped at 10k rows).
+
+### Changed (audit & monitoring surface, 2026-10-30)
+- **`/settings/audit` is now "Audit & monitoring"** — the page grows
+  from an AI-ledger viewer into the cross-stream observability surface
+  (plan 151, admin-only; the desktop owner is admin by default). An
+  **Overview** tab shows server-aggregated KPIs (AI calls with delta,
+  error rate, tokens, latency, failed jobs, denied sign-ins), a
+  volume-and-errors time chart, a per-category split and a recent
+  failures feed; **AI activity** upgrades the ledger with facet-driven
+  filters (task/provider/status/tier/window/search — options come from
+  live data, no more stale hard-coded task list), pagination and
+  expandable row detail with run/proposal-lineage chips; **Security &
+  access** exposes the identity `audit_events` trail (logins, denials,
+  admin acts) for the first time. Mock-provider rows now visibly carry
+  the `Simulated` badge the docs already promised. Backend:
+  `GET /admin/ai/generations` moved to
+  `GET /admin/audit/ai/generations` (extended filters and response
+  fields), plus new `GET /admin/audit/overview|timeseries|breakdown|events`
+  endpoints and an `ai_generations.created_at` index (migration `0074`).
+
+### Fixed (docs — confirmation-audit follow-ups, 2026-10-30)
+- **Three doc truths corrected** (docs-parity confirmation audit): the
+  postings guide no longer claims "anyone can add more as plugins
+  through the entry-point registry" (external code is extensions-only
+  — imported or external-process, never in-process; the surface is
+  Settings → Tools → Connectors); the SDK reference now says
+  `config.options` reaches the tool as a **parsed object** (it is
+  stored as a string, handed over parsed — a literal reader's
+  `json.loads` would crash); and the Remotive robots caveat became a
+  real heading so the troubleshooting anchor resolves. The template
+  guide's row table gained the five missing optional fields, so its
+  "whole contract" claim is true again — and the docs-truth pin now
+  asserts the two repos' row-contract **field sets** are equal, not
+  just the cap numbers.
+
+### Changed (shared infinite scroll, 2026-10-30)
+- **Auto-load is a reusable mechanism.** `hooks/useInfiniteScroll.ts`
+  (sentinel + IntersectionObserver, 480px early-start, in-flight guard)
+  now drives both the Explore results and the skill page's Positions tab —
+  the positions "Load more" button is gone (auto-loads with a spinner
+  instead), and the explore page rides the shared hook.
+
+### Changed (settings overhaul follow-ups, 2026-10-30)
+- **Taxonomy and Companies adopt the settings page scaffold** — both
+  keep their own tab strips; the shell header and width handling come
+  from the kit now (visual; testids preserved).
+- **Query plan provenance**: each rotation group shows which radar
+  terms contributed it and how many radar configurations back each
+  term.
+- **Profile deletion** on the account page: non-active profiles can be
+  deleted behind a cascade confirm (last-profile deletion
+  re-provisions Default server-side).
+
+### Changed (connector SDK — audit follow-ups, 2026-10-30)
+- **The authenticated-source credential patterns are public law now.**
+  The SDK security chapter gains "Authenticated sources at T3": why
+  secrets can ride neither `config` (stripped) nor environment
+  variables (stdio spawns run under the MCP SDK's sanitized
+  environment), and the three workable patterns — the user's own
+  logged-in session held in bundle-owned state, CLI arguments on an
+  admin-authored command, and the http transport's sealed `token`
+  slot — each with its honest costs. The template's authoring guide
+  mirrors the short version (its old env-var advice was wrong and is
+  gone). Also: the dynamic-queries section now says every `mcp`
+  source — including managed imports — can *Follow my radar*;
+  `run_summary.budget.limit_s` is documented as the emitter's own
+  declared soft budget (keep it under `timeout_seconds`); recipe 2's
+  envelope wording includes `run_summary`; the `x-*` form hints get a
+  real worked example; and the two orphaned user pages (Career paths,
+  Skill pages) joined the docs tree. A new docs-truth pin asserts the
+  RawPosting cap facts agree between the SDK chapter and the template
+  guide across repos.
+
+### Changed (settings overhaul phase 5 — automations + admin pages, 2026-10-29)
+- **The automations page is rebuilt on the settings kit**: saved-search
+  rhythms keep the preset picker; your own runs (check-ins, digests,
+  radar scans) now show last run, outcome and failure counts with a
+  pause switch and run-now over the user-schedule endpoints; the
+  system schedule table for admins keeps run-now/pause. The AI Audit
+  and Users pages adopt the settings page scaffold (visual; all
+  testids preserved). Taxonomy and Companies adoption deferred — those
+  files are owner-active.
+
+### Changed (settings overhaul phase 4 — account, 2026-10-29)
+- **The account page is rebuilt on the settings kit**: an identity
+  header (name, email, admin badge) with the profile surface (create
+  additional profiles, choose the default — switching stays in the top
+  bar), the appearance card, signed-in devices with device glyphs and
+  **Sign out everywhere** (`POST /auth/logout-all`), the password card,
+  a **Data & privacy** card exposing the GDPR export
+  (`POST /me/export` → background job → archive download) that existed
+  only in the API until now, and account deletion as a danger-zone card
+  with an armed two-step confirm.
+
+### Fixed (taxonomy — bulk selections of any size, 2026-10-29)
+- **Bulk skill actions now handle selections larger than the 200-id
+  request cap** — "Select proposed" with a big backlog chunks into
+  sequential requests and merges the results (affected + per-item
+  failures), instead of failing with a validation error. API/validation
+  errors across the app now render as readable text too, instead of
+  crashing on the raw FastAPI detail object.
+
+### Changed (settings overhaul phase 3 — job radar, 2026-10-29)
+- **The job radar page is rebuilt on the settings kit**: a status hero
+  with the scan cadence chips and the composed scan schedule (last scan
+  + outcome, next scan, **Scan now**, and a pause switch over the new
+  user-schedule endpoints `PUT/POST /api/v1/me/schedules/{id}` and
+  `/run-now`); keyword chips (library ChipInput); location rows with a
+  flag country combobox, city and per-row remote; seniority chips and
+  salary floor with a currency combobox; a **Connectors to watch**
+  source picker (`source_keys` — previously always empty); and a live
+  preview card. Explicit Save with a dirty guard and beforeunload
+  warning; Test previews the unsaved draft. docs/user/job-radar.md
+  rewritten.
+
+### Changed (settings overhaul phase 2 — tools/connectors, 2026-10-29)
+- **The connectors tab follows the family provider-card grammar**: each
+  posting-source row keeps its status + enable toggle and a primary
+  Test probe, while Sync / Docs / Query plan / Manage / Remove move
+  into a ⋯ overflow menu; a health strip shows active, failing and
+  degraded counts with the last sync. **Add source** is now a two-step
+  wizard in a modal (catalog tiles → config form) instead of an inline
+  raw form. The MCP server surface becomes section cards — endpoint
+  hero with the write switch, token lifecycle, client-setup
+  disclosure, the live tool catalog collapsed behind a searchable
+  disclosure, and the recent-call audit — with the chat-tools GitHub
+  credential folded into the same card. Extension sources get their
+  own card and a distinct "Install from Git" label (no more two
+  "Add source" buttons on one page).
+
+### Changed (settings overhaul phase 1 — notifications, 2026-10-29)
+- **The notifications page is rebuilt on the settings kit**: channel
+  cards with live delivery health (the new per-channel dispatch log,
+  `GET /api/v1/notifications/deliveries`), a grouped kind-routing matrix
+  with real switches (desktop/browser per-kind routing now reachable),
+  reset-to-default per kind (`DELETE /api/v1/notifications/preferences/{kind}`),
+  debounced quiet hours (no more a PUT per keystroke), alert rules
+  editing (fit threshold, family targeting, per-day caps), the admin
+  zone (full SMTP transport form + announcements to every active user)
+  and an in-page section rail. Notices now render inside the card that
+  caused them; switches save instantly with rollback, forms keep
+  explicit Save buttons. Also fixes the raw `notifications.webhook.generic`
+  key that leaked into the payload-preset select.
+
+### Changed (taxonomy settings UX, 2026-10-29)
+- **Catalog translations is the taxonomy page's own Translations
+  segment** (plan 150, phase 4). The review panel that sat above every
+  tab moves into its own sixth tab and becomes a proper review board:
+  locale and status pills carry live counts (derived from one bounded
+  fetch), search runs across the base label and the drafted value,
+  cards group by entity kind with icons (jobs/skills/families first),
+  and each card keeps base → draft with edit, approve and reject.
+  Select mode gains batch approve/reject over the per-id endpoints
+  with per-item outcomes — successes summarized, failures listed by
+  base label — with the batch reject confirmed first, and *Load more*
+  pages long queues past the old 200-row cap. The Draft-with-AI flow
+  and its result note are unchanged.
+- **Every taxonomy segment carries its icon, and the tab strip is
+  phone-proof** (plan 150, phase 5). All six tabs render icons
+  (SegmentedTabs icon prop); on narrow screens the strip scrolls
+  horizontally at a fixed floor width instead of squeezing six labels,
+  and the header wraps under the tab strip. The relations review
+  queue, manual editor and runs empty states get the same icon
+  treatment as the rest of the page.
+- **The taxonomy listings are searchable, grouped and clickable**
+  (plan 150, phases 1–2). The Interests and Skills tabs drop their raw
+  tables for a shared listing: debounced search (label, key, skill
+  aliases / interest descriptions), status filter chips with counts,
+  and collapsible icon groups — interests by their eight categories,
+  skills by status with **proposed first**. Clicking a row (or Enter
+  on a focused row) opens a generalized details drawer (full-screen on
+  mobile): the skill drawer keeps the plan-148 stats + history preview
+  and gains the admin actions — promote on proposed rows, deprecate /
+  restore, merge with an in-drawer target select, a confirmed delete
+  and the open-skill-page link; the interest drawer edits label,
+  category and description and carries deprecate / restore plus a
+  confirmed delete. The inline Deprecate/Delete text buttons are gone
+  from the rows; bulk select mode (bulk bar, select-all, *Select
+  proposed*, per-item failure report) is unchanged.
+- **Paths and enrichment review cards are structured and typed**
+  (plan 150, phase 3). Draft path cards match the listing language —
+  route icon, status badge, mono target-job code, description, source
+  chip — with the steps as compact numbered chips (kind icon, resolved
+  skill / family label, optional badge) and the full step list (edge
+  labels, education levels, keys) collapsed behind *Show all steps*;
+  Publish is a proper button and Reject confirms first. Enrichment
+  proposals drop the raw JSON dump for typed rows — contract type,
+  working hours, schedule cues, travel and benefits render as
+  translated chips (lists as chip rows) and the model's note as text,
+  while any unknown proposal keys collapse into a *Raw proposal*
+  disclosure so nothing is hidden; Apply is immediate, Discard
+  confirms first, and each card shows when the proposal was made.
+
+### Changed (settings overhaul phase 0, 2026-10-29)
+- **Settings navigation is grouped.** The rail now renders display
+  sections — Personal (Account, Job radar, Notifications), AI & tools,
+  Automation, Administration (admin-only) — from the settings-map
+  contract groups; Notifications moved next to Job radar (family
+  settings-map contract updated + re-vendored). Narrow widths collapse
+  to the same chip row as before.
+- **Settings shell is fluid.** The old fixed `max-w-6xl` wrapper is
+  gone — settings content now adapts from phones to 2K displays via
+  container queries (`ca-settings`), the same dock-aware rule as the
+  workspaces.
+- **New settings UI kit** (`components/settings/`, plan 148): page
+  scaffold with in-page section rail, section cards with save-state
+  indicators (Saved/Saving/Unsaved/Retry), the generalized
+  `useSettingsDraft` hook and optimistic toggles — the foundation the
+  Notifications/Connectors/Radar/Account redesigns build on.
+- Tooltips are now app-wide (a `TooltipProvider` mounts in the layout),
+  unlocking the library `InfoTooltip` in settings surfaces.
+
+### Added (connector SDK — public contracts + privacy guard, 2026-10-29)
+- **The T3 contracts a bundle needs are now public law.** The connector
+  SDK reference documents the `detail_ids` enrichment contract (the
+  reserved `detail_mode`/`detail_limit` config names, the host's
+  ranking/batching semantics), the optional `run_summary` envelope
+  block (≤2 KB, persisted verbatim, the keys the run drawer renders)
+  and probe semantics (any partial ⇒ probe not-ok); the authoring
+  chapter documents the `x-choices`/`x-csv`/`x-presets`/`x-section`
+  form hints, and the installation chapter the managed-spawn
+  interpreter rule. The `career-connector-template` sibling repo gains
+  a zip packager (`scripts/package.py`) and the per-extension docs
+  skeleton the SDK set points authors to. A new guard test keeps the
+  product repo free of private-integration mentions (their ids,
+  third-party dependencies or repo name) — standing rule, now
+  mechanical.
+
+### Changed (tooling — gates and version tooling, 2026-10-29)
+- **version-manager gains a `check` subcommand** verifying every
+  propagated version target matches the repo version. Ruff now excludes
+  the vendored search-providers contract module from formatting and
+  linting, FastAPI's `Depends`/`Query`/`Body`… calls are recognized as
+  immutable by bugbear, and the OpenAI "legacy wire" wording is now
+  "completions wire" (D7 vocabulary sweep).
+
+### Added (skill pages — /skills/:key, 2026-10-29)
+- **Every skill now has a page.** Open `/skills/:key` from the taxonomy
+  table's new **Details** preview, a graph node's right-click menu or a
+  related-skills chip: stats (postings demanding it, level distribution,
+  profile adoption, first/last seen), its positions on the familiar
+  posting cards, the approved relation subgraph and the skill's full
+  lifecycle history — created, promoted, auto-promoted, deprecated,
+  merged, deleted — with admin actions (promote/deprecate/restore/
+  merge/delete/edit) in the header. A history row also lands in the
+  drawer, and merged skills keep their page with a banner to the
+  survivor. Documented in [user/skills.md](docs/user/skills.md).
+
+### Changed (settings — every settings tab is now URL-addressable, 2026-10-29)
+- **Companies rules joins the club.** Settings → Companies tabs sync to the
+  address bar (`/settings/companies?tab=aliases|exclusions|queue|thresholds`)
+  — refresh or share a link and you land on the exact view instead of
+  resetting to Merge suggestions. Unknown params fall back to the default
+  and clean themselves up; the default keeps the bare URL.
+- **AI Configuration and Tools were rebuilt on the same one-pattern
+  tab sync** the rest of the settings shell now uses — same URLs as
+  before (`?tab=` / `?section=`), plus unknown-param cleanup. The legacy
+  `?tab=web` deep link still redirects to Tools.
+
+### Changed (taxonomy — routable tabs, 2026-10-29)
+- **Every Taxonomy tab and subtab is now a URL you can keep.** Tabs sync to
+  the address bar (`/settings/taxonomy?tab=skills`, subtabs as
+  `?tab=relations&section=graph`) — refreshing or sharing a link lands on
+  the exact view instead of resetting to Interests. Unknown or stale
+  params fall back to the defaults and clean themselves up; the default
+  view keeps the bare `/settings/taxonomy` URL.
+
+### Changed (taxonomy — paths & enrichment cards, 2026-10-29)
+- **Draft career paths read like plans, not datasets** — target job as a
+  chip, steps as ordered chips (optional steps marked), collapsible full
+  step list, publish/reject behind confirmation. **AI enrichment
+  proposals render as typed cards**: known fields (demand outlook,
+  education, remote policy…) show as labeled rows, lists become chips,
+  and anything unrecognized collapses into a raw-proposal disclosure —
+  no more JSON dumps.
+
+### Changed (taxonomy — smarter review queue, 2026-10-29)
+- **The review queue now tells you what kind of decision each row is.**
+  The "save it as an alias instead of an edge" hint only appears when the
+  proposed label actually looks like a raw-label duplicate of the other
+  skill (prefix, initialism like JS/JavaScript, or contained words) —
+  distinct concepts no longer suggest an alias merge. Rows with a
+  proposed side that isn't alias-shaped say so instead: **"the proposed
+  side is a new skill awaiting promotion — accepting this edge won't
+  activate it"** (en/de/el).
+
+### Added (taxonomy — corroborated labels promote themselves, 2026-10-29)
+- **Extraction labels that keep showing up join the catalog on their
+  own.** When the same normalized label is extracted from **two distinct
+  postings**, the proposed skill auto-promotes to the active catalog —
+  the orgs corroboration rule applied to skills — with the decision
+  stamped into its provenance (`auto_promoted: {at, postings}`) and the
+  corroborating posting ids accumulated as evidence. Single-posting
+  labels and every non-extraction origin (user, CV, import) still wait
+  for admin promotion, exactly as before.
+
+### Added (taxonomy — graph view, 2026-10-29)
+- **The reviewed skill graph is now a picture, not a list.** Settings →
+  Taxonomy → Relations gains a **Graph** tab rendering every reviewed
+  skill (active/deprecated) and its approved relations as an interactive
+  diagram (the family `concept-graph` library module, promoted from
+  health-assistant's ontology graph): force-directed and hierarchy
+  layouts (an `is a` child sits under its parent), search with
+  Enter-to-center, a collapsible legend, minimap, pan/zoom and PNG
+  export. Curated parent links that have no relation row yet are folded
+  in as `is a` edges, node color shows skill status, and clicking a node
+  opens a detail card with its key, category, status and relation count.
+  Proposed skills stay out of the canvas — they are unreviewed
+  extraction labels and live in the review queue.
+
+### Added (posting change journal, 2026-10-29)
+- **Every change to a posting is now on record.** An append-only journal
+  (`posting_changes`) notes who changed what, with which parameters and
+  how long it took — connector syncs, the deep LLM extraction (including
+  re-extract waves), detail-page fetches, the company matcher, merges and
+  triage, skill re-tags, and expiry. Each entry stores a compact
+  field-level diff (capped, content stays out) plus actor links (source
+  run, background job, AI generation) so a change can be traced back to
+  the exact run that made it. The posting page's right rail gains a
+  **History** section: a day-grouped timeline with kind badges, duration
+  chips and expandable diffs, newest first (`GET /api/v1/postings/{ref}/history`).
+
+### Changed (posting detail page — the card grammar, 2026-10-28)
+- **The posting page reads like its card now.** Key facts are icon-labeled
+  spec slots with the seniority dot scale, work mode carries its glyph, and
+  the hero shows the company tile, status badges and a structured action
+  area (primary open-original CTA, secondary actions, Save/Hide pushed
+  right). Similar postings moved to the end of the page as a card grid, and
+  first-seen / last-updated moved behind an info toggle in the timeline —
+  posted and closes stay visible.
+
+### Added (taxonomy — bulk review actions, 2026-10-28)
+- **Admins can now curate the taxonomy in bulk.** The Skills table on
+  Settings → Taxonomy gains a **Select** mode: checkboxes with a bulk bar
+  for **Promote / Deprecate / Restore / Merge into a chosen active skill /
+  Delete** (delete behind a confirm), where each action's button shows how
+  many of the selection it applies to — and a "Select proposed" shortcut
+  grabs every AI proposal at once. The relations **Review queue** gets the
+  same treatment with bulk **Accept / Dismiss**, one decision for the whole
+  batch (a nightly learn run can land dozens of edges). Both bulk
+  endpoints (`POST /admin/skills/bulk`,
+  `POST /admin/skill-relations/bulk`) are best-effort with a per-item
+  report: skills still referenced by jobs or profiles are skipped and
+  listed with the reason, never a failed whole-call.
+
+### Added (source runs — structured run summary, 2026-10-28)
+- **Every connector run can now tell you what it did.** Sources whose
+  connector emits the new `run_summary` envelope block (a reference T3
+  bundle ships it from its 0.10.0) persist it on the run ledger, and the run
+  drawer renders a summary strip: the detail-fetch session
+  (guest/authenticated), browser launches per profile, pages loaded by
+  kind (search vs detail), the time-budget split as a bar, and the count
+  of postings skipped behind sign-in walls with an expandable id list.
+  The host slice is generic — any T3 connector bundle may emit the block
+  (JSON object, ≤2 KB, persisted verbatim on `source_runs.report`) — and
+  runs or bundles without one look exactly as before.
+
+### Changed (explore filters — the feed's filter language, 2026-10-28)
+- **The search page's filter rail speaks the feed's language now.** Every
+  multi-value axis is tri-state — click to include, click again to exclude,
+  once more to clear; right-click excludes directly. Skills use the
+  type-ahead + browse-catalog picker with a per-skill minimum level
+  (replacing the dropdown + level select + "+" dance), with a second picker
+  for **excluded skills**; **organization** is a companies-catalog picker
+  with an exclude list; **sources** are include/exclude chips with live
+  facet counts; sections collapse with active-dots + counts. The rail is
+  **sticky** (stays in view beside the results, scrolls internally when
+  tall) and results **auto-load** the next page as you near the end —
+  the Load-more button is gone. Backend: the
+  explore vocabulary gains `skill_exclude`, `org_exclude`,
+  `source_exclude` and `*_exclude` for seniority / work mode / contract /
+  travel / schedule (`org` widens to a list, sent as repeated params so
+  company names containing commas survive) — additive, so saved searches
+  and the chatbot's explore filters keep parsing.
+
+### Changed (postings — search is the default, 2026-10-28)
+- **`/postings/search` is the Postings default.** Opening Postings from the
+  sidebar lands on the Explore (search) page now; `/postings` redirects
+  there. The live feed moved to `/postings/feed` (the Feed tab) — the
+  Dashboard "live" link follows it. No compat shim for the old default:
+  the redirect is the migration.
+
+### Changed (companies pages — card-language adoption, 2026-10-28)
+- **The Companies pages speak the app's card language now.** `/companies`
+  cards follow the uniform item-card grammar (org tile, labeled spec slots
+  for type · size · founding year instead of pills, industry chips, the
+  open-postings count), a **New** filter isolates posting-born companies,
+  and searching shows a proper no-match state instead of the empty-catalog
+  one. Card grids key their column count off the page column's own width
+  (container query, the plan-95 chat-dock rule) — with the chat sidepanel
+  open the cards reflow to two columns instead of crushing three-wide.
+  The company page gains an avatar header, token-styled
+  fact/financial/hiring-signal panels, and sanitized external links; its
+  posting list is **the `/postings` card itself** — same fit bubble,
+  skills and apply/save/hide actions, fetched through the feed's
+  `company=<key>` filter (the slim per-company posting endpoint and its
+  card are gone, no-BC); each card opens the posting's in-app page
+  (`/postings/:ref`), and postings that closed render in the closed
+  state.
+
+### Changed (item cards — uniform card system, 2026-10-28)
+- **Postings, catalog jobs, rankings and companies share one card grammar.**
+  A posting card now reads as title → company (initials tile + link) →
+  location/date → labeled spec slots (mode, level, contract, hours, salary,
+  education, "closes in n d") → skills → a quiet footer (seen, source, ref,
+  provenance, applied). Fit is the same score bubble the rest of the app
+  uses, never a bare number.
+- **Fewer, more meaningful chips.** Attribute facts (remote, seniority,
+  contract) are labeled slots, not pills; must-have/bonus is no longer
+  printed on skill chips. Skills show their requirement as a cold/warm/hot
+  bullet plus the level, ordered must-have first; a two-row card ends its
+  second row with a `+N` chip that expands the rest.
+- **Closed postings are visible and honest.** A posting past `expires_at`
+  renders desaturated with a "Closed" mark and a disabled Apply; both saved
+  views (Live and Explore) keep postings that closed after you saved them
+  instead of dropping them. "Needs review" is now the info dot it always
+  meant (extraction confidence), and a seen posting gets one quiet check
+  instead of a dimmed card.
+- **Deep-extracted postings can show their skills on the card** — the
+  posting payload carries the requirement-ordered skill list (bounded at
+  40).
+
+### Changed (capability showcase — family contract v1.3/v1.4, 2026-10-28)
+- **The capability showcase is text-first now.** `docs/capabilities.json`
+  moves to the family contract's v1.4 shape: the family comparison matrix,
+  the preview-widget hints and per-capability screenshot references are
+  gone — product captures appear once, in the visual tour. The
+  taxonomy-relations proof about approving a relation is reworded to the
+  tree-placement truth: a parent set — or cleared — by hand never moves.
+
+### Fixed (skill taxonomy — tree-placement provenance, 2026-10-28)
+- **Undoing a backfilled tree placement finally sticks.** Every skill
+  placement now carries provenance: `curated` (a human set it — or
+  deliberately cleared it), `learned` (the background catch-up filled it
+  from an approved `is a` edge). A deliberate clear (`parent_id: null`
+  through the skill-edit API) is never re-filled by later catch-up
+  passes, and removing or dismissing the edge that justified a `learned`
+  placement clears it. Placements from before this change keep their
+  previous behavior — a parent cleared before the upgrade is
+  indistinguishable from an untouched slot and will be re-filled once;
+  clear it again and it sticks. The skill admin API exposes the new
+  `parent_source` field.
+
+### Changed (posting detail page, 2026-10-28)
+- **The modal-era posting popup is gone** — every posting opens as the
+  full `/postings/:ref` page (the whole card is the click target), and
+  chat reference chips deep-link straight to it instead of the retired
+  `?posting=` popup URL. Board markup in a description renders as
+  readable plain text — never as third-party HTML.
+
+### Fixed (skill taxonomy graph — slice-C review fixes, 2026-10-28)
+- **Postings tagged to a deprecated skill survive re-mapping.** A skill
+  deprecated without a merge no longer loses its posting tags on every
+  re-map: deprecated rows stay in the matcher as fallbacks (their exact
+  key/label fill only tokens no active skill claims), matching the way
+  skill resolution already answered. A merged-away label row still never
+  shadows the surviving skill whose alias carries the label, and the deep
+  extract pass re-tags the same way.
+- **The tree catch-up only fills truly empty, truly live places.** A
+  candidate parent that is itself deprecated is skipped (the next
+  candidate wins), and a parent filled by a concurrent edit is never
+  overwritten by a stale catch-up pass.
+- **The save-as-alias refusal now names the working path.** Asking to
+  save an approved edge as an alias points at dismissing it first —
+  deleting the edge would destroy the row handle the save needs.
+- **A skill edit can undo a tree placement.** An update that sends
+  `parent_id: null` explicitly clears the parent back to the root (the
+  documented undo), while an update that omits the field leaves the
+  parent alone. Re-parenting also refuses cycles through approved
+  "is a" edges — the same walk the relation seam guards with.
+
+### Added (skill taxonomy graph — review queue, 2026-10-28)
+- **Skill-relation suggestions can be reviewed and curated** — an admin
+  surface lists every proposed, approved and dismissed relation with its
+  pair, evidence and provenance. Accept approves the edge (and catches the
+  sub-skill tree up), dismiss writes the negative edge so the suggestion
+  never returns, and manual relations can be added, re-scored and removed
+  per skill — including several relations between the same pair. Label
+  rows that are really aliases ("js" for JavaScript) can be saved as
+  aliases instead of edges. Discovery knobs (support floor, batch size,
+  per-run cap, negative-confidence bar) and the run statistics are
+  editable/visible there too. A saved alias resolves immediately — merged
+  label rows stop shadowing the surviving skill in matching. The surface
+  lives in Settings → Taxonomy → Relations. Review fixes: the relation
+  listing is bounded, and merged-away label rows no longer join the
+  sub-skill tree.
+
+### Changed (skill taxonomy graph — tree catch-up, 2026-10-28)
+- **The skill tree catches up with reviewed relations** — approving an
+  "is a" relation (or adding one by hand) now also fills the skill's empty
+  place in the sub-skill tree, so the taxonomy keeps reflecting the
+  reviewed hierarchy without a second edit. Only empty parents are filled
+  (an existing curated parent is never overwritten) and cycles are
+  refused. Practical effect on filters: a chain like java → JVM languages
+  → programming that needed the 2-hop setting before is reached at the
+  default 1 hop once the tree knows it — expansion widens as the tree
+  fills, deliberately.
+
+### Added (skill taxonomy graph — relation discovery, 2026-10-27)
+- **Internal groundwork: automatic skill-relation discovery** — a daily
+  background job proposes typed edges between skills from evidence in your
+  own data (skills that co-occur on postings/jobs, extraction labels that
+  look like synonyms of catalog skills, curated parent links). A configured
+  AI provider judges the candidates in batches and the proposals wait for
+  review; without one, only the string-matched label suggestions derive
+  deterministically — co-occurrence pairs wait for the first configured
+  provider instead of being pinned by the fallback. Once
+  pinned — a dismissal or a confident `none` judgement — a suggestion
+  comes back never. Nothing user-visible yet —
+  the review queue UI lands next.
+
+### Added (skill filter expansion, 2026-10-27)
+- **Skill filters can include related skills now** — the Skills section of
+  the postings filter rail gains a match switch: **Exact** (only the skills
+  you picked), **Sub-skills** (default — the curated sub-skill tree,
+  synonyms and is-a children) and **Related** (also part-of / related-to
+  links), with a 1 or 2 hop limit for learned relations. Picking
+  "programming" now matches postings tagged java or python; the summary
+  chips show the active mode. A "min level" without a selected skill is
+  refused instead of silently doing nothing. Saved presets and shared
+  filter URLs written before this change keep working — applying one fills
+  in the new defaults.
+
+### Added (skill taxonomy graph — expansion engine, 2026-10-27)
+- **Internal groundwork: the skill graph expansion engine and its single
+  write seam** — a pure, dialect-safe walk over the new edge table (curated
+  `parent_id` subtree + synonym identity + hop-capped is-a children, with an
+  opt-in related mode that also follows part-of/related-to), plus the one
+  service every write goes through: canonical endpoint ordering for
+  symmetric kinds, vocabulary + endpoint-matrix guards, cycle rejection on
+  is-a/part-of (tree-aware), propose/approve/reject transitions with
+  reviewer stamping, and rejected rows as permanent negative edges. No
+  user-visible behavior yet; the filter knob that consumes the walk lands
+  next.
+
+### Added (skill taxonomy graph — schema, 2026-10-27)
+- **Internal groundwork: the skill relation graph schema** — a new
+  `skill_relations` table of typed edges between skills (is-a, synonym,
+  part-of, related-to) with review status, provenance and a reserved
+  system schedule slot for the relation-learning job. No user-visible
+  behavior yet; filter expansion and the review UI land in the next
+  slices.
+
+### Fixed (skills filter axis, 2026-10-27)
+- **Skill filters in the postings filter actually filter now** — the
+  skills axis referenced a nonexistent column and raised a 500 whenever
+  a skill chip was active. It now resolves the selected skill keys
+  through the skills catalog onto the posting-skill links; include,
+  exclude and min-level all work end-to-end. Presets saved with skill
+  chips (previously dead) start applying — intended.
+
+### Fixed (skill picker empty catalog, 2026-10-27)
+- **The skill picker showed "No skills found" despite a populated
+  taxonomy** — the picker filtered on `status === "active"` but
+  `GET /skills` serves active rows and omits `status` entirely, so
+  every skill was dropped. The filter is now tolerant of a missing
+  status (the endpoint already guarantees active-only), the
+  `SkillSummary.status` type is optional, and the test mock now mirrors
+  the real endpoint shape so this mismatch class gets caught.
+
+
+### Changed (filter rail is the only filter UI, 2026-10-27)
+- **The old "filter by skill" bar is gone from the feed** — the filter
+  rail's Skills section (with the two-path picker) is now the only
+  filter surface. The redundant skill dropdown, level select, add
+  button, match-mode/priority selects and skill chips are removed.
+
+
+### Changed (skill picker rides the shared library, 2026-10-27)
+- **The two-path skill picker is promoted into `@neuronection/assistant-ui`**
+  as the generic `MultiSelectPicker` (with health-assistant's
+  CatalogItemPicker as the second adopter of the pattern). The app's
+  `SkillPicker` is now a thin mapping wrapper (ontology fetch stays
+  app-side). Same behavior; the inline type-ahead gains full combobox
+  keyboard navigation (Arrow/Home/End/Enter/Escape) and accessible
+  listbox semantics.
+
+### Changed (clean role descriptions, 2026-10-27)
+- **"About this role" shows a clean, role-only description** — the
+  deep-extraction pass now also writes `description_clean`: the role
+  content with all job-board chrome removed (premium upsells, applicant
+  counts, recruiter blocks, company marketing, job alerts), preserving
+  the text language and structure. The raw scraped text stays for audit
+  behind a "Show original" toggle. No extra AI cost — it rides the
+  existing extraction call.
+
+
+### Changed (seniority range + skill picker, 2026-10-27)
+- **Seniority is now an ordered range** — pick a "from" level (and up)
+  and/or a "to" level (and down), plus per-level exclude chips. The
+  query builder maps the ordered scale (intern → junior → mid → senior
+  → lead → principal) to an inclusive range.
+- **The skill filter gets a two-path picker** (the health-assistant
+  CatalogItemPicker pattern): a debounced type-ahead dropdown for quick
+  picks, plus a Browse button that opens the full skill catalog modal
+  with search, category filter, per-row Add/Added toggles, and
+  load-more pagination. Selected skills render as removable chips.
+
+
+### Added (postings filter system — frontend, 2026-10-27)
+- **The filter rail on the feed** — a collapsible rail with one section
+  per axis (Skills, Salary, Location, Companies, Seniority, Employment,
+  Work mode, Posted within, Match score, Saved, Description). Every
+  axis uses three-valued include/exclude/don't-care semantics with
+  chips; numeric bounds are open. Sections expand automatically when
+  they hold active filters.
+- **Active-filter summary chips** above the feed — one chip per active
+  filter with a one-click × to remove it.
+- **Saved presets** — save the current filter set as a named, tagged
+  preset (chips for tags), apply/delete presets inline. Presets are
+  profile-scoped.
+- **Auto-apply** — every filter change triggers a debounced search
+  (250ms); no Apply button. "Clear all" is the only explicit action.
+- **URL state** — the active filter spec serializes to the URL query
+  (`?f=…`); a filtered view is shareable and bookmarkable.
+
+
+### Added (postings filter system — backend, 2026-10-27)
+- **The full filter spec search** — `POST /postings/filter` accepts
+  every axis with three-valued include/exclude/don't-care semantics and
+  open numeric bounds: skills (+min level), salary (min/max/currency),
+  location (include/exclude/remote-only), companies (by name AND
+  industry), seniority, employment type, work mode, languages,
+  education, posted-within, match score, source, saved, and free-text
+  description search. Empty spec = the unfiltered feed.
+- **Saved filter presets** — `GET/POST/DELETE /me/posting-filters`:
+  named, tagged, profile-scoped. Upsert by name. The spec is versioned
+  JSONB (migration `0066`).
+
+
+### Changed (skills display + generic re-extraction, 2026-10-27)
+- **The Skills section on the posting page is rebuilt** — skills are
+  deduplicated (one chip per skill; the strongest demanded level and the
+  strictest priority win, with a "×N" mention count), grouped by
+  importance (**Must have → Nice to have → Bonus**, each with its count),
+  and sorted by level within groups. Unmapped skills lose their
+  "(unmapped)" noise — they render with a dashed border and a tooltip
+  instead. A **Compact / Detailed** toggle switches between the grouped
+  chips and the full per-skill view with evidence quotes.
+- **Re-extraction is generic, not source-scoped** — the source-page
+  button is gone; re-running AI extraction lives where the postings are:
+  per post (the detail page button) and multi-select in the feed
+  (Actions → Re-run AI extraction).
+
+
+### Added (company entity resolution, 2026-10-27)
+- **Companies now resolve to one canonical employer** — postings ingest
+  through a layered matcher (quality gate for junk labels like
+  "Confidential", exact slug/alias/initials/domain keys, then dialect-safe
+  fuzzy). Learned name variants (P&G ↔ Procter & Gamble) persist as
+  editable alias rows; per-pair "never link" exclusions prevent
+  similar-but-different employers from merging. Near-misses land in a
+  review queue instead of silently creating duplicate companies, and the
+  company pages show every live posting of one employer.
+- **Ambiguous employer names are arbitrated by AI in the background** —
+  a queued `company_triage` run asks the configured model about each
+  gray-band pair (≤40 per call, off the ingest path): a confident match
+  links and learns the alias, a confident "different" creates the new
+  company and records the exclusion, and anything unsettled becomes a
+  merge suggestion a human can accept (merges) or dismiss (excludes).
+  Without a configured provider the queue degrades to suggestions rather
+  than stalling; verdicts are stored so no pair is ever re-billed.
+- **Company rules & corrections surface (`/settings/companies`, admin)** —
+  aliases with provenance (add/remove/exclude/reactivate), global and
+  per-pair exclusions, the pending-pair queue, merge suggestions with
+  their evidence, and the matcher thresholds (auto-link / gray band /
+  AI auto-accept).
+- **Browsing** — `/postings` gains a company filter chip (`company=<key>`)
+  and a "no company" audit filter that splits gate-rejected labels from
+  pairs still pending triage; card company names link to the company
+  page; posting-born (proposed) companies are visible on `/companies`
+  with a New badge; company pages list "also known as" aliases.
+  Admin endpoints: `GET /organizations/pairs`,
+  `GET /organizations/suggestions`, accept/dismiss.
+
+### Fixed (postings feed, 2026-10-27)
+- **The postings feed no longer 500s on unrecognized education levels** —
+  a posting whose AI extraction produced a free-form level ("degree")
+  crashed the fit computation for the whole feed. Unknown levels now
+  score neutral with a note instead.
+
+
+### Added (bulk AI re-extraction, 2026-10-27)
+- **"Re-run AI extraction" on the source management page (Overview)** —
+  re-queues the deep extraction for every posting of the source that has
+  a description (already-queued ones are skipped). Postings without a
+  description are reported as skipped — extraction on list-card data
+  wastes the call.
+
+
+### Fixed (smart enrichment + pacing UX, 2026-10-27)
+- **Smart fetch-detail mode now actually fires for managed sources** —
+  the mode was read from the wrong config layer (the managed source
+  keeps bundle knobs in the `options` passthrough), so enrichment jobs
+  were silently skipped. Backlog enriches on the next sync; 50 postings
+  gained full descriptions on the first run.
+- **The source Configuration tab gets a "Sync & fetching" card** —
+  chip presets for fetch-detail modes, queries per sync and the time
+  budget (Quick/Balanced/Thorough) with a live fit estimate ("Fits
+  comfortably — about 40s per sync") instead of raw seconds, plus a
+  plain-language note that budget-capped runs keep what they collect.
+
+
+### Added (posting detail page, 2026-10-27)
+- **Postings open in-app at `/postings/:ref`** — clicking a card opens a
+  full detail page (description, key facts, relative timeline of posted /
+  first-seen / updated / expiry, categories, typed benefits, skills with
+  evidence, match score, similar openings) with prominent buttons to the
+  original listing, the cover-letter draft, a practice interview and the
+  application tracker. The posting card gains relative "posted …" times
+  and contract chips; the detail payload gains the description, the
+  contract/hours/travel/education facts and the created/updated stamps.
+- **Typed posting extract envelope** — extraction v2 lifestyle fields
+  (contract, hours, schedule cues, travel, on-site) and typed benefits
+  now arrive as structured objects with their evidence quotes, and
+  legacy string benefits read back honestly as `other`.
+
+### Fixed (posting detail page, 2026-10-27)
+- **`GET /postings/{ref}` no longer 500s on typed benefits** — stored
+  object benefits failed the wire's `list[str]` schema; the envelope is
+  typed end to end now.
+- **Suppressed extract fields read back as empty, not as a 500** —
+  low-confidence fields are stored as `null` (and legacy rows hold
+  plain-string benefits), which failed both typed extract readers on
+  every affected posting; the wire envelope and the extractor model now
+  coerce them at read (cover-letter, CV synth and suggestion flows
+  included).
+- **Posting links are rendered through `safeExternalUrl`** — no raw
+  `javascript:`/`data:` URLs can reach an `href` from connector data.
+
+### Added (live run state, 2026-10-27)
+- **Run history and overview show live runs and progress** — the ledger
+  row now opens at run *start* (status **running** with its stage:
+  fetching → saving results → fetching descriptions) and settles when
+  the run ends. The management page follows it: a pulsing "Running now"
+  line with stage and live elapsed time, a running badge per run row,
+  and enrichment runs report their batch progress ("N enriched"). A
+  crashed run never haunts the list — the next run closes a stale
+  running row as interrupted.
+
+
+### Fixed (tool timeout, 2026-10-27)
+- **Long syncs no longer die with "tool call timed out after 30s"** —
+  the managed-spawn source's tool timeout is now 120s (it must cover the
+  fetch's own run budget of up to 90s plus browser spawn and pacing),
+  existing sources fold to it automatically, and a batch run clips its
+  inter-query interval to the budget left so it can never outlive the
+  timeout by one last long pause.
+
+
+### Fixed (2026-10-27)
+- **Re-imports no longer break the managed-spawn interpreter** — a
+  re-imported connector now mints its command with the bundle checkout's
+  own `.venv/bin/python` (the interpreter that has the bundle's deps),
+  instead of the app's Python; a checkout without a venv falls back to
+  the host. No more missing-dependency `not-ready` errors after an
+  update.
+- **Run now on the source management page updates the run history on
+  its own** — the queued run's row appears (and the header refreshes)
+  when it lands, without a manual reload.
+
+
+### Added (fetch-detail modes, 2026-10-27)
+- **Fetch detail pages now has four modes** on the source's
+  Configuration: **off**, **sample** (the newest few per sync get their
+  full job description inline), **smart** and **all**. Smart and all
+  fetch descriptions *after* the sync, for the postings worth it: the
+  app ranks candidates by radar match, recency and salary (with an
+  optional AI triage on top that falls back to the deterministic order
+  when AI is unconfigured) and fetches in paced, budgeted batches. The
+  old on/off setting folds into the modes automatically.
+- Enrichment runs appear in the source's **Run history** like syncs do.
+
+
+### Changed (one toggle per source row, 2026-10-27)
+- **Source rows carry a single slider toggle** — the row's name is the
+  toggle's label (clicking the name pauses/resumes), and pause is folded
+  into it: off parks the schedule, on resumes. The checkbox and the
+  separate pause button are gone; the remove button stays as the one
+  destructive action. The redundant per-row **Edit** button is gone —
+  **Manage** is the one configuration surface.
+- **Radar-driven sources no longer require manual keywords** — with
+  **Follow my job radar** selected, the keywords and location fields
+  become optional (they are the fallback while the radar is empty).
+- **Back from the source management page returns to where you came
+  from** (the Tools page or Settings), not always to Settings.
+
+
+### Changed (run history readability, 2026-10-27)
+- **Run errors clamp to three lines** in the history table, with a
+  **Details** popup per run carrying the full untruncated error, the
+  typed error rows from the run report and a **copy button** — long
+  failure messages no longer blow up the table.
+
+
+### Changed (source management consolidation, 2026-10-27)
+- **All configuration now lives on the source management page** — the
+  full bundle settings form (keywords, filters, pacing: pauses between
+  page loads and between batch queries) plus the query settings, saved
+  in place; the per-row Edit button is gone (Manage is the one entry).
+- **The query plan says WHEN, not just what**: each group shows its next
+  search estimate (rotation + batch + cadence), an explainer line, and a
+  coverage summary ("full pass ≈ Nh · groups · batch/sync · cadence")
+  with a warning when a full pass would take over a day.
+
+### Fixed (managed spawn digest, 2026-10-27)
+- **A managed spawn no longer poisons its own pin.** Running a managed
+  bundle creates `__pycache__` in the content dir — the content digest
+  now ignores interpreter/runtime byproducts (`__pycache__`, `.pyc`,
+  `.venv`, `node_modules`, …), so the second spawn stops failing with
+  "content no longer matches its pinned digest". Existing broken
+  installs self-heal on the next sync. The bundle's not-ready error also
+  got managed-aware guidance (swap the interpreter; never `uv sync`
+  inside the managed content dir).
+
+
+### Added (source management page, 2026-10-27)
+- **A full management page per posting source** (`/sources/<id>`, *Manage*
+  on each source row): overview (status, last/next run, ingested counts,
+  errors), the merged query plan inline, configuration (search source +
+  queries per sync), and a **run history** — started, trigger, status,
+  duration, items synced, errors — with per-run **Run again** and page
+  actions (run now / test / pause / remove). Backed by a new
+  **source-run ledger**: every sync attempt records one row (the worker's
+  retries are honest extra attempts).
+
+### Fixed (query plan freshness, 2026-10-27)
+- **The Query plan dialog fetches the live plan when it opens** — a
+  long-lived page could show a stale (or empty) plan from before the
+  first radar-mode sync computed it. The empty states now say what is
+  actually true: radar-mode sources point at *Sync now*, static sources
+  say Follow my radar is off.
+
+
+### Added (query plan management, 2026-10-26)
+- **Query plan per posting source** — a *Query plan* button on every job
+  source row opens the merged-query management view: all rotating role
+  groups (the next one marked), the grouping mode (AI-curated vs
+  deterministic) and its compute time, the location, the effective
+  arguments (queries per sync, pages, interval, nav pause, budget) and
+  the cadence from the source-sync schedule. The API's `query_info` now
+  carries the full plan (groups, rotation index, per-term provenance).
+
+### Added (job source removal, 2026-10-26)
+- **Job source connectors can finally be deleted** — a Remove button per
+  source row with an explicit destructive confirmation showing the exact
+  counts (the schema's cascade is deliberate: the source's ingested
+  postings, and the applications/autopilot rows derived from them, go
+  with it — the dialog says so before you confirm). The source view now
+  reports `posting_count` so the impact is visible up front.
+
+### Added (zip bundle import, 2026-10-26)
+- **Import bundle (.zip)** on the extension sources panel: hand over a
+  zipped bundle instead of typing a path — it is staged as a pinned
+  source and flows through the identical consent + digest-pinned install
+  (the zip itself is never executed; update = upload again + re-consent).
+  Zip hygiene is enforced (path-escape/symlink refusal, entry and size
+  caps); like local-path sources this is a dev/test feature. In the
+  desktop shell the button opens the native file picker.
+
+### Changed (extension source add/edit UX, 2026-10-26)
+- **Add extension source is now a two-step wizard** (family kit
+  `AddIntegrationSourceDialog` `kind` mode): first choose the source type
+  as cards — *Git repository* or *Local folder* — then only that type's
+  fields appear (local prefills `branch`/`main`). Sources gained an
+  **Edit** button (pencil) that reopens the dialog prefilled and updates
+  the descriptor in place (`PATCH /admin/extensions/sources/{id}`) —
+  no more delete-and-re-add to fix a typo. The remove button semantics
+  are unchanged (installs park, data never deleted).
+
+### Fixed (extension source add form, 2026-10-26)
+- **Adding an extension source no longer mis-submits refs.** The dialog
+  validated value-less `tag-pattern`/`branch`/`commit-pin` strategies at
+  the schema seam with an opaque error, and `release-tag` on a tagless
+  repo failed with an unhelpful empty-glob message. The form now blocks
+  value-less strategies with a clear message, and a tagless repo gets an
+  actionable hint ("release-tag picks the latest tag — use branch or
+  commit-pin, or add a release tag").
+
+### Added (radar-driven ingestion, 2026-10-26)
+- **Posting sources can follow your job radar.** A source marked *Follow
+  my radar* (the new **Search source** switch on the source form) takes
+  its keywords/location from your Job Radar instead of its own static
+  config — one focused role group per sync, rotating, so traffic stays
+  constant however many keywords your radar holds. The form shows the
+  effective query and rotation position (nothing hidden); radar edits
+  recompute the query plan in the background. Grouping is AI-first: with
+  a provider configured (the normal case) an AI curator clusters
+  near-duplicate terms into role groups — and without one, a
+  deterministic auto-merge groups near-duplicates the same way, with
+  un-curated plans quietly upgrading the moment AI is available.
+  **Queries per sync** (1–3, default 1) sizes a sequential batch of
+  rotating groups — each extra query runs one after another with a
+  jittered pause in between, never in parallel, and the ban-safe
+  defaults hold the traffic line. MCP-script sources also gain a
+  **Tool options** JSON field so tool-level settings no longer need to
+  ride the command line, and a source minted from an imported bundle
+  now shows **the bundle's own settings form** (its declared fields)
+  instead of the transport/command plumbing.
+
+### Changed (provider settings adoption, 2026-10-26)
+- **Settings → Tools → Web search renders through the family
+  `web-search-providers` module** (assistant-ui 0.72–0.74; dependency
+  bumped `^0.68.0 → ^0.74.0`). Configured providers are now provider
+  cards — type/priority/disabled/no-key badges, the probe result as the
+  connection line — with every management action (enable/disable,
+  reorder, test, edit, delete) in the card's ⋯ menu, deleting asks for
+  confirmation, and **Add provider** opens a choose-then-configure
+  wizard (provider tiles → catalog-driven form in a modal) that seeds
+  the connection name (`Tavily`, `Tavily 2`, …) and keeps the main page
+  minimal (key, get-key link, base URL for self-hosted instances;
+  name, endpoint override and the timeout/result-count tuning fields
+  live under Advanced). The tuning fields now persist through the API
+  (the form never sent `timeout_ms`/`max_results` before), and the
+  vendored family catalog re-synced (hosting chips, current get-key
+  URLs). The AI-configuration trio already rendered through the family
+  assembly and is unchanged.
+
+### Added (radar digests, 2026-10-26)
+- **Plan 129 phase 4b — the radar's match digest ships.** An enabled
+  radar with a cadence now provisions its own per-user schedule
+  (instant ≈ every 15 minutes, daily at 08:00 UTC, weekly on Mondays);
+  each run evaluates the saved configuration as a live search and emits
+  a digest through the notification funnel only when there are unseen
+  matches — identical runs dedup, and a disabled radar or `off`
+  cadence removes the schedule. New schedule kind `user_radar_digest`
+  + job type `radar_digest` (migration `0058` widens both CHECKs).
+
+### Added (job radar, 2026-10-26)
+- **Plan 129 phase 4a — the job radar: configure your job search once.**
+  A new Settings surface (`/settings/radar`) saves the profile's search
+  configuration — keywords, preferred locations, work mode, seniority
+  bands, a salary floor on the normalized annual basis, and a match
+  digest cadence (instant/daily/weekly; digest delivery rides the
+  notifications wave). Explore gains a **My radar** button that runs the
+  saved configuration as a live search, and
+  `POST /postings/preview-radar` powers a no-save **Preview matches**
+  action in the form. Per profile (each profile keeps its own radar);
+  `source_keys` is schema-ready for per-user source follows. New
+  additive migration `0057` (`job_radars`).
+
+### Added (structured prerequisites, 2026-10-26)
+- **Plan 129 phase 3 — stated prerequisites become typed data.** The
+  deep-extraction pass now returns a `prerequisites` list (kind ∈
+  degree | certificate | license | language | other) with a label, a
+  verbatim evidence quote and per-row confidence; low-confidence rows
+  are suppressed like every other field. The posting detail page shows
+  them grouped under a Prerequisites heading, and the deterministic fit
+  score's prerequisite dimension matches certificate/license rows
+  against the profile's certification entries — a stated certificate
+  with no profile match caps the dimension at 6.0 and says so ("not
+  evidenced"); degree rows are note-only (the level comparison rides
+  the education field). Certification changes invalidate cached fit
+  scores. Extraction version bumps to 4, so demand-path re-extracts
+  pick the field up.
+
+### Added (salary normalization, 2026-10-26)
+- **Plan 129 phase 2 — salary figures become comparable.** Postings now
+  carry a stated `salary_basis` (gross / net — NULL when the source
+  never said, and the app never guesses) and an annualized range
+  computed at ingest and at extraction (posted amount scaled to a year
+  on its own basis — no FX, no gross/net conversion; an unknown period
+  annualizes to unknown). The Explore salary filter and the salary sort
+  run on the normalized pair, so a monthly and a yearly posting are no
+  longer compared unit-blind; existing rows were backfilled by
+  migration `0056`. Cards show the figure as posted **and** the
+  annualized approximation, with the basis named when known.
+
+### Added (company section, 2026-10-25)
+- **Plan 129 phase 1 — the Companies section lands (`/companies`, beta).**
+  A new sidebar surface over the normalized employer entity: every
+  company with open postings, busiest first, with a detail page per
+  company — reviewed facts (type, size, HQ, founded, industry,
+  description), financial claims that each carry their own source and
+  as-of date (revenue / valuation / market cap / funding / net worth —
+  unknown stays explicitly unknown, never guessed), derived hiring
+  signal (seniority mix, work-mode split, top locations), and all of
+  the company's open postings. Admins maintain facts via
+  `PUT /admin/companies/{key}`; org merges re-point a lone profile
+  (flagged for review) and refuse to merge two. New migration `0055`
+  (`company_profiles`, additive). Ships with the feature registry
+  entry, docs page, demo-tour scene and en/de/el strings.
+
+### Fixed (connector SDK docs, 2026-10-25)
+- **Plan 128 — the connector SDK doc set is pinned to the law it
+  describes.** Drift had accumulated behind a structurally green docs
+  gate: the template manifest example printed without `entry`/`mcp`/
+  `docs` (it failed registration as printed), a retired rule (fixed
+  `extension.py`/`server.py` filenames deciding the tier) was still
+  stated as law in six places, and the reference error table disagreed
+  with the charter (`io`, `budget`). All corrected, plus coverage: the
+  full manifest field set and constraints, `RawPosting`'s fields and
+  closed enums, the `PostingConnector` surface, the family-vs-host
+  capability vocabulary, per-extension docs bundles, the bounded 7E
+  error-detail object, the `release-tag` ref strategy and an honest
+  out-of-scope list. New `backend/tests/test_sdk_docs_truth.py` wall —
+  every manifest printed in `docs/dev/sdk/` is materialized and run
+  through the vendored registration validator, the verbatim claims are
+  compared to their pinned files, and the error/RPC/knob tables are
+  compared against the charter and `Settings`. A code block that lies
+  now fails the suite.
+
+### Added (economic context schema, 2026-10-25)
+- **Plan 127 slice 3.0 — the Economy data layer lands (no UI yet).**
+  Schema for the money-flow evidence layer: region join keys + alias
+  cache, versioned dataset packs, dimensional series with
+  evidence-bearing observations (four provenance tiers), code
+  crosswalks, occupation exposure scores, the scenario/claim registries
+  and per-user watchlists. Purely additive migration `0054` via the plan
+  113 design-review route; nothing is exposed in the UI until the T1
+  surfaces land.
+- **Plan 127 slice 3.1 — region resolution + coverage contract (backend
+  only).** Deterministic offline gazetteer resolution (profile
+  country/city → canonical region: accent/case folding, alias cache,
+  homonym candidates for the caller to disambiguate) and the honest
+  coverage summary (the most specific *active* series wins; no data
+  reads as "no data", never as an estimate). Ships with a starter
+  gazetteer seed (`./scripts/seed.sh`); no UI surface yet.
+- **Plan 127 slice 3.2a — market-data provider registry + first Layer-1
+  source (backend only).** Sources are now **extension bundles**: each
+  lives under `backend/app/extensions/builtin/market_data/<key>/` with
+  its own `extension/v1` connector manifest (the charter's
+  `ObservationCreate` item contract), and core holds only the contract,
+  the bundle/manifest loader and the ingest seam — adding a source never
+  edits core. Registration is fail-closed (manifest vs provider
+  cross-checks, duplicate keys, research-only licenses refused).
+  Third-party sources arrive through `career_assistant.market_data`
+  entry points behind the new `market_data_plugins_allowlist`. The first
+  bundle is World Bank WDI (country-level worldwide, open license, no
+  key) with fixture-driven parsing and guarded-transport fetching; ingest
+  writes `econ_packs` / `econ_series` / `econ_observations` with
+  idempotent upserts, revision history and vintage supersede. Adopting
+  the existing BLS/Adzuna demand adapters into the registry, plus the BLS
+  OEWS/EP and OECD bundles and the scheduler trigger, land in 3.2b.
+
+### Changed (wave residuals, 2026-10-25)
+- **Tour screenshots regenerated** against the seeded demo workspace —
+  first capture set including the career-paths explorer and the four
+  beta surfaces (postings, autopilot, interviews, growth); gallery,
+  manifest and the animated tour GIF rebuilt.
+- **Family settings-map re-vendored** from the dev canonical (ADR-0033):
+  career's Account → Appearance locale switcher, the notifications tab
+  channel surfaces, the connectors-hosted MCP server section, and the
+  `tools.translation` alignment note are now canonically recorded
+  (byte-identical re-copy; `verify-wiring.sh` sm probe green).
+- **`.env.test` untracked** (family secrets-probe S2): the pytest env file
+  ships as `backend/.env.test.example` and `./scripts/run-tests.sh`
+  self-bootstraps it on first run — fresh clones work with zero manual
+  steps; existing checkouts keep their local file (plan 126).
+
+
+### Added (career path explorer, 2026-10-24)
+- **Plan 125 — career paths are a destination.** New `/paths` explorer
+  (beta, sidebar entry "Career paths"): curated + your own paths +
+  computed routes, filtered by target job / family / stage. One typed
+  `PathView` renders through a modular `PathRenderer` in three views —
+  graph (default), tree (reduced-motion fallback) and list — with
+  keyboard navigation and reduced-motion support.
+- Marks on paths and steps (`interested` / `pinned` / `dismissed` +
+  note) stored in `user_path_flags`; marks are preferences and never
+  feed fit or rankings (wall-tested). Dismissed steps leave the path
+  header's profile-completeness count.
+- Path editing with fork-on-edit: curating is ours, editing is yours —
+  "Fork to my paths" copies a curated route into a personal one; add,
+  branch (`parent_step_id` + `edge_label`), reorder, optional-mark and
+  remove steps on your own copies. Chat-created paths and manual
+  creation are review-first drafts: nothing activates automatically.
+- Chat creation flow: a checkpointed LangGraph draft flow
+  (`app/ai/graphs/path_draft.py`, task `path_draft`) grounds the request
+  with `search_jobs`, proposes missing jobs through the existing catalog
+  moderation queue (never auto-activated), and renders the structured
+  draft in chat as an embedded path preview with "Save to my paths".
+  `my_paths` joins the read tool registry (chat + MCP projection).
+- Product integration: JobDetail's path rows render through the same
+  `PathRenderer`; the growth near-miss radar and growth handoffs link
+  into the explorer; JobDetail paths and the explorer share the
+  `/jobs/{ref}/paths` family of endpoints (now including your own
+  copies).
+- Docs: `docs/user/career-paths.md`, feature-registry row (`/paths`,
+  beta) with a demo-tour scene, README feature-status row.
+### Fixed (manual_url 304, connector conformance v1, 2026-10-24)
+- **`manual_url` no longer treats HTTP 304 as an error.** A conditional
+  GET answered "Not Modified" (the cached page is still current) was
+  surfaced as a typed `provider-error`, failing the source sync for
+  perfectly healthy sources. It now short-circuits to an empty success
+  that re-stamps the cache state — the same shape every other builtin
+  connector already had. Caught by the hardened family conformance kit
+  (contracts v1: the new 304 floor).
+
+### Changed (generated wire types, 2026-10-24)
+- **Plan 123.4 — the wire contract is now generated.** The SPA's API
+  types come from `contracts/openapi.json` via openapi-typescript
+  (`src/types/api.gen.ts`, regenerated by `npm run gen:api`; a
+  regenerate-and-diff CI check blocks drift). Hand-maintained wire
+  types are gone; what remains in `src/types` are view models for
+  JSONB payloads the contract intentionally leaves open (chat message
+  metadata, posting extraction) and SSE shapes outside OpenAPI.
+  Backend responses tightened per-schema where raw `dict` degraded the
+  wire: proposal diff rows, university detail, admin scheduler and
+  i18n surfaces, growth plans/radar, market snapshot, check-in,
+  bootstrap (incl. the AI-status payload) and the explore facets.
+  No route or endpoint changed.
+
+### Changed (codebase restructure, 2026-10-24)
+- **Plan 123 — structure-only wave, zero behavior change.** The 2,660-line
+  `profile_proposal_service` is now the `app/services/proposals/` package
+  (kinds / anchors / diff / snapshots / apply / preview / telemetry +
+  lifecycle core); `app.services.profile_proposal_service` stays as the
+  stable import surface. Backend domain packages, frontend feature
+  folders, generated wire types, JSON seeds and the enum split land in
+  the following commits of this series. No route, schema or API changes.
+
+### Added (demand data, GitHub intake, source health, 2026-10-22)
+- **Demand import is live** (plan 122 phase 3): the dormant
+  `system_demand_import` schedule now enqueues a `demand_import` job that
+  reads market-data sources (BLS wage/employment series, Adzuna job-market
+  history) and writes salary/outlook observations into `market_snapshots`
+  and `jobs.demand` with **field-level provenance** (source, dataset,
+  observed date, URL). Market sources live in Settings → Tools →
+  Connectors as **Market data**.
+- **GitHub intake** (Profile → Import → **GitHub**): preview a public
+  GitHub profile, tick repositories and create **draft** projects with
+  achievement highlights — review-first, never auto-written, and
+  repositories already on the profile are skipped.
+- **Source health and pause/resume** (plan 122 phase 3): Settings → Tools
+  → Connectors groups sources by kind (Job boards, Market data,
+  Universities, Search, Inbound webhooks), shows a health badge
+  (healthy / degraded / failing) with the last successful run, and lets
+  an admin pause or resume a source without deleting it.
+
+### Added (keyed web-search providers, 2026-10-22)
+- **Web search supports five keyed providers** (plan 122 phase 2):
+  **Tavily**, **Brave Search**, **Exa**, **Serper** and **Google
+  Programmable Search** join SearXNG in Settings → Tools → Web search.
+  Keys are sealed in the settings row (last-4 hint only), the ordered
+  fallback is unchanged, and every call rides a new guarded transport —
+  SSRF/egress guard, DNS pinning, per-host rate caps, response caps and
+  **refused redirects** so a provider key can never follow a redirect.
+  Google PSE asks for its engine id (cx) in the row form.
+
+### Added (DACH board pack, 2026-10-22)
+- **Five new German-market job sources** (plan 122 phase 1): **Personio**,
+  **JOIN.com**, **Recruitee** and **Teamtailor** employer career-site feeds
+  plus **StepStone/Xing** job alerts. Each ships as a bundled T1 connector
+  with a file manifest, its own docs tree, captured-truth fixtures and
+  watermark incremental sync; the StepStone/Xing alert URL is a sealed
+  secret slot, never stored in config. Settings → Tools → Connectors lists
+  them with per-source config.
+- **EUR/CHF dot-thousand salaries parse correctly** (plan 122). Strings
+  such as `52.000 - 65.000 €` now read as 52 000–65 000 per year instead of
+  52–65; the parser is currency-aware, handles Swiss apostrophes, German
+  period words (`pro Monat`, `pro Stunde`) and is locked by fixtures.
+
+### Fixed (desktop upgrade path, 2026-10-22)
+- **A populated desktop database upgrades past the 0051 schema wave**
+  (plan 122 commit-zero). `career_path_steps.edge_label` and
+  `profile_proposals.origin` were added `NOT NULL` without a surviving
+  server default, so SQLite's batch rebuild failed on any instance that
+  already had rows (`_alembic_tmp_career_path_steps.edge_label`). Both
+  columns now keep their defaults, and a populated-SQLite upgrade
+  regression test pins 0050 → head.
+
+### Added (German and Greek UI, catalog translations, 2026-10-22)
+- **The interface ships in English, German and Greek** (plan 121).
+  Settings → Account → **Appearance** switches the language per user
+  (admins also set the instance default); the choice applies immediately,
+  sets `<html lang>`, and drives number/date formatting. Every remaining
+  hard-coded UI string moved into the translation catalog — a new reverse
+  lint fails the test suite on raw English in pages/components, and the
+  unused-key detector keeps the catalog honest.
+- **Catalog labels now follow the UI language through review-first
+  overlays** (plan 121.4). Settings → Taxonomy → **Catalog translations**
+  drafts job/skill/family labels with AI; drafts never render, and each
+  one is reviewed against its base label before approval. Approved
+  translations flow through the catalog, rankings, feed, skill lists and
+  the CV context; university names stay authoritative.
+- **Translation batches are an audited AI task** (`translate`): the
+  gateway records every batch in `ai_generations`, and the offline
+  maintainer script writes the locale files. `check_translations.py` is
+  now a blocking CI gate for locale completeness.
+
+### Fixed (MCP endpoint routing, 2026-10-22)
+- **The MCP endpoint actually answers at `/mcp`** (plan 119.2). The
+  mounted Streamable-HTTP app served at its own root while the mount
+  stripped the prefix, so `/mcp` returned `405`; the mount now serves at
+  the documented URL (no trailing-slash redirect) and the session
+  manager's lifespan is composed into the app lifespan.
+
+### Added (MCP connection surface, 2026-10-22)
+- **MCP is now a real connection surface** (plan 119.2). Settings → Tools
+  → Connectors → **MCP server** shows the Streamable-HTTP endpoint,
+  manages **tokens** (mint with a label and scopes — the secret is shown
+  exactly once — plus rotate and revoke; rotation kills the predecessor
+  immediately), offers copy-ready **Claude Desktop** and **generic HTTP**
+  client snippets, lists the **live tool surface with its scopes**, and
+  shows **recent MCP calls** from the audit ledger. Tokens are stored as
+  hashes in `mcp_tokens`; every call is budget-checked, per-host
+  rate-limited and audited. An admin **write-access switch** (default
+  off) gates all write tools.
+
+### Added (MCP write scope, 2026-10-22)
+- **MCP can now write — only through approval cards** (plan 119.4). An
+  admin switch (default **off**) plus a per-token `write` scope adds
+  `profile_update`, `application_transition` and `cv_ops`. Every call is
+  an ADR-0015 Class-B card: `profile_update` opens the real profile
+  proposal card with its diff; the other two are confirmation cards that
+  run through the application/CV services on approval. Each card carries
+  its origin (token label + request id), appears in the MCP section's
+  pending list, and is budget-checked, rate-limited and audited like any
+  other call. With the switch off, write tools are absent from the
+  client's tool list.
+
+### Added (MCP resources and prompts, 2026-10-22)
+- **MCP clients can browse and plan, not just call tools** (plan 119.3).
+  The server now publishes resources — `career://profile` (a
+  privacy-minimized digest), `career://applications`,
+  `career://saved-searches` and `career://cv/{id}` — and three prompts
+  (`tailor_cv_to_posting`, `prepare_interview_plan`,
+  `summarize_my_fit`). Resources return only the token owner's data;
+  prompts carry references, never data. A token that is not bound to a
+  user sees no user-data resources, and a read-only token never sees a
+  write tool.
+
+### Added (assistant read parity, 2026-10-22)
+- **The assistant can now answer questions about your own activity** (plan
+  119.1). Alongside the application reads from plan 116, chat and MCP
+  clients can list your **saved searches**, read recorded **market demand
+  history** for a job family or role, and open the **fit breakdown** behind
+  one posting or catalog job (deterministic dimensions and gate reasons,
+  never a guessed score). Empty results are stated as "nothing tracked
+  yet" with the page that creates them instead of a made-up summary.
+
+### Fixed (PDF engine flake, 2026-10-22)
+- **CV export no longer degrades on a transient Chromium launch failure**
+  (plan 119). The PDF engine retries the launch once across every
+  browser channel before reporting "no engine on this host", so a
+  parallel test/render burst cannot silently turn page-count gates and
+  PDF export into the print-view fallback. The skip wall now also pins
+  that dynamically-raised capability skips (not only marked ones) are
+  recorded against the reviewed allowlist.
+
+### Changed (Explore & fit performance, 2026-10-22)
+- **Explore stays fast as the job board grows** (plan 120). Filters
+  (including minimum education and language requirements), counting and
+  paging now run in the database instead of loading every matching
+  posting into memory; `total` is exact and cursor pages cannot drift
+  when new postings arrive. Fit scores are cached and written through as
+  they are computed — the posting detail, the feed and Explore read the
+  same cache, and a background refit sweep backfills it in batches.
+  Fit- and relevance-sorted Explore rank the newest matching postings
+  (a bounded window of five pages, at least 100 and at most 500 rows);
+  the facet sidebar's counts are unchanged and still live. No schema
+  change.
+### Added (notification reach: email, webhooks, calendar, RSS, 2026-10-22)
+- **Notifications now reach your inbox, your team chat and your calendar**
+  (plan 117). Settings → Notifications gains an **email** channel (a
+  confirmed notification address, optional digest mode, and an admin SMTP
+  transport whose password is sealed at rest), a **webhook** channel with
+  Slack/Teams/Telegram/ntfy payload presets, SSRF-guarded URLs, a shared
+  token header, background retries and a test-delivery button, and
+  **calendar / RSS subscriptions** built on rotatable tokens: the `.ics`
+  feed carries admission deadlines, application deadlines, scheduled
+  interviews and follow-up review days with stable UIDs, while the Atom
+  feed follows a saved search (or all new postings). Per-kind routing
+  sends any notification kind to email or a webhook; follow-up reminders
+  keep their own per-stage overrides. Email respects quiet hours by
+  waiting for the digest run, webhooks queue, and pull feeds are never
+  suppressed. Tokens are shown once, stored only as hashes, revocable and
+  rotatable; revoked links answer `404`.
+
+### Added (application tracker, 2026-10-21)
+- **Your applications finally have a home** (plan 116). A new
+  `/applications` page shows the pipeline as a board (default) or a
+  list: stage columns, applied/deadline/next-follow-up dates, linked CV
+  and cover-letter thumbnails and an unread-activity dot. The drawer
+  holds the reverse-chronological timeline, a note composer, stage
+  moves, document links, follow-up snooze and close-with-outcome; every
+  real stage move writes exactly one timeline event. **Track
+  application** on a posting creates the row, the dashboard shows a real
+  saved → applied → interviewing → offers funnel, and follow-up
+  notifications deep-link into the drawer. Follow-up reminders now run
+  on a configurable cadence (default 7 and 14 days) with
+  interview/offer check-ins, editable in Settings → Notifications or
+  from the tracker; the assistant can read your pipeline and proposes
+  stage changes and notes as approval cards that resolve through the
+  same service as the forms.
+
+### Removed (dead Studio copilot mirror, 2026-10-21)
+- **The chat no longer mirrors a live copilot turn into the CV builder.**
+  Chat sessions stopped being bound to a CV in plan 114 (the builder runs
+  per turn through a CV attachment), so the plan-67 mirror, its
+  `CopilotActivityCard`, the CV-bound chat empty state, the "Open in
+  builder" chat header action and the builder-link trace chip could never
+  appear. They are deleted; the builder copilot itself is unchanged —
+  builder turns, their persisted trace, the attachment handoff and the
+  "Profile changed" live-sync all keep working. No user-visible surface
+  changes.
+
+### Removed (no-BC legacy sweep, 2026-10-21)
+- **Every remaining code-level compatibility path is gone** (plan 114;
+  the no-BC directive). Saved searches validate strictly against the
+  explore-filter vocabulary (the pre-plan-32 `{"remote": true}` shape is
+  gone), CV variant pins have exactly one key form (`{source}:{id}`; the
+  `:bullets` read tolerance is deleted), a chat session is never bound to
+  a CV any more (the builder runs per turn via a CV attachment +
+  build-intent wording — plan 78's only route), and proposal cards carry
+  the snapshot's real child ids. Six enum classes no code path could
+  reach were deleted from the vocabulary registry, and nineteen unused
+  API-client functions left `frontend/src/api/*` (a new wall fails an
+  export with no consumer). No user-visible surface changes: every
+  removed path only served a shape that nothing has written since plans
+  32/78/99/110.
+
+### Changed (failure copy is sanitized, 2026-10-21)
+- **Failure messages cannot leak credentials or provider dumps.** Connector
+  sync failures, university-document parse errors, AI provider connection
+  tests, chat/tool errors and the CV builder's op results now pass through
+  one sanitizer (`sanitize_error_detail`) and, where the operator needs the
+  detail, log it with the stack trace instead of showing it. Unconfigured /
+  budget / rate-limit AI failures keep their typed copy. No behavior change
+  on the happy path.
+
+### Added (first-run AI setup, 2026-10-21)
+- **A fresh install now walks you through connecting an AI provider**
+  (plan 118). The bootstrap payload reports the effective AI state
+  (`ai: {configured, provider_type, default_model, task_coverage,
+  mock_active}`), an unconfigured app opens the new `/onboarding/setup`
+  step on boot, and every surface that needs a provider (chat empty
+  state, the CV builder's AI actions, generate-with-AI, Autopilot) offers
+  the same setup prompt until one is configured. The step composes the
+  assistant-ui AI-settings kit — provider tiles → guided form → review →
+  connection test → task assignments — is skippable with a persisted
+  dismissal, and the desktop tray gained **Configure AI provider**. AI
+  failures (unconfigured, budget exhausted, rate limited) render typed
+  copy instead of the raw provider message, and a **Mock provider active —
+  dev only** chip is visible in the header whenever the mock serves a
+  call. No schema change: the skip rides a typed `profiles.preferences`
+  key.
+
+### Changed (beta pages un-gated, 2026-10-21)
+- **Live postings, Career Autopilot, Interview prep and the Growth toolkit
+  are reachable from the sidebar** — they were hidden behind a five-tap
+  lock icon (a dev-mode easter egg), while the dashboard and onboarding
+  already linked into them. All four now render a **Beta** chip with one
+  expectation line from a single feature-state registry
+  (`frontend/src/config/features.json`); the easter egg is gone. The demo
+  tour shoots the same four pages, and the README/feature-status table is
+  checked against the registry by the test suite.
+
+### Added (cover letters shipped, 2026-10-21)
+- **Cover letters are available.** Every posting's **Draft cover letter**
+  button now works (it previously had no handler and was disabled), and
+  CV Studio's **New cover letter** modal creates a letter from a saved
+  posting and an optional base CV. Letters use the existing brief,
+  evidence-cited AI drafts, template rendering, versions and exports —
+  no new surfaces, just the two entry points that were gated.
+
+### Internal (plan 113 schema foundation, 2026-10-21)
+- **Application pipeline schema foundation.** `applications` +
+  `application_events` replace the application fields on
+  `posting_interactions` (seen/saved/hidden stay there); the apply path
+  writes the first `stage_change` event. The wave also lands the shapes
+  plans 114–125 consume (follow-up rules, feed tokens, per-channel
+  notification config, inbound webhook endpoints, catalog label overlays,
+  MCP tokens, career-path branching/flags, fit analytics columns) in two
+  migrations, so no later plan needs one. No user-visible behavior change.
+
+### Added (per-extension docs surface, 2026-10-19)
+- **Connector documentation is now served in-app** (plan 34 wave 8):
+  `GET /api/v1/admin/postings/connectors/{key}/documentation` returns the
+  bundle's `extensionDocsTree` + markdown (opens on the landing page,
+  traversal-safe, fence-aware raw-HTML neutralization); the Tools →
+  Connectors source rows gain a **Docs** action for connectors whose
+  manifest carries the docs pointer (the documented set: the three job
+  boards + mcp — absent pointer, no affordance). The connector's own
+  `security.md` now embeds the T3 perimeter disclosure as a verbatim
+  blockquote (byte-checked by the suite). The vendored
+  `app/extensions/contract.py` joins the mypy exclude (study's precedent —
+  strict-mode findings in a byte-identical canonical are the dev
+  canonical's; the gate is green again after the unification wave's sync).
+
+### Changed (manifest unification, 2026-10-19)
+- **Every builtin connector's manifest is now a FILE at the bundle
+  root — `builtin/<key>/manifest.json` — never code-declared** (the
+  family-wide one filename/one form law; D18 clean break, no dual
+  path). All nine builtins (csv, jsonld, rss, ats_api, manual_url,
+  arbeitnow, remotive, jobicy, mcp) extracted with identical content,
+  plus the envelope-shared fields filled honestly: license corrected
+  to the repo's Apache-2.0 (the old code default said MIT),
+  `repository` added, closed-vocabulary `categories` (job boards →
+  `search`, csv → `data`, mcp → `developer`). The `connector_manifest`
+  helper is deleted; `PostingConnector.manifest()` is now the
+  file-loader (`builtin/<key>/manifest.json` by convention,
+  `manifest_file` override for out-of-tree T1 entry-point plugins).
+  Registration semantics unchanged: same envelope validation, same
+  self-disable reasons — a missing or corrupt `manifest.json` fails
+  registration exactly like an invalid manifest.
+- **Registration now validates the per-extension docs binding (plan 34
+  §10.5)**: a manifest carrying the `docs` pointer must ship a
+  `docs/docs-tree.json` that exists and validates (extensionDocsTree
+  form + wall semantics) — a broken promise self-disables like an
+  invalid manifest. The three real job boards + the T3 `mcp` builtin
+  ship real docs trees (the mcp one carries the charter's T3 perimeter
+  disclosure verbatim).
+- **Fixed (found by the wave's red-checks): the registration-time
+  envelope gate had swapped `contract.validate` arguments** (manifest
+  passed as the schema, the bundled def as the instance) — the gate
+  was inert and never rejected an envelope-invalid manifest. The
+  arguments are now in the correct order and the new
+  `test_builtin_manifests.py` pins both directions. (Health's registry
+  carries the same latent swapped call — surfaced to the owner,
+  out of this repo's scope.)
+- Rider: `tests/fixtures/mcp_template_manifest.json` refreshed to the
+  current `career-connector-template/manifest.json` (the template
+  gained its docs pointer in plan 34 wave 7; the fidelity test was red
+  on main).
+
+### Fixed (security — the 2026-10-18 extension-platform evaluation, H1)
+- **T2 secrets now ride headers only — URL substitution removed, and
+  everything crossing back over the seam is scrubbed.** The evaluation
+  found three leak channels in the sandbox's "structurally impossible"
+  secret seam: (a) `cap.net.fetch`'s `finalUrl` returned the
+  post-substitution URL (secret in the query) to the sandbox; (b)
+  `polite_http` guard denials embedded the full substituted URL
+  (`credentials in URL are not allowed: 'https://u:SECRET@…'`) in the
+  error detail that crosses back; (c) the host substituted
+  `{{secret:<slot>}}` into URLs at all — exfiltration by design to any
+  domain the manifest declared at consent (URLs leak via logs,
+  redirects, Referer and error paths). Owner policy: **secrets ride
+  HEADERS only** — a placeholder in a fetch URL is a typed `invalid`
+  at the seam; `finalUrl` and every error detail are scrubbed of
+  resolved values before crossing back (upstream reflections of a
+  received credential re-substitute to the placeholder); the vendored
+  guard now redacts userinfo/query from any URL it embeds in a denial
+  (dev-canonical change, re-synced family-wide). New back-crossing
+  walls: the audit's two one-liners (query-secret URL, userinfo-secret
+  URL) are refused typed; a reflecting redirect cannot leak the token
+  through `finalUrl` or the credentials-in-URL denial; an end-to-end
+  child probe confirms the typed refusal and a clean envelope while
+  header substitution keeps working.
+
+### Added (the connector SDK documentation set — plan 34 wave 2)
+- **The connector SDK docs are now a ten-chapter, SDK-grade doc set at
+  `docs/dev/sdk/`** (overview, quickstart, core concepts, installation,
+  authoring, five recipes, security, reference, versioning,
+  troubleshooting) following the family's extension-docs taxonomy —
+  replacing the single `docs/dev/extensions.md` page. The quickstart is
+  real: clone the connector template repo, import it as a local source,
+  consent, enable, sync — verified end-to-end, with the transcript in
+  the doc and the same pipeline pinned by the e2e walls.
+- **New user guides**: [Add a job source](docs/user/add-a-job-source.md)
+  (the zero-config boards, with the honest Remotive robots caveat),
+  [Import extensions from git](docs/user/import-extensions-from-git.md),
+  [Consent, explained](docs/user/extension-consent.md) (the tier
+  disclosures verbatim), [Chat tools, risk badges and
+  approval](docs/user/chat-tools-and-approval.md), and [Extension
+  troubleshooting](docs/user/extension-troubleshooting.md).
+- **The doc set's navigation tree validates as a contract**: the
+  family's `docs-tree.schema.json` + fixtures are vendored into
+  `contracts/` (byte-identical via the dev sync), and a new backend
+  test walls `docs/dev/sdk/docs-tree.json` — schema + fixture suite +
+  unique ids, resolvable files and chapter conformance.
+
+### Added (the first real content — bundled job-board connectors, ADR-0040 T1)
+- **Three real job boards are live, zero-config: Arbeitnow, Remotive,
+  Jobicy.** New bundled T1 connectors over free, no-auth public JSON
+  job APIs — no credentials by design (the manifests declare no secret
+  slots by absence), network scoped per-board to the real API hosts
+  (`net` + `sync`), polite per-host request budgets, and watermark
+  incremental sync (`posted_at` boundaries in `next_state`, plus the
+  runtime's conditional-GET validators; unchanged content dedups by
+  content hash). Optional config only: tag/category filters and
+  max-items caps with sane defaults, so an empty config is a working
+  source. Mapping stays honest — slug/id external ids, free-text job
+  types mapped only where unambiguous, Remotive salary strings parsed
+  into structured ranges where parseable, Jobicy's structured salary
+  and job levels carried through, malformed rows surfacing as typed
+  `invalid` errors that never persist. Wire shapes were captured from
+  the live APIs (2026-10-17), which surfaced real drift: Arbeitnow's
+  documented endpoint now redirects home (the connector targets the
+  live `/api/job-board-api`) and Jobicy v2 grew cursor paging (walked,
+  bounded). One recorded deviation: Remotive's robots.txt disallows
+  `/api/*`, so the fail-closed robots law denies its live syncs under
+  the default posture (typed `net-denied`, pinned by a fixture built
+  from the captured robots body); the documented
+  `CAREER_CONNECTOR_RESPECT_ROBOTS` escape hatch is the operator's
+  explicit decision. The same manifests ship as adoption data in the
+  sibling `career-connector-template` repo (`connectors/`) for hosts
+  that don't bundle them. Tests: per-connector fixture walls from the
+  captured payloads through the real runtime stack (dedup, watermark
+  increments, malformed rows, 429, robots denial, domain-drift
+  redirects) plus the vendored conformance kit — no network in unit
+  tests.
+
+### Changed (the integrations UI swap — plan 33 Phase B / ADR-0040 D25)
+- **The connectors settings surfaces render through the family kit.**
+  `@neuronection/assistant-ui` grows the plan-33 integrations UI kit
+  (contract-generated vocabularies + presentational modules), and this
+  app's local-first implementations swap onto it in the same commit:
+  the extension-sources surface (sources list with pinned refs, gitops
+  indicators, verbatim-reason candidates, grouped installs) now renders
+  through `IntegrationSourcesList`, the add-from-git flow through
+  `AddIntegrationSourceDialog`, the two-step consent through
+  `ConsentDialog` (the T3 perimeter disclosure still renders VERBATIM
+  from the backend payload — law text as data), the job-source rows
+  through `IntegrationInstancesList` (probe/sync stay app-owned domain
+  actions), and the catalog-driven config form through
+  `IntegrationConfigForm` (sealed x-secret slots, async probe shape).
+  The local `ConsentDisclosure` + `InstallRow` copies and the hand-rolled
+  forms are deleted. The library pin moves to ^0.67.0 (the owner's next
+  publish wave — surface-renderer + the kit, one Version-Packages run).
+
+### Added (the D20 destructive-confirm runtime funnel — plan 32 follow-up / ADR-0011 / ADR-0015)
+- **Destructive chat tools confirm every call, through a card.** Every
+  chat tool now carries its ADR-0011 risk class (`read-only |
+  state-changing | destructive`, registration-gated against scope). A
+  destructive call can no longer execute directly: it becomes an
+  ADR-0015 Class-B proposal card on the existing HITL machinery
+  (idempotent resolve, notification fanout, cross-session inbox, live
+  chat card with two-step confirm) and runs exactly once on that card's
+  approval — re-validated server-side, never from model output (the
+  model sees only an awaiting-approval reference; feeding it back emits
+  another card at most), never grant-bypassable. State-changing tools
+  ride per-grant enablement: the tools catalog dialog gains a "Needs
+  your enablement" section (`PUT/DELETE /ai/tools/{key}/grant`) — off
+  by default, with a typed model-visible error while off. Read-only
+  tools are unchanged. Bundled connectors can contribute chat tools by
+  declaring `chat-tools` + a `tools` list in their manifest (riskClass
+  required) and implementing `chat_tools()`; the registration bridge
+  throws on any manifest/code disagreement. Both halves are audited:
+  the card row and one `tool_run` audit row per execution.
+
+### Fixed (the T2 frozen-packaging capability check — plan 32 Phase 5 follow-up)
+- **T2 imports on frozen builds self-disable honestly instead of
+  crashing at spawn.** The sandbox child spawns
+  `<interpreter> -I -B child.py`, and a PyInstaller-frozen install has
+  no real interpreter behind `sys.executable` — a spawn attempt could
+  only fail opaquely. A capability check now runs before any spawn
+  (enginecheck precedent): the child bootstrap must exist as a real
+  file (the spec ships it as data at
+  `_internal/app/extensions/runtime/sandbox/child.py`) and the
+  interpreter must answer an isolated `-I -B` probe (cached per
+  process); absent ⇒ the extension self-disables with a surfaced reason
+  naming the remedy (run from source, or ship a bundled runtime at
+  `<bundle>/runtime/python`). Detection logic pinned by mocked-lookup
+  tests — no frozen build required.
+
+### Added (the T2 sandbox runner — plan 32 Phase 5 / ADR-0030 Python port)
+- **Imported code packs run sandboxed, behind the capability RPC.** An
+  imported connector whose artifact is an `extension.py` module installs
+  as tier **T2** (provenance-at-install; the consent surface renders the
+  charter's "runs sandboxed, not reviewed" disclosure verbatim) and
+  executes in one dedicated subprocess speaking `capability-rpc/1`
+  (line-JSON over stdio per the vendored contract): `cap.net.fetch`
+  through the polite runtime scoped to the manifest's declared domains
+  on every hop, `cap.state.get/set` on the install row (charter state
+  quota), `cap.items.emit` schema-validated against the manifest
+  itemSchema, `cap.secrets.need` returning resolution status only —
+  values cross host-side into the next fetch via `{{secret:<slot>}}`
+  substitution, structurally never toward the sandbox. Frozen module
+  surface enforced by a `sys.addaudithook` wall (no sockets, no
+  subprocess, no filesystem, no env, no eval-family; imports limited to
+  the vendored `capability` client + pure helpers), a per-call
+  wall-clock watchdog (default 30 s, SIGKILL), a POSIX `RLIMIT_AS`
+  memory cap, per-extension quotas (typed `budget`), one audit row per
+  capability call on the `ai_generations` funnel, and
+  `extension_sandbox_runs` records with boot reconciliation (host
+  restarts close as `interrupted` — never extension failure). Sandbox
+  death self-disables the extension with a surfaced reason; protocol
+  violations recycle the child (typed `protocol`); version mismatch ⇒
+  `unsupported`. Windows: the memory cap is NOT enforced in v1 (no
+  pre-exec hook) — disclosed residual, the watchdog + quotas still
+  bound. Owner gate-override recorded (2026-10-16): protocol parity is
+  pinned by the shared capability-rpc artifacts + fixtures instead of a
+  proven desktop implementation; the escape matrix
+  (`tests/test_extension_sandbox.py`) and the rpc fixture wall are the
+  acceptance criteria. Knobs: `CAREER_EXTENSION_SANDBOX_*` (see
+  docs/dev/extensions.md).
+
+### Added (declaration surfaces — plan 32 Phase 4 / ADR-0040 clause 16)
+- **Career is now a declarative extension surface host.** Installed
+  mini-app extensions (the `mini-app` kind, T0 — declarative data, no
+  code) can declare `ui:page` / `ui:panel` surfaces whose nodes ride the
+  charter's closed component vocabulary (stat/table/cards/filter-bar/
+  select/badge/progress/actions/evidence) plus a declared T0 `data`
+  block. `app/extensions/surfaces.py` validates every node at
+  registration (unknown types/actions rejected, the evidence law
+  enforced); `ui:window` degrades to the page on the web host; the run
+  capability is honored as the typed-action funnel (run:export). The
+  routed page lives at `/extensions/<extensionId>` (one nav row per
+  enabled install; the kill switch removes both), rendered through the
+  family SurfaceRenderer — never extension markup.
+- **The reference CV-utility mini-app**: `cv-gallery/` in the sibling
+  career-connector-template — a declarative CV theme/format gallery
+  (layout cards with recommendation badges + mandatory evidence, a
+  publish sheet, language/section-order/density facets from the
+  configSchema), imported through the same consent-gated git-source
+  pipeline (T0 declarative disclosure verbatim).
+- **Shared renderer fixture wall**: both hosts' renderers satisfy
+  `the family contract canonical/surface-renderer.fixtures.json` (12 cases — every
+  component, degrade paths, the no-raw-markup law). Backend tests join
+  the wall (vendored fixtures against career's surface gate); frontend
+  tests render the same fixtures through SurfaceRenderer; the e2e suite
+  imports the gallery and asserts the live DOM render end-to-end.
+- The mypy ratchet grew to `app/extensions` (clean at adoption) and the
+  latent order-dependent VAPID flake (the 0044 migration replay drained
+  the suite's warmed keys) is fixed at its source: the migration-suite
+  teardown regenerates the VAPID provisioning committedly.
+
+### Added (extension sources & the import layer — plan 32 Phase 3 / ADR-0040 D13+D22)
+- **Import connectors from git sources.** Admins add git sources
+  (Settings → Tools → Connectors, the new CLI
+  `python -m app.extensions.cli source …`, or the GitOps desired-state
+  document), review the discovered extensions with their consent
+  payloads, and install with explicit per-extension consent. Production
+  descriptors are https-only by schema structure; a dev/test `local`
+  file-path variant (the sibling template repo, dogfood checkouts) is
+  gated off in production boots (fail-closed) and confined to
+  `CAREER_EXTENSION_LOCAL_SOURCE_ROOTS` allowlisted roots.
+- **Digest-pinned, consent-gated installs.** Every install records the
+  sha256 content digest, the pinned ref, provenance (author/license/
+  repository verbatim) and the consent event (who/when/what-digest),
+  and lands content-addressed under `data_dir/extensions/<id>/<digest>/`
+  — data on disk, never importable into the process. The install mints
+  a **disabled** `mcp` job source that spawns `server.py` from the
+  cloned content (T3 managed spawn); enabling is a separate explicit
+  act.
+- **No auto-apply path at all.** Updates are ref-move + digest-change +
+  manifest-diff offers: capability growth or tier change re-consents,
+  identical-content ref moves just move the pin, and digest drift on a
+  pinned ref (tag force-move) is a loud failure — pins untouched, never
+  a silent refetch. T0 data auto-apply exists only for byte-identical
+  manifests.
+- **GitOps reconcile** (boot + hourly `extension_reconcile` job + on
+  demand) reads the admin-owned `extensions.desired_state` document:
+  installs and moves pins only for the extensions it names, never
+  auto-enables, never deletes data (structurally inexpressible);
+  removal from the list parks installs disabled + tombstone-able;
+  manual installs are never re-pinned (drift reported as status);
+  failed fetches leave pins untouched and mark the source failing.
+- **Private-repo sources** reference credential secret slots — values
+  atrest-sealed, resolved host-side into the git environment (never
+  argv, never logs); an inline token is structurally invalid at the
+  schema seam.
+- Admin API surface `/admin/extensions/*` (sources, installs, desired
+  state, reconcile); the source-management UI extends
+  Settings → Tools → Connectors with origin-class chips (`imported`
+  never renders as official), consent disclosures (T3 perimeter copy
+  verbatim) and update/park/tombstone affordances.
+
+### Added (the script tier — plan 32 Phase 2 / ADR-0040 D9+D22, 2026-10-16)
+- **External scripts can feed postings.** A new `mcp` connector (T3
+  script tier) maps an external MCP server — local stdio subprocess or
+  http endpoint — to a posting source: one allowlisted
+  `fetch_postings(config, state)` tool returning the family envelope.
+  Admin-opt-in (`CAREER_CONNECTOR_PLUGINS_ALLOWLIST` naming `mcp`);
+  allowlist-off means the connector is invisible (structural). The
+  script process runs outside the app's network perimeter by design —
+  the consent/manifest copy says so verbatim (ADR-0040 clause 21) and
+  the manifest declares no `net` domains — while the host governs the
+  output: every row is validated against RawPosting app-side (required
+  fields, http(s) URLs, char caps, 300-item cap, 8 KB raw/next_state
+  caps) before anything persists. Per-source tool allowlist, 5–120 s
+  per-call timeout (a timed-out tool fails its own source with a typed
+  error, never the sync path), optional sealed `token` slot (http
+  Bearer; secrets never cross to the script), and one audit row per
+  tool call through the existing `mcp_tool_call` funnel.
+- `career-connector-template` (sibling repo): the reference fetcher +
+  envelope-conformant manifest + authoring guide — the first git
+  source for the Phase-3 import layer. Its server ships byte-identical
+  as a CI-safe test fixture (drift-checked when the sibling checkout
+  exists).
+- Connector config violations now surface as the app's `ValidationError`
+  (HTTP 400 from the admin API) instead of a raw pydantic dump.
+- Release smoke tests gain one stdio MCP source sync in the frozen
+  build (PATH-preserved sanitized spawn env — the study packaging
+  lesson, recorded in the desktop-packaging checklist).
+
+### Added (connector runtime live — plan 32 Phase 1 / ADR-0040, 2026-10-15)
+- **Networked posting sources actually fetch now.** The polite transport
+  runtime is built and injected into every sync: SSRF guard with
+  resolve-then-connect pinning (re-validated on every redirect hop —
+  closes the 2026-09-11 audit's connector-URL finding), robots.txt
+  respected and cached per host (5xx denies, fail-closed), per-host
+  token-bucket rate caps sized by each connector's declared limit,
+  conditional GET through the sync cursor, full-jitter retries with
+  RFC 7231 Retry-After (both forms) and response size caps. Previously
+  every networked built-in silently returned zero postings.
+- Connectors converge to the family extension charter (D18, destructive):
+  the result envelope is `{items, next_state, partial_errors}` with
+  **typed** charter errors (15 closed codes, never strings), and every
+  connector registers a connector-kind manifest (`extension/v1`)
+  validated against the vendored envelope schema at registration.
+- `app/connectors/` relocates to `app/extensions/` (the D24 subsystem
+  home) with the guarded web-search adapters and the MCP-bridge
+  lifecycle; a warning-level structure probe (`scripts/check-extensions-structure.sh`)
+  lands with it.
+- Vendored family contract set under `contracts/` + `app/extensions/`
+  (byte-identical, sync-and-gate), with the D23 hostile fixture wall
+  (redirect-to-internal, DNS rebinding, IP-literal obfuscations,
+  robots 5xx, Retry-After forms, domain scope vs CDN hops) runnable
+  offline from `backend/tests/test_extensions_contract.py`.
+- Escape hatches are `CAREER_CONNECTOR_*` settings (allowed hosts,
+  private-range policy, pinning, robots, rate/size/time ceilings) and
+  default to the closed posture.
+
+### Added (connector secrets sealed — plan 32 Phase 1 / ADR-0040 D19)
+- **Connector credentials move out of plaintext `job_sources.config`**
+  into atrest-sealed slots (migration `0047`; the `x-secret` law):
+  fields declared `x-secret` in the connector's manifest configSchema
+  are a registration-time throw when a value appears in config, land
+  sealed in `job_sources.secrets`, and are injected into fetches
+  host-side. `GET /admin/postings/sources` stops returning `config`
+  verbatim — secret fields are stripped, slot presence + `…last4` key
+  hints are returned instead; `***` preserves a stored secret on
+  update, empty clears it.
+- New `POST /admin/postings/sources/{id}/probe` — one live guarded
+  fetch through the polite runtime with a typed outcome (the source
+  UI's Test button), reporting `needs-secret` instead of fetching when
+  a required slot is missing.
+- **Admin source management ships** (Settings → Tools → Connectors, the
+  broadened `tools.connectors` row): catalog-driven add/edit forms from
+  the extension registry (manifest configSchema, password fields for
+  `x-secret` slots that only ever show `…last4` hints), per-source
+  enable/sync/test — probes ride the new runtime and surface typed
+  outcomes incl. the needs-secret badge.
+
+### Added (model transport knob — reasoning + function tools on gpt-6 via the Responses API, 2026-10-15)
+- **Model rows can set `chat_transport='responses'`** (nullable column,
+  migration 0046) to ride the Responses API — honored only when the
+  base URL is api.openai.com (compatible servers don't implement
+  /responses and keep completions), always store-less (`store=False`).
+  The gpt-6 family rejects function tools + `reasoning_effort` on chat
+  completions; the knob keeps reasoning on tool tasks while this
+  repo's funnel keeps completions as the default — `auto`/NULL pins
+  today's behavior, nothing changes for existing rows, and
+  `reasoning_effort='none'` remains the zero-config alternative. The
+  json-object response format converts to the responses `text.format`
+  in the SDK, so the JSON contract survives the wire change. The
+  shared fixture table pins the resolution matrix. **Field learning,
+  same day:** gpt-6 rejects tool tasks on completions even with
+  reasoning_effort omitted — so `auto` now routes by endpoint
+  (api.openai.com → responses store-less, else completions;
+  `chat_transport='completions'` pins the legacy wire the funnel
+  built on).
+
+### Changed (wire policy converges onto the vendored family module, 2026-10-15)- **The wire-parameter rules moved to the canonical shared module:**
+  `CompatibleChatOpenAI`, `is_openai_endpoint`, `is_openai_wire`,
+  `token_cap_kwargs` and the endpoint-routed token-cap resolution now
+  live in the vendored `app/ai/wire_params.py` (byte-identical across
+  the family; this repo was the reference and its logic is unchanged
+  except one ratified tightening: a provider declared `openai` with a
+  non-OpenAI base URL now rides the compatible wire — the endpoint
+  decides, only an empty base URL counts as OpenAI's default).
+  Temperature stays omit-unless-configured (unchanged — this repo
+  never manufactured a default). The shared fixture table
+  (`tests/fixtures/wire_params.fixtures.json`) is the cross-language
+  acceptance wall, run by the new tests/test_wire_params_contract.py,
+  and alignment rules R6/R7 keep wire construction in the AI layer and
+  temperature defaults out of app code.
+
+### Changed (assistant-ui 0.57.0 — capability-kind model form, 2026-10-14)
+- **The models-tab add/edit form matches study's capability-kind UX:**
+  standalone capability kinds (decision/stt/tts/embeddings select
+  exclusively — chat caps combine), per-capability generation options,
+  the decision transport row (systemone, carried on create/update via
+  the new `decision_transport` API field — validated, stamped from the
+  payload or the default, cleared when caps move away from decision),
+  the provider context banner (configured name + base URL) and the
+  labelled ghost manual toggle with direction copy.
+- **Empty decision slots suggest the family's basic decision default**
+  (first canonical preset declaring `decision_default`) — display-only.
+
+### Changed (embeddings defaults wave — the embeddings slot gap-fills at setup, 2026-10-13)
+- **Embeddings defaults join the setup flow:** the canonical presets gain
+  `embeddings_model` (docs-verified: openai `text-embedding-3-small`,
+  gemini `gemini-embedding-2`, mistral `mistral-embed`, ollama
+  `nomic-embed-text` — pull-required; honest nulls elsewhere; the ids
+  join openai/gemini curated lists so catalog curation keeps them), and
+  setup gap-fills the EMPTY `embeddings` assignment from it —
+  `bind_embeddings` joins the options body (D14's binds + embeddings;
+  snake_case wire name), `assigned_embeddings_model` rides the outcome,
+  and the never-clobbers rule holds (a live binding survives re-setup;
+  `bind_embeddings: false` binds nothing). Contract matrix cases
+  21/21b pin the gap-fill both ways; OpenAPI contract regenerated.
+
+### Added (plan 26 follow-up wave B — capability chips on the setup tiles, 2026-10-13)
+- **The preset grid is self-explanatory:** the setup wizard derives
+  per-tile capability chips from the API preset data — chat type → Chat
+  (+ Vision where the preferred model carries it, + Speech-to-text where
+  `stt_model` exists), `decision_models` → Decision, keyless-local →
+  Local — rendered by assistant-ui 0.55.0's new `chips` prop with i18n
+  labels (`aiSettings.setup.chip*`, en). The grid now reads: openai
+  [Chat, Vision, Speech-to-text] · gemini [Chat, Vision] · openrouter
+  [Chat, Decision] · typesafe [Decision] · groq/mistral/deepseek
+  [Chat] · ollama [Chat, Decision, Local].
+
+### Changed (plan 26 §13.3 follow-up — decision presets exposed, 2026-10-13)
+- **Three decision providers, one transport, docs-verified:** the
+  `typesafe` preset flips into `presetOrder` (a decision-only tile after
+  OpenRouter — the frontend TILE_ORDER and the e2e tile spec follow the
+  canonical edit; keyUrl → docs.typesafe.ai/api with console-worded
+  steps — the console URL is not stated in the docs); Ollama gains
+  decision models (`nimble` default, `tev1`, `clef`, `clef-flash` —
+  pull-required, version floor riding the preset steps: v0.35.0+, clef
+  models v0.35.1+); OpenRouter's decision ids are corrected to
+  `typesafe/jev-1.13` (pinned, the default) + `~typesafe/jev-latest`
+  (rolling) with the systemone surface pinned via `base_url_override`
+  (`https://openrouter.ai/api` — the `/api` prefix; the SDK appends
+  `/v1/systemone`). No `provisional` markers remain on decision data;
+  OpenAPI contract regenerated with the reworded presets-endpoint
+  docstring.
+- **Keyless decision resolution (local Ollama):** the official
+  `typesafe-sdk` requires a non-empty API key (D9), so keyless presets
+  (no `key_url` in the canonical data) resolve through the explicit
+  sentinel key instead of failing `needs-key`; keyed presets keep the
+  needs-key failure. Pinned by the conformance suite; the contract
+  matrix pins the corrected ids + ollama decision data (case 22b).
+
+### Changed (plan 26 §13.8/§15 single-source sweep, 2026-10-13)
+- **No canonical model ids as code literals:** the decision probe's
+  model id derives from the synced preset data via
+  `decision_probe_model_id()` (specs → `decision_default`, raising on a
+  preset that declares neither — never an invented `jev-latest`).
+  Contract matrix gains the derivation pin (case 22b).
+
+### Added (plan 26 Phase 6 closeout)
+- **E2E coverage for the AI-settings surface:** two network-free specs
+  on the real server — the setup wizard (tiles → guided form → back;
+  the seven offered presets; Anthropic stays withheld per the factory
+  delta, TypeSafe off the tiles per the provisional exposure switch)
+  and the TasksTab Decision group (title, the verbatim §13.5 privacy
+  notice, all four family slots). The real-key flows stay on the
+  owner's manual checklist by design.
+### Changed (plan 26 Phase 6 closeout)
+- **Ruff: the generated presets module rides the scoped family
+  accommodation** (lint E501 per-file-ignore + `[tool.ruff.format]`
+  exclude) — the `[tool.ruff]` `extend-exclude` is dropped: it sat
+  inside a family-convergence compared block and red-flagged the
+  family scan. Vendored gates re-synced (byok **R8**; alignment family
+  table lists career strict, matching its own CI; convergence `--self`
+  layout probe).
+
+### Added (plan 26 Phase 4 — uniform AI settings: BYOK realignment + decision models)
+- **One-click BYOK setup, family-uniform (§15):** preset tiles → guided
+  form → review, backed by `POST /ai/providers/{preset_key}/setup` —
+  fetch-first validation (a classified failure persists nothing),
+  curated allowlists with snapshot-suffix matching and the
+  `curated_missed` fallback, append-union catalog persistence,
+  capability-aware gap-fill that never clobbers live assignments, dead-id
+  rebinding, and `preset_key` adoption of matching manual rows — all
+  strictly scope-local (user by default, system for admins). The preset
+  catalog is generated byte-identical from the dev canonical
+  (`contracts/ai-presets.json`, schema 2); `check-byok-contract.sh`
+  (R1–R7) + the AI alignment gate are vendored and CI-wired. The shared
+  error enum (`invalid_key` … `local_not_running`) routes with
+  `suspectedVendor` mis-paste hints.
+- **Capability-slot defaults replace the `default` pseudo-task:**
+  assignments keyed on the capability (`text` / `vision` / `stt` / `tts` /
+  `embeddings`) are the fallback every task inherits unless overridden
+  (per-task user > system > slot). The §15 capability split lands
+  end-to-end: `audio` dies (remaps to `stt` in migration 0045, tested
+  downgrade), `tts` + `decision` join, `transcribe` requires `stt`.
+- **Decision models (ADR-0032):** `decision` is a model capability, the
+  four `decision_*` assignment slots are first-class, and the decision
+  funnel (`app/ai/decide/`) resolves `decision:<cap>` through the scope
+  chain with D2b capability routing, per-revision caching, bounded
+  confidence, and one `ai_generations` audit row per invocation.
+  Decision-only providers (wire type `decision`, e.g. the provisional
+  `typesafe` preset) validate through the D13 decision probe — one typed
+  question under the abort timeout, never a chat completion. Decision
+  setup lives in API settings (Decision group in the tasks tab);
+  `bind_decision` gap-fills empty declared slots during setup.
+- **Settings realignment on the assistant-ui 0.54.0 kit** (no hand-built
+  wizard): the six promoted setup components render tiles → form →
+  success/review; the tasks tab is defaults-first (capability slots, then
+  the Decision group with the verbatim privacy notice, then per-task
+  overrides); re-running setup emits the five-bind options body
+  (`curated_ids`/`bind_chat`/`bind_vision`/`bind_stt`/`bind_decision`)
+  and never removes anything.
+
+### Changed (plan 26 Phase 4)
+- `PUT /ai/assignments/{task_type}` enforces D4 slot separation both
+  directions (decision models never satisfy text/vision/… tasks and vice
+  versa; `decision:*` slots require a declaring transport); the presets
+  endpoint serves the full canonical catalog with setup metadata; the
+  connection test probes decision providers. The `default` pseudo-task is
+  removed end-to-end — its resolution branch, its UI entry and its
+  assignment rows (migration 0045 remaps them to the `text` slot). The
+  ruff config excludes the generated `presets_data.py` (emitter output is
+  not formatter-stable; the byok gate's R1 drift check guards it).
+
+### Fixed (plan 20 S14 residual)
+- **The §4.5 control now knows the entrypoint mode:** the public
+  `GET /api/v1/instance/config` reports `identity_mode`, and the
+  settings Users page passes `serverIdentity` to
+  `InstanceModeControl` — "Remove login" is blocked with the server
+  reason on server instances instead of being offered and failing at
+  the API. New browser e2e `e2e/test_instance_mode.py` (S14): the
+  blocked reason renders, the transition stays disabled even with a
+  filled form, and a direct API flip to `open` with the correct
+  password still gets the §4.4 403.
+
+### Changed (plan 21)
+- **Rate limiting + security headers move to the auth-kit (v0.4.0,
+  same-commit delete):** `app/core/ratelimit.py`, the product-local
+  `RateLimitMiddleware`/`SecurityHeadersMiddleware` and the local web-tool
+  sliding window are gone — one family limiter (`nx_auth.ratelimit`,
+  in-memory counter, frozen five-bucket set) and one
+  `SecurityHeadersMiddleware` (`nx_auth.headers`) mount with career's
+  policy: Settings-routed `<P>_RATELIMIT_*` ceilings (read per request),
+  career's bucket routing (login-shaped endpoints → AUTH, other API →
+  DEFAULT), byte-identical CSP strings, and the per-boot `?shell=` marker
+  still gating the desktop `'unsafe-eval'` variant. The gateway/MCP/web-tool
+  throttles keep their exact semantics (keyed on their own ceilings, not
+  `RATELIMIT_ENABLED`) on the shared counter via the kit's `hit` primitive.
+  No behavior change on existing routes; `test_sec16_env.py` now pins the
+  rate-limit knobs end-to-end and the R/H matrix rows carry contract marks
+  (§18.19–22).
+
+### Changed (plan 24 V1)
+- **Chat SSE vocabulary audit (one family chat vocabulary):** every
+  emitted event name across both emitter patterns (`_sse(...)` literals
+  in `api/v1/chat.py`, `deps.emit(...)` in `ai/graphs/chat_turn.py`,
+  plus the interview-coach and CV-builder generators) audited against
+  the frontend consumers — the stream is family-native
+  (`flow_started`/`node_*`/`tool_call`/`delta`/`flow_finished`/
+  `flow_failed` + career payload events `meta`/`proposal`/
+  `builder_state`/`preview`). The one unconsumed event,
+  `interview_state` on the interview practice stream (no parser arm,
+  nothing read it), is deleted — the turn state stays persisted on the
+  assistant message metadata. Tests now pin the vocabulary wall
+  (emitted names ⊆ family core + payload events); stale "legacy
+  contract" docstrings in `api/v1/chat.py`, the flow-events test
+  module, and the frontend transport adapter now state the family
+  contract.
+
+### Changed (plan 20 Phases 5–7)
+- **uv + pyproject packaging family-wide:** workspace root + uv.lock +
+  backend pyproject (hatchling, dev group, extras `pdf`/`desktop`/
+  `sqlite`); `requirements*.txt`, `pytest.ini`, `mypy.ini` deleted;
+  Docker builds with `uv sync --frozen` (the named auth-kit build
+  context and credentials bridge are gone — the kit repo is public);
+  CI/scripts on `uv run`. Family ruff rule set applied (format +
+  autofixes over 325 files) with documented noqa debt.
+- **Family convergence gate** (`check-family-convergence.sh`, vendored +
+  CI): tool-config parity, prefixed-only env, migrations home, legacy
+  markers, packaging shape, contract gates.
+
+### Fixed
+- **Dev-loop fallout from the uv migration (plan 20 Phase 5):** the web
+  dev path migrated through bare `alembic` and the dev group through
+  bare `honcho` — both only ever resolvable via the deleted
+  `backend/venv` PATH export — so `./scripts/run-dev.sh --web` died at
+  migrations; both now resolve through `uv run` like the other scripts.
+  The dev-db compose also interpolates `${POSTGRES_*}` from
+  `docker/.env` (the **production** stack's env file) and initialized a
+  fresh dev volume with the prod password; `run-dev.sh`/`worktree.sh`
+  now pin `--env-file .env` for the dev-db compose.
+- Boot guards now run in `create_app` **before** keyring construction —
+  weak/partial pins die with `BootConfigError` guidance instead of a raw
+  `KeyRing` ValueError (found by the standalone stack boot smoke);
+  `greenlet` is a declared runtime dependency (`sqlalchemy[asyncio]`);
+  the compose healthcheck uses python (slim images carry no curl);
+  example `.env` keys are generate-instructions, not placeholders.
+
+
+### Changed
+- **Plan 20 Phase 4 — uniform family skeleton:**
+  - **Config (D2):** `Settings` is snake_case with `env_prefix="CAREER_"`
+    and **no unprefixed aliases** — every setting is `CAREER_*` only
+    (`DATABASE_URL` → `CAREER_DATABASE_URL`, `RATE_LIMIT_ENABLED` →
+    `CAREER_RATELIMIT_ENABLED`, `AUTH_RATE_LIMIT` → `CAREER_RATELIMIT_AUTH`,
+    …). The §16 knob fields now mirror the kit's env suffixes verbatim
+    (the install alias map is gone). `.env` resolution is explicit
+    `CAREER_ENV_FILE` → source-anchored walk-up, **disabled outside
+    dev/test** (audit C-5: no baked-in `.env` downgrades a production
+    boot).
+  - **Dirs split (family standard):** `data_dir` + `config_dir` —
+    `auth_keys.json` and per-instance state move to the config dir;
+    key resolution is `KeyRing.load_for("CAREER", config_dir, pinned=…)`
+    (the local resolution copy in `app/core/keys.py` is gone).
+  - **One app per process:** `app.main.app` is the single construction —
+    `python -m careerassistant {app,web}` reuses it (the shell gate is
+    armed before `app.main` imports), ending the double build that
+    logged a spurious "gate DISARMED" warning. `create_app(settings=None)`
+    takes the family DI seam.
+  - **`main.py` split (D5, 238 lines):** middleware (security headers +
+    web/desktop CSP, rate limiting, profile binding, SPA fallback) →
+    `app/middleware.py`.
+- `scripts/seed-demo.py`, the docker compose/entrypoint surfaces, dev
+  scripts, CI workflows and docs follow the prefixed-only names.
+
+### Fixed
+- `app/local.py:default_data_dir` must stay self-contained: delegating
+  to `app.core.config` constructs the `Settings` singleton before the
+  desktop env defaults are set (caught by the entrypoint smoke).
+
+### Changed
+- **Identity glue unified on the auth-kit (plan 20 Phase 3, ADR-0028):**
+  the local `app/auth/instance.py` copy of the §4 init rules and the
+  boot-guard logic in `app/core/boot.py` are gone (same-commit delete) —
+  career now calls `nx_auth.instance.initialize_instance` and
+  `nx_auth.boot.validate_boot_config` (the donor implementations, now
+  shared). `_install_identity` moved to `app/auth/install.py`
+  (`install_identity`), and the §16 knob set is routed through
+  `nx_auth.config.knob_overrides` (one table with the kit) instead of a
+  hand-maintained override list. `IdentityMode` comes from the kit with
+  fail-closed parsing; `KeyRing.load_for` adoption follows with the
+  Phase 4 alignment.
+- `tests/test_instance_modes.py` gains the S14 contract cases — the
+  §4.5 `PATCH /api/v1/admin/instance` round trip over the career
+  adapters (password-less DIM owner sets credentials, password-confirmed
+  flip back, wrong password inert) and the multi-user refusal rail.
+
 ## [v0.16.0] - 2026-10-01
 
 ### Added

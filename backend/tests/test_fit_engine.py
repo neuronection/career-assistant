@@ -1,6 +1,6 @@
 """Phase 22: deterministic fit engine — formulas, fairness, weights, staleness."""
 
-from app.services.fit.dimensions import (
+from app.services.postings.fit.dimensions import (
     FIT_VERSION,
     compute_fit,
     education_dimension,
@@ -54,12 +54,10 @@ def test_experience_never_zero_for_missing_signal():
     score, _detail, signalled = experience_dimension(None, required, {})
     assert score == 7.0 and signalled is False
     # band but no evidence ⇒ neutral, not zero
-    score, detail, signalled = experience_dimension(band, required, {})
+    score, _detail, signalled = experience_dimension(band, required, {})
     assert score == 7.0 and signalled is False
     # evidence that matches none of the required skills ⇒ neutral
-    score, _detail, signalled = experience_dimension(
-        band, required, {"other-skill": 24.0}
-    )
+    score, _detail, signalled = experience_dimension(band, required, {"other-skill": 24.0})
     assert score == 7.0 and signalled is False
     # partial evidence scales up to full coverage at the band's low end
     partial = experience_dimension(band, required, {"s1": 6.0})
@@ -121,12 +119,12 @@ def test_interests_overlap_plus_workstyle():
     both = interests_dimension(
         job_interest_ids={"a"},
         user_interest_ids={"a"},
-        user_work_style={
-            k: 3 for k in ("teamwork", "environment", "structure", "pace", "leadership")
-        },
-        job_work_style={
-            k: 3 for k in ("teamwork", "environment", "structure", "pace", "leadership")
-        },
+        user_work_style=dict.fromkeys(
+            ("teamwork", "environment", "structure", "pace", "leadership"), 3
+        ),
+        job_work_style=dict.fromkeys(
+            ("teamwork", "environment", "structure", "pace", "leadership"), 3
+        ),
     )
     assert both[0] == 10.0
 
@@ -146,10 +144,9 @@ def test_compute_fit_neutral_dimensions_redistribute_weights():
             "skill_levels": {"s1": 8, "s2": 4, "s3": 6},
             "education_level": "high_school",
             "interest_ids": {"i1"},
-            "work_style": {
-                k: 3
-                for k in ("teamwork", "environment", "structure", "pace", "leadership")
-            },
+            "work_style": dict.fromkeys(
+                ("teamwork", "environment", "structure", "pace", "leadership"), 3
+            ),
         },
         weights={
             "skills": 5,
@@ -188,12 +185,8 @@ def test_fairness_niche_beats_popular_on_fit_alone():
         "education_level": "high_school",
         "interest_ids": set(),
     }
-    niche = make_job(
-        [{"skill_id": "s1", "required_level": 8, "importance": "core"}], "stable"
-    )
-    popular = make_job(
-        [{"skill_id": "s9", "required_level": 9, "importance": "core"}], "hot"
-    )
+    niche = make_job([{"skill_id": "s1", "required_level": 8, "importance": "core"}], "stable")
+    popular = make_job([{"skill_id": "s9", "required_level": 9, "importance": "core"}], "hot")
     weights = {
         "skills": 5,
         "location": 1,
@@ -241,3 +234,22 @@ def test_specialist_highlight_detection():
 
 def test_fit_version_is_bumpable_constant():
     assert isinstance(FIT_VERSION, int) and FIT_VERSION >= 1
+
+
+def test_prereqs_unknown_education_level_scores_neutral_instead_of_crashing():
+    """The extractor can emit free-form levels ("degree") — the fit
+    dimension notes it and stays neutral; it must never raise."""
+    from types import SimpleNamespace
+
+    from app.services.postings.posting_fit_service import _merge_prereqs, _prereq_parts
+
+    posting = SimpleNamespace(extract={"education": {"level": "degree"}}, education_level=None)
+    profile = SimpleNamespace(basics={"education_level": "bachelor"})
+
+    result = _merge_prereqs(_prereq_parts(posting, profile, set()))
+    assert "unrecognized" in result["detail"]
+    assert result["score"] == 10.0, "unrankable levels never penalize"
+
+    profile.basics = {"education_level": "not-a-level-either"}
+    result = _merge_prereqs(_prereq_parts(posting, profile, set()))
+    assert result["score"] == 10.0

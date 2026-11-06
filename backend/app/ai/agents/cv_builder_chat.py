@@ -14,36 +14,43 @@ trace.
 import asyncio
 import copy
 import json
+import logging
 import time
 import uuid
-from typing import AsyncIterator, Optional, TYPE_CHECKING, cast
+from collections.abc import AsyncIterator
+from typing import TYPE_CHECKING, Optional, cast
 
 if TYPE_CHECKING:
-    from app.schemas.cv_template import CvVisualCritique
     from app.models.cv_template_model import CvTemplate
+    from app.schemas.cv_template import CvVisualCritique
+import contextlib
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
+from app.ai.flow_events import delta_event, flow_failed_event, flow_started_event, tool_call_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import StructuredStream, partial_answer_text, register_mock_fixture
-from app.core.errors import DomainError, NotFoundError, ValidationError
+from app.core.errors import DomainError, NotFoundError, ValidationError, sanitize_error_detail
 from app.models.enums import AITaskType, CvVersionCreator
 from app.schemas.cv import CvContextRef, CvContextSelection
+from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_synth import (
     CvSynthBullet,
     CvSynthItemCreate,
     CvSynthPayload,
     CvSynthVoice,
 )
-from app.schemas.cv_assistant import CvBuilderTurn, OpResult
 from app.schemas.cv_template import DesignTokens, TemplateContent
-from app.services.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
-from app.services.cv_template_service import slugify_key
-from app.services.cv_blocks import block_area
-from app.services.cv_pdf_service import PDFEngineUnavailable, measure_pages
-from app.services.cv_themes import CV_THEMES, THEMES_BY_KEY
+from app.services.cv.cv_blocks import block_area
+from app.services.cv.cv_context_service import CV_CONTEXT_SOURCES, resolve_sources
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable, measure_pages
+from app.services.cv.cv_template_service import slugify_key
+from app.services.cv.cv_themes import CV_THEMES, THEMES_BY_KEY
+
+logger = logging.getLogger(__name__)
 
 SYSTEM = (
     "You are the CV Builder assistant inside Career Assistant's CV Studio. "
@@ -70,7 +77,7 @@ SYSTEM = (
     "section_gap_mm, item_gap_mm, name_style (plain/accent_surname), "
     "show_heading_icons, main_columns, sidebar_columns, running_footer "
     "(none/name/numbers — page-2+ footer), chip_style (tint/outline/"
-    "solid/plain — skills & languages chips), chip_tint_pct (0–40, "
+    "solid/plain — skills & languages chips), chip_tint_pct (0-40, "
     "accent share of the chip wash) and chip_text_color (optional hex; "
     "null derives from the theme). font_stack also "
     "accepts embedded-sans / embedded-serif (bundled OFL fonts). Hex "
@@ -230,41 +237,37 @@ def _cap(value, limit: int = _PROP_CAP):
     return value
 
 
-def _tool_event(tools: list[dict], **spec) -> dict:
+def _tool_event(tools: list[dict], **spec) -> tuple[str, dict]:
     """One tool_call: the SSE payload plus the persisted-trace entry.
 
     The SSE payload keys are snake_case (`duration_ms`) — the transport
     reads them as sent. Summaries are serialized-safe strings capped so
-    the persisted metadata stays small.
+    the persisted metadata stays small. The wire payload comes from the
+    vendored family builder (plan 25 A3); ``sse_pair`` lifts the event
+    name onto the SSE ``event:`` line.
     """
-    event_id = spec["id"]
-    name = spec["name"]
-    title = spec["title"]
-    status = spec["status"]
-    args = spec["args"]
-    result = spec["result"]
-    start_ms = spec["start_ms"]
-    duration_ms = spec.get("duration_ms")
     tools.append(
         {
-            "name": name,
-            "title": title,
-            "status": status,
-            "args_summary": args[:TRACE_SUMMARY_CAP],
-            "result_summary": result[:TRACE_SUMMARY_CAP],
-            "start_ms": start_ms,
-            "duration_ms": duration_ms,
+            "name": spec["name"],
+            "title": spec["title"],
+            "status": spec["status"],
+            "args_summary": spec["args"][:TRACE_SUMMARY_CAP],
+            "result_summary": spec["result"][:TRACE_SUMMARY_CAP],
+            "start_ms": spec["start_ms"],
+            "duration_ms": spec.get("duration_ms"),
         }
     )
-    return {
-        "id": event_id,
-        "name": name,
-        "title": title,
-        "status": status,
-        "args": args,
-        "result": result,
-        "duration_ms": duration_ms,
-    }
+    return sse_pair(
+        tool_call_event(
+            id=spec["id"],
+            name=spec["name"],
+            title=spec["title"],
+            status=spec["status"],
+            args=spec["args"],
+            result=spec["result"],
+            duration_ms=spec.get("duration_ms"),
+        )
+    )
 
 
 def _context_selection_context(cv, resolution, resolved_sources=None) -> dict:
@@ -302,9 +305,7 @@ def _effective_rows(effective: dict, key: str, snapshot_index: dict) -> dict[str
         ids = snapshot_index.get(key) or []
         return {str(ids[0]): rows} if ids else {}
     return {
-        str(row.get("id")): row
-        for row in (rows or [])
-        if isinstance(row, dict) and row.get("id")
+        str(row.get("id")): row for row in (rows or []) if isinstance(row, dict) and row.get("id")
     }
 
 
@@ -388,7 +389,7 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
     props AND non-empty content) plus section counts. The visual
     critique anchors its content claims here instead of guessing from
     pixels."""
-    from app.services.cv_export_service import _visible_blocks
+    from app.services.cv.cv_export_service import _visible_blocks
 
     sections: list[dict] = []
     for kind, props, data in _visible_blocks(blocks, effective):
@@ -400,19 +401,15 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
                 for row in (data or [])[: int(props.get("max_items") or 30)]
                 if isinstance(row, dict)
             ]
-            layers = [
-                _row_layers(row, show_description, show_achievements) for row in rows
-            ]
+            layers = [_row_layers(row, show_description, show_achievements) for row in rows]
             sections.append(
                 {
-                    "section": str(
-                        props.get("title") or props.get("source_key") or kind
-                    ),
+                    "section": str(props.get("title") or props.get("source_key") or kind),
                     "items": len(rows),
                     "entries": _cap(
                         [
                             {"title": _headline(row), **layer}
-                            for row, layer in zip(rows, layers)
+                            for row, layer in zip(rows, layers, strict=False)
                         ]
                     ),
                     "with_description": sum(layer["description"] for layer in layers),
@@ -429,7 +426,7 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
                     "entries": _cap(
                         [
                             {"title": str(entry.get("title") or ""), **layer}
-                            for entry, layer in zip(entries_raw, layers)
+                            for entry, layer in zip(entries_raw, layers, strict=False)
                         ]
                     ),
                     "with_description": sum(layer["description"] for layer in layers),
@@ -458,15 +455,15 @@ def _rendered_sections(blocks: list[dict], effective: dict) -> list[dict]:
 
 async def build_builder_context(db: AsyncSession, cv) -> dict:
     """The full builder state digest grounding the copilot."""
-    from app.services.cv_builder_service import CvBuilderService
-    from app.services.cv_export_service import CvExportService
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_export_service import CvExportService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     builder = CvBuilderService(db)
     template = await builder.template_row(cv)
     template_content, template_id = await builder.template_content(cv)
     resolution = await builder.resolution(cv)
-    html, _payload, _res, metrics = await builder.render_state(cv)
+    _html, _payload, _res, metrics = await builder.render_state(cv)
     working = cv.working_content or {}
     blocks = working.get("blocks") or template_content.blocks
     effective = _payload.get("snapshot") or {}
@@ -579,9 +576,7 @@ def _int_field(annotation) -> bool:
     if annotation is int:
         return True
     origin = typing.get_origin(annotation)
-    return origin in (typing.Union, UnionType) and int in (
-        typing.get_args(annotation) or ()
-    )
+    return origin in (typing.Union, UnionType) and int in (typing.get_args(annotation) or ())
 
 
 def _float_field(annotation) -> bool:
@@ -591,9 +586,7 @@ def _float_field(annotation) -> bool:
     if annotation is float:
         return True
     origin = typing.get_origin(annotation)
-    return origin in (typing.Union, UnionType) and float in (
-        typing.get_args(annotation) or ()
-    )
+    return origin in (typing.Union, UnionType) and float in (typing.get_args(annotation) or ())
 
 
 def _design_candidate(current: dict, patch: dict) -> dict:
@@ -612,7 +605,7 @@ def _design_candidate(current: dict, patch: dict) -> dict:
             continue
         annotation = fields[key].annotation
         if _int_field(annotation) and isinstance(value, float):
-            candidate[key] = int(round(value))
+            candidate[key] = round(value)
         elif _float_field(annotation) and isinstance(value, int):
             candidate[key] = float(value)
     return DesignTokens.model_validate(candidate).model_dump(mode="json")
@@ -629,8 +622,8 @@ async def _styled_template(
     template's own earlier DRAFT version, that version is updated in
     place instead of stacking an immutable row per AI op. A stale or
     foreign pointer falls through to a fresh version."""
-    from app.services.cv_builder_service import CvBuilderService
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     template = await CvBuilderService(db).template_row(cv)
     if template is None:
@@ -702,14 +695,10 @@ def _save_working(cv, blocks: list[dict], overrides: dict) -> None:
 
 
 def _op_args(op) -> dict:
-    return {
-        key: value for key, value in op.model_dump(mode="json").items() if key != "op"
-    }
+    return {key: value for key, value in op.model_dump(mode="json").items() if key != "op"}
 
 
-async def apply_operation(
-    db: AsyncSession, cv, op, styled_slot: dict | None = None
-) -> OpResult:
+async def apply_operation(db: AsyncSession, cv, op, styled_slot: dict | None = None) -> OpResult:
     """Validate + apply one operation through the owning services.
 
     `styled_slot` (polish-loop coalescing): when set, styled ops update
@@ -718,11 +707,9 @@ async def apply_operation(
     kind = op.op
     try:
         if kind == "set_template":
-            from app.services.cv_template_service import CvTemplateService
+            from app.services.cv.cv_template_service import CvTemplateService
 
-            template = await CvTemplateService(db).get_readable(
-                UUID(op.template_id), cv.user_id
-            )
+            template = await CvTemplateService(db).get_readable(UUID(op.template_id), cv.user_id)
             design = TemplateContent.model_validate(template.content).design
             cv.template_id = template.id
             await db.commit()
@@ -741,9 +728,7 @@ async def apply_operation(
                 raise ValidationError(f"Unknown theme: {op.theme_key}")
 
             def _apply_theme(current: DesignTokens) -> DesignTokens:
-                return current.model_copy(
-                    update=theme.design.model_dump(exclude_unset=True)
-                )
+                return current.model_copy(update=theme.design.model_dump(exclude_unset=True))
 
             row, note = await _styled_template(db, cv, _apply_theme, styled_slot)
             cv.template_id = row.id
@@ -756,15 +741,13 @@ async def apply_operation(
             )
 
         if kind == "update_design":
-            from app.services.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_builder_service import CvBuilderService
 
             template_row = await CvBuilderService(db).template_row(cv)
             if template_row is None:
                 raise ValidationError("No template to restyle")
             current = TemplateContent.model_validate(template_row.content).design
-            candidate = _design_candidate(
-                current.model_dump(mode="json"), dict(op.design)
-            )
+            candidate = _design_candidate(current.model_dump(mode="json"), dict(op.design))
             patched = DesignTokens.model_validate(candidate)
 
             def _apply_patch(_current: DesignTokens) -> DesignTokens:
@@ -789,18 +772,14 @@ async def apply_operation(
             }
             for ref in list(op.include) + list(op.exclude):
                 if (ref.source_key, ref.item_id) not in known:
-                    raise ValidationError(
-                        f"Unknown context item {ref.source_key}:{ref.item_id}"
-                    )
+                    raise ValidationError(f"Unknown context item {ref.source_key}:{ref.item_id}")
             existing = CvContextSelection.model_validate(cv.context or {})
-            known_pin_keys = {
-                f"{source_key}:{item_id}" for source_key, item_id in known
-            }
+            known_pin_keys = {f"{source_key}:{item_id}" for source_key, item_id in known}
             for ref_key in op.synth_pins or {}:
                 if ref_key not in known_pin_keys:
                     raise ValidationError(f"Unknown synth pin target {ref_key}")
             if op.synth_pins:
-                from app.services.cv_synth_service import CvSynthService
+                from app.services.cv.cv_synth_service import CvSynthService
 
                 service = CvSynthService(db)
                 for synth_id in {value for value in op.synth_pins.values() if value}:
@@ -819,7 +798,7 @@ async def apply_operation(
             # EVERYTHING (custom with an empty include, none without one,
             # or an exclude that eats every item) leaves the CV with
             # nothing to render — refuse instead of wiping the context.
-            from app.services.cv_context_service import select_items
+            from app.services.cv.cv_context_service import select_items
 
             kept = select_items(resolved, selection)
             if not any(kept.values()):
@@ -862,16 +841,16 @@ async def apply_operation(
         overrides = copy.deepcopy(working.get("overrides") or {})
         blocks = copy.deepcopy(working.get("blocks") or [])
         if not blocks:
-            from app.services.cv_builder_service import (
-                CvBuilderService,
+            from app.services.cv.cv_builder_service import (
                 FALLBACK_CONTENT,
+                CvBuilderService,
             )
 
             _content, _tid = await CvBuilderService(db).template_content(cv)
             blocks = copy.deepcopy(_content.blocks or FALLBACK_CONTENT["blocks"])
 
         if kind == "add_block":
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             validated = validate_blocks([{"kind": op.kind, "props": op.props}])
             position = op.position if op.position is not None else len(blocks)
@@ -895,9 +874,7 @@ async def apply_operation(
             removed = blocks.pop(op.block_index)
             _save_working(cv, blocks, overrides)
             await db.commit()
-            return OpResult(
-                op=kind, ok=True, detail=f"{removed.get('kind')} section removed"
-            )
+            return OpResult(op=kind, ok=True, detail=f"{removed.get('kind')} section removed")
 
         if kind == "move_block":
             if op.block_index >= len(blocks):
@@ -912,18 +889,16 @@ async def apply_operation(
             if op.block_index >= len(blocks):
                 raise ValidationError(f"block_index {op.block_index} out of range")
             blocks[op.block_index] = {**blocks[op.block_index], "area": op.area}
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             validate_blocks(blocks)
             _save_working(cv, blocks, overrides)
             await db.commit()
-            detail = (
-                f"moved to the {'sidebar' if op.area == 'sidebar' else 'main column'}"
-            )
+            detail = f"moved to the {'sidebar' if op.area == 'sidebar' else 'main column'}"
             return OpResult(op=kind, ok=True, detail=detail)
 
         if kind == "update_block_props":
-            from app.services.cv_blocks import validate_blocks
+            from app.services.cv.cv_blocks import validate_blocks
 
             if op.block_index >= len(blocks):
                 raise ValidationError(f"block_index {op.block_index} out of range")
@@ -948,7 +923,7 @@ async def apply_operation(
                 CvSynthItemGenerate,
                 CvSynthItemUpdate,
             )
-            from app.services.cv_synth_service import CvSynthService
+            from app.services.cv.cv_synth_service import CvSynthService
 
             service = CvSynthService(db)
             rows = await service.generate(
@@ -983,36 +958,30 @@ async def apply_operation(
             )
 
         if kind == "set_override":
-            from app.services.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_builder_service import CvBuilderService
 
             resolution = await CvBuilderService(db).resolution(cv)
             ids = (resolution.snapshot_index or {}).get(
                 "summary" if op.source_key == "summary" else op.source_key
             ) or []
             if op.item_id not in ids:
-                raise ValidationError(
-                    f"{op.source_key}:{op.item_id} is not in this CV's context"
-                )
+                raise ValidationError(f"{op.source_key}:{op.item_id} is not in this CV's context")
             ref = f"{op.source_key}:{op.item_id}"
             overrides[ref] = {**(overrides.get(ref) or {}), op.field: op.value}
             _save_working(cv, blocks, overrides)
             await db.commit()
-            return OpResult(
-                op=kind, ok=True, detail=f"{op.source_key}.{op.field} rewritten"
-            )
+            return OpResult(op=kind, ok=True, detail=f"{op.source_key}.{op.field} rewritten")
 
         if kind == "set_bullets":
             # Two-layer model: the bullets land in a bullets VARIANT
             # pinned on this CV — never the removed overrides layer.
-            from app.services.cv_builder_service import CvBuilderService
-            from app.services.cv_synth_service import CvSynthService
+            from app.services.cv.cv_builder_service import CvBuilderService
+            from app.services.cv.cv_synth_service import CvSynthService
 
             resolution = await CvBuilderService(db).resolution(cv)
             ids = (resolution.snapshot_index or {}).get(op.source_key) or []
             if op.item_id not in ids:
-                raise ValidationError(
-                    f"{op.source_key}:{op.item_id} is not in this CV's context"
-                )
+                raise ValidationError(f"{op.source_key}:{op.item_id} is not in this CV's context")
             payload = CvSynthPayload(
                 achievements=[CvSynthBullet(text=bullet) for bullet in op.bullets]
             )
@@ -1030,17 +999,13 @@ async def apply_operation(
                 await service.update(
                     UUID(pinned_id),
                     cv.user_id,
-                    CvSynthItemUpdate(
-                        payload=CvSynthPayload.model_validate(merged_payload)
-                    ),
+                    CvSynthItemUpdate(payload=CvSynthPayload.model_validate(merged_payload)),
                 )
             else:
                 synth_row = await service.create_manual(
                     cv.user_id,
                     CvSynthItemCreate(
-                        refs=[
-                            CvContextRef(source_key=op.source_key, item_id=op.item_id)
-                        ],
+                        refs=[CvContextRef(source_key=op.source_key, item_id=op.item_id)],
                         scope="bullets",
                         payload=payload,
                         voice=CvSynthVoice(language=str(cv.language or "en")),
@@ -1065,10 +1030,15 @@ async def apply_operation(
         await db.rollback()
         await _revive(db, cv)
         return OpResult(op=kind, ok=False, detail=str(exc)[:300])
-    except Exception as exc:  # noqa: BLE001 — one op never aborts the turn
+    except Exception as exc:
+        logger.warning("builder op %s failed", kind, exc_info=True)
         await db.rollback()
         await _revive(db, cv)
-        return OpResult(op=kind, ok=False, detail=f"{type(exc).__name__}: {exc}"[:300])
+        return OpResult(
+            op=kind,
+            ok=False,
+            detail=sanitize_error_detail(f"{type(exc).__name__}: {exc}"),
+        )
 
 
 # --------------------------------------------------------- visual review
@@ -1082,13 +1052,12 @@ async def _critique_preview(
     rides along as the deterministic what-actually-prints ground truth."""
     from app.ai.agents.cv_template_designer import critique_pages
     from app.ai.providers.resolution import resolve_task_model
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     try:
-        resolved = await resolve_task_model(
-            db, AITaskType.CV_TEMPLATE_REVIEW.value, user_id
-        )
-    except Exception:  # noqa: BLE001 — degrade below
+        resolved = await resolve_task_model(db, AITaskType.CV_TEMPLATE_REVIEW.value, user_id)
+    except Exception:
+        logger.warning("vision model resolution failed", exc_info=True)
         resolved = None
     if resolved is None:
         return None, "no vision model configured for visual review"
@@ -1096,13 +1065,12 @@ async def _critique_preview(
     html, _payload, _res, _metrics = await builder.render_state(cv)
     template = await builder.template_row(cv)
     try:
-        measure = await asyncio.wait_for(
-            measure_pages(html, page_size=cv.page_size), timeout=60
-        )
+        measure = await asyncio.wait_for(measure_pages(html, page_size=cv.page_size), timeout=60)
     except PDFEngineUnavailable:
         return None, "no headless Chromium on this host for screenshots"
-    except Exception as exc:  # noqa: BLE001 — degrade to lint-only
-        return None, f"screenshot failed: {exc}"
+    except Exception as exc:
+        logger.warning("critique screenshot failed", exc_info=True)
+        return None, sanitize_error_detail(f"screenshot failed: {type(exc).__name__}: {exc}")
     critique = await critique_pages(
         db,
         user_id,
@@ -1129,10 +1097,10 @@ async def styled_after(db: AsyncSession, cv) -> dict:
     the applied template's factual layout, the page fit of the user's
     content under it and the rendered layers — the tool result's ground
     truth so a switch is narrated from the render, never from a name."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     builder = CvBuilderService(db)
-    html, payload, _res, metrics = await builder.render_state(cv)
+    _html, payload, _res, metrics = await builder.render_state(cv)
     template = await builder.template_row(cv)
     from app.schemas.cv_template import TemplateContent
 
@@ -1154,16 +1122,16 @@ async def builder_state_payload(
     db: AsyncSession,
     cv,
     *,
-    operations: Optional[list[dict]] = None,
+    operations: list[dict] | None = None,
     critique=None,
-    version_number: Optional[int] = None,
+    version_number: int | None = None,
 ) -> dict:
     """The refreshed builder state after operations (plan 71.1).
 
     One helper for both the copilot turn path and the UI-driven ops
     endpoint, so the terminal payload never drifts between the two
     consumers."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     html, metrics, resolution, blocks = await CvBuilderService(db).preview(cv)
     return {
@@ -1176,9 +1144,7 @@ async def builder_state_payload(
             "max_pages": cv.max_pages,
             "status": cv.status,
             "template_id": str(cv.template_id) if cv.template_id else None,
-            "photo_document_id": str(cv.photo_document_id)
-            if cv.photo_document_id
-            else None,
+            "photo_document_id": str(cv.photo_document_id) if cv.photo_document_id else None,
         },
         "blocks": blocks,
         "overrides": (cv.working_content or {}).get("overrides") or {},
@@ -1208,7 +1174,7 @@ async def _template_previews(
     digest: dict,
     message: str,
     user_id,
-) -> Optional[dict]:
+) -> dict | None:
     """First-page renders so the copilot sees template candidates.
 
     Gate on template-intent words; the current template renders first,
@@ -1219,19 +1185,17 @@ async def _template_previews(
     chat-renderable preview URLs."""
     if not _is_template_preview_intent(message):
         return None
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     service = CvTemplateService(db)
     started = time.monotonic()
     current = (digest.get("template") or {}).get("id")
     candidate_ids = [
-        str(row["id"])
-        for row in (digest.get("templates") or [])[: MAX_TEMPLATE_PREVIEWS - 1]
+        str(row["id"]) for row in (digest.get("templates") or [])[: MAX_TEMPLATE_PREVIEWS - 1]
     ]
     ordered = ([str(current)] if current else []) + candidate_ids
     titles = {
-        str(row["id"]): row.get("title") or "candidate"
-        for row in digest.get("templates") or []
+        str(row["id"]): row.get("title") or "candidate" for row in digest.get("templates") or []
     }
     current_title = (digest.get("template") or {}).get("title") or "current"
     entries: list[dict] = []
@@ -1240,7 +1204,8 @@ async def _template_previews(
         try:
             row = await service.get_readable(uuid.UUID(template_id), user_id)
             png = await service.first_page_png(row)
-        except Exception:  # noqa: BLE001 — behavior-based degrade
+        except Exception:
+            logger.debug("page image unavailable for critique", exc_info=True)
             continue
         if png is None:
             continue
@@ -1278,7 +1243,7 @@ async def builder_turn_events(
     Event vocabulary matches the chat SSE contract plus `builder_state`
     (the full post-turn builder state the page re-syncs from).
     """
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     # The user message is only flushed at this point — ops commit MID-TURN
     # and every op failure path rolls back, which would wipe the parent
@@ -1292,7 +1257,7 @@ async def builder_turn_events(
         {"id": "apply", "label": "applying changes"},
         {"id": "review", "label": "reviewing the preview"},
     ]
-    yield "flow_started", {"flow": "cv_builder", "steps": steps}
+    yield sse_pair(flow_started_event(flow="cv_builder", steps=steps))
 
     tools_trace: list[dict] = []
     nodes_trace: list[dict] = []
@@ -1301,9 +1266,7 @@ async def builder_turn_events(
     def _open_node(node_id: str, label: str) -> None:
         open_nodes[node_id] = (time.monotonic(), label)
 
-    def _note_node(
-        node_id: str, status: str = "done", ended: Optional[float] = None
-    ) -> Optional[dict]:
+    def _note_node(node_id: str, status: str = "done", ended: float | None = None) -> dict | None:
         """Close one node window for the persisted trace."""
         window = open_nodes.pop(node_id, None)
         if window is None:
@@ -1314,17 +1277,17 @@ async def builder_turn_events(
             "id": node_id,
             "label": label,
             "status": status,
-            "start_ms": max(0, int((started - turn_started) * 1000)),
+            "start_ms": 0 if node_id == "ground" else max(0, int((started - turn_started) * 1000)),
             "duration_ms": int((ended - started) * 1000),
         }
         nodes_trace.append(entry)
         return entry
 
     all_results: list[dict] = []
-    critique: Optional[object] = None
+    critique: object | None = None
     critique_note = ""
     answers: list[str] = []
-    stream: Optional[StructuredStream] = None
+    stream: StructuredStream | None = None
     try:
         _open_node("ground", steps[0]["label"])
         yield "node_started", {"id": "ground", "label": steps[0]["label"]}
@@ -1338,41 +1301,35 @@ async def builder_turn_events(
             },
         )
         metrics = digest.get("metrics") or {}
-        yield (
-            "tool_call",
-            _tool_event(
-                tools_trace,
-                id="cv-read-state",
-                name="cv_read_state",
-                title=OP_TITLES["read_state"],
-                status="done",
-                args="templates, blocks, sources, metrics, lint",
-                result=(
-                    f"{len(digest.get('blocks') or [])} blocks · "
-                    f"{len(digest.get('sources') or {})} sources · "
-                    f"{metrics.get('estimated_pages')} page(s)"
-                ),
-                start_ms=ground["start_ms"] if ground else 0,
-                duration_ms=ground["duration_ms"] if ground else 0,
+        yield _tool_event(
+            tools_trace,
+            id="cv-read-state",
+            name="cv_read_state",
+            title=OP_TITLES["read_state"],
+            status="done",
+            args="templates, blocks, sources, metrics, lint",
+            result=(
+                f"{len(digest.get('blocks') or [])} blocks · "
+                f"{len(digest.get('sources') or {})} sources · "
+                f"{metrics.get('estimated_pages')} page(s)"
             ),
+            start_ms=ground["start_ms"] if ground else 0,
+            duration_ms=ground["duration_ms"] if ground else 0,
         )
         previews = await _template_previews(db, digest, message, user_id)
         if previews is not None:
             for entry in previews["entries"]:
                 yield "preview", entry
-            yield (
-                "tool_call",
-                _tool_event(
-                    tools_trace,
-                    id="template-previews",
-                    name="template_previews",
-                    title="Comparing template previews",
-                    status="done",
-                    args=f"{len(previews['entries'])} first-page render(s)",
-                    result=" · ".join(entry["title"] for entry in previews["entries"]),
-                    start_ms=int((time.monotonic() - turn_started) * 1000),
-                    duration_ms=previews["render_ms"],
-                ),
+            yield _tool_event(
+                tools_trace,
+                id="template-previews",
+                name="template_previews",
+                title="Comparing template previews",
+                status="done",
+                args=f"{len(previews['entries'])} first-page render(s)",
+                result=" · ".join(entry["title"] for entry in previews["entries"]),
+                start_ms=int((time.monotonic() - turn_started) * 1000),
+                duration_ms=previews["render_ms"],
             )
         for round_index in range(MAX_REFINE_ROUNDS):
             label = steps[1]["label"] if round_index == 0 else "refining changes"
@@ -1397,7 +1354,7 @@ async def builder_turn_events(
                     "when nothing is left to change."
                 ),
             }
-            turn_images: Optional[list[tuple[str, bytes]]] = None
+            turn_images: list[tuple[str, bytes]] | None = None
             if round_index == 0 and previews is not None:
                 prompt_payload["template_previews"] = previews["entries"]
                 turn_images = previews["images"]
@@ -1413,7 +1370,7 @@ async def builder_turn_events(
             ):
                 partial = partial_answer_text("".join(stream._raw))
                 if len(partial) > sent:
-                    yield "delta", {"text": partial[sent:]}
+                    yield sse_pair(delta_event(partial[sent:]))
                     sent = len(partial)
             if stream.reply is None:
                 raise DomainError(stream.error or "AI produced no valid plan")
@@ -1443,21 +1400,18 @@ async def builder_turn_events(
                     try:
                         await db.refresh(cv)
                         await db.refresh(session)
-                    except Exception:  # noqa: BLE001 — revive is best-effort
-                        pass
-                yield (
-                    "tool_call",
-                    _tool_event(
-                        tools_trace,
-                        id=f"cv-{op.op}-{round_index}-{op_index}",
-                        name=f"cv_{op.op}",
-                        title=OP_TITLES.get(op.op, op.op),
-                        status="done" if result.ok else "failed",
-                        args=json.dumps(_op_args(op))[:TRACE_SUMMARY_CAP],
-                        result=result.detail,
-                        start_ms=int((started - turn_started) * 1000),
-                        duration_ms=int((time.monotonic() - started) * 1000),
-                    ),
+                    except Exception:
+                        logger.debug("op result serialization failed", exc_info=True)
+                yield _tool_event(
+                    tools_trace,
+                    id=f"cv-{op.op}-{round_index}-{op_index}",
+                    name=f"cv_{op.op}",
+                    title=OP_TITLES.get(op.op, op.op),
+                    status="done" if result.ok else "failed",
+                    args=json.dumps(_op_args(op))[:TRACE_SUMMARY_CAP],
+                    result=result.detail,
+                    start_ms=int((started - turn_started) * 1000),
+                    duration_ms=int((time.monotonic() - started) * 1000),
                 )
             apply = _note_node("apply")
             yield (
@@ -1482,19 +1436,16 @@ async def builder_turn_events(
                 lint=digest.get("lint") or {},
                 rendered=digest.get("rendered") or [],
             )
-            yield (
-                "tool_call",
-                _tool_event(
-                    tools_trace,
-                    id=f"cv-visual_review-{round_index}",
-                    name="cv_review_visual",
-                    title=OP_TITLES["visual_review"],
-                    status="done",
-                    args="rendered page screenshots",
-                    result=critique.summary if critique is not None else critique_note,
-                    start_ms=int((review_started - turn_started) * 1000),
-                    duration_ms=int((time.monotonic() - review_started) * 1000),
-                ),
+            yield _tool_event(
+                tools_trace,
+                id=f"cv-visual_review-{round_index}",
+                name="cv_review_visual",
+                title=OP_TITLES["visual_review"],
+                status="done",
+                args="rendered page screenshots",
+                result=critique.summary if critique is not None else critique_note,
+                start_ms=int((review_started - turn_started) * 1000),
+                duration_ms=int((time.monotonic() - review_started) * 1000),
             )
             review = _note_node("review")
             yield (
@@ -1507,17 +1458,17 @@ async def builder_turn_events(
             if critique is None or not critique.issues:
                 break
 
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
-        version_number: Optional[int] = None
+        version_number: int | None = None
         if any(result["ok"] for result in all_results):
             try:
                 version, _html, _metrics = await CvBuilderService(db).compile(
                     cv, created_by=CvVersionCreator.AI_APPLY
                 )
                 version_number = version.version
-            except Exception:  # noqa: BLE001 — empty context may block compile
-                pass
+            except Exception:
+                logger.debug("snapshot refresh failed", exc_info=True)
 
         state = await builder_state_payload(
             db,
@@ -1541,11 +1492,7 @@ async def builder_turn_events(
                 "model": (stream.model if stream else "") or "",
                 "tools": tools_trace[:TRACE_TOOL_CAP],
                 "nodes": nodes_trace[:TRACE_NODE_CAP],
-                **(
-                    {"template_previews": previews["entries"]}
-                    if previews is not None
-                    else {}
-                ),
+                **({"template_previews": previews["entries"]} if previews is not None else {}),
             },
         )
         yield "builder_state", state
@@ -1560,7 +1507,7 @@ async def builder_turn_events(
         )
     except asyncio.CancelledError:
         raise
-    except Exception as exc:  # noqa: BLE001 — stream must end cleanly
+    except Exception as exc:
         now = time.monotonic()
         for node_id in list(open_nodes):
             _note_node(node_id, status="failed", ended=now)
@@ -1577,22 +1524,17 @@ async def builder_turn_events(
                         "tools": tools_trace[:TRACE_TOOL_CAP],
                         "nodes": nodes_trace[:TRACE_NODE_CAP],
                         "elapsed_ms": int((now - turn_started) * 1000),
-                        **(
-                            {"model": stream.model}
-                            if stream is not None and stream.model
-                            else {}
-                        ),
+                        **({"model": stream.model} if stream is not None and stream.model else {}),
                     },
                     allow_empty=True,
                 )
-            except Exception:  # noqa: BLE001 — best-effort persistence
+            except Exception:
                 await db.rollback()
-                try:
+                with contextlib.suppress(Exception):
                     await db.refresh(session)
-                except Exception:  # noqa: BLE001 — revive is best-effort
-                    pass
         code = "ai_unavailable" if "not configured" in str(exc).lower() else "ai_error"
-        yield "flow_failed", {"code": code, "message": str(exc), "retryable": True}
+        logger.warning("cv builder turn failed (%s)", code, exc_info=True)
+        yield sse_pair(flow_failed_event(True, code=code, message=sanitize_error_detail(str(exc))))
 
 
 # ---------------------------------------------------------- mock fixture
@@ -1608,13 +1550,9 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
     blocks = state.get("blocks") or []
     sources = state.get("sources") or {}
     current_template = (state.get("template") or {}).get("id")
-    templates = [
-        t for t in state.get("templates") or [] if t.get("id") != current_template
-    ]
+    templates = [t for t in state.get("templates") or [] if t.get("id") != current_template]
 
-    if any(
-        word in lowered for word in ("review", "layout", "overflow", "looks", "spacing")
-    ):
+    if any(word in lowered for word in ("review", "layout", "overflow", "looks", "spacing")):
         return {
             "answer": (
                 "I reviewed the rendered preview and tightened the spacing."
@@ -1627,7 +1565,7 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
 
     ops: list[dict] = []
 
-    def _first_item(source_key: str) -> Optional[dict]:
+    def _first_item(source_key: str) -> dict | None:
         items = (sources.get(source_key) or {}).get("items") or []
         return items[0] if items else None
 
@@ -1646,9 +1584,7 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
                         "op": "set_context",
                         "mode": "all",
                         "include": [],
-                        "exclude": [
-                            {"source_key": source_key, "item_id": item["item_id"]}
-                        ],
+                        "exclude": [{"source_key": source_key, "item_id": item["item_id"]}],
                     }
                 )
                 break
@@ -1700,9 +1636,7 @@ def _mock_builder_turn(schema: type, user_prompt: str) -> dict:
                         "op": "set_bullets",
                         "source_key": source_key,
                         "item_id": item["item_id"],
-                        "bullets": [
-                            f"{item.get('title') or 'Item'} — tailored for this CV"
-                        ],
+                        "bullets": [f"{item.get('title') or 'Item'} — tailored for this CV"],
                     }
                 )
                 break

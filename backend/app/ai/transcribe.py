@@ -78,9 +78,7 @@ def _transcribe_openai(
         form.append(("language", (None, language)))
     response = client.post(
         f"{resolved.base_url}/audio/transcriptions",
-        headers={"Authorization": f"Bearer {resolved.api_key}"}
-        if resolved.api_key
-        else {},
+        headers={"Authorization": f"Bearer {resolved.api_key}"} if resolved.api_key else {},
         files=form,
     )
     response.raise_for_status()
@@ -117,7 +115,5 @@ def _transcribe_google(
     body = response.json()
     return "".join(
         str(part.get("text", ""))
-        for part in (
-            body.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-        )
+        for part in (body.get("candidates", [{}])[0].get("content", {}).get("parts", []))
     ).strip()

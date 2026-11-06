@@ -1,0 +1,436 @@
+"""The T3 script tier (plan 32 Phase 2 / ADR-0040 D9): external MCP
+servers as posting sources.
+
+One configured source = one external MCP server (a stdio subprocess or
+an http endpoint) plus ONE allowlisted tool speaking the family fetch
+contract::
+
+    fetch_postings(config, state) -> {"items": [...], "next_state": {...}}
+
+The script process runs OUTSIDE the host's politeness perimeter
+(ADR-0040 clause 21 / D22): it opens its own sockets with no SSRF
+guard, robots.txt check or rate limiting by the app — which is exactly
+why this connector's manifest declares no ``net`` domains and why the
+host governs only what comes back: every returned row is validated
+against :class:`RawPosting` app-side (required fields, http(s) URLs,
+char caps, item cap) before anything persists, malformed rows become
+typed ``invalid`` partial errors, and every tool call lands on the
+audit funnel through the injected ``audit`` callback (one row per
+call, D7/D9). Secrets never cross to the script: the optional token is
+a sealed slot resolved host-side for the http transport's Bearer
+header, and the config handed to the tool is stripped of declared
+secret fields.
+
+Disabled by default: the connector registers only when allowlisted
+(``CAREER_CONNECTOR_PLUGINS_ALLOWLIST`` containing ``mcp``) —
+allowlist-off means the connector is invisible in the catalog and
+unknown to the registry (structural, tested).
+"""
+
+from __future__ import annotations
+
+import json
+import time
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
+
+from app.core.errors import ValidationError
+from app.extensions import contract
+from app.extensions.sdk import (
+    ConnectorCapabilities,
+    ConnectorError,
+    ConnectorResult,
+    ExternalEffect,
+    PostingConnector,
+    RawPosting,
+)
+
+MAX_ITEMS = 300
+NEXT_STATE_CAP = 8_192
+# The raw bag carries the full job description (64 KiB — a complete,
+# untruncated posting text plus the bundle's stamps; the wire stays
+# bounded by the 300-item cap, so a worst-case call is ~20 MB).
+RAW_JSON_CAP = 65_536
+RUN_SUMMARY_CAP = 2_048
+
+
+@lru_cache(maxsize=1)
+def _secret_slot_names() -> frozenset[str]:
+    """The connector's declared secret slot names (from its manifest) —
+    any of them appearing in ``options`` is a registration-time throw."""
+    from pathlib import Path
+
+    from app.extensions.contract import secret_fields
+
+    manifest = json.loads((Path(__file__).parent / "manifest.json").read_text(encoding="utf-8"))
+    return frozenset(name.lower() for name in secret_fields(manifest.get("configSchema")))
+
+
+def _walk_keys(node: dict) -> list[str]:
+    keys: list[str] = []
+    stack: list[dict] = [node]
+    while stack:
+        current = stack.pop()
+        for key, value in current.items():
+            keys.append(str(key))
+            if isinstance(value, dict):
+                stack.append(value)
+    return keys
+
+
+def _allowlist(raw: str) -> list[str]:
+    """Comma-separated tool allowlist → clean list."""
+    return [tool.strip() for tool in (raw or "").split(",") if tool.strip()]
+
+
+class McpConfig(BaseModel):
+    """One MCP source: transport + the single tool it may call.
+
+    ``allowed_tools`` is the per-tool allowlist (comma-separated; empty
+    means just the configured ``tool``). ``options`` is the tool-level
+    settings passthrough (plan 130): a JSON-object string (the manifest
+    configSchema has no object type) stored verbatim, parsed and handed
+    to the tool as ``config.options``. ``token`` is NOT here — it is
+    a sealed secret slot (``x-secret`` in the manifest configSchema).
+    """
+
+    transport: Literal["stdio", "http"] = "stdio"
+    command: str = Field(default="", max_length=1000)
+    url: str = Field(default="", max_length=1000)
+    tool: str = Field(default="fetch_postings", min_length=1, max_length=120)
+    allowed_tools: str = Field(default="", max_length=1000)
+    timeout_seconds: int = Field(default=30, ge=5, le=120)
+    options: str = Field(default="", max_length=8192)
+
+    @model_validator(mode="after")
+    def _transport_fields(self) -> McpConfig:
+        if self.transport == "stdio" and not self.command.strip():
+            raise ValueError("stdio sources need a command line")
+        if self.transport == "http" and not self.url.strip().startswith(("http://", "https://")):
+            raise ValueError("http sources need an http(s) url")
+        allow = _allowlist(self.allowed_tools)
+        if allow and self.tool not in allow:
+            raise ValueError(f"tool {self.tool!r} is not in this source's allowlist")
+        parsed = self.options_dict()
+        hits = sorted({key for key in _walk_keys(parsed) if key.lower() in _secret_slot_names()})
+        if hits:
+            raise ValueError(
+                f"secret values never live in options — use the sealed token slot ({hits})"
+            )
+        return self
+
+    def options_dict(self) -> dict:
+        """The parsed tool options ({} when unset; a non-object is invalid)."""
+        if not self.options.strip():
+            return {}
+        try:
+            parsed = json.loads(self.options)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"options is not valid JSON: {exc}") from exc
+        if not isinstance(parsed, dict):
+            raise ValueError("options must be a JSON object")
+        return parsed
+
+
+def _invalid(detail: str) -> ConnectorError:
+    return ConnectorError(code="invalid", detail=detail[:500], retryable="no")
+
+
+RADAR_RELAX_KEYS = ("keywords", "location")
+
+
+def _tool_typed(subschema: object, value: object) -> object:
+    """The settings forms store numbers/booleans as strings; the tool's
+    pydantic layer coerces them — the guard judges the coerced value."""
+    if not isinstance(value, str) or not isinstance(subschema, dict):
+        return value
+    want = subschema.get("type")
+    text = value.strip()
+    if want in ("number", "integer"):
+        try:
+            parsed = float(text)
+        except ValueError:
+            return value
+        if want == "integer" and not parsed.is_integer():
+            return value
+        return int(parsed) if parsed.is_integer() else parsed
+    if want == "boolean" and text in ("true", "false"):
+        return text == "true"
+    return value
+
+
+def validate_tool_options(options: dict, schema: dict, *, relax_keys: tuple[str, ...] = ()) -> None:
+    """The bundle's own ``configSchema`` is the options contract at save
+    time (plan 173): every required field (minus ``relax_keys`` — the
+    radar query overlay supplies those per sync, so relaxed fields are
+    skipped entirely, slightly looser than the T2 relax) must be present,
+    non-empty, and satisfy its own constraints. Only required fields are
+    checked — optional knobs stay free-form, because a whole-object type
+    check would reject the app's own stored shape."""
+    props = schema.get("properties") or {}
+    problems: list[str] = []
+    for name in schema.get("required") or []:
+        if name in relax_keys:
+            continue
+        value = options.get(name)
+        if name not in options or (isinstance(value, str) and not value.strip()):
+            problems.append(f"$.{name}: missing required property {name!r}")
+            continue
+        subschema = props.get(name)
+        if subschema is not None:
+            err = contract.validate(subschema, _tool_typed(subschema, value), schema, f"$.{name}")
+            if err:
+                problems.append(err)
+    if problems:
+        raise ValidationError("tool options rejected: " + "; ".join(problems))
+
+
+def ensure_source_tool_options(source, schema: dict) -> None:
+    """Validate one source's stored options against its bundle schema under
+    the source's effective query mode (radar relaxes keywords/location —
+    the T2 ``validate_config`` rule). Raises core ``ValidationError``
+    (→ HTTP 400) naming the field."""
+    relax = RADAR_RELAX_KEYS if (getattr(source, "query_mode", None) or "static") == "radar" else ()
+    raw = str((getattr(source, "config", None) or {}).get("options") or "")
+    try:
+        options = json.loads(raw) if raw.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise ValidationError(f"options is not valid JSON: {exc}") from exc
+    if not isinstance(options, dict):
+        raise ValidationError("options must be a JSON object")
+    validate_tool_options(options, schema, relax_keys=relax)
+
+
+def _protocol(detail: str) -> ConnectorError:
+    return ConnectorError(code="protocol", detail=detail[:500], retryable="after-config-change")
+
+
+def _classify(exc: Exception, timeout_seconds: int) -> ConnectorError:
+    """fastmcp failures → charter errors (classification itself lives in
+    the AI layer; only plain data crosses back)."""
+    from app.ai.mcp_client import classify_tool_error
+
+    code, detail, retryable = classify_tool_error(exc, timeout_seconds)
+    return ConnectorError(code=code, detail=detail, retryable=retryable)  # type: ignore[arg-type]
+
+
+class McpConnector(PostingConnector):
+    """T3 external-process postings source (MCP). Admin-allowlisted,
+    per-source tool allowlist, app-side row validation + caps, one
+    audit row per tool call."""
+
+    key = "mcp"
+    title = "MCP script (external process)"
+    docs_url = "https://docs.career-assistant.local/connectors/mcp"
+    capabilities = ConnectorCapabilities(
+        supports_incremental=True, url_fetching=False, dynamic_queries=True
+    )
+    allowlist_gated = True
+    audits_effects = True
+
+    def config_model(self) -> type[BaseModel]:
+        return McpConfig
+
+    @staticmethod
+    def _managed_content_error(command: str) -> ConnectorError | None:
+        """Verify the pinned digest before spawning a MANAGED import (plan
+        37 Phase 3.2 / F15): the command's ``server.py`` lives under
+        ``data_dir/extensions/<id>/<digest>/`` — re-hash the tree and
+        refuse a drifted one typed. Admin-authored commands outside that
+        root are not digest-addressed and keep their existing posture."""
+        import re
+        from pathlib import Path
+        from shlex import split as shlex_split
+
+        from app.core.config import settings
+        from app.extensions import lifecycle
+
+        try:
+            parts = shlex_split(command)
+        except ValueError:
+            return _invalid("the stdio command is not parseable")
+        if not parts:
+            return _invalid("the stdio command is empty")
+        entry = Path(parts[-1])
+        if entry.name != "server.py":
+            return None
+        content_dir = entry.parent
+        content_root = (Path(settings.data_dir) / "extensions").resolve()
+        try:
+            content_dir.resolve().relative_to(content_root)
+        except ValueError:
+            return None
+        expected = content_dir.name
+        if not re.fullmatch(r"[0-9a-f]{64}", expected):
+            return _invalid("managed content path is not digest-addressed — refusing to spawn")
+        if not entry.is_file():
+            return _invalid("the managed server.py is missing — re-import the extension")
+        try:
+            actual = lifecycle.digest_tree(content_dir)
+        except lifecycle.LifecycleError as exc:
+            return _invalid(exc.detail)
+        if actual != expected:
+            return _invalid(
+                "the installed content no longer matches its pinned digest — refusing to spawn"
+            )
+        return None
+
+    def _client_for(self, cfg: McpConfig, token: str):
+        """Delegate client construction to the AI layer (fastmcp imports
+        are AI-layer-only; factored for test injection)."""
+        from app.ai.mcp_client import client_for_spec
+
+        return client_for_spec(
+            transport=cfg.transport,
+            url=cfg.url,
+            command=cfg.command,
+            token=token,
+            timeout_seconds=cfg.timeout_seconds,
+        )
+
+    async def fetch(
+        self,
+        config: dict,
+        state: dict,
+        *,
+        transport=None,
+        secrets: dict | None = None,
+        audit=None,
+        **_kw,
+    ) -> ConnectorResult:
+        cfg = McpConfig.model_validate(config)
+        secret_slots = self.secret_slots()
+        safe_config = {k: v for k, v in dict(config).items() if k not in secret_slots}
+        safe_config["options"] = cfg.options_dict()
+        arguments = {"config": safe_config, "state": dict(state or {})}
+        effect = ExternalEffect(
+            kind="mcp_tool_call",
+            ref=cfg.tool,
+            arguments=arguments,
+            meta={"transport": cfg.transport, "server": (cfg.command or cfg.url)[:200]},
+        )
+        started = time.monotonic()
+        integrity = self._managed_content_error(cfg.command) if cfg.transport == "stdio" else None
+        if integrity is not None:
+            if audit is not None:
+                now = time.monotonic()
+                effect.ok = False
+                effect.error = f"{integrity.code}: {integrity.detail}"
+                effect.latency_ms = (now - started) * 1000
+                await audit(effect)
+            return ConnectorResult(partial_errors=[integrity])
+        try:
+            client = self._client_for(cfg, str((secrets or {}).get("token") or ""))
+            async with client as session:
+                result = await session.call_tool(cfg.tool, arguments, timeout=cfg.timeout_seconds)
+            texts = [
+                block.text
+                for block in (result.content or [])
+                if getattr(block, "text", None) is not None
+            ]
+        except Exception as exc:
+            error = _classify(exc, cfg.timeout_seconds)
+            if audit is not None:
+                effect.ok = False
+                effect.error = f"{error.code}: {error.detail}"
+                effect.latency_ms = (time.monotonic() - started) * 1000
+                await audit(effect)
+            return ConnectorResult(partial_errors=[error])
+        effect.latency_ms = (time.monotonic() - started) * 1000
+        if audit is not None:
+            await audit(effect)
+
+        rows, next_state, run_summary, tool_errors, envelope_error = self._parse_envelope(texts)
+        if envelope_error is not None:
+            return ConnectorResult(partial_errors=[envelope_error])
+        items, errors = self._validate_rows(rows)
+        errors.extend(tool_errors)
+        return ConnectorResult(
+            items=items,
+            next_state=next_state,
+            partial_errors=errors,
+            run_summary=run_summary,
+        )
+
+    def _parse_envelope(
+        self, texts: list[str]
+    ) -> tuple[list, dict, dict | None, list[ConnectorError], ConnectorError | None]:
+        """The tool's first text block must be the family envelope JSON:
+        ``{"items": [...], "next_state": {...}, "partial_errors": [...]}``
+        plus the optional ``run_summary`` observability block (plan 003) —
+        generic for ANY T3 bundle: validated only as a JSON object under
+        the size cap, never against a vocabulary."""
+        if not texts:
+            return [], {}, None, [], _protocol("tool returned no text content")
+        try:
+            payload = json.loads(texts[0])
+        except json.JSONDecodeError as exc:
+            return [], {}, None, [], _protocol(f"tool output is not JSON: {exc}")
+        if not isinstance(payload, dict):
+            return (
+                [],
+                {},
+                None,
+                [],
+                _protocol("tool output is not the {items, next_state} envelope"),
+            )
+        rows = payload.get("items", [])
+        if not isinstance(rows, list):
+            return [], {}, None, [], _protocol("envelope items is not a list")
+        next_state = payload.get("next_state") or {}
+        errors: list[ConnectorError] = []
+        if not isinstance(next_state, dict):
+            errors.append(_invalid("envelope next_state is not an object — dropped"))
+            next_state = {}
+        if len(json.dumps(next_state, default=str)) > NEXT_STATE_CAP:
+            errors.append(_invalid("envelope next_state exceeds the size cap — dropped"))
+            next_state = {}
+        run_summary = payload.get("run_summary")
+        if run_summary is not None:
+            if not isinstance(run_summary, dict):
+                errors.append(_invalid("envelope run_summary is not an object — dropped"))
+                run_summary = None
+            elif len(json.dumps(run_summary, default=str)) > RUN_SUMMARY_CAP:
+                errors.append(_invalid("envelope run_summary exceeds the size cap — dropped"))
+                run_summary = None
+        for entry in payload.get("partial_errors") or []:
+            try:
+                errors.append(ConnectorError.model_validate(entry))
+            except Exception:
+                errors.append(_invalid(f"unusable partial error from tool: {entry!r}"))
+        return rows, next_state, run_summary, errors, None
+
+    def _validate_rows(self, rows: list) -> tuple[list[RawPosting], list[ConnectorError]]:
+        """Every row is untrusted: schema-check against RawPosting
+        (required fields, char caps), require http(s) URLs, cap the item
+        count and the raw bag — malformed rows become typed ``invalid``
+        errors and never persist (study's McpDiscoveryProvider
+        discipline, D9)."""
+        items: list[RawPosting] = []
+        errors: list[ConnectorError] = []
+        if len(rows) > MAX_ITEMS:
+            errors.append(
+                _invalid(f"{len(rows) - MAX_ITEMS} row(s) beyond the {MAX_ITEMS}-item cap dropped")
+            )
+        for index, row in enumerate(rows[:MAX_ITEMS]):
+            if not isinstance(row, dict):
+                errors.append(_invalid(f"row {index}: not an object"))
+                continue
+            url = str(row.get("url") or "")
+            if url and not url.lower().startswith(("http://", "https://")):
+                errors.append(
+                    _invalid(f"row {index} ({row.get('external_id')!r}): url must be http(s)")
+                )
+                continue
+            try:
+                if len(json.dumps(row.get("raw") or {}, default=str)) > RAW_JSON_CAP:
+                    errors.append(
+                        _invalid(f"row {index} ({row.get('external_id')!r}): raw exceeds size cap")
+                    )
+                    continue
+                items.append(RawPosting.model_validate(row))
+            except Exception as exc:
+                errors.append(_invalid(f"row {index}: {exc}"))
+        return items, errors

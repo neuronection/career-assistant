@@ -12,7 +12,7 @@ lint + complete coverage in ⇒ a clean critique out — so bounded-stop
 assertions actually stop.
 """
 
-from typing import Literal, Optional, overload
+from typing import Literal, overload
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,9 +36,9 @@ REVIEW_SYSTEM = (
     "never invent content or render HTML. The page budget is the "
     "user's constraint: NEVER suggest set_doc_options that raises "
     "max_pages. Fix an over-budget build by DENSIFYING first "
-    "(update_design: base_size_pt 7–14, line_height 1.0–2.0, "
-    "spacing_scale 0.6–1.8, section_gap_mm 0–14, item_gap_mm 0–8, "
-    "sidebar_width_pct 25–45, icon_size_mm 2–6, photo_size_mm 10–40 — "
+    "(update_design: base_size_pt 7-14, line_height 1.0-2.0, "
+    "spacing_scale 0.6-1.8, section_gap_mm 0-14, item_gap_mm 0-8, "
+    "sidebar_width_pct 25-45, icon_size_mm 2-6, photo_size_mm 10-40 — "
     "tighter type and spacing fit more content without cutting "
     "information; the pt/mm tokens are INTEGERS (8 or 9, never 8.5) "
     "and font_stack sans/serif/mixed/geometric + the heading tokens "
@@ -228,8 +228,7 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
                         "props": {"max_items": 8},
                     },
                     "rationale": (
-                        "trim the skills list to the strongest entries "
-                        "within the fixed page budget"
+                        "trim the skills list to the strongest entries within the fixed page budget"
                     ),
                 }
             )
@@ -249,9 +248,7 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
     missing = list(coverage.get("missing") or [])
     if missing:
         first = missing[0]
-        source_key = (
-            str(first.get("source_key") or "") if isinstance(first, dict) else ""
-        )
+        source_key = str(first.get("source_key") or "") if isinstance(first, dict) else ""
         label = str(first.get("label") or "") if isinstance(first, dict) else str(first)
         if source_key:
             # Per-round include/omit assessment: suggest the full
@@ -260,9 +257,7 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
             included_refs = [
                 ref
                 for ref in (coverage.get("included") or [])
-                if isinstance(ref, dict)
-                and ref.get("source_key")
-                and ref.get("item_id")
+                if isinstance(ref, dict) and ref.get("source_key") and ref.get("item_id")
             ]
             keep = {f"{ref['source_key']}:{ref['item_id']}" for ref in included_refs}
             combined = (
@@ -299,9 +294,7 @@ def _mock_build_critique(schema: type, user_prompt: str) -> dict:
             )
     covered = _ref_ids(coverage.get("included") or [])
     return {
-        "summary": (
-            "Build looks ready." if not issues else f"{len(issues)} finding(s)."
-        ),
+        "summary": ("Build looks ready." if not issues else f"{len(issues)} finding(s)."),
         "issues": issues,
         "coverage": {
             "covered": covered,
@@ -326,13 +319,13 @@ async def review_build(
     page_count: int,
     max_pages: int,
     iteration: int,
-    images: Optional[list[tuple[str, bytes]]] = None,
+    images: list[tuple[str, bytes]] | None = None,
     notes: str = "",
-    synth_applied: Optional[dict] = None,
-    overrides: Optional[dict] = None,
-    themes: Optional[list[dict]] = None,
-    selection: Optional[dict] = None,
-    run: Optional[RunRef] = None,
+    synth_applied: dict | None = None,
+    overrides: dict | None = None,
+    themes: list[dict] | None = None,
+    selection: dict | None = None,
+    run: RunRef | None = None,
     with_ref: Literal[False] = False,
 ) -> CvBuildCritique: ...
 
@@ -349,13 +342,13 @@ async def review_build(
     page_count: int,
     max_pages: int,
     iteration: int,
-    images: Optional[list[tuple[str, bytes]]] = None,
+    images: list[tuple[str, bytes]] | None = None,
     notes: str = "",
-    synth_applied: Optional[dict] = None,
-    overrides: Optional[dict] = None,
-    themes: Optional[list[dict]] = None,
-    selection: Optional[dict] = None,
-    run: Optional[RunRef] = None,
+    synth_applied: dict | None = None,
+    overrides: dict | None = None,
+    themes: list[dict] | None = None,
+    selection: dict | None = None,
+    run: RunRef | None = None,
     with_ref: Literal[True] = True,
 ) -> "tuple[CvBuildCritique, dict]": ...
 
@@ -371,13 +364,13 @@ async def review_build(
     page_count: int,
     max_pages: int,
     iteration: int,
-    images: Optional[list[tuple[str, bytes]]] = None,
+    images: list[tuple[str, bytes]] | None = None,
     notes: str = "",
-    synth_applied: Optional[dict] = None,
-    overrides: Optional[dict] = None,
-    themes: Optional[list[dict]] = None,
-    selection: Optional[dict] = None,
-    run: Optional[RunRef] = None,
+    synth_applied: dict | None = None,
+    overrides: dict | None = None,
+    themes: list[dict] | None = None,
+    selection: dict | None = None,
+    run: RunRef | None = None,
     with_ref: bool = False,
 ) -> "CvBuildCritique | tuple[CvBuildCritique, dict]":
     """Critique the rendered draft: layout, density and content coverage.

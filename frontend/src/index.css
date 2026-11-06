@@ -72,6 +72,19 @@ body {
   }
 }
 
+/* Posting detail page: the fact/timeline sidebar sits beside the long
+   content only while the container itself is wide (chat-dock safe, plan
+   95); below it everything stacks. */
+.ca-detail-cols {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 64rem) {
+  .ca-detail-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  }
+}
+
 /* Generate-flow advanced options: grouped tiles reflow by the PANEL's
  * width (container query — the generate modal shrinks beside the chat
  * dock, viewport breakpoints cannot see that). Below 42rem the tiles
@@ -92,6 +105,393 @@ body {
 
 @container (min-width: 64rem) {
   .cv-gen-adv .cv-gen-sources {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Excluded pickers (plan 166): the skills/organizations exclude lists keep
+   the library picker, but their selected chips must read as excluded
+   values — the same rose as the tri-state exclude chips — not as the
+   picker's default accent selection. Scoped to the wrapper the exclude
+   pickers carry (`ca-picker-exclude`) so include pickers are untouched. */
+.ca-picker-exclude [data-as="picker-chips"] > li {
+  @apply bg-rose-50 text-rose-700;
+}
+.ca-picker-exclude [data-as="picker-chips"] > li > button {
+  color: inherit;
+}
+
+/* Item cards (plan 140): width-aware by the card's own container — the
+   chat dock narrows the column, not the viewport, so no lg: here. */
+.ca-item-card {
+  container-type: inline-size;
+  position: relative;
+}
+
+/* Seen rail (plan 159): a reviewed posting carries a 3px neutral bar on its
+   leading edge — the at-a-glance read cue in a long list. It is a marker,
+   not a state hue (accent stays hover/interactive, fit bands stay the only
+   colour language) and the card keeps full contrast: cards are never
+   dimmed. Drawn as a pseudo-element, never a box-shadow, so the shell's
+   focus-within ring is untouched. */
+.ca-item-card[data-seen="true"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.75rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--as-muted-fg) 55%, transparent);
+  pointer-events: none;
+}
+
+@container (max-width: 30rem) {
+  .ca-item-card .ca-item-actions {
+    width: 100%;
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+
+/* Job-card metrics (plan 191): one node with two shapes keyed off the
+   CARD's own width — below 26rem it is a full-width inline strip above
+   the body (number + caption + salary on one line); at 26rem and up it
+   becomes the posting-anatomy rail on the leading edge. One DOM node,
+   no prop, never a viewport breakpoint. Must stay AFTER @tailwind
+   utilities so the container rules win the cascade. */
+.ca-job-metrics {
+  display: flex;
+  width: 100%;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  color: var(--as-muted-fg);
+}
+
+.ca-job-metrics .ca-metric-role {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.375rem;
+}
+
+@container (min-width: 26rem) {
+  .ca-item-card .ca-job-metrics {
+    width: 5rem;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.375rem;
+    border-right: 1px solid var(--as-border);
+    padding-right: 0.75rem;
+    text-align: center;
+  }
+
+  .ca-item-card .ca-job-metrics .ca-metric-role {
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .ca-item-card .ca-metric-value {
+    font-size: 1.25rem;
+    line-height: 1.4;
+  }
+}
+
+/* Card grids (plan 140 follow-up): the column count keys off the PAGE
+   COLUMN's own width (container query), not the viewport — the chat dock
+   narrows the inner page without moving the viewport (plan-95 rule), and
+   viewport breakpoints kept cards three-wide and crushed under the dock.
+   The page's centered column carries ca-card-page; any .ca-card-grid
+   inside reflows 1 → 2 → 3 columns by that width. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-card-page {
+  container-type: inline-size;
+}
+
+.ca-card-grid {
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 32rem) {
+  .ca-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 54rem) {
+  .ca-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Closed item cards (plan 140): re-map the semantic text/score tokens for the
+   whole subtree so a closed posting reads muted without touch content opacity
+   or a grayscale filter (contrast stays intact). */
+.ca-item-card[data-state="closed"] {
+  --as-fg: var(--as-muted-fg);
+  --as-success: var(--as-muted-fg);
+  --as-warning: var(--as-muted-fg);
+  --as-danger: var(--as-muted-fg);
+  --ca-heat-hot: var(--as-muted-fg);
+}
+
+/* Settings kit (plan 148): every "is there room" decision keys off the
+   PAGE column's own width (container query, plan-95 rule — the chat dock
+   narrows the column without moving the viewport). /settings renders
+   full-bleed so these breakpoints can engage on real displays. The shell
+   is a flex child of the full-bleed column — auto margins alone would
+   disable stretch and shrink-wrap it, so width is explicit; max-width +
+   auto margins center and cap it on ultrawide. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+.ca-settings-shell {
+  width: 100%;
+  max-width: 100rem;
+  margin-inline: auto;
+}
+
+.ca-settings {
+  container-type: inline-size;
+}
+
+.ca-settings-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.85rem;
+  margin-bottom: 1.1rem;
+}
+
+.ca-settings-head > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.ca-settings-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+.ca-settings-rail {
+  display: none;
+}
+
+.ca-settings-rail-title {
+  margin: 0 0 0.5rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--as-muted-fg);
+}
+
+.ca-settings-rail-link {
+  display: block;
+  padding: 0.34rem 0.55rem;
+  border-radius: calc(var(--as-radius, 0.75rem) - 0.25rem);
+  color: var(--as-muted-fg);
+  font-size: 0.82rem;
+  text-decoration: none;
+}
+
+.ca-settings-rail-link:hover {
+  color: var(--as-fg);
+  background: var(--as-muted);
+}
+
+.ca-settings-rail-link-active {
+  color: var(--as-fg);
+  font-weight: 600;
+  background: var(--as-surface-raised);
+  box-shadow: inset 0 0 0 1px var(--as-border);
+}
+
+/* Related small cards share a row once the column has room. */
+.ca-settings-duo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.9rem;
+}
+
+@container (min-width: 48rem) {
+  .ca-settings-duo {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 62rem) {
+  .ca-settings-layout {
+    grid-template-columns: minmax(0, 1fr) 180px;
+  }
+
+  /* The in-page rail reads on the RIGHT of the content (docs
+     convention); the DOM keeps rail-first for the landmark order. */
+  .ca-settings-rail {
+    display: block;
+    position: sticky;
+    top: 0;
+    align-self: start;
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .ca-settings-content {
+    grid-column: 1;
+    grid-row: 1;
+  }
+}
+
+/* Very wide columns: keep the reading measure at 52rem (rail grows a
+   little; the leftover stays whitespace at the far edge). */
+@container (min-width: 68rem) {
+  .ca-settings-layout {
+    grid-template-columns: minmax(0, 52rem) 200px;
+  }
+}
+
+/* Taxonomy listing (plan 150): rows collapse to icon + label + status
+   badge under narrow page columns — the mono key and the alias/description
+   hint hide first (container query, plan-95 rule; must stay AFTER
+   @tailwind utilities so the container rules win the cascade). */
+.ca-tax-list {
+  container-type: inline-size;
+}
+
+@container (max-width: 26rem) {
+  .ca-tax-key,
+  .ca-tax-hint {
+    display: none;
+  }
+}
+
+/* Market stats rail (plan 170 slice 3): the stats rail is a THIRD column
+   on /postings and /companies, gated by the page column's own width
+   (container query, plan-95 rule — the chat dock narrows the column
+   without moving the viewport; never a `lg:` switch). Below 64rem of
+   page width the rail renders as one compact "Market pulse" collapsible
+   card above the results (same content, stacked; single grid column).
+   Must stay AFTER @tailwind utilities so the container rules win the
+   cascade. */
+.ca-stats-page {
+  container-type: inline-size;
+}
+
+.ca-stats-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.ca-stats-rail {
+  align-self: start;
+  min-width: 0;
+}
+
+@container (min-width: 64rem) {
+  .ca-stats-cols {
+    grid-template-columns:
+      minmax(215px, 255px)
+      minmax(0, 1fr)
+      minmax(230px, 280px);
+  }
+
+  .ca-stats-rail {
+    position: sticky;
+    top: 4rem;
+    /* The app header (3.5rem) sits above the scroll container, and the
+       sticky offset is 4rem inside it — the rail must stop above the
+       viewport bottom, not run past it. */
+    max-height: calc(100vh - 7.5rem);
+    max-height: calc(100dvh - 7.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: var(--as-border) transparent;
+  }
+}
+
+/* Two-column list pages that are not the full postings template (the
+   rankings filter rail | results pair). Same container-query rule as
+   ca-stats-cols: the chat dock narrows the page column, not the viewport. */
+.ca-rail-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+@container (min-width: 64rem) {
+  .ca-rail-cols {
+    grid-template-columns: minmax(215px, 255px) minmax(0, 1fr);
+  }
+}
+
+/* Catalog columns (plan 191): /catalog needs narrower rails than the
+   shared stats layout — at a 1440px window the 215-255/230-280 rails left
+   ~278px cards; 190-210 rails leave ~340px. Must stay AFTER the
+   .ca-stats-cols block so the override wins the cascade. */
+@container (min-width: 64rem) {
+  .ca-catalog-cols {
+    grid-template-columns:
+      minmax(190px, 210px)
+      minmax(0, 1fr)
+      minmax(190px, 210px);
+  }
+}
+
+/* Autopilot findings workspace (plan 175): left filter rail · feed ·
+   right runs rail over the shared ca-stats grid (container query,
+   plan-95 rule — the chat dock narrows the column, not the viewport).
+   Below the page-width breakpoint the runs rail stacks ABOVE the feed;
+   the filter rail becomes the shared compact toolbar + sheet (plan 209),
+   so no page-local collapse rule lives here. Must stay AFTER
+   @tailwind utilities so the container rules win the cascade. */
+@container (max-width: 63.99rem) {
+  .ca-ap-runs-rail {
+    order: -3;
+  }
+}
+
+/* Market intelligence workspace (plan 195): a full-bleed analytics page —
+   its own container so the chat dock narrowing the column flips the
+   layout without moving the viewport (plan 95; never `lg:` here). */
+.ca-mi {
+  container-type: inline-size;
+}
+
+.ca-mi-tabs {
+  scrollbar-width: thin;
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    black 0.75rem,
+    black calc(100% - 0.75rem),
+    transparent 100%
+  );
+}
+
+.ca-mi-tab {
+  flex: 0 0 auto;
+  border: 1px solid var(--as-border);
+  background: var(--as-surface);
+}
+
+.ca-mi-cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@container (min-width: 40rem) {
+  .ca-mi-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 64rem) {
+  .ca-mi-cards {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

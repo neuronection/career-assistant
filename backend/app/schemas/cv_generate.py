@@ -8,7 +8,7 @@ resolved context sources at run time.
 
 import uuid
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -44,17 +44,17 @@ GENERATABLE_KINDS: tuple[CvGenerateSectionKind, ...] = (
 class CvGenerateRequest(BaseModel):
     """The generate modal's preferences."""
 
-    target_posting_id: Optional[uuid.UUID] = None
+    target_posting_id: uuid.UUID | None = None
     posting_text: str = Field(default="", max_length=5000)
     template_pick: Literal["none", "ai"] = "none"
     language: str = Field(default="en", min_length=2, max_length=10)
-    tone: Optional[Literal["professional", "warm", "concise", "confident"]] = None
+    tone: Literal["professional", "warm", "concise", "confident"] | None = None
     length: Literal["concise", "standard", "detailed"] = "standard"
     max_pages: int = Field(default=1, ge=1, le=3)
     # Review→fix rounds the polish loop may run before it finalizes
     # (the "safety cap"); raise it to let the AI refine longer.
     polish_iterations: int = Field(default=6, ge=1, le=12)
-    template_id: Optional[uuid.UUID] = None
+    template_id: uuid.UUID | None = None
     include_photo: bool = False
     sections: list[CvGenerateSectionKind] = Field(default_factory=list, max_length=10)
     context: CvContextSelection = Field(default_factory=CvContextSelection)
@@ -88,7 +88,7 @@ class CvGenerateResultOut(BaseModel):
     plan_fallback: bool = False
     synth_applied: dict[str, str] = Field(default_factory=dict)
     synth_proposed: list[dict] = Field(default_factory=list)
-    polish: Optional[dict] = None
+    polish: dict | None = None
 
 
 class CvGeneratePreviewOut(BaseModel):
@@ -103,7 +103,7 @@ class CvGeneratePreviewOut(BaseModel):
     pct: int = Field(default=0, ge=0, le=100)
     iteration: int = 0
     html: str = ""
-    trace: Optional[dict] = None
+    trace: dict | None = None
 
 
 class CvGenerateStatusOut(BaseModel):
@@ -112,11 +112,11 @@ class CvGenerateStatusOut(BaseModel):
     job_id: uuid.UUID
     status: str
     progress: int
-    stage: Optional[str] = None
-    error: Optional[str] = None
-    result: Optional[CvGenerateResultOut] = None
+    stage: str | None = None
+    error: str | None = None
+    result: CvGenerateResultOut | None = None
     created_at: datetime
-    finished_at: Optional[datetime] = None
+    finished_at: datetime | None = None
 
 
 class CvRunCallOut(BaseModel):
@@ -124,14 +124,14 @@ class CvRunCallOut(BaseModel):
 
     id: uuid.UUID
     task: str
-    stage: Optional[str] = None
+    stage: str | None = None
     status: str
     provider: str
     model: str
-    prompt_version: Optional[str] = None
-    tokens_in: Optional[int] = None
-    tokens_out: Optional[int] = None
-    latency_ms: Optional[int] = None
+    prompt_version: str | None = None
+    tokens_in: int | None = None
+    tokens_out: int | None = None
+    latency_ms: int | None = None
 
 
 class CvRunAggregateOut(BaseModel):
@@ -155,13 +155,13 @@ class CvRunOut(BaseModel):
     job_id: uuid.UUID
     job_type: str
     status: str
-    stage: Optional[str] = None
-    error: Optional[str] = None
+    stage: str | None = None
+    error: str | None = None
     created_at: datetime
-    finished_at: Optional[datetime] = None
-    outcome: Optional[str] = None
-    resumed_from: Optional[str] = None
-    final_version: Optional[int] = None
+    finished_at: datetime | None = None
+    outcome: str | None = None
+    resumed_from: str | None = None
+    final_version: int | None = None
     stages: list[dict] = Field(default_factory=list)
     iterations: list[dict] = Field(default_factory=list)
     llm_calls: list[CvRunCallOut] = Field(default_factory=list)

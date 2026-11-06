@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeProse } from "./prose";
+import { normalizeProse } from "@/lib/prose";
 
 describe("normalizeProse", () => {
   it("honors single hard breaks", () => {

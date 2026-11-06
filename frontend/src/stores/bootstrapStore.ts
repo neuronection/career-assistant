@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { fetchBootstrap } from "@/api/stages";
-import type { Bootstrap } from "@/types";
+import type { Bootstrap } from "@/types/wire";
 
 interface BootstrapState {
   bootstrap: Bootstrap | null;

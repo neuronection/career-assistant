@@ -11,6 +11,7 @@ import pytest
 
 from app.ai.tools import ToolScope, list_tools, run_tool
 from app.models.experience_model import ExperienceItem
+from tests.conftest import grant_tool
 
 
 def _uid(auth_headers) -> str:
@@ -122,9 +123,7 @@ async def test_list_applies_when_starred(client, db, auth_headers):
     )
 
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"])
     result = await run_tool(
         db, "cv_synth_list", uuid.UUID(_uid(auth_headers)), {"cv_id": str(cv["id"])}
     )
@@ -140,9 +139,7 @@ async def test_list_language_mismatch_verdict(client, db, auth_headers):
     )
 
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"])
     await client.patch(
         f"/api/v1/cv/{cv['id']}",
         json={"language": "fr"},
@@ -157,6 +154,8 @@ async def test_list_language_mismatch_verdict(client, db, auth_headers):
 
 
 async def test_generate_and_update_via_tools(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "cv_synth_generate")
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "cv_synth_update")
     from tests.test_cv_synth_resolution import _cv_with_pins
 
     item = await _item(db, _uid(auth_headers))
@@ -175,8 +174,7 @@ async def test_generate_and_update_via_tools(client, db, auth_headers):
     live = generated["created"][0]
     assert live["status"] == "active", "plan 102: chat request = activation"
     assert "already live" not in generated["note"], (
-        "plan 109/110: activation is NOT rendering — the note must not "
-        "claim the CV without a pin"
+        "plan 109/110: activation is NOT rendering — the note must not claim the CV without a pin"
     )
     assert "once pinned" in generated["note"]
     assert "variant_list" in generated["note"]
@@ -217,8 +215,7 @@ async def test_variant_tools_bind_in_main_chat_only():
     assert "cv_synth_generate" not in chat_keys
     assert sorted(listed["cv_synth_generate"]["audiences"]) == ["cv_builder"]
     assert not any(
-        key.startswith("cv_synth_generate") or key.startswith("cv_synth_")
-        for key in chat_keys
+        key.startswith("cv_synth_generate") or key.startswith("cv_synth_") for key in chat_keys
     ), "the cv_builder-audience variant family stays copilot-owned"
 
 
@@ -242,6 +239,7 @@ async def test_variant_list_slim_rows_and_verdict(client, db, auth_headers):
 
 
 async def test_variant_pin_sets_default_and_promotes_drafts(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "variant_pin")
     item = await _item(db, _uid(auth_headers))
     cv = await _cv(client, auth_headers, db)
 
@@ -287,6 +285,7 @@ async def test_variant_pin_sets_default_and_promotes_drafts(client, db, auth_hea
 
 
 async def test_variant_pin_unpin_by_variant_and_by_slot(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "variant_pin")
     item, variant = await _item_and_active_variant(client, db, auth_headers)
     cv = await _cv(client, auth_headers, db)
     await run_tool(
@@ -341,6 +340,7 @@ async def test_variant_pin_unpin_by_variant_and_by_slot(client, db, auth_headers
 
 
 async def test_variant_pin_guards(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "variant_pin")
     from app.core.errors import NotFoundError, ValidationError
 
     item = await _item(db, _uid(auth_headers))
@@ -385,9 +385,7 @@ async def test_variant_pin_guards(client, db, auth_headers):
 
     from app.models.cv_model import CvDocument
 
-    await db.execute(
-        sql_delete(CvDocument).where(CvDocument.id == uuid.UUID(other_cv["id"]))
-    )
+    await db.execute(sql_delete(CvDocument).where(CvDocument.id == uuid.UUID(other_cv["id"])))
     await db.commit()
     with pytest.raises(NotFoundError):
         await run_tool(
@@ -412,6 +410,7 @@ async def test_variant_pin_guards(client, db, auth_headers):
 
 
 async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "cv_synth_generate")
     """One call moves many rows; stars are stripped; unknown ids fail."""
     from sqlalchemy import select
 
@@ -428,7 +427,7 @@ async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
             uuid.UUID(_uid(auth_headers)),
             {"cv_id": str(cv["id"]), "refs": _refs(item), "action": "summarize"},
         )
-        ids.append((row["created"][0]["id"]))
+        ids.append(row["created"][0]["id"])
 
     response = await client.post(
         "/api/v1/cv/synth/bulk",
@@ -442,11 +441,7 @@ async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
     }
     assert all(rows[i] == "archived" for i in ids)
 
-    stored = (
-        (await db.execute(select(CvSynthItem).where(CvSynthItem.id.in_(ids))))
-        .scalars()
-        .all()
-    )
+    stored = (await db.execute(select(CvSynthItem).where(CvSynthItem.id.in_(ids)))).scalars().all()
     assert all(row.status == "archived" for row in stored), "bulk persisted archive"
 
     restore = await client.post(
@@ -472,9 +467,7 @@ async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
     remaining = (
         (
             await db.execute(
-                select(CvSynthItem).where(
-                    CvSynthItem.user_id == uuid.UUID(_uid(auth_headers))
-                )
+                select(CvSynthItem).where(CvSynthItem.user_id == uuid.UUID(_uid(auth_headers)))
             )
         )
         .scalars()
@@ -492,6 +485,7 @@ async def test_bulk_archive_unarchive_delete(client, db, auth_headers):
 
 
 async def test_bulk_archive_strips_star(client, db, auth_headers):
+    await grant_tool(db, uuid.UUID(_uid(auth_headers)), "cv_synth_generate")
     item, row = await _item_and_active_variant(client, db, auth_headers)
     cv = await _cv(
         client,

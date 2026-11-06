@@ -1,7 +1,8 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import ClassVar
 
-from sqlalchemy import DateTime, JSON, MetaData, Uuid, func
+from sqlalchemy import JSON, DateTime, MetaData, Uuid, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import TypeDecorator
@@ -47,15 +48,12 @@ class TZDateTime(TypeDecorator):
 
     def process_bind_param(self, value, dialect):
         if value is not None:
-            if value.tzinfo is None:
-                value = value.replace(tzinfo=timezone.utc)
-            else:
-                value = value.astimezone(timezone.utc)
+            value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
         return value
 
     def process_result_value(self, value, dialect):
         if value is not None and value.tzinfo is None:
-            value = value.replace(tzinfo=timezone.utc)
+            value = value.replace(tzinfo=UTC)
         return value
 
 
@@ -72,7 +70,7 @@ class Base(DeclarativeBase):
     """Declarative base with a shared naming convention."""
 
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
-    type_annotation_map = {uuid.UUID: GuidType}
+    type_annotation_map: ClassVar[dict[type, type]] = {uuid.UUID: GuidType}
 
 
 class TimestampMixin:
@@ -85,14 +83,14 @@ class TimestampMixin:
 
     created_at: Mapped[datetime] = mapped_column(
         TZDateTime(),
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
         server_default=func.now(),
         nullable=False,
     )
     updated_at: Mapped[datetime] = mapped_column(
         TZDateTime(),
-        default=lambda: datetime.now(timezone.utc),
-        onupdate=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
         server_default=func.now(),
         nullable=False,
     )

@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { MessageProposals, ProposalCards } from "@/components/chat/MessageProposals";
+import { MessageProposals, ProposalCards } from "@/features/chat/components/chat/MessageProposals";
 import type { ChatMessage, ProfileProposalCardData } from "@/types";
 
 const approveApi = vi.hoisted(() => vi.fn());
@@ -91,6 +91,26 @@ describe("MessageProposals / ProposalCards", () => {
     expect(screen.getByText("End date")).toBeInTheDocument();
     expect(screen.getByText("2026-06-30")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Approve" })).toBeInTheDocument();
+  });
+
+  it("renders MCP origin provenance on MCP-sourced cards only (plan 119.4)", () => {
+    const mcpCard: ProfileProposalCardData = {
+      ...CARD,
+      id: "prop-mcp",
+      source: "mcp",
+      origin: {
+        channel: "mcp",
+        token_label: "Claude Desktop",
+        request_id: "abcdef12-3456",
+      },
+    };
+    const { rerender } = render(<MessageProposals message={messageWith([CARD])} />);
+    expect(screen.queryByTestId(`hitl-origin-${CARD.id}`)).toBeNull();
+
+    rerender(<MessageProposals message={messageWith([mcpCard])} />);
+    const origin = screen.getByTestId("hitl-origin-prop-mcp");
+    expect(origin).toHaveTextContent("Claude Desktop");
+    expect(origin).toHaveTextContent("abcdef12");
   });
 
   it("renders nothing without proposals", () => {

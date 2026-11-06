@@ -1,3 +1,6 @@
 # Career Assistant — development Procfile (honcho)
-backend:  cd backend && PYTHONPATH=$(pwd) ./venv/bin/uvicorn app.main:app --reload --host ${CA_DEV_HOST:-127.0.0.1} --port 8100 --timeout-graceful-shutdown 5
-frontend: cd frontend && npm run dev -- --host ${CA_VITE_HOST:-localhost} --port 3100
+# Ports come from the environment (run-dev.sh exports them; a linked
+# worktree gets its own block from .env.wt.local) so concurrent sessions
+# never collide. The defaults match the primary checkout.
+backend:  cd backend && uv run uvicorn app.main:app --reload --host ${CA_DEV_HOST:-127.0.0.1} --port ${BACKEND_PORT:-8100} --timeout-graceful-shutdown 5
+frontend: cd frontend && npm run dev -- --host ${CA_VITE_HOST:-localhost} --port ${FRONTEND_PORT:-3100}

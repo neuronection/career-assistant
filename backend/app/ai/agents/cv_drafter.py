@@ -133,19 +133,12 @@ def build_plan_user_prompt(
             f"CV_LANGUAGE: {language}",
             f"ENABLED_KINDS: {', '.join(enabled_kinds)}",
             *([f"CANDIDATE NOTES: {notes}"] if notes.strip() else []),
-            *(
-                ["ABOUT_REQUESTED: include a short About section"]
-                if about_requested
-                else []
-            ),
+            *(["ABOUT_REQUESTED: include a short About section"] if about_requested else []),
             "",
             "AVAILABLE CONTEXT ITEMS (per source):",
             context_json(
                 {
-                    key: [
-                        {"item_id": item["item_id"], "label": item["label"]}
-                        for item in items
-                    ]
+                    key: [{"item_id": item["item_id"], "label": item["label"]} for item in items]
                     for key, items in available.items()
                 }
             ),
@@ -240,11 +233,7 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
                 {
                     "kind": kind,
                     "source_key": kind,
-                    "item_ids": [
-                        str(item.get("item_id"))
-                        for item in items
-                        if item.get("item_id")
-                    ],
+                    "item_ids": [str(item.get("item_id")) for item in items if item.get("item_id")],
                     "rationale": "profile evidence for this section",
                 }
             )
@@ -283,11 +272,7 @@ def _mock_cv_draft(schema: type[BaseModel], user_prompt: str) -> dict:
                 summary = str((item.get("payload") or {}).get("summary") or "")
                 if summary:
                     break
-            return {
-                "sections": [
-                    {"kind": "summary", "source_key": "summary", "text": summary}
-                ]
-            }
+            return {"sections": [{"kind": "summary", "source_key": "summary", "text": summary}]}
         drafted = []
         for item in section_items:
             payload = item.get("payload") or {}

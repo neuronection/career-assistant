@@ -8,16 +8,16 @@ the `nx_auth` store protocols in `app/auth/stores.py`. `users` lives in
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import TZDateTime, Base, UUIDPrimaryKeyMixin
+from app.models.base import Base, TZDateTime, UUIDPrimaryKeyMixin
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class AuthSession(UUIDPrimaryKeyMixin, Base):
@@ -40,9 +40,7 @@ class AuthSession(UUIDPrimaryKeyMixin, Base):
     client_label: Mapped[str] = mapped_column(
         String(200), nullable=False, default="", server_default=""
     )
-    created_at: Mapped[datetime] = mapped_column(
-        TZDateTime(), nullable=False, default=_utcnow
-    )
+    created_at: Mapped[datetime] = mapped_column(TZDateTime(), nullable=False, default=_utcnow)
 
 
 class InstanceSetting(Base):

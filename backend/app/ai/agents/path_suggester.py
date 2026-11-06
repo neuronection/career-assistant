@@ -1,16 +1,15 @@
-"""AI career-path suggester: drafts 1–3 routes to a destination job."""
+"""AI career-path suggester: drafts 1-3 routes to a destination job."""
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
 from app.ai.agents.prompts import PATH_SUGGESTER
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import PathDraftSet
 from app.models.enums import AITaskType
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
-def _build_user_prompt(
-    job_snapshot: dict, family_keys: list[str], skill_keys: list[str]
-) -> str:
+def _build_user_prompt(job_snapshot: dict, family_keys: list[str], skill_keys: list[str]) -> str:
     return context_json(
         {
             "job": job_snapshot,

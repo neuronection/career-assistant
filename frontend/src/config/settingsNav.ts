@@ -1,21 +1,29 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Bell,
+  Building2,
   CalendarClock,
   CircleUser,
   Cpu,
   ListTree,
   ScrollText,
   Users,
+  Wrench,
 } from "lucide-react";
 
 export interface SettingsNavItem {
   to: string;
   icon: LucideIcon;
-  label: string;
-  description?: string;
+  labelKey: string;
+  descriptionKey?: string;
   /** When true, only admins see the entry. */
   adminOnly?: boolean;
+  /** Rail group label (library `SettingsNavItem.section`): the tab list
+   * renders as contiguous runs — Personal, AI & tools, Automation,
+   * Administration. Derived from the settings-map contract groups
+   * (app+user → personal, ai/tools → aiTools, automations, app+admin →
+   * administration); settingsMap.test.ts pins the alignment. */
+  sectionKey: "personal" | "aiTools" | "automation" | "administration";
 }
 
 /** Settings sections — add future general settings here. */
@@ -23,46 +31,69 @@ export const settingsNav: SettingsNavItem[] = [
   {
     to: "/settings/account",
     icon: CircleUser,
-    label: "Account",
-    description: "Sessions, password and account deletion",
-  },
-  {
-    to: "/settings/ai",
-    icon: Cpu,
-    label: "AI Configuration",
-    description: "Providers, models and task assignments",
-  },
-  {
-    to: "/settings/scheduler",
-    icon: CalendarClock,
-    label: "Scheduler",
-    description: "Scheduled searches, digests and system rhythm",
+    labelKey: "settingsNav.account.label",
+    descriptionKey: "settingsNav.account.description",
+    sectionKey: "personal",
   },
   {
     to: "/settings/notifications",
     icon: Bell,
-    label: "Notifications",
-    description: "Kinds, channels and quiet hours",
+    labelKey: "settingsNav.notifications.label",
+    descriptionKey: "settingsNav.notifications.description",
+    sectionKey: "personal",
+  },
+  {
+    to: "/settings/ai",
+    icon: Cpu,
+    labelKey: "settingsNav.ai.label",
+    descriptionKey: "settingsNav.ai.description",
+    sectionKey: "aiTools",
+  },
+  {
+    to: "/settings/tools",
+    icon: Wrench,
+    labelKey: "settingsNav.tools.label",
+    descriptionKey: "settingsNav.tools.description",
+    adminOnly: true,
+    sectionKey: "aiTools",
+  },
+  {
+    to: "/settings/automations",
+    icon: CalendarClock,
+    labelKey: "settingsNav.automations.label",
+    descriptionKey: "settingsNav.automations.description",
+    sectionKey: "automation",
   },
   {
     to: "/settings/taxonomy",
     icon: ListTree,
-    label: "Taxonomy",
-    description: "Interest & skill vocabularies",
+    labelKey: "settingsNav.taxonomy.label",
+    descriptionKey: "settingsNav.taxonomy.description",
     adminOnly: true,
+    sectionKey: "administration",
+  },
+  {
+    to: "/settings/companies",
+    icon: Building2,
+    labelKey: "settingsNav.companies.label",
+    descriptionKey: "settingsNav.companies.description",
+    adminOnly: true,
+    sectionKey: "administration",
   },
   {
     to: "/settings/users",
     icon: Users,
-    label: "Users",
-    description: "Roles, access and forced sign-out",
+    labelKey: "settingsNav.users.label",
+    descriptionKey: "settingsNav.users.description",
     adminOnly: true,
+    sectionKey: "administration",
   },
   {
     to: "/settings/audit",
     icon: ScrollText,
-    label: "AI Audit",
-    description: "Every AI call, with tokens and latency",
+    labelKey: "settingsNav.audit.label",
+    descriptionKey: "settingsNav.audit.description",
     adminOnly: true,
+    sectionKey: "administration",
   },
 ];

@@ -1,0 +1,555 @@
+{
+  "version": 1,
+  "project": "career",
+  "updated": "2026-11-06",
+  "capabilities": [
+    {
+      "id": "update-checks",
+      "verb": "See when a new version ships, right where you work",
+      "summary": "A quiet banner in the app shell announces new releases, checked against the family version API — no identifiers leave the instance, and updates still install the usual way.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Public /api/v1/instance/update-check endpoint, 6 h server-side cache",
+        "Real semver ordering with the stable-channel law (prereleases never offered to stable clients)",
+        "The check is a plain anonymous GET — no telemetry, failures read as 'no update'"
+      ],
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "website",
+          "href": "https://neuronection.com/en/career/",
+          "label": "Career Assistant"
+        }
+      ],
+      "order": 5
+    },
+    {
+      "id": "job-catalog",
+      "verb": "Discover careers you didn't know exist",
+      "summary": "A structured job catalog you browse as a family tree, a typed relation graph and a filterable card grid, extendable with AI-generated careers that map onto the same taxonomy.",
+      "category": "discover",
+      "status": "shipped",
+      "proofs": [
+        "Jobs relate through typed edges: similar_to, leads_to, specialises_into, alternative_to, prerequisite_of",
+        "Rich structured attributes per job: skills with requirement levels, salary bands, demand, education, schedule, travel and work hours",
+        "Catalog cards show open live-role counts (one aggregate per page), salary band, skill levels and a mapped-postings link",
+        "Catalog filters cover family, skills, education, demand, salary, contract, schedule, travel and environment, with facet counts and URL state",
+        "AI proposes catalog-grounded generic job types (map-existing first, exact duplicates blocked), not posting titles"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/explore-the-catalog"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 10,
+      "visual": "images/components/job-catalog-desktop.png"
+    },
+    {
+      "id": "profile-matching",
+      "verb": "See which jobs fit you — and why",
+      "summary": "Any job can get an AI score with positives, negatives and missing prerequisites, your own score sits beside it, and a deterministic fit engine shows the per-dimension breakdown.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "AI scores 0–10 with structured rationale: positives, negatives, missing prerequisites",
+        "The deterministic fit engine scores without any AI — per-dimension and re-weightable",
+        "Compare 2–4 jobs side by side, per dimension, in the compare tray"
+      ],
+      "metric": {
+        "value": "6",
+        "label": "fit dimensions"
+      },
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/matching-and-rankings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 20
+    },
+    {
+      "id": "cv-studio",
+      "verb": "Turn your profile into a tailored CV",
+      "summary": "CV Studio builds CVs from templates, from an uploaded CV or one-shot from your profile, with a versioned template bank, design-token editor, ATS lint and five export formats.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "Exports to PDF, DOCX, Markdown, JSON and ATS text; the PDF is the page-count truth",
+        "Versions carry diff, image-diff and one-click restore for every AI edit",
+        "Live ATS lint and a page-count meter run inside the builder"
+      ],
+      "metric": {
+        "value": "5",
+        "label": "export formats"
+      },
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/cv-studio"
+        },
+        {
+          "kind": "source",
+          "href": "https://github.com/neuronection/career-assistant",
+          "label": "GitHub"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 30,
+      "visual": "images/components/cv-studio-panel-desktop.png"
+    },
+    {
+      "id": "assistant-chat",
+      "verb": "Ask an assistant that edits nothing without your approval",
+      "summary": "A chat grounded in your catalog, profile and postings through tool-calling: profile edits arrive as proposal cards with before/after previews and one-click revert, and a builder copilot operates CV Studio with vision.",
+      "category": "ai",
+      "status": "shipped",
+      "proofs": [
+        "Answers ground in your own data via tool-calling; long runs show a readable progress trace",
+        "Profile edits are anchored proposal cards with rendered before/after previews and one-click revert",
+        "A read-before-edit gate makes the assistant open an item's full content before proposing edits",
+        "The builder copilot sees rendered CV pages and applies validated operations on one audited path",
+        "Postings carry short ref ids — ask by board, recency or reference and get Explore deep-links"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/assistant-chat"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/chat-tools-and-approval"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 33,
+      "visual": "images/components/proposal-card-desktop.png"
+    },
+    {
+      "id": "application-tracker",
+      "verb": "Track every application from applied to offer",
+      "summary": "A board or list runs applied through screening, interview, offer and acceptance, with event timelines, the documents you sent and follow-up reminders on your cadence; stage changes proposed in chat ask first.",
+      "category": "automate",
+      "status": "shipped",
+      "proofs": [
+        "Six stages: applied, screening, interview, offer, accepted, closed — closes record the outcome",
+        "Every application keeps an event timeline: stage moves, notes, documents, follow-up snoozes",
+        "Follow-up reminders default to +7 and +14 days and arrive through the notification funnel",
+        "The dashboard shows the real saved → applied → interviewing → offers funnel",
+        "Stage changes proposed in chat land as confirmation cards — the tracker never auto-applies"
+      ],
+      "metric": {
+        "value": "6",
+        "label": "pipeline stages"
+      },
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 35
+    },
+    {
+      "id": "live-postings",
+      "verb": "Find openings on live job boards that match your profile",
+      "summary": "Thirteen connectors — job boards, ATS feeds, RSS, CSV, paste-a-URL — pull live postings deep-extracted, employer names resolved; card menus filter with undo; catalogs layer operator/community presets.",
+      "category": "integrate",
+      "status": "beta",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/career-autopilot"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 40
+    },
+    {
+      "id": "market-stats",
+      "verb": "See how the job market is moving, not just one opening",
+      "summary": "Market intelligence workspace over the live postings corpus: Overview/Demand/Skills/Pay/Companies tabs share one window, status basis and Explore filter set; honest list drills and per-card retry (beta).",
+      "category": "discover",
+      "status": "beta",
+      "platforms": [
+        "selfhosted",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/market-stats"
+        }
+      ],
+      "order": 41
+    },
+    {
+      "id": "radar-sourcing",
+      "verb": "Tell your radar what you want — sources go search for it",
+      "summary": "Posting sources can follow your job radar instead of their own static config: one focused role-group query per sync, rotating — traffic stays constant however many keywords you set.",
+      "category": "integrate",
+      "status": "shipped",
+      "proofs": [
+        "A source marked Follow my radar takes keywords and location from the Job Radar; the form shows the effective query and rotation position",
+        "Role groups rotate round-robin — one focused search per sync; optional batches of 2-3 run strictly sequential with jittered pauses",
+        "Keywords are grouped by an AI curator into role groups (deterministic auto-merge fallback; un-curated plans upgrade when AI is configured)",
+        "A management page per source shows the query plan (per-group timing, per-term provenance), run history with retry, and all configuration",
+        "Fetch-detail modes (off / sample / smart / all): smart and all queue paced, budgeted description fetches for the best-ranked postings"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/add-a-job-source"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 45
+    },
+    {
+      "id": "calendar-feed",
+      "verb": "Take your deadlines and interviews with you",
+      "summary": "Subscribe to a private calendar feed from Google, Outlook, Apple Calendar or any reader. Dates update in place when they change.",
+      "category": "integrate",
+      "status": "shipped",
+      "order": 46,
+      "proofs": [
+        "Admission and application deadlines, interviews and review days",
+        "Stable ids — a changed date updates the event, never duplicates",
+        "Rebuilt from live data on every request; never cached",
+        "Signed tokens shown once; only a hash is stored",
+        "Rotate or revoke the link at any time"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/calendar-feed"
+        }
+      ]
+    },
+    {
+      "id": "university-pathways",
+      "verb": "Map the degree that leads to your target job",
+      "summary": "Upload your university's admission PDF and a parsing pipeline drafts universities, departments and yearly baselines for your review; approved departments link to jobs through pathway rows.",
+      "category": "discover",
+      "status": "shipped",
+      "proofs": [
+        "Parsed admission data lands in the catalog only after you review and approve it",
+        "Departments link to jobs with relevance, required subjects, salary bands and employment rates",
+        "University intake is gated behind the student career stage — hidden for the other stages"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/universities"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 50
+    },
+    {
+      "id": "career-paths",
+      "verb": "Follow a mapped route to the job you want",
+      "summary": "Curated and AI-drafted routes to each job, plus computed routes over the typed relation graph, render as graph, tree or list — fork a curated path into your own copy and activate it after review.",
+      "category": "discover",
+      "status": "beta",
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/explore-the-catalog"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 55
+    },
+    {
+      "id": "taxonomy-translations",
+      "verb": "Review every catalog translation before it renders",
+      "summary": "AI drafts localized labels for jobs, skills, families and institutions into de and el; nothing renders until an admin approves it against the base label — one card or a whole batch.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Locale and status pills carry live counts; search matches the base label and the draft",
+        "Cards group by entity kind and always show the base label next to the draft — no blind approvals",
+        "Batch approve/reject reports per-item outcomes instead of failing the batch",
+        "Draft with AI fills the queue; only approved rows ever render on catalog, search or chat surfaces",
+        "A batch approves or rejects through one server call with per-item outcomes; a selection never crosses the language partition"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/skills-taxonomy"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 56
+    },
+    {
+      "id": "taxonomy-relations",
+      "verb": "Curate the skill relations behind your filters",
+      "summary": "A background job proposes skill relations from your own data and every edge waits for admin review — one row or a whole batch; accepted relations widen the posting filters and catch the sub-skill tree up.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "The reviewed graph both expands your filters (Exact, Sub-skills, Related) and renders as a diagram — force or hierarchy, PNG export",
+        "The curated sub-skill tree and synonyms always count for free; only learned edges are capped by the hop setting",
+        "Every proposed relation waits in the review queue: accept, dismiss (the negative edge sticks) or save a label as an alias, one or many",
+        "Approving an is a edge fills a skill's untouched tree place; a parent set — or cleared — by hand never moves",
+        "Settings → Taxonomy curates in bulk and tunes extraction resolution — KPIs, thresholds, replay; /skills/:key has stats and history"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/skills-taxonomy"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/postings-and-search"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 57
+    },
+    {
+      "id": "taxonomy-backlog",
+      "verb": "See the whole taxonomy backlog at a glance",
+      "summary": "The Taxonomy page opens with one bar over the work you own: skill lifecycle counts and every review queue's live total, plus the seven-day promotion delta that reveals a stalled auto-promoter.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Proposed, active and deprecated skills sit beside the promoter's all-time and 7-day counts — a shrinking delta is the stall signal",
+        "Every review queue shows its live count in the bar and on its tab: relations, enrichment, draft paths, translations",
+        "Counts are computed server-side in one aggregation, so the tile and the tab never disagree — on the SQLite desktop profile too",
+        "Every queue batches through one selection bar: scoped select-all, a hidden-by-filter count and per-item outcomes"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 58
+    },
+    {
+      "id": "catalog-mapping-ops",
+      "verb": "Get every job post honestly mapped or accounted for",
+      "summary": "An admin console for the job-post → job-type mapping: the honest funnel, a filterable triage queue with typed outcomes and a decision trace, per-source and per-type breakdowns, and read-only run controls.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "The accounted-for gate separates mapped, machine-terminal and human-reviewed postings — a floor, never a forced 100% mapped",
+        "The triage queue filters by funnel state (not extracted, no description, needs review…) with bounded bulk extract/re-decide/ignore/unmap",
+        "Every decision writes a typed outcome (mapped/unmapped + closed reason); the ignore overlay answers 409 unmap-first on a mapped posting",
+        "Per-source and per-job-type breakdowns flag zero-posting types and cluster the proposed types waiting in the queue",
+        "The decision trace shows outcome, signals, top candidates and the journal — never prompt or response text"
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/mapping-coverage"
+        }
+      ],
+      "order": 59
+    },
+    {
+      "id": "connector-sdk",
+      "verb": "Extend the app with your own job sources",
+      "summary": "The connector SDK ships job sources as versioned, consent-gated extensions with trust tiers and sandboxing, and an MCP server exposes read-only-by-default career tools to external clients.",
+      "category": "developer",
+      "audience": "dev",
+      "status": "shipped",
+      "proofs": [
+        "Imported extensions run out-of-process: sandboxed subprocess or external MCP script",
+        "Installs are consent-gated and digest-pinned — they never auto-update",
+        "MCP clients read your career data through a locally generated, rotatable token; writes ride approval cards",
+        "Bundles install from https git sources — or a zip upload in dev/test — the bundle's own settings form drives config, consent and pinning",
+        "A drifted page still yields minimal valid rows the deep-extraction pass structures — typed errors, never a crash"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "https://github.com/neuronection/career-assistant/tree/main/docs/dev/sdk",
+          "label": "Connector SDK docs"
+        },
+        {
+          "kind": "guide",
+          "href": "docs/career/user/import-extensions-from-git"
+        },
+        {
+          "kind": "source",
+          "href": "https://github.com/neuronection/career-assistant",
+          "label": "GitHub"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 60
+    },
+    {
+      "id": "account-data",
+      "verb": "Own and export your data",
+      "summary": "Everything the app holds about you — profile, applications, documents, settings — exports as a downloadable archive, and account self-service covers sessions, password and deletion.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "POST /api/v1/me/export builds the archive as a background job; the account page polls and offers the download",
+        "GDPR-style full export: profiles, applications, documents and settings as JSON inside a zip",
+        "Signed-in devices list with per-device sign-out, sign-out-everywhere and password change (identity-auth §12)",
+        "Account deletion cascades everything, confirmed by password with an armed two-step control"
+      ],
+      "order": 65
+    },
+    {
+      "id": "audit-observability",
+      "verb": "See everything the system did, and why",
+      "summary": "One admin dashboard over the audit streams: every AI call with model, tokens, latency and run lineage; the identity trail of sign-ins, denials and admin acts; and windowed health metrics.",
+      "category": "privacy",
+      "status": "shipped",
+      "proofs": [
+        "Every AI call is gateway-audited (task, model, tokens, latency, status, run lineage); per-model usage and token trends",
+        "Production throughput: postings ingested, skill lifecycle events, companies, catalog jobs by origin",
+        "Identity audit trail read surface; custom date ranges and CSV export on every view",
+        "Failed AI jobs group by type and error family; one confirmed action bulk-requeues them as fresh rows (requeue_of markers)",
+        "Open any autopilot run and see each step's arguments and outputs, its AI calls and its findings"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 70
+    },
+    {
+      "id": "retrieval-operations",
+      "verb": "Keep semantic retrieval healthy as the index grows",
+      "summary": "An admin surface for the vector index: the active space, backend and model, coverage and quality gates, bounded reindex runs, space lifecycle, maintenance, an aggregate status export plus a read-only Audit tab.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Active space reports the honest backend label, model/dimension, store health, coverage and the coverage/quality gates",
+        "Bounded reindex by kind, view and since timestamp with a token budget and document limit; queued runs are shown as queued, never as finished",
+        "Build a token-aware v2 space beside the old one from the resolved profile, gate it on coverage and quality, retain the old space",
+        "Index rebuild, vacuum, orphan sweep and failed-document retry with dry-run; the status export carries aggregates only, never raw text",
+        "Read-only Audit → Retrieval tab with spaces, runs (live progress, counters), quality, query health, failures, usage and changes"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 72
+    },
+    {
+      "id": "tokenizer-transparency",
+      "verb": "See what counts as a token, before it can break retrieval",
+      "summary": "A tokenizer/limits surface in Tools → Retrieval: counting tokenizer, exactness, input limit, batch and chunk budget, measured spread, and an admin profile per provider-class + model with pinned HF fetch.",
+      "category": "analyze",
+      "status": "shipped",
+      "proofs": [
+        "Exact tiktoken counting for curated OpenAI models; the BPE asset is bundled and checksum-verified offline",
+        "Verified nomic/mxbai/bge/Qwen/e5 mappings carry pinned revision, SHA-256, license and source URL",
+        "Pinned HF tokenizer.json fetch is allowlisted, size-capped, SHA-256-verified, cached and never request-time",
+        "Unfetched/unknown models show the labelled fallback; an admin per provider-class + model can override it",
+        "Tools builds a token-aware v2 space from the resolved profile and editable chunk bounds; a legacy space still reports v1"
+      ],
+      "links": [
+        {
+          "kind": "guide",
+          "href": "docs/career/user/settings"
+        }
+      ],
+      "platforms": [
+        "selfhosted",
+        "web",
+        "desktop"
+      ],
+      "order": 73
+    }
+  ],
+  "useCases": [
+    "Pick a degree with a destination — upload the admission PDF, approve the parsed departments, and follow degree-to-job pathways into a target role.",
+    "Delegate the hunt — describe “junior QA role, remote, €30k+” once; Autopilot searches connected boards on cadence and returns a shortlist with reasons.",
+    "Re-enter the market — import your old CV or GitHub profile review-first, then ship a tailored CV plus a per-posting cover letter from CV Studio.",
+    "Feed the radar, not the boards — add job-board sources, set one salary-floor radar, and get digests only when unseen matches clear it.",
+    "Run the pipeline like a pipeline — move cards applied → offer while +7/+14-day follow-up nudges arrive through the notification funnel."
+  ]
+}

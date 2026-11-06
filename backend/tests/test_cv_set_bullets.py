@@ -12,17 +12,14 @@ from app.models.cv_synth_model import CvSynthItem
 from app.models.experience_model import ExperienceItem
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
-from app.services.cv_service import CvService
-from app.services.experience_service import ExperienceService
+from app.services.cv.cv_service import CvService
+from app.services.profile.experience_service import ExperienceService
 from app.services.profile_proposal_service import ProfileProposalService
-
 from tests.test_profile_proposals import _auth_user
 
 
 async def _cv(db, user) -> "object":
-    return await CvService(db).create(
-        user.id, CvDocumentCreate(title="Target CV", kind="resume")
-    )
+    return await CvService(db).create(user.id, CvDocumentCreate(title="Target CV", kind="resume"))
 
 
 async def _experience(db, user) -> ExperienceItem:
@@ -235,9 +232,7 @@ async def test_sibling_bullets_cards_apply_after_one_approval(db, auth_headers):
     applied = await _approve(db, user, sibling)
 
     assert applied is not None
-    pins = ((await CvService(db).get_owned(cv.id, user.id)).context or {}).get(
-        "synth_pins"
-    ) or {}
+    pins = ((await CvService(db).get_owned(cv.id, user.id)).context or {}).get("synth_pins") or {}
     assert f"experience:{item.id}" in pins
     assert f"experience:{other.id}" in pins
 
@@ -253,9 +248,7 @@ async def test_revert_unpins_the_bullets_variant(db, auth_headers):
     assert reverted.status == "reverted"
     fresh = await CvService(db).get_owned(cv.id, user.id)
     pins = (fresh.context or {}).get("synth_pins") or {}
-    assert f"experience:{item.id}" not in pins, (
-        "revert unpins — the profile bullets render again"
-    )
+    assert f"experience:{item.id}" not in pins, "revert unpins — the profile bullets render again"
 
 
 async def test_revert_without_a_variant_is_a_clean_noop(db, auth_headers):
@@ -298,8 +291,10 @@ async def test_bullets_clamped_and_extra_forbidden(db, auth_headers):
 
 async def test_read_items_and_set_bullets_tools(db, auth_headers):
     from app.ai.tools import run_tool
+    from tests.conftest import grant_tool
 
     user = await _auth_user(db)
+    await grant_tool(db, user, "cv_set_bullets")
     cv = await _cv(db, user)
     item = await _experience(db, user)
     listed = await run_tool(db, "read_cv_items", user.id, {"cv_id": str(cv.id)})
@@ -360,9 +355,7 @@ async def _builder_env(db, monkeypatch):
     return db
 
 
-async def test_chat_proposes_and_approval_applies_cv_bullets(
-    client, db, auth_headers, monkeypatch
-):
+async def test_chat_proposes_and_approval_applies_cv_bullets(client, db, auth_headers, monkeypatch):
     """The full plan-107 flow: attached CV + bullet edit intent → builder
     loop → set_bullets op → override lands (no HITL card on this path)."""
     from app.seeds.cv_templates import seed_cv_template_bank
@@ -386,9 +379,7 @@ async def test_chat_proposes_and_approval_applies_cv_bullets(
     assert response.status_code == 200, response.text
     assert "set_bullets" in response.text, "a cv_set_bullets card was proposed"
 
-    listed = (
-        await client.get("/api/v1/me/profile-proposals", headers=auth_headers)
-    ).json()
+    listed = (await client.get("/api/v1/me/profile-proposals", headers=auth_headers)).json()
     card = next(row for row in listed["proposals"] if row["kind"] == "cv_set_bullets")
     assert card["status"] == "pending"
     approved = await client.post(
@@ -397,9 +388,7 @@ async def test_chat_proposes_and_approval_applies_cv_bullets(
     )
     assert approved.status_code == 200, approved.text
     body = approved.json()
-    assert body["proposal"]["status"] == "approved", body["proposal"].get(
-        "resolve_error"
-    )
+    assert body["proposal"]["status"] == "approved", body["proposal"].get("resolve_error")
 
     fetched = await client.get(f"/api/v1/cv/{cv.id}", headers=auth_headers)
     assert fetched.status_code == 200, fetched.text()

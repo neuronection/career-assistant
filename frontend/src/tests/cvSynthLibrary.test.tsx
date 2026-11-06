@@ -2,13 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { CvSynthLibrary } from "@/pages/CvSynthLibrary";
+import { CvSynthLibrary } from "@/features/cv/pages/CvSynthLibrary";
 
 const fetchSynthItems = vi.fn();
 const generateSynthItems = vi.fn();
 const patchSynthItem = vi.fn();
 const regenerateSynthItem = vi.fn();
 const deleteSynthItem = vi.fn();
+const bulkSynthItems = vi.fn();
 const createSynthItem = vi.fn();
 const fetchContextSources = vi.fn();
 
@@ -21,6 +22,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     patchSynthItem: (...args: unknown[]) => patchSynthItem(...args),
     regenerateSynthItem: (...args: unknown[]) => regenerateSynthItem(...args),
     deleteSynthItem: (...args: unknown[]) => deleteSynthItem(...args),
+    bulkSynthItems: (...args: unknown[]) => bulkSynthItems(...args),
     createSynthItem: (...args: unknown[]) => createSynthItem(...args),
     fetchContextSources: (...args: unknown[]) => fetchContextSources(...args),
   };
@@ -502,4 +504,102 @@ describe("CvSynthLibrary linked items", () => {
     ) as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
   }, 20000);
+
+  function synthVariant(id: string, status: string, text: string) {
+    return {
+      id,
+      scope: "item",
+      variant_key: "default",
+      target_posting_id: null,
+      source_refs: [{ source_key: "experience", item_id: ITEM_ID }],
+      source_state: [],
+      payload: { description: text },
+      voice: { language: "en", action: "summarize" },
+      status,
+      source: "ai",
+      verified: true,
+      stale: false,
+      orphaned: false,
+      last_used_at: null,
+      created_at: id,
+    };
+  }
+
+  it("selects a group and batches only the eligible variants", async () => {
+    const user = userEvent.setup();
+    bulkSynthItems.mockClear();
+    items = [
+      synthVariant(VARIANT_A, "active", "Live text"),
+      synthVariant(VARIANT_B, "archived", "Old text"),
+    ];
+    fetchSynthItems.mockResolvedValue(items);
+    bulkSynthItems.mockResolvedValue({ affected: [VARIANT_A], deleted: [] });
+    await renderLibrary();
+
+    await user.click(screen.getByTestId("synth-select"));
+    await user.click(
+      within(screen.getByTestId(`synth-group-select-experience:${ITEM_ID}`)).getByRole(
+        "checkbox",
+      ),
+    );
+    expect(screen.getByTestId("synth-bulk-count")).toHaveTextContent("2 selected");
+    expect(screen.getByTestId("synth-bulk-archive")).toHaveTextContent("(1)");
+    expect(screen.getByTestId("synth-bulk-unarchive")).toHaveTextContent("(1)");
+
+    await user.click(screen.getByTestId("synth-bulk-archive"));
+    await waitFor(() =>
+      expect(bulkSynthItems).toHaveBeenCalledWith([VARIANT_A], "archive"),
+    );
+  });
+
+  it("restores archived variants through the scope menu", async () => {
+    const user = userEvent.setup();
+    bulkSynthItems.mockClear();
+    items = [
+      synthVariant(VARIANT_A, "active", "Live text"),
+      synthVariant(VARIANT_B, "archived", "Old text"),
+    ];
+    fetchSynthItems.mockResolvedValue(items);
+    bulkSynthItems.mockResolvedValue({ affected: [VARIANT_B], deleted: [] });
+    await renderLibrary();
+
+    await user.click(screen.getByTestId("synth-select"));
+    await user.click(screen.getByTestId("synth-bulk-scope"));
+    await user.click(screen.getByTestId("synth-bulk-scope-archived"));
+    await user.click(screen.getByTestId("synth-bulk-unarchive"));
+
+    await waitFor(() =>
+      expect(bulkSynthItems).toHaveBeenCalledWith([VARIANT_B], "unarchive"),
+    );
+  });
+
+  it("confirms a batch delete with the count", async () => {
+    const user = userEvent.setup();
+    bulkSynthItems.mockClear();
+    items = [
+      synthVariant(VARIANT_A, "active", "Live text"),
+      synthVariant(VARIANT_B, "draft", "Draft text"),
+    ];
+    fetchSynthItems.mockResolvedValue(items);
+    bulkSynthItems.mockResolvedValue({ affected: [VARIANT_A, VARIANT_B], deleted: [] });
+    await renderLibrary();
+
+    await user.click(screen.getByTestId("synth-select"));
+    await user.click(
+      within(screen.getByTestId(`synth-group-select-experience:${ITEM_ID}`)).getByRole(
+        "checkbox",
+      ),
+    );
+    await user.click(screen.getByTestId("synth-bulk-delete"));
+    expect(bulkSynthItems).not.toHaveBeenCalled();
+    expect(screen.getByText("Delete 2 variants?")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Delete selected" }));
+    await waitFor(() =>
+      expect(bulkSynthItems).toHaveBeenCalledWith(
+        expect.arrayContaining([VARIANT_A, VARIANT_B]),
+        "delete",
+      ),
+    );
+  });
 });

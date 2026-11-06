@@ -1,0 +1,57 @@
+{
+  "apiVersion": "extension/v1",
+  "kindVersion": 1,
+  "kind": "connector",
+  "id": "career-github-intake",
+  "version": "1.0.0",
+  "description": "GitHub public repositories \u2192 project and achievement drafts (review-first intake; never auto-writes).",
+  "author": "Neuronection",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/neuronection/career-assistant",
+  "capabilities": [
+    "net",
+    "sync"
+  ],
+  "categories": [
+    "data"
+  ],
+  "configSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "itemSchema": {
+    "type": "object",
+    "properties": {
+      "external_id": {
+        "type": "string",
+        "title": "External id"
+      },
+      "title": {
+        "type": "string",
+        "title": "Title"
+      },
+      "url": {
+        "type": "string",
+        "title": "URL"
+      }
+    },
+    "required": [
+      "external_id",
+      "title"
+    ]
+  },
+  "supportsIncremental": true,
+  "i18n": {
+    "defaultLocale": "en",
+    "locales": {
+      "en": {
+        "title": "GitHub repositories",
+        "summary": "Turn public repositories into project and achievement drafts you review before they reach your profile \u2014 never auto-written."
+      }
+    }
+  },
+  "domains": [
+    "api.github.com"
+  ],
+  "docs": "docs/docs-tree.json"
+}

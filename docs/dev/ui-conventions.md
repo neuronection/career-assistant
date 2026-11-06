@@ -14,6 +14,29 @@ centered `max-w-7xl` column:
 - `Layout.tsx` keeps a route allow-list (`useMatch`) of full-bleed
   paths; those render `flex min-h-0 flex-col … lg:h-full` so panes
   scroll independently and the page owns the full viewport height.
+- **Analytics workspaces** are the second full-bleed class (plan 195):
+  `/postings/stats` (Market intelligence) owns the viewport width the
+  same way, because a dashboard's value is density — KPI rows, wide
+  tables and a 24-column heatmap. Content pages stay centered. The
+  page root carries `ca-workspace`/`ca-mi` (`container-type:
+  inline-size`) and the layout flips on the **page's own width**, never
+  on viewport `lg:` (the chat dock steals width without moving the
+  viewport):
+  - **Compact (`< 40rem`)** — filter segments live behind a **Filters**
+    button (modal sheet with the active-count badge); tabs scroll
+    horizontally with an edge fade; KPIs are 2 columns; cards stack;
+    charts keep a reserved 180 px; data tables render their top rows as
+    cards with a "view all" expansion; the heatmap is Data-first with a
+    sticky weekday column.
+  - **Medium (`40–64rem`)** — the same sheet via the Filters button;
+    KPIs 3 columns; cards 2 columns; tables scroll with a sticky first
+    column.
+  - **Wide (`≥ 64rem`)** — the full inline filter bar; KPIs 6 columns;
+    cards 2–3 columns; full tables; the full heatmap grid.
+  Touch targets are ≥ 44×44 px, no hover-only affordance, and every
+  chart keeps its Chart⇄Data twin. The pywebview desktop minimum is
+  640×480, so the compact band is a real product size, not a phone
+  afterthought.
 - Structure: **toolbar row → pane grid** (context | canvas hero |
   inspector; two panes for the template editor). Rail widths are
   per-page via the `ca-ws-grid` CSS var: default
@@ -71,8 +94,10 @@ centered `max-w-7xl` column:
   actions stay in their sub-row. Experience-kind rows add a fourth
   affordance, the plan-106 **Bullets editor** (`context-bullets-…` →
   `ItemBulletsEditorModal`): the two-layer bullets model — saving
-  creates/patches a scope-`bullets` VARIANT pinned via the item's
-  `:bullets` synth-pin slot (no CV-local override for achievements),
+  creates/patches a scope-`bullets` VARIANT pinned via the item's ONE
+  `synth_pins["{source}:{id}"]` slot (plan 110 collapsed the old
+  `:bullets` suffix; the plain key is the only form, no CV-local
+  override for achievements),
   with the resolved snapshot list as base, an "Edited for this CV"
   chip, Reset-to-profile (unpin), a resolved
   "on the CV now" head, and AI bullets landing as ephemeral
@@ -198,6 +223,97 @@ an experience/education card, a profile summary card) is either
   `target="_blank" rel="noopener noreferrer"`. Anchors live *outside*
   the card's `<button>` — never nest an `<a>` inside a button.
 
+### 2e. The item-card system (plan 140, 2026-10-28)
+
+Every list surface that renders an item card (`/postings`, `/catalog`,
+`/rankings`, `/companies`) uses the module in `components/cards/` — same
+grammar, different content. The shell (`ItemCardShell`) owns the surface,
+hover (accent border + `--as-surface-raised`), the single root `onClick`
+(the title is a `<button>` **without** its own handler — its click bubbles;
+action slots stop propagation), `density`/`data-state`, and the
+`ca-item-card` container (the action column stacks by **container** width,
+never a viewport breakpoint — the chat dock narrows the column).
+
+**Metrics follow the card's own width** (plan 191): one node
+(`.ca-job-metrics`) renders the open-roles number + caption + salary as a
+full-width inline strip on a narrow card and as the posting-anatomy rail on
+the leading edge at a card container ≥ 26rem — CSS-flipped in
+`index.css`, never a duplicated DOM, a `compact`-only branch or a viewport
+breakpoint. **The catalog type floor is 11px**: kickers are 11px uppercase
+(0.06em tracking), meta/footer 12px, the family line 12.5px, descriptions
+14px clamped to three lines, and titles wrap to two lines instead of
+single-line truncating. Chips never wrap internally — `SkillTag` and badge
+chips are `whitespace-nowrap` with a `max-w-[12rem]` truncate guard, so
+`fitChips` measurement stays honest.
+
+Information is **three tiers**, never one chip soup:
+
+1. **Spec slots** (`CardSpec`, `SPEC_ORDER`) — closed vocabularies in a
+   canonical order, rendered as faint uppercase label + value, **no pill**:
+   mode · level · contract · hours · salary · education · closes. A slot
+   renders only when the value exists.
+   - **Nominal values** (mode, contract, education) are plain text in one
+     neutral tone with a small glyph that carries the mapping where the
+     vocabulary has one (mode: globe / house / building — `MODE_ICON`) —
+     never a per-value hue.
+   - **Ordinal values** (level) use the intensity cue: a 1–5 dot scale in
+     the accent (`seniorityScale`: intern 1 → senior 4, lead/principal 5),
+     rendered by `CardSpec` as `spec-scale-{key}` with `data-filled`.
+   - Hue is reserved for **state** (fit band, warning, closed) and for the
+     skill **heat ramp**: "amber" must never mean both "hybrid" and
+     "closing soon".
+2. **Tags** (`ChipRow`) — open vocabularies only (skills, interests,
+   industry tags). Skills render **all** of them, server-ordered
+   must-have → nice-to-have → bonus → level → label; the row clamps to
+   **two rows** and the **last chip of row two is `+N`** — the count of
+   the rest, which is also the expander. Measurement is width-based
+   (`fitChips` + `ResizeObserver`); hidden chips stay in the DOM (sr-only)
+   for search, print and screen readers. **No fade/mask** on the clipped
+   row: a faded second row reads as disabled.
+3. **State markers** (`CardState`) — binary facts as a compact icon (+
+   optional label), never a pill: **seen** = one muted double-check in the
+   kicker plus a 3 px neutral rail on the card's leading edge
+   (`[data-seen="true"]::before` in `index.css` — a read marker, not a
+   state hue: accent stays hover/interactive and fit bands stay the only
+   colour language; unseen renders nothing, the normal state is silent,
+   and cards are never dimmed). While unseen, the *same kicker slot*
+   carries the `posting-mark-seen` action (a quiet text action with an
+   accent check) — state and action share one slot, so clicking it turns
+   the slot into the seen mark in place; seen is one-way (no un-see
+   endpoint), which is why it is not a toggle. **closed** =
+   neutral lock + close date tooltip,
+   with the whole card desaturated via `data-state="closed"` (tokens, not
+   `filter: grayscale`, so contrast holds) and Apply disabled; saved /
+   applied ride the kicker; **partial details** = info dot (extraction
+   confidence, never "unread"); "closes in n d" is a spec slot while the
+   posting is still open.
+
+**Scores** are one component family: `ScoreBubble` (SVG ring, banded by
+`scoreTone`; numeric sizes — 40/44/52/72 in use) and `ScoreBreakdown`
+(dimension bars, banded or neutral; `defaultWeight` hides the neutral
+weight, `alwaysShowWeight` keeps every weight) — never a naked number.
+**Org identity** is `OrgAvatar` (deterministic initials tile, no external
+favicons — CSP) + a `/companies/:key` link; its tint pairs are inline
+data-driven swatches, the documented exception to the token-only rule.
+
+**Skill chips** (`SkillTag`) carry one number as heat and nothing else:
+the 1–10 requirement (or, where supplied, the per-skill match) as a 6 px
+bullet — **cold** 1–3 (`--as-muted-fg`), **warm** 4–6 (`--as-warning`),
+**hot** 7–10 (`--ca-heat-hot`) — plus the number. Priority is **not**
+rendered on the chip: it lives in the order and in the detail page's
+group headings. Unmapped skills get a dashed border (data quality, not
+ranking).
+
+Testids are contracts: `posting-card`/`posting-details`/`posting-title`/
+`posting-apply`/`posting-save`/`posting-hide`/`posting-mark-seen`/
+`posting-provenance`/
+`posting-coverage`/`posting-seen`/`posting-closed`/`posting-partial`/
+`posting-details-pending`, `job-card`/`job-title`/`education-chip`,
+`scores-{code}`/`breakdown-toggle-{code}`/`compare-add-{code}`,
+`score-ring` (the bubble), `fit-breakdown`, `match-card`/`match-score`,
+`skill-tag`/`skill-heat`. Assert `data-tone`/`data-heat`/`data-score` —
+never colour classes.
+
 ## 2a. The profile section-card pattern (plans 50, 2026-09)
 
 Profile data entry (profile page `/profile`, onboarding wizard
@@ -242,14 +358,27 @@ page-local form for a profile section.
   Experience appears as a summary card linking to
   `/profile/experience` — editing lives only in the experience
   workspace, which has no top-level sidebar entry.
-- **Catalog tree layout**: same `SettingsShell` recipe (plan 96) —
-  top-level families as the rail (`data-testid="catalog-families"`,
-  job counts as `trailing` nodes), content pane = search + recent
-  searches + drill chips for the active family's children
-  (`catalog-subfamilies`) + the job-card grid. The expanding tree is
-  gone: selection + one-level drill chips replace it, so the whole
-  surface survives the dock and narrow widths via the container
-  modes.
+- **Catalog tree layout**: the `/postings` page template (plan 191). The
+  page body carries `ca-stats-page`; `.ca-stats-cols` renders filter rail |
+  results | recent searches — one column below 64rem of page width, where the
+  filter card stacks above the results and the recent panel follows them
+  (container query, plan-95 rule; never a `lg:` switch). The left
+  `ca-stats-rail` is the **one family surface**: its `Job family` section
+  carries the facet counts and a select/clear cycle (families are
+  include-only — the subtree parameter has no exclude), and the `family` URL
+  parameter keeps its meaning so old links still filter. The rail uses the
+  shared filter template (§2k) — its header owns the active count and
+  `Clear all`, and its always-visible search field owns the catalog query.
+  The middle column carries `ca-card-page`, drill chips for the active
+  family's children (`catalog-subfamilies`), the result-count/active-chips/
+  sort strip and
+  `.ca-card-grid` (1 → 2 at 32rem → 3 at 54rem of the RESULTS column, not
+  the viewport; on `/catalog` that is 2 cards of ≈340px in the three-column
+  mode at 1440px and 3 of ≈320px when the page stacks at 1280px). The right
+  rail is the shared `RecentSearches` panel: at
+  most four real records, `filters only · 0 results` rows pruned, nothing
+  rendered when empty. No viewport column classes (`sm:`/`lg:`/`xl:`) on the
+  page; the type floor and chip rules live in §2e.
 - **Experience workspace** (`/profile/experience`, full-bleed, nested
   under Profile): master-detail
   rail + editor pane, `pane-switcher` below `lg` with focus moved into
@@ -260,17 +389,17 @@ page-local form for a profile section.
   `experience-item-{id}`, `add-experience`, `save-experience`,
   `delete-experience-{id}`, `undo-experience`, `derivation-panel`,
   `apply-derivation`.
-- **Workspace list mechanics (both workspaces)** — shared
-  `components/profile/BulkTools.tsx`: a per-card `SelectionToggle`
-  (library `CheckIndicator`, placed outside the card's open-button) and
-  the `BulkBar` over the library `SelectionBar` (hidden at 0
-  selected): Select all · Set active · Set draft · Delete, delete via a
-  confirm modal + the multi-entry `UndoNotice` (undo re-POSTs each
-  snapshot). Card `Duplicate` re-creates from the same toIn/form
-  snapshot with a "(copy)" suffix. Client-side `filters` (search /
-  status segmented / kind or level `FilterChips`
-  `{page}-search`, `-filter-{all|active|draft}`, `-kind-{value}`;
-  empty state: "No entries match these filters.").
+- **Workspace list mechanics (both workspaces)** — the §2l selection
+  contract: `SelectionEntry` in the filter toolbar, `SelectionToolbar`
+  above the list (Set active · Set draft · Delete, delete via a confirm
+  modal + the multi-entry `UndoNotice`, undo re-POSTs each snapshot), and
+  a per-card `CheckIndicator` outside the card's open-button (rendered
+  only in selection mode). Card `Duplicate` re-creates from the same
+  toIn/form snapshot with a "(copy)" suffix. Client-side `filters` (search
+  / status segmented / kind or level `FilterChips` from
+  `components/filters/FilterChips.tsx` `{page}-search`,
+  `-filter-{all|active|draft}`, `-kind-{value}`; empty state: "No entries
+  match these filters.").
 - **Experience kind groups** — with no kind chip selected, the
   experience rail renders collapsible per-kind group headers (counts,
   `experience-group-{kind}` + `-toggle-{kind}`); the kind chips switch
@@ -325,6 +454,304 @@ page-local form for a profile section.
   `create-interview`); the posting-detail CTA
   (`practice-interview-posting`) creates + starts + jumps straight to
   chat.
+
+## 2f. Settings surfaces (plan 148)
+
+Every settings page composes from the app kit in `components/settings/`
+(never re-roll page-local cards):
+
+- **`SettingsPage`** — icon + title + description + status chips, then an
+  optional **in-page section rail** (sticky anchor nav; exists only ≥62rem
+  of PAGE-column width — `ca-settings` container queries, plan-95 law) and
+  the content column (reading measure caps at 52rem ≥68rem so wide
+  displays stay readable). `/settings` renders full-bleed (Layout
+  allow-list) so those breakpoints engage on real displays; the shell
+  is a flex child — width is explicit (auto margins would disable
+  stretch), capped and centered at 100rem on ultrawide.
+- **`SettingsSectionCard`** — icon tile, title, description, badge slots
+  (incl. `adminOnly`), `summary` chip strip, `footer` actions, optional
+  `collapsible` body (`cv-collapse`), `variant="danger"` for destructive
+  zones. Testids `settings-section-{name}` (+`-toggle`/`-body`).
+- **Hybrid save contract**: switches/toggles save instantly (optimistic
+  via `useOptimisticToggle` — rollback + failure flag), forms save
+  explicitly; every card carries a `SaveStateIndicator`
+  (`Saved ✓ / Saving… / Unsaved changes / Couldn't save — Retry`,
+  `aria-live`); drafts flow through `useSettingsDraft` (the profile
+  `useSectionDraft` contract generalized — dirty tracking, payload-JSON
+  compare so untouched drafts never PUT, unmount-safe debounce).
+  Notices render IN the card that caused them; toasts only for
+  cross-card events.
+- **Navigation** (`config/settingsNav.ts`): rail display sections derive
+  from the settings-map contract groups (app+user → Personal,
+  ai/tools → AI & tools, automations → Automation, app+admin →
+  Administration) via each item's `sectionKey`; `settingsMap.test.ts`
+  pins both the derivation and the contiguous runs. The library
+  `SettingsShell` renders the labels (chip mode hides them).
+
+## 2g. The taxonomy listing pattern (plan 150)
+
+Admin catalog listings (`/settings/taxonomy`, six URL-synced segments)
+share one shape — reuse it for any review surface instead of re-rolling
+raw tables (`TaxonomyList`, `TranslationsBoard`, `TaxonomyPathCards`,
+`TaxonomyEnrichmentCards`):
+
+- **Toolbar first**: debounced library `SearchInput` (no internal
+  debounce — debounce app-side, 200 ms, reset the render window with
+  each settled query), single-select filter pills **with counts**
+  (rounded-full, `aria-pressed`, count in `tabular-nums`), and the
+  primary action as the toolbar slot.
+- **Groups are the review axis**: collapsible sections with a per-group
+  lucide icon + count pill (`taxonomy-*-group-*` testids); empty groups
+  hide. Interests group by category, skills by status (proposed first —
+  triage order), translations by entity kind. Rows/cards carry their own
+  category/kind icon.
+- **Rows and cards are the click target** (Enter works; row testids key
+  on the stable key). Destructive or rare actions live in the details
+  drawer or on the review card — never inline on the row, and hover
+  reveals nothing destructive.
+- **Details drawer**: ONE generalized `EntityDetailsDrawer` (PanelModal —
+  a centered modal that width-caps on desktop and goes full-screen below
+  `sm`; never a side sheet) with per-kind adapters;
+  the skills adapter keeps the richer stats/history surface.
+- **Bulk**: one selection contract — see §2l. The checkbox stays a SIBLING
+  of the row button (a button never nests a button).
+- **Growth**: an incremental render window + *Load more* (50/step) — a
+  full fetched page never mounts as cards at once; a truncation hint
+  states the page cap. Counts derive from ONE bounded fetch where the
+  endpoint allows it (requests stay flat as filters grow).
+- **States**: `EmptyState(icon, compact)` for empty AND no-match; the
+  icon says what lives here (`Tags`, `Wrench`, `Route`, `Sparkles`,
+  `Languages`, `Network`). Tab strips carry icons (`SegmentedTabs`
+  icon prop). Short strips (≤6 labels) keep a phone-floor width inside an
+  `overflow-x-auto` wrapper — the labels scroll instead of squeezing
+  (taxonomy is the reference). A strip long enough to overflow DESKTOP
+  widths (audit's page tabs and its retrieval sections, eight entries
+  each) must not hide entries behind a scroll: pass the library
+  `SegmentedTabs` `wrap` prop and drop the scroll wrapper — entries
+  flow onto further rows and the sliding thumb follows across rows, so
+  the active entry and the range filter stay visible at every width. Loading
+  stays the app's Spinner + label row (previews are the shimmer
+  exception, §6).
+
+## 2i. Filter chips — one cycle, one clear (plan 167)
+
+Every filter chip follows the same contract (`TriStateChips` in
+`components/filters/filterBits.tsx`), on every rail (`/postings`,
+`/companies`):
+
+- **off → include → exclude → off**: one click includes (accent), the
+  second excludes (rose, `−` prefix), the third clears. Right-click jumps
+  straight to exclude. Values are mutually exclusive across the pair of
+  lists, and every mode drops the value from the other list.
+- **A selected chip carries an ×** that clears it in one click — never
+  make a user cycle back out of a state, and never hover-reveal it.
+- **The pill is a wrapper with two sibling buttons** (value + remove):
+  a `<button>` inside a `<button>` is invalid markup and swallows the
+  inner click. Keep the value button's `data-testid` (its accessible name
+  is the label + count) and give the remove button
+  `data-testid="{testId}-clear"` + `aria-label` "Remove {label}".
+- Chips that intentionally cannot be excluded (`allowExclude={false}`,
+  e.g. the posted-window selector) cycle include → clear only, and still
+  get the × — the visual contract stays identical.
+- Binary state toggles (saved only, hide seen, deep-extracted) are
+  checkboxes, not chips: their uncheck *is* the clear.
+- **Exclude pickers are excluded chips too** (plan 166): the skills /
+  organizations exclude lists keep the library `MultiSelectPicker`, but
+  their selected chips carry `ca-picker-exclude` (rose bg + text, `−`
+  prefix via `renderChipExtra`) so the same value reads the same whether
+  it was excluded by a chip or by a picker. The wrapper class is the
+  only lever — the library chip styling is internal, so scope the CSS to
+  `[data-as="picker-chips"] > li` under that wrapper; never restyle the
+  include pickers.
+
+## 2j. The preset bar — saved views (plan 165)
+
+A list page whose filter set is URL state gets a **preset bar** above the
+results (`PresetBar`, `/postings` today):
+
+- presets are **chips**, never a dropdown: apply on click, active state
+  highlighted, a `⋯` menu per chip carrying the filter summary plus
+  update/rename/delete (delete confirmed). Saving offers **Update
+  {active}** instead of duplicating; names are unique per user.
+- the preset is a **saved search** (`search_history.name`, `PATCH
+  /me/searches/{id}`), not a second store — digests, RSS feeds and the
+  scheduler already resolve saved searches by id.
+- the save dialog shows the same human-readable summary the menu does, so
+  what you are about to save is visible before it lands.
+
+## 2h. Shareable list state — the URL is the state (plan 163)
+
+A list page whose filters/order a user would want to reload, go back to
+or send to someone else keeps that state **in the URL, not in
+`useState`**:
+
+- derive the page state from `useSearchParams` during render through an
+  exported pure helper — `/postings` uses one vocabulary module
+  (`features/catalog/exploreParams.ts`: `parseFilters` / `toParams` /
+  `toSearchParams` / `countActive`, the same shape the API and saved
+  searches use);
+- handlers write the **canonical** search string with `replace: true`
+  (no history spam, no dual state → no sync effect);
+- one guarded mount effect drops unknown/malformed params and falls back
+  to defaults — never error on a hand-edited link;
+- omit defaults (`sort=fit` never appears), keep names that may contain
+  commas as repeated params (`org=Acme%2C+Inc.`), and validate every
+  closed vocabulary on parse.
+- `/companies` is the second adopter (`features/companies/companiesParams.ts`):
+  the directory rail, the search text, the status chips, the sort and the
+  open-roles floor all ride the URL (`?status=new&work_mode=remote&min_open=5`),
+  with the same parse → write → canonicalize contract.
+
+### 2h+. Returning to a list keeps its view (plan 172)
+
+URL state covers filters/order on back, but a remounted list also loses
+its loaded pages and scroll height. The return contract on top of §2h:
+
+- list pages remember their canonical search in session memory
+  (`lib/listReturn.ts`, `rememberListSearch`); detail pages' back links
+  (`/postings/:ref` → "All postings", `/companies/:key` → back) and
+  detail-side list re-entries (hide) navigate to `listReturnHref(path)`
+  carrying `{ listReturn: true }` state — never the bare path;
+- the rendered list is snapshotted in session memory keyed by
+  `profileEpoch|canonical-search` (`exploreListCache` /
+  `companiesListCache`): a remount that is a **return** — POP, or a PUSH
+  carrying the list-return state — restores items + cursor synchronously
+  and skips the first fetch; any other navigation refetches page one as
+  before. Any filter change refetches page one as before, and
+  detail-side mutations keep the snapshot honest (hide drops the row,
+  seen/saved patch it);
+- `useMainScrollRestoration` journals `#main`'s scrollTop per
+  `pathname+search`: POP restores it, a fresh PUSH starts at the top, a
+  PUSH carrying `listReturn` restores it, REPLACE (filter patches, mount
+  canonicalization) never moves it.
+
+## 2k. Filter rails — one template, one scroll owner
+
+Every filter side panel renders through `components/filters/FilterRail.tsx`
+(`FilterRail` + `FilterRailSearch`) on top of the `Section`/`TriStateChips`
+bits — `/postings`, `/catalog`, `/companies`, `/autopilot` and `/rankings`:
+
+- **One shell**: title, live active count (`filters.activeCount`), a single
+  `Clear all` action and the always-visible search field wherever the page's
+  result set has a text query (`/postings`, `/catalog`, `/companies`,
+  `/rankings`). `FilterRailSearch` composes the library `SearchInput` — one
+  search style (tokens, focus ring, clear button) across the app, never a
+  page-local input. It is never hidden inside a collapsible section, and it
+  is never duplicated above the results. Pages without a text-query contract
+  (`/autopilot`) do not get a decorative search. The shell is
+  **transparent — no border, background or padding** of its own: the bordered
+  sections are the only boxes, so the rail is not a card inside a card.
+- **Scroll lives in one place**: `.ca-stats-rail` (or `.ca-rail-cols` for the
+  two-column Rankings page) is sticky below the app header and scrolls
+  independently above 64rem of PAGE width; below that the card stacks in
+  normal page flow. Pages must not add `sticky`, `top-*`, `max-h-*` or
+  `overflow-y-*` to the aside — nested scroll containers were what made
+  `/catalog` behave differently from `/postings` and `/companies`.
+- **Below 64rem the rail becomes a toolbar** (`/catalog`, `/postings`,
+  `/companies`, `/autopilot`; 2026-11-06). A page that measures its own width
+  band (`useContainerBand`, `hooks/`) passes `band` and the rail renders one
+  row — the search field plus a **Filters** button carrying the active-count
+  badge — while the sections move into the library `PanelModal` sheet, whose
+  footer carries `Clear all` and `Show N jobs`. Only the **active** chips stay
+  on the page (`ActiveFilterChips`; the row renders nothing while the list is
+  unfiltered), and each chip removes exactly the value it names. Toggles keep
+  writing the URL immediately, so a link stays shareable with the sheet open.
+  The band is the page's own width (container), never `lg:`; jsdom never fires
+  `ResizeObserver`, so the page exposes a `band` override for tests and the
+  sheet must scroll in its own body (`bodyClassName`) or the last sections
+  paint over the footer. Rankings stays inline on purpose: its rail carries the
+  score-distribution chart and recent searches, which do not belong in a
+  filter sheet.
+- **Tokens only**: the shell, `Section`, `TriStateChips` and all controls use
+  `--as-*` tokens; hard-coded `slate`/`primary` scales are drift.
+- **Testids are contracts**: the aside carries the page's existing testid
+  (`explore-filters`, `company-filters`, `catalog-filter-aside`,
+  `autopilot-filters`, `filter-bar`); the card carries the rail testid
+  (`explore-filter-rail`, `company-filter-rail`, `catalog-filter-rail`,
+  `findings-rail`, `rankings-filter-rail`). Count/clear testids stay per page.
+- A rail that can collapse below the breakpoint (`/autopilot`) passes
+  `asideClassName` + `asideOpen` — the CSS still owns the show/hide rule.
+
+## 2l. Bulk-selection mode — one contract (plan 200)
+
+Every admin listing that can be batched runs ONE selection contract
+(`features/selection/`: `useListSelection` + `SelectionEntry` /
+`SelectionToolbar`, composed over the library `SelectionBar` and
+`CheckIndicator` — never a page-local bar):
+
+- **Entry**: one `Select` button, same variant and slot on every surface
+  (the trailing end of the listing toolbar, after the primary action); it
+  becomes `Done` while the mode is active. Never a hover reveal.
+- **The bar always has a frame while the mode is on**: the library
+  `SelectionBar` at `count > 0`, and a slim mode frame at 0 — the library
+  bar renders nothing at zero, which is what hid select-all behind a first
+  tick. It sits directly under the toolbar so filters stay usable.
+- **Select all names its scope**: `matching` (search + filters, collapsed
+  groups included), a named `partition` (proposed skills, the current
+  locale, a status chip) and `loaded`. Never a server total — no queue has
+  a bulk-by-query endpoint, and select-all must act only on rows the page
+  holds.
+- **Hidden selections are never silent**: the selection survives filter
+  changes (cross-partition work is legitimate); the bar reports
+  `N hidden by filters` with Show / Drop, action counts derive from the
+  selection ∩ eligibility, and destructive confirms restate the hidden
+  subset. Only ids missing from the reloaded data are pruned.
+- **Rows and cards**: the checkbox appears only in select mode and is a
+  sibling of the row button (a button never nests a button). In mode the
+  row body toggles and an explicit trailing control opens the details
+  drawer; group headers carry a tri-state `CheckIndicator` (`mixed`).
+- **Keyboard**: `Esc` exits, `⌘/Ctrl+A` selects the matching set (ignored
+  inside fields), `Shift`-click extends the range from the last toggled
+  row in visible order. A polite live region announces the count.
+- **Transport**: a batch endpoint where one exists (`/admin/skills/bulk`,
+  `/admin/skill-relations/bulk`, `/admin/i18n/overlays/bulk`,
+  `/admin/jobs/enrichment/bulk`), otherwise per-id calls merged into the
+  same `BulkOutcome` report (`{affected, failed[{id, reason, key?}]}`) —
+  in the API client where the loop is pure plumbing (overlay/path/proposal
+  loops) or in the page where each row also updates local state (CV status
+  flips, sources, profile entries). The component never invents the report
+  shape. Testids: `{prefix}-select`, `{prefix}-bulk-bar` (present in both
+  bar states; `barTestId` overrides it where a surface kept an older id),
+  `-bulk-count`, `-bulk-mode`, `-bulk-bar-select-all`, `-bulk-scope` /
+  `-bulk-scope-{key}`, `-bulk-hidden` / `-bulk-hidden-show` /
+  `-bulk-hidden-drop`, `-bulk-{action}`; the library bar's clear control is
+  queried by its accessible name (it takes no testid).
+
+## 2d. Feature state (beta affordance)
+
+`frontend/src/config/features.json` is the single feature-state table
+(`key` = route prefix, `state` = `on` | `beta` | `hidden`, `since`,
+`docs`). Navigation visibility (`config/nav.ts` via `isVisible`), the app
+shell's beta banner, the demo tour (`scripts/ui-capture/scenes.mjs`) and
+`backend/tests/test_docs_claims.py` all read it — they cannot disagree.
+A route absent from the table is `on`.
+
+- **Never hide a shipped page behind an easter egg.** `beta` means
+  reachable with a visible chip; `hidden` is for a surface kept routable
+  for deep links only. Changing a state is one registry edit plus the
+  docs the gate names.
+- The shell renders the chip + expectation line automatically
+  (`components/BetaBanner.tsx`, testids `beta-banner` / `beta-chip`) for
+  every `beta` route — pages never carry their own beta copy.
+- The README feature-status table and `docs/user/<page>.md` follow the
+  same registry; `test_docs_claims.py` fails when a claim drifts.
+
+### 2m. The ops-console pattern (plan 205)
+
+An **operations console** under Tools (`RetrievalManagementSection`,
+`MappingManagementSection`) is one settings section with URL-synced inner
+views (`?view=` derived state, `parse<View>` helpers, one canonicalizing
+effect) composing: **StatTiles** with distribution bars and sparklines →
+**funnel/state bars** → a filterable **queue table** → an
+**EntityDetailsDrawer** trace → **SelectionToolbar** bulk actions with
+bounded confirmations. Read-only run controls render the switch/badge
+state with a link to the owning surface — never a duplicate action (the
+mapping console links to Tools → Retrieval's index, it adds no second
+reindex). Quality/gate badges are advisory: show pass/fail/no-data
+states, never couple them to release walls. Every surface ships
+`data-testid`s for tiles/gate/funnel bars/queue rows/trace
+(`mappings-tile-*`, `mappings-state-filter`, `mappings-queue-row`,
+`mappings-trace-*`).
 
 ## 3. Design tokens & styling rules
 

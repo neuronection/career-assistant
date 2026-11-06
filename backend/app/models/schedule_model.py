@@ -8,7 +8,6 @@ real on every dialect."""
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -23,10 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -47,8 +46,12 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             "'system_demand_import', 'system_refit_sweep', "
             "'system_catalog_enrich', 'system_followups', "
             "'system_market_history', 'system_proposal_sweep', "
-            "'system_checkpoint_prune', "
-            "'user_saved_search', 'user_checkin', 'user_autopilot')",
+            "'system_checkpoint_prune', 'system_extension_reconcile', "
+            "'system_skill_relation_learn', 'system_vector_reconcile', "
+            "'system_retrieval_alerts', 'system_mapping_coverage', "
+            "'system_mapping_alerts', "
+            "'user_saved_search', 'user_radar_digest', 'user_smart_digest', "
+            "'user_checkin', 'user_autopilot')",
             name="kind_allowed",
         ),
         CheckConstraint(
@@ -57,32 +60,32 @@ class Schedule(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         CheckConstraint(
             "task IS NULL OR task IN ('posting_sync', 'digest', "
-            "'saved_search_run', 'fit_refit', 'catalog_enrich', "
-            "'autopilot_run', 'followup_sweep', 'market_history_capture', "
-            "'proposal_sweep', 'checkpoint_prune')",
+            "'saved_search_run', 'radar_digest', 'smart_digest', "
+            "'fit_refit', 'catalog_enrich', 'autopilot_run', "
+            "'followup_sweep', 'market_history_capture', 'proposal_sweep', "
+            "'checkpoint_prune', 'extension_reconcile', "
+            "'demand_import', 'skill_relation_learn', "
+            "'vector_reconcile', 'retrieval_alert_sweep', "
+            "'mapping_coverage_capture', 'mapping_alert_sweep')",
             name="task_allowed",
         ),
         Index("ix_schedules_next_run", "next_run_at"),
     )
 
-    owner_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     kind: Mapped[str] = mapped_column(String(40), nullable=False)
     # BackgroundJobType value; NULL for banner-only kinds (user_checkin).
-    task: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    task: Mapped[str | None] = mapped_column(String(40), nullable=True)
     trigger: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     payload: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
-    next_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    last_run_at: Mapped[Optional[datetime]] = mapped_column(TZDateTime(), nullable=True)
-    last_status: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
-    last_job_id: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True)
-    consecutive_failures: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=0
-    )
-    misfire_policy: Mapped[str] = mapped_column(
-        String(20), nullable=False, default="asap"
-    )
+    next_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    last_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    last_job_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    misfire_policy: Mapped[str] = mapped_column(String(20), nullable=False, default="asap")
     error: Mapped[str] = mapped_column(Text, nullable=False, default="")

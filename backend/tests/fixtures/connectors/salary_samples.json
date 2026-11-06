@@ -1,0 +1,104 @@
+{
+  "captured": "2026-10-22 — DACH board salary strings (Personio/StepStone/Xing/join.com postings) plus the existing USD formats",
+  "cases": [
+    {
+      "text": "52.000 - 65.000 €",
+      "currency": "EUR",
+      "min": 52000.0,
+      "max": 65000.0,
+      "period": "year"
+    },
+    {
+      "text": "52.000 €",
+      "currency": "EUR",
+      "min": 52000.0,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "€ 52.500 pro Jahr",
+      "currency": "EUR",
+      "min": 52500.0,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "€ 4.200 pro Monat",
+      "currency": "EUR",
+      "min": 4200.0,
+      "max": null,
+      "period": "month"
+    },
+    {
+      "text": "€ 52,5 pro Stunde",
+      "currency": "EUR",
+      "min": 52.5,
+      "max": null,
+      "period": "hour"
+    },
+    {
+      "text": "90.000 CHF",
+      "currency": "CHF",
+      "min": 90000.0,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "CHF 90'000",
+      "currency": "CHF",
+      "min": 90000.0,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "$170k - $200k",
+      "currency": "USD",
+      "min": 170000.0,
+      "max": 200000.0,
+      "period": "year"
+    },
+    {
+      "text": "$35,3k- $52k",
+      "currency": "USD",
+      "min": 35300.0,
+      "max": 52000.0,
+      "period": "year"
+    },
+    {
+      "text": "$50-$75 /hour",
+      "currency": "USD",
+      "min": 50.0,
+      "max": 75.0,
+      "period": "hour"
+    },
+    {
+      "text": "1.234,56 EUR",
+      "currency": "EUR",
+      "min": 1234.56,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "£45,000 - £60,000",
+      "currency": "GBP",
+      "min": 45000.0,
+      "max": 60000.0,
+      "period": "year"
+    },
+    {
+      "text": "52,000 EUR",
+      "currency": "EUR",
+      "min": 52000.0,
+      "max": null,
+      "period": "year"
+    },
+    {
+      "text": "52.000 - 65.000",
+      "currency": "USD",
+      "min": 52000.0,
+      "max": 65000.0,
+      "period": "year"
+    }
+  ],
+  "unparseable": ["", "competitive", "keine Angabe"]
+}

@@ -1,4 +1,5 @@
-from typing import Optional
+import logging
+import time
 from uuid import UUID
 
 import httpx
@@ -6,12 +7,34 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.chat_models import discover_google_models, token_cap_kwargs
+from app.ai.decide.types import DecisionTransport
+from app.ai.providers.errors import classify_provider_error
 from app.core.config import settings
 from app.core.encryption import MASK_MARKER, encrypt_secret
-from app.core.errors import PermissionDeniedError, ValidationError
+from app.core.errors import (
+    PermissionDeniedError,
+    ValidationError,
+    sanitize_error_detail,
+)
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AIProviderType, AITaskTier
 from app.models.user_model import User
+
+logger = logging.getLogger(__name__)
+
+
+CONNECTION_TEST_PROMPT = "Reply with the single word: OK"
+
+
+def _test_failure(error: Exception, provider: AIProvider, detail: str) -> dict:
+    """Connection-test failure with the §15 error code beside the message."""
+    classified = classify_provider_error(
+        error,
+        local_provider=bool(provider.is_local),
+        api_key=provider.api_key,
+        attempted_preset=provider.preset_key,
+    )
+    return {"ok": False, "error": detail, "code": classified.code.value}
 
 
 def _validate_provider_type(provider_type: str) -> str:
@@ -21,13 +44,11 @@ def _validate_provider_type(provider_type: str) -> str:
     except ValueError as exc:
         raise ValidationError(f"Unknown provider type: {provider_type}") from exc
     if validated == AIProviderType.MOCK.value and not settings.is_dev:
-        raise ValidationError(
-            "The mock provider is only available in development environments."
-        )
+        raise ValidationError("The mock provider is only available in development environments.")
     return validated
 
 
-def _validate_tier(tier: Optional[str]) -> Optional[str]:
+def _validate_tier(tier: str | None) -> str | None:
     """Normalise/validate a model-tier value."""
     if tier is None:
         return None
@@ -37,7 +58,7 @@ def _validate_tier(tier: Optional[str]) -> Optional[str]:
         raise ValidationError(f"Unknown model tier: {tier}") from exc
 
 
-def _validate_reasoning_effort(effort: Optional[str]) -> Optional[str]:
+def _validate_reasoning_effort(effort: str | None) -> str | None:
     """Normalise a reasoning-effort value (empty string clears the knob).
 
     Free text on purpose: OpenAI-style levels (none/minimal/low/medium/
@@ -47,6 +68,132 @@ def _validate_reasoning_effort(effort: Optional[str]) -> Optional[str]:
     if effort is None:
         return None
     return effort.strip() or None
+
+
+_VISION_HINTS = (
+    "gemini",
+    "gpt-4o",
+    "gpt-4.1",
+    "gpt-4-turbo",
+    "gpt-5",
+    "gpt-6",
+    "claude-3",
+    "claude-4",
+    "claude-sonnet",
+    "claude-opus",
+    "claude-haiku",
+    "vision",
+    "-vl",
+    "llava",
+    "pixtral",
+    "gemma3",
+)
+
+_TOOL_HINTS = (
+    "gpt-4",
+    "gpt-5",
+    "gpt-6",
+    "o3",
+    "o4",
+    "claude",
+    "gemini",
+    "deepseek",
+    "qwen",
+    "mistral",
+    "llama",
+)
+
+
+def infer_caps(model_name: str) -> list[str]:
+    """Best-effort capability inference for a fetched model id (§15).
+
+    The split vocabulary: ``stt`` and ``tts`` are distinct; ``decision``
+    is NEVER inferred — it is explicit-only (D1), set by setup from the
+    preset's decision catalog or by hand on a decision provider.
+    """
+    name = model_name.lower()
+    if "embedding" in name or "bge" in name:
+        return ["embeddings"]
+    if any(hint in name for hint in ("whisper", "transcribe", "stt")):
+        return ["stt"]
+    if any(hint in name for hint in ("tts", "speech", "voice")):
+        return ["tts"]
+    caps = ["text"]
+    if any(hint in name for hint in _VISION_HINTS):
+        caps.append("vision")
+    if any(hint in name for hint in _TOOL_HINTS):
+        caps.append("tools")
+    return caps
+
+
+def transport_decision_caps(decision_transport: str | None) -> frozenset[str]:
+    """Decision capabilities a transport declares (D2b sparse matrix).
+
+    Delegates to the decide layer's matrix — the single source both the
+    assignment guard and the resolver route by.
+    """
+    from app.ai.decide.types import transport_decision_caps as _matrix
+
+    return frozenset(cap.value for cap in _matrix(decision_transport))
+
+
+def decision_capability_of_task(task_type: str) -> str | None:
+    """The D2b capability a decision_* task type routes to (else None)."""
+    mapping = {
+        "decision_tool_dispatch": "tool-dispatch",
+        "decision_boolean_gate": "boolean-gate",
+        "decision_choice": "choice",
+        "decision_score": "score",
+    }
+    return mapping.get(task_type)
+
+
+class CapabilityMismatchError(ValidationError):
+    """Slot-separation guard (D4): model caps do not satisfy the slot."""
+
+
+async def _check_assignment_capability(
+    db: AsyncSession, model: AIModel, task_type: str, requires: str | None
+) -> None:
+    """Enforce slot separation both directions on assignment writes.
+
+    Decision slots accept only decision-cap models whose transport
+    declares the slot's capability; decision-cap models never satisfy
+    text/vision/… tasks. Models with NULL caps stay assignable to
+    non-decision tasks (career's "not declared" row semantics) but never
+    to decision slots — ``decision`` is explicit-only.
+    """
+    caps = model.caps or []
+    capability = requires
+    if requires is None:
+        from app.ai.providers.resolution import SLOT_TASK_TYPES
+
+        capability = "text" if task_type in SLOT_TASK_TYPES else None
+    if task_type.startswith("decision_"):
+        slot_cap = decision_capability_of_task(task_type)
+        if slot_cap is None:
+            raise CapabilityMismatchError(f"'{task_type}' is not an assignable decision slot")
+        if "decision" not in caps:
+            raise CapabilityMismatchError(
+                "decision slots require a model with the 'decision' capability"
+            )
+        if slot_cap not in transport_decision_caps(model.decision_transport):
+            raise CapabilityMismatchError(f"the model's transport does not serve '{task_type}'")
+        return
+    if task_type == "decision":
+        # ADR-0036: the decision default slot — decision-capable models
+        # only (per-kind serviceability stays the resolver's check).
+        if "decision" not in caps:
+            raise CapabilityMismatchError(
+                "decision slots require a model with the 'decision' capability"
+            )
+        if not transport_decision_caps(model.decision_transport):
+            raise CapabilityMismatchError("the model's transport declares no decision capabilities")
+        return
+    if "decision" in caps:
+        raise CapabilityMismatchError("decision models are assigned to decision slots only")
+    if capability and capability not in caps and model.caps is not None:
+        raise CapabilityMismatchError(f"task requires the '{capability}' capability")
 
 
 class AIProviderService:
@@ -66,9 +213,7 @@ class AIProviderService:
 
     async def get_provider(self, provider_id: UUID, user: User) -> AIProvider:
         """Fetch a provider the caller can see."""
-        rows = await self.db.execute(
-            select(AIProvider).where(AIProvider.id == provider_id)
-        )
+        rows = await self.db.execute(select(AIProvider).where(AIProvider.id == provider_id))
         provider = rows.scalars().first()
         if provider is None:
             raise ValidationError("Provider not found")
@@ -83,10 +228,10 @@ class AIProviderService:
         name: str,
         provider_type: str,
         api_base: str,
-        api_key: Optional[str],
+        api_key: str | None,
         scope: str = "user",
-        is_local: Optional[bool] = None,
-        country: Optional[str] = None,
+        is_local: bool | None = None,
+        country: str | None = None,
     ) -> AIProvider:
         """Create a provider; system scope requires admin."""
         if scope == "system" and not user.is_admin:
@@ -111,13 +256,13 @@ class AIProviderService:
         provider_id: UUID,
         user: User,
         *,
-        name: Optional[str] = None,
-        provider_type: Optional[str] = None,
-        api_base: Optional[str] = None,
-        api_key: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        is_local: Optional[bool] = None,
-        country: Optional[str] = None,
+        name: str | None = None,
+        provider_type: str | None = None,
+        api_base: str | None = None,
+        api_key: str | None = None,
+        is_active: bool | None = None,
+        is_local: bool | None = None,
+        country: str | None = None,
     ) -> AIProvider:
         """Update a provider; ``***`` preserves the existing key."""
         provider = await self.get_provider(provider_id, user)
@@ -154,9 +299,7 @@ class AIProviderService:
         """Models of a provider the caller can see."""
         await self.get_provider(provider_id, user)
         rows = await self.db.execute(
-            select(AIModel)
-            .where(AIModel.provider_id == provider_id)
-            .order_by(AIModel.name)
+            select(AIModel).where(AIModel.provider_id == provider_id).order_by(AIModel.name)
         )
         return list(rows.scalars().all())
 
@@ -167,16 +310,20 @@ class AIProviderService:
         *,
         name: str,
         model_name: str,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        reasoning_effort: Optional[str] = None,
-        tier: Optional[str] = None,
-        caps: Optional[list[str]] = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
+        tier: str | None = None,
+        caps: list[str] | None = None,
+        decision_transport: str | None = None,
     ) -> AIModel:
         """Add a model to a provider (tier declares which tier it serves)."""
         provider = await self.get_provider(provider_id, user)
         if provider.scope == "system" and not user.is_admin:
             raise ValidationError("Only admins can add models to global providers")
+        decision_cap = (caps is not None and "decision" in caps) or (
+            provider.provider_type == "decision"
+        )
         model = AIModel(
             provider_id=provider.id,
             name=name,
@@ -186,6 +333,9 @@ class AIProviderService:
             reasoning_effort=_validate_reasoning_effort(reasoning_effort),
             tier=_validate_tier(tier),
             caps=caps,
+            decision_transport=(decision_transport or DecisionTransport.SYSTEMONE.value)
+            if decision_cap
+            else None,
         )
         self.db.add(model)
         await self.db.commit()
@@ -197,16 +347,18 @@ class AIProviderService:
         model_id: UUID,
         user: User,
         *,
-        name: Optional[str] = None,
-        is_active: Optional[bool] = None,
-        reasoning_effort: Optional[str] = None,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None,
-        caps: Optional[list[str]] = None,
+        name: str | None = None,
+        is_active: bool | None = None,
+        reasoning_effort: str | None = None,
+        temperature: float | None = None,
+        max_tokens: int | None = None,
+        caps: list[str] | None = None,
+        decision_transport: str | None = None,
         set_temperature: bool = False,
         set_max_tokens: bool = False,
         set_reasoning_effort: bool = False,
         set_caps: bool = False,
+        set_decision_transport: bool = False,
     ) -> AIModel:
         """Edit a registered model (``set_*`` flags clear optional caps)."""
         rows = await self.db.execute(select(AIModel).where(AIModel.id == model_id))
@@ -228,6 +380,16 @@ class AIProviderService:
             model.max_tokens = max_tokens
         if set_caps:
             model.caps = caps
+        effective_caps = caps if set_caps else model.caps
+        decision_kept = (effective_caps is not None and "decision" in effective_caps) or (
+            provider.provider_type == "decision"
+        )
+        if decision_kept:
+            model.decision_transport = decision_transport or DecisionTransport.SYSTEMONE.value
+        elif set_decision_transport or set_caps:
+            # caps moved away from decision (or the transport was set
+            # explicitly) — nothing to carry without the capability.
+            model.decision_transport = decision_transport
         self.db.add(model)
         await self.db.commit()
         await self.db.refresh(model)
@@ -258,12 +420,19 @@ class AIProviderService:
 
         ``model_id`` binds a concrete model (explicit override); a ``tier``
         with no model routes the task to the best model registered for that
-        tier; both ``None`` clears the assignment.
+        tier; both ``None`` clears the assignment. Capability-slot defaults
+        (``text``/``vision``/``stt``/``tts``) and decision slots are
+        assignable like any task type, under D4 slot-separation guards.
         """
         if scope == "system" and not user.is_admin:
-            raise PermissionDeniedError(
-                "Only admins can change global task assignments"
-            )
+            raise PermissionDeniedError("Only admins can change global task assignments")
+        from app.ai.tasks import TASKS_BY_NAME
+
+        task_requires = None
+        if task_type in TASKS_BY_NAME:
+            task_requires = TASKS_BY_NAME[task_type].requires
+        elif task_type not in ("text", "vision", "stt", "tts", "embeddings"):
+            raise ValidationError(f"Unknown task type: {task_type}")
         tier = _validate_tier(tier)
         provider_id = None
         if model_id is not None:
@@ -273,10 +442,9 @@ class AIProviderService:
             if model is None:
                 raise ValidationError("Model not found")
             provider = await self.get_provider(model.provider_id, user)
-            if provider.scope != scope and not (
-                scope == "system" and provider.scope == "system"
-            ):
+            if provider.scope != scope and not (scope == "system" and provider.scope == "system"):
                 raise PermissionDeniedError("Model belongs to another scope")
+            await _check_assignment_capability(self.db, model, task_type, task_requires)
             provider_id = provider.id
         assignment_rows = await self.db.execute(
             select(AITaskAssignment).where(
@@ -313,7 +481,7 @@ class AIProviderService:
         self,
         provider_id: UUID,
         user: User,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> list[dict]:
         """Fetch available models from the provider's /models API endpoint.
 
@@ -323,9 +491,7 @@ class AIProviderService:
         provider = await self.get_provider(provider_id, user)
         if provider.provider_type == "mock":
             if not settings.is_dev:
-                raise ValidationError(
-                    "The mock provider is only available in development."
-                )
+                raise ValidationError("The mock provider is only available in development.")
             return [
                 {"id": "mock-large", "name": "Mock Large", "owned_by": "mock"},
                 {"id": "mock-small", "name": "Mock Small", "owned_by": "mock"},
@@ -386,9 +552,16 @@ class AIProviderService:
         *,
         provider_id: UUID,
         model_id: UUID,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> dict:
-        """Ping a provider/model with a minimal completion (plain httpx)."""
+        """Ping a provider/model with a minimal completion (plain httpx).
+
+        Decision-capable models validate through the decision probe (one
+        typed question under the abort timeout — never a chat
+        completion), even on mixed providers: a decision model on an
+        openai-compatible provider (e.g. OpenRouter) 400s on
+        chat/completions.
+        """
         provider = await self.get_provider(provider_id, user)
         rows = await self.db.execute(select(AIModel).where(AIModel.id == model_id))
         model = rows.scalars().first()
@@ -396,16 +569,47 @@ class AIProviderService:
             raise ValidationError("Model not found on this provider")
         if provider.provider_type == "mock":
             if not settings.is_dev:
-                raise ValidationError(
-                    "The mock provider is only available in development."
-                )
+                raise ValidationError("The mock provider is only available in development.")
             return {"ok": True, "reply": "mock provider: always OK"}
-        if provider.provider_type == "google":
-            return await self._run_test_google(provider, model, transport)
+        started = time.monotonic()
+        if (
+            provider.provider_type == "decision"
+            or model.decision_transport
+            or "decision" in (model.caps or [])
+        ):
+            from app.ai.decide.systemone.probe import DecisionProbeInput, probe_decision_provider
+
+            probe = await probe_decision_provider(
+                DecisionProbeInput(provider=provider, model=model, api_key=provider.api_key or "")
+            )
+            if probe.ok:
+                result: dict = {
+                    "ok": True,
+                    "reply": f"decision endpoint OK ({probe.resolved_model or 'probe'})",
+                }
+            else:
+                result = {
+                    "ok": False,
+                    "error": probe.error or "decision probe failed",
+                    "code": "unknown",
+                }
+        elif provider.provider_type == "google":
+            result = await self._run_test_google(provider, model, transport)
+        else:
+            result = await self._run_test_openai_compatible(provider, model, transport)
+        await self._record_connection_test(user, provider, model, result, started)
+        return result
+
+    async def _run_test_openai_compatible(
+        self,
+        provider: AIProvider,
+        model: AIModel,
+        transport: httpx.AsyncBaseTransport | None = None,
+    ) -> dict:
         url = f"{provider.api_base.rstrip('/')}/chat/completions"
         payload = {
             "model": model.model_name,
-            "messages": [{"role": "user", "content": "Reply with the single word: OK"}],
+            "messages": [{"role": "user", "content": CONNECTION_TEST_PROMPT}],
             **token_cap_kwargs(provider.provider_type, 5, provider.api_base),
         }
         if model.temperature is not None:
@@ -421,15 +625,43 @@ class AIProviderService:
             return {"ok": True, "reply": reply[:200]}
         except httpx.HTTPStatusError as exc:
             detail = f"Error code: {exc.response.status_code} - {exc.response.text}"
-            return {"ok": False, "error": detail[:300]}
+            return _test_failure(exc, provider, detail[:300])
         except Exception as exc:
-            return {"ok": False, "error": str(exc)[:300]}
+            return _test_failure(exc, provider, sanitize_error_detail(str(exc)))
+
+    async def _record_connection_test(
+        self,
+        user: User,
+        provider: AIProvider,
+        model: AIModel,
+        result: dict,
+        started: float,
+    ) -> None:
+        """Every connection ping lands in ``ai_generations`` — a transport
+        probe is not a task (no registry entry, no prompt version), but it
+        spends tokens and belongs in the audit trail like any other call."""
+        from app.models.ai_model import AIGeneration
+
+        ok = bool(result.get("ok"))
+        row = AIGeneration(
+            user_id=user.id,
+            task_type="connection_test",
+            provider=provider.provider_type,
+            model=model.model_name[:80],
+            prompt=CONNECTION_TEST_PROMPT,
+            output={"reply": str(result.get("reply") or "")[:500]} if ok else None,
+            latency_ms=(time.monotonic() - started) * 1000,
+            status="ok" if ok else "error",
+            error=str(result.get("error") or "")[:1000],
+        )
+        self.db.add(row)
+        await self.db.commit()
 
     async def _run_test_google(
         self,
         provider: AIProvider,
         model: AIModel,
-        transport: Optional[httpx.AsyncBaseTransport] = None,
+        transport: httpx.AsyncBaseTransport | None = None,
     ) -> dict:
         """Connection test for native Gemini providers.
 
@@ -456,4 +688,4 @@ class AIProviderService:
             reply = content.strip() if isinstance(content, str) else str(content)
             return {"ok": True, "reply": reply[:200]}
         except Exception as exc:
-            return {"ok": False, "error": str(exc)[:300]}
+            return _test_failure(exc, provider, str(exc)[:300])

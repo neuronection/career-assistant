@@ -12,11 +12,11 @@ Download a prebuilt package from the
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
-./venv/bin/python -m careerassistant              # window + tray (default)
-./venv/bin/python -m careerassistant app --tray   # tray-only boot (auto-start)
-./venv/bin/python -m careerassistant web          # loopback server + browser
-./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
+uv sync --extra desktop
+uv run python -m careerassistant              # window + tray (default)
+uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
+uv run python -m careerassistant web          # loopback server + browser
+uv run python -m careerassistant seed         # migrations + starter catalog only
 ```
 
 Linux needs `libgtk-3`, `libwebkit2gtk-4.1` and an AppIndicator host (the
@@ -27,8 +27,9 @@ tray degrades gracefully without one).
 First launch creates a strong per-instance key file (`auth_keys.json`,
 0600), applies migrations and seeds the
 starter catalog automatically (opt out with `CAREER_SKIP_SEED=1`). AI
-providers are configured in-app — for a fully local setup, point a provider at
-Ollama (`http://localhost:11434/v1`) or LM Studio.
+providers are configured in-app through the [first-run AI setup](ai-setup.md)
+step (or **Settings → AI Configuration**) — for a fully local setup, point a
+provider at Ollama (`http://localhost:11434/v1`) or LM Studio.
 
 ## The tray
 
@@ -38,7 +39,8 @@ prompt):
 - **Scheduled searches, syncs and alerts continue** in the background.
 - **Native toasts** arrive through the desktop notification channel, honoring
   quiet hours and opening the relevant item on click.
-- **Sync-now and saved-search controls** live in the tray menu.
+- **Sync-now and saved-search controls** live in the tray menu, and
+  **Configure AI provider** opens Settings → AI without hunting for it.
 - **Misfired runs catch up on boot** (for example after the machine slept).
 
 Quit from the tray menu. A **second launch focuses the running window**

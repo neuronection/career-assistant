@@ -85,7 +85,7 @@ def test_chat_rewrites_attached_cv_bullets(page) -> None:
     card.wait_for(state="visible", timeout=20_000)
 
     cards.get_by_role("button", name="Approve").click()
-    page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Approved", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     fetched = page.request.get(f"{API}/cv/{cv_id}", headers=api_headers())
     assert fetched.ok, fetched.text()

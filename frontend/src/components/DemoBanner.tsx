@@ -11,6 +11,10 @@ let demoModeFlag: Promise<boolean> | null = null;
  * `GET /api/v1/instance/config`, cached so the badge never refetches.
  * A failed fetch reads as "not a demo" (fail-closed, never a blocker). */
 export function loadDemoMode(): Promise<boolean> {
+  // Marketing stills must not wear the demo badge (ui-capture windowFlag).
+  if (typeof window !== "undefined" && (window as { __CA_SCREENSHOT_CAPTURE__?: boolean }).__CA_SCREENSHOT_CAPTURE__) {
+    return Promise.resolve(false);
+  }
   if (demoModeFlag === null) {
     demoModeFlag = getInstanceConfig()
       .then((config) => config.demo_mode === true)

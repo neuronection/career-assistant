@@ -1,7 +1,7 @@
 import json
 import logging
+from collections.abc import AsyncGenerator
 from datetime import date, datetime
-from typing import AsyncGenerator
 from uuid import UUID
 
 from sqlalchemy import create_engine
@@ -42,7 +42,7 @@ _engine_kwargs: dict = {
     "echo": False,
     "json_serializer": json_serializer,
 }
-if settings.DATABASE_URL.startswith("sqlite"):
+if settings.database_url.startswith("sqlite"):
     # SQLite has no pool sizing; the timeout rides out writer contention
     # between request handlers and background-job workers.
     _engine_kwargs = {
@@ -52,7 +52,7 @@ if settings.DATABASE_URL.startswith("sqlite"):
         "json_serializer": json_serializer,
     }
 
-engine: AsyncEngine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
+engine: AsyncEngine = create_async_engine(settings.database_url, **_engine_kwargs)
 
 
 def sqlite_pragmas(dbapi_connection, _record=None):
@@ -69,15 +69,13 @@ def sqlite_pragmas(dbapi_connection, _record=None):
     cursor.close()
 
 
-if settings.DATABASE_URL.startswith("sqlite"):
+if settings.database_url.startswith("sqlite"):
     from sqlalchemy import event
 
     event.listens_for(engine.sync_engine, "connect")(sqlite_pragmas)
 
 
-AsyncSessionLocal = async_sessionmaker(
-    bind=engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 
 def _sync_database_url(url: str) -> str:
@@ -92,17 +90,15 @@ def _sync_database_url(url: str) -> str:
 
 
 _sync_engine_kwargs: dict = {"pool_pre_ping": True, "echo": False}
-if settings.DATABASE_URL.startswith("sqlite"):
+if settings.database_url.startswith("sqlite"):
     _sync_engine_kwargs = {
         "pool_pre_ping": True,
         "connect_args": {"timeout": 30},
         "echo": False,
     }
 
-sync_engine = create_engine(
-    _sync_database_url(settings.DATABASE_URL), **_sync_engine_kwargs
-)
-if settings.DATABASE_URL.startswith("sqlite"):
+sync_engine = create_engine(_sync_database_url(settings.database_url), **_sync_engine_kwargs)
+if settings.database_url.startswith("sqlite"):
     event.listens_for(sync_engine, "connect")(sqlite_pragmas)
 
 AuthSessionLocal = sessionmaker(bind=sync_engine, expire_on_commit=False)

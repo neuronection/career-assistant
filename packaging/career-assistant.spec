@@ -10,6 +10,8 @@ import glob
 import os
 import platform
 import re
+import sys
+from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
@@ -49,13 +51,38 @@ elif IS_WINDOWS:
 elif IS_MACOS:
     hiddenimports += ["webview.platforms.cocoa"]
 
+sys.path.insert(0, SPEC_DIR)
+from bundle_data import builtin_data_entries  # noqa: E402
+
 datas = [
     (FRONTEND_DIST, "frontend/dist"),
     (os.path.join(ROOT, "backend", "alembic"), "alembic"),
     (os.path.join(ROOT, "backend", "alembic.ini"), "."),
+    # Builtin extension bundles (manifests + per-bundle docs trees): the
+    # registry validates every manifest at registration and fails closed,
+    # and the admin docs surface serves the markdown. PyInstaller does not
+    # collect sibling data files, so they ship explicitly.
+    *builtin_data_entries(Path(ROOT)),
     # Family language catalog (ADR-0024) — cv_languages.py json-loads it at
     # import time, so the frozen bundle must carry it at app/data/catalogs.
+    # Plan 123.5: the seed data (app/data/seeds/*.json) rides the same
+    # directory — the seed loaders resolve it relative to the package.
     (os.path.join(ROOT, "backend", "app", "data"), "app/data"),
+    # Vendored family extension-contract set (ADR-0040 / plan 32): the
+    # registry validates manifests against the envelope schema at
+    # registration — frozen builds read it from the bundle's contracts/.
+    (os.path.join(ROOT, "contracts"), "contracts"),
+    # T2 sandbox child bootstrap (plan 32 Phase 5 follow-up): spawned as
+    # `<interpreter> -I -B child.py`, so it must ship as a REAL FILE, not
+    # a compiled module — the frozen layout is
+    # `sys._MEIPASS/app/extensions/runtime/sandbox/child.py` (the
+    # capability check in app/extensions/runtime/sandbox/runtime.py
+    # probes exactly this path and self-disables T2 with the remedy when
+    # the interpreter half is missing — frozen builds bundle none).
+    (
+        os.path.join(ROOT, "backend", "app", "extensions", "runtime", "sandbox", "child.py"),
+        os.path.join("app", "extensions", "runtime", "sandbox"),
+    ),
 ]
 datas += collect_data_files("webview")
 

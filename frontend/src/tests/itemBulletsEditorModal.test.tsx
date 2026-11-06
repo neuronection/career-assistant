@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ItemBulletsEditorModal } from "@/components/cv/ItemBulletsEditorModal";
+import { ItemBulletsEditorModal } from "@/features/cv/components/cv/ItemBulletsEditorModal";
 
 const BASE = [{ text: "Shipped the QA harness" }];
 const OVERRIDE = [{ text: "Cut the deploy pipeline to minutes" }];

@@ -1,14 +1,16 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """AI scenario designer: drafts personalized scenario questions (Phase 23).
 
 Phase 25 adds career-stage awareness: the same pipeline asks a returner
 about re-entry gaps and a switcher about transferable skills.
 """
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import AssessmentQuestionSet
 from app.models.enums import AITaskType
-from sqlalchemy.ext.asyncio import AsyncSession
 
 STAGE_PROMPT_HINTS = {
     "student": "current coursework and first jobs",
@@ -99,9 +101,7 @@ async def generate_question_set(
             "families. skill_levels keys must come from the provided skill "
             "taxonomy; interest_keys from interest taxonomy keys."
         ),
-        user=_build_user_prompt(
-            profile_snapshot, top_family_keys, skill_keys, count, stage
-        ),
+        user=_build_user_prompt(profile_snapshot, top_family_keys, skill_keys, count, stage),
         user_id=user_id,
     )
 
@@ -158,9 +158,7 @@ def _mock_template_content(schema: type, user_prompt: str) -> dict:
             )
     return {
         "schema_version": 1,
-        "phases": [
-            {"title": brief.get("title") or "Draft template", "questions": questions}
-        ],
+        "phases": [{"title": brief.get("title") or "Draft template", "questions": questions}],
         "normalization": {
             "multiplier": 1.0,
             "clamp_min": 1.0,
@@ -214,8 +212,7 @@ async def generate_template_draft(
             f"{brief.get('tone') or 'encouraging'}. Produce a complete, "
             "runnable template."
             + (
-                " You are EXTENDING an existing template — match its style "
-                "and only add questions."
+                " You are EXTENDING an existing template — match its style and only add questions."
                 if extend_of
                 else ""
             )

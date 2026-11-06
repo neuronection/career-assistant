@@ -3,10 +3,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
-import { useCareerChatContext, CareerChatProvider } from "@/components/chat/useCareerChat";
-import { buildChatMarkdownFromRows } from "@/components/chat/exportChat";
-import { getDraft, writeDraft } from "@/components/chat/drafts";
+import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
+import { useCareerChatContext, CareerChatProvider } from "@/features/chat/components/chat/useCareerChat";
+import { buildChatMarkdownFromRows } from "@/features/chat/components/chat/exportChat";
+import { getDraft, writeDraft } from "@/features/chat/components/chat/drafts";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
@@ -23,7 +23,6 @@ vi.mock("@/api/chatStream", () => ({
   streamChatMessage: streamChatMessage,
   streamChatEdit: vi.fn(),
   streamChatRegenerate: streamChatRegenerate,
-  streamChatRequest: vi.fn(),
 }));
 
 vi.mock("@/api/universities", () => ({
@@ -157,6 +156,36 @@ describe("retry of failed turns", () => {
       expect(streamChatRegenerate).toHaveBeenCalled();
     });
     expect(streamChatRegenerate.mock.calls[0]?.[0]).toBe("u1");
+  });
+
+  it("renders typed copy for an AI failure instead of the raw message", async () => {
+    const user = userEvent.setup();
+    streamChatMessage.mockImplementation(
+      (_id: unknown, _content: unknown, callbacks: ChatStreamCallbacks) => {
+        callbacks.onFlowEvent?.({
+          event: "flow_failed",
+          payload: {
+            code: "ai_budget",
+            message: "AI budget 'Monthly' reached (10/10 tokens this month)",
+            retryable: true,
+          },
+        });
+        return Promise.reject(new Error("budget"));
+      },
+    );
+
+    render(
+      <MemoryRouter>
+        <ChatWidget />
+      </MemoryRouter>,
+    );
+    await user.click(screen.getByRole("button", { name: "Open chat assistant" }));
+    await user.type(screen.getByRole("textbox", { name: "Message" }), "hello");
+    await user.keyboard("{Enter}");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The AI budget for this workspace is used up");
+    expect(alert).not.toHaveTextContent("Monthly");
   });
 
   it("exposes retry through the shared context hook", async () => {

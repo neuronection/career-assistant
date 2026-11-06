@@ -91,14 +91,35 @@ async def test_emit_fans_out_recipients_and_delivery_log(db, kinds, desktop_chan
     )
     await db.commit()
     assert event is not None
-    recipients = (await db.execute(select(NotificationRecipient))).scalars().all()
+    recipients = (
+        (
+            await db.execute(
+                select(NotificationRecipient).where(
+                    NotificationRecipient.notification_id == event.id
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
     assert {r.user_id for r in recipients} == {user.id, other.id}
     assert all(r.status == "unread" for r in recipients)
-    deliveries = (await db.execute(select(NotificationDelivery))).scalars().all()
+    # This event's delivery log only — the worker DB may hold earlier
+    # events' rows, and the assertion is about THIS emit's fanout.
+    deliveries = (
+        (
+            await db.execute(
+                select(NotificationDelivery).where(NotificationDelivery.notification_id == event.id)
+            )
+        )
+        .scalars()
+        .all()
+    )
     in_app = [d for d in deliveries if d.channel == "in_app"]
     desktop = [d for d in deliveries if d.channel == "desktop"]
     assert len(in_app) == 2 and len(desktop) == 2
-    assert all(d.status == "delivered" for d in deliveries)
+    statuses = [(d.channel, d.status, d.error) for d in [*in_app, *desktop]]
+    assert all(d.status == "delivered" for d in [*in_app, *desktop]), f"delivery log: {statuses}"
     assert len(desktop_channel.calls) == 2
     assert desktop_channel.calls[0].payload["job_id"]
 
@@ -142,9 +163,7 @@ async def test_quiet_hours_and_max_day_guard_dispatch_only(db, kinds):
         )
         await db.commit()
         for i in range(3):
-            await service.emit(
-                "fit_threshold", [user.id], title=f"fit {i}", max_per_day=2
-            )
+            await service.emit("fit_threshold", [user.id], title=f"fit {i}", max_per_day=2)
         await db.commit()
         inbox = (await db.execute(select(NotificationRecipient))).scalars().all()
         assert len(inbox) == 3
@@ -161,15 +180,11 @@ async def test_max_day_caps_toasty_channel_but_not_inbox(db, kinds):
         user = await _make_user(db, "cap36@example.com")
         service = NotificationService(db)
         for i in range(4):
-            await service.emit(
-                "fit_threshold", [user.id], title=f"fit {i}", max_per_day=2
-            )
+            await service.emit("fit_threshold", [user.id], title=f"fit {i}", max_per_day=2)
         await db.commit()
         inbox = (await db.execute(select(NotificationRecipient))).scalars().all()
         assert len(inbox) == 4
-        all_deliveries = (
-            (await db.execute(select(NotificationDelivery))).scalars().all()
-        )
+        all_deliveries = (await db.execute(select(NotificationDelivery))).scalars().all()
         toasts = [d for d in all_deliveries if d.channel == "desktop"]
         assert len(toasts) == 2
     finally:
@@ -181,17 +196,13 @@ async def test_channel_failure_recorded_and_emit_survives(db, kinds):
     register_channel(channel)
     try:
         user = await _make_user(db, "broken36@example.com")
-        event = await NotificationService(db).emit(
-            "fit_threshold", [user.id], title="Strong fit"
-        )
+        event = await NotificationService(db).emit("fit_threshold", [user.id], title="Strong fit")
         await db.commit()
         assert event is not None
         delivery = (
             (
                 await db.execute(
-                    select(NotificationDelivery).where(
-                        NotificationDelivery.channel == "desktop"
-                    )
+                    select(NotificationDelivery).where(NotificationDelivery.channel == "desktop")
                 )
             )
             .scalars()
@@ -257,10 +268,7 @@ async def test_read_dismiss_and_unread_flow(db, kinds):
     assert await service.unread_count(user.id) == 0
     await db.commit()
     db.expire_all()
-    states = {
-        r.status
-        for r in (await db.execute(select(NotificationRecipient))).scalars().all()
-    }
+    states = {r.status for r in (await db.execute(select(NotificationRecipient))).scalars().all()}
     assert states == {"dismissed"}
 
 
@@ -372,9 +380,7 @@ async def test_vapid_cleared_private_key_regenerates_in_place(monkeypatch):
         stale = (
             (
                 await session.execute(
-                    select(AppSetting).where(
-                        AppSetting.key == webpush_service.VAPID_SETTING_KEY
-                    )
+                    select(AppSetting).where(AppSetting.key == webpush_service.VAPID_SETTING_KEY)
                 )
             )
             .scalars()
@@ -387,9 +393,7 @@ async def test_vapid_cleared_private_key_regenerates_in_place(monkeypatch):
     keys = await webpush_service.get_or_create_vapid_keys()
     assert keys["private_key"]
     row = await _row()
-    assert (
-        decrypt_secret((row.value or {}).get("private_key_enc")) == keys["private_key"]
-    )
+    assert decrypt_secret((row.value or {}).get("private_key_enc")) == keys["private_key"]
 
 
 async def test_browser_push_dead_endpoint_cleanup(db, clean_db, kinds, monkeypatch):
@@ -436,7 +440,7 @@ async def test_browser_push_dead_endpoint_cleanup(db, clean_db, kinds, monkeypat
     )
     from app.services.notification_channels import DeliveryContext
 
-    status, error = await channel.send(
+    status, _error = await channel.send(
         DeliveryContext(
             event_id=uuid4(),
             user_id=user.id,
@@ -473,11 +477,9 @@ async def test_stream_endpoint_requires_auth(client):
 
 
 async def test_preferences_matrix_shape(client, auth_headers, kinds):
-    response = await client.get(
-        "/api/v1/notifications/preferences", headers=auth_headers
-    )
+    response = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
     body = response.json()
-    assert body["channels"] == ["in_app", "browser"]
+    assert set(body["channels"]) == {"in_app", "browser", "email", "webhook"}
     groups = {kind["group"] for kind in body["kinds"]}
     assert "career" in groups and "system" in groups
     fit = next(k for k in body["kinds"] if k["key"] == "fit_threshold")
@@ -492,3 +494,65 @@ async def test_non_mutable_kind_rejected(client, auth_headers, kinds):
         headers=auth_headers,
     )
     assert response.status_code == 400
+
+
+async def test_kind_override_reset_deletes_row(client, auth_headers, kinds):
+    stored = await client.put(
+        "/api/v1/notifications/preferences/fit_threshold",
+        json={"channels": ["in_app", "email"]},
+        headers=auth_headers,
+    )
+    assert stored.status_code == 200
+    matrix = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
+    fit = next(k for k in matrix.json()["kinds"] if k["key"] == "fit_threshold")
+    assert fit["overridden"] is True
+
+    reset = await client.delete(
+        "/api/v1/notifications/preferences/fit_threshold", headers=auth_headers
+    )
+    assert reset.status_code == 204
+    matrix = await client.get("/api/v1/notifications/preferences", headers=auth_headers)
+    fit = next(k for k in matrix.json()["kinds"] if k["key"] == "fit_threshold")
+    assert fit["overridden"] is False
+    assert fit["channels"] == fit["default_channels"]
+
+
+async def test_recent_deliveries_scoped_and_filtered(db, kinds, desktop_channel):
+    user = await _make_user(db, "deliveries@example.com")
+    other = await _make_user(db, "deliveries2@example.com")
+    service = NotificationService(db)
+    await service.emit("fit_threshold", [user.id, other.id], title="Strong fit")
+    await db.commit()
+
+    mine = await service.recent_deliveries(user.id)
+    assert mine["items"], "the caller's own dispatch rows are listed"
+    assert all(item["kind"] == "fit_threshold" for item in mine["items"])
+    channels = {item["channel"] for item in mine["items"]}
+    assert "in_app" in channels
+    assert channels <= {"in_app", "desktop", "browser"}
+    assert all(item["status"] == "delivered" for item in mine["items"])
+
+    desktop_only = await service.recent_deliveries(user.id, channel="desktop")
+    assert desktop_only["items"]
+    assert {item["channel"] for item in desktop_only["items"]} == {"desktop"}
+
+    theirs = await service.recent_deliveries(other.id)
+    assert theirs["items"]
+    assert all(item["id"] not in {item["id"] for item in mine["items"]} for item in theirs["items"])
+
+
+async def test_deliveries_endpoint_requires_auth_and_filters(client, auth_headers, kinds):
+    unauthed = await client.get("/api/v1/notifications/deliveries")
+    assert unauthed.status_code == 401
+
+    empty = await client.get("/api/v1/notifications/deliveries", headers=auth_headers)
+    assert empty.status_code == 200
+    assert empty.json()["items"] == []
+
+    filtered = await client.get(
+        "/api/v1/notifications/deliveries",
+        params={"channel": "email"},
+        headers=auth_headers,
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["items"] == []

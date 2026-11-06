@@ -12,7 +12,7 @@ import logging
 import time
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, cast
 
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from psycopg import AsyncConnection
@@ -23,13 +23,13 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_stack: Optional[AsyncExitStack] = None
-_checkpointer: Optional[BaseCheckpointSaver] = None
+_stack: AsyncExitStack | None = None
+_checkpointer: BaseCheckpointSaver | None = None
 
 
 def _psycopg_uri() -> str:
     """The SQLAlchemy asyncpg URL rewritten for psycopg (checkpointer)."""
-    url = settings.DATABASE_URL
+    url = settings.database_url
     if url.startswith("postgresql+asyncpg://"):
         return url.replace("postgresql+asyncpg://", "postgresql://", 1)
     return url
@@ -44,11 +44,8 @@ def _sqlite_path() -> str:
     locked" bursts while polish/autopilot runs are live). Fileless
     (``:memory:``) profiles stay in-memory.
     """
-    url = settings.DATABASE_URL
-    if "///" in url:
-        path = url.split("///", 1)[-1]
-    else:
-        path = ""
+    url = settings.database_url
+    path = url.split("///", 1)[-1] if "///" in url else ""
     if not path or path == ":memory:":
         return ":memory:"
     return str(Path(path).parent / "checkpoints.db")
@@ -63,12 +60,10 @@ async def get_checkpointer() -> BaseCheckpointSaver:
     # Any: the two langgraph saver hierarchies (sqlite/postgres) share no
     # statically-visible async base with `setup` — the SDK boundary is dynamic.
     saver: Any
-    if settings.DATABASE_URL.startswith("sqlite"):
+    if settings.database_url.startswith("sqlite"):
         from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
-        saver = await stack.enter_async_context(
-            AsyncSqliteSaver.from_conn_string(_sqlite_path())
-        )
+        saver = await stack.enter_async_context(AsyncSqliteSaver.from_conn_string(_sqlite_path()))
     else:
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
         from psycopg.rows import dict_row
@@ -114,7 +109,7 @@ async def aclose_checkpointer() -> None:
     if _stack is not None:
         try:
             await _stack.aclose()
-        except Exception:  # noqa: BLE001 — shutdown must never raise
+        except Exception:
             logger.warning("Checkpointer close failed", exc_info=True)
     _stack = None
     _checkpointer = None
@@ -129,9 +124,7 @@ def _stale_prefix(now_ms: int, ttl_days: int) -> str:
     return f"{cutoff_100ns >> 12:012x}"
 
 
-def prune_checkpoints(
-    db_path: Path, ttl_days: int, now_ms: Optional[int] = None
-) -> int:
+def prune_checkpoints(db_path: Path, ttl_days: int, now_ms: int | None = None) -> int:
     """Delete desktop checkpoint threads whose latest write is older than the
     TTL (study's day-one retention beat — checkpoint rows grow unboundedly).
 
@@ -146,9 +139,7 @@ def prune_checkpoints(
 
     if not db_path.exists():
         return 0
-    prefix = _stale_prefix(
-        now_ms if now_ms is not None else int(time.time() * 1000), ttl_days
-    )
+    prefix = _stale_prefix(now_ms if now_ms is not None else int(time.time() * 1000), ttl_days)
     connection = sqlite3.connect(db_path)
     try:
         stale = (
@@ -179,8 +170,8 @@ def prune_desktop_checkpoints() -> int:
     if path == ":memory:":
         return 0
     try:
-        return prune_checkpoints(Path(path), ttl_days=settings.CHECKPOINT_TTL_DAYS)
-    except Exception:  # noqa: BLE001 — retention never blocks boot
+        return prune_checkpoints(Path(path), ttl_days=settings.checkpoint_ttl_days)
+    except Exception:
         logger.warning("Checkpoint prune failed", exc_info=True)
         return 0
 
@@ -194,7 +185,7 @@ async def prune_postgres_checkpoints(db: AsyncSession, ttl_days: int) -> int:
     """
     from sqlalchemy import text
 
-    if not settings.DATABASE_URL.startswith("postgresql"):
+    if not settings.database_url.startswith("postgresql"):
         return 0
     prefix = _stale_prefix(int(time.time() * 1000), ttl_days)
     stale = (

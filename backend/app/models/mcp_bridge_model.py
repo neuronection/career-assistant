@@ -9,17 +9,16 @@ are audited + budgeted like every AI call (``ai_generations`` via the
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import Boolean, CheckConstraint, String, UniqueConstraint
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Index, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.encryption import decrypt_secret, encrypt_secret, mask_secret
 from app.models.base import (
     Base,
     StructuredJSON,
-    TZDateTime,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -39,20 +38,14 @@ class AIMCPServer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     command: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     # Bearer token for http servers (encrypted at rest, masked on read).
-    _token: Mapped[Optional[str]] = mapped_column("token", String(1000), nullable=True)
+    _token: Mapped[str | None] = mapped_column("token", String(1000), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     # Discovery snapshot: [{"name","description"}]; enablement is a
     # separate allowlist so a refresh never silently widens access.
-    discovered_tools: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
-    enabled_tools: Mapped[list] = mapped_column(
-        StructuredJSON, nullable=False, default=list
-    )
-    last_synced_at: Mapped[Optional[datetime]] = mapped_column(
-        TZDateTime(), nullable=True
-    )
-    created_by: Mapped[Optional[uuid.UUID]] = mapped_column(nullable=True, index=True)
+    discovered_tools: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    enabled_tools: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    last_synced_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(nullable=True, index=True)
 
     @property
     def token(self) -> str:
@@ -68,3 +61,28 @@ class AIMCPServer(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     def namespaced(self, tool_name: str) -> str:
         return f"mcp.{self.name}.{tool_name}"
+
+
+class McpToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A hashed MCP access token (plan 113 / 119).
+
+    `user_id` NULL ⇒ an instance token; set ⇒ a personal token.
+    `scopes` is a closed list (`read`, later `write`). Rotation and
+    per-token revocation need no schema change.
+    """
+
+    __tablename__ = "mcp_tokens"
+    __table_args__ = (Index("ix_mcp_tokens_user", "user_id"),)
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    scopes: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=lambda: ["read"])
+    label: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+    last_used_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    rotated_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(TZDateTime(), nullable=True)
+    rotated_from_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("mcp_tokens.id", ondelete="SET NULL"), nullable=True
+    )

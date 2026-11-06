@@ -10,7 +10,6 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ class DesktopSettings:
 
     def __init__(
         self,
-        close_to_tray: Optional[bool] = None,
+        close_to_tray: bool | None = None,
         autostart: bool = False,
     ) -> None:
         self.close_to_tray = close_to_tray

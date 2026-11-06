@@ -1,5 +1,12 @@
-import { api } from "./client";
-import type { CareerPath, Skill, SkillGapReport, UserSkill } from "@/types";
+import { api } from "@/api/client";
+import type {
+  SkillDetail,
+  SkillGapReport,
+  SkillHistoryResponse,
+  SkillPositionsResponse,
+  SkillRelationsResponse,
+} from "@/types/wire";
+import type { Skill, UserSkill } from "@/types";
 
 export interface SkillSummary {
   id: string;
@@ -9,7 +16,8 @@ export interface SkillSummary {
   description: string;
   parent_id: string | null;
   level_anchors: Skill["level_anchors"];
-  status: string;
+  /** Present on admin/taxonomy listings; omitted by /skills (active-only). */
+  status?: string;
 }
 
 export async function fetchSkillOntology(params: {
@@ -19,12 +27,6 @@ export async function fetchSkillOntology(params: {
   const { data } = await api.get<SkillSummary[]>("/skills", { params });
   return data;
 }
-
-export async function fetchSkillDetail(key: string): Promise<Skill & { children_keys: string[]; jobs: unknown[] }> {
-  const { data } = await api.get(`/skills/${key}`);
-  return data;
-}
-
 export async function fetchMySkills(): Promise<UserSkill[]> {
   const { data } = await api.get<UserSkill[]>("/me/skills");
   return data;
@@ -58,17 +60,40 @@ export async function fetchSkillGaps(jobRef: string): Promise<SkillGapReport> {
   return data;
 }
 
-export async function fetchJobPaths(
-  jobRef: string,
-  includeDrafts = false,
-): Promise<CareerPath[]> {
-  const { data } = await api.get<CareerPath[]>(`/jobs/${jobRef}/paths`, {
-    params: { include_drafts: includeDrafts },
-  });
+// ------------------------------------------------------- skill page (148)
+
+export async function fetchSkill(key: string): Promise<SkillDetail> {
+  const { data } = await api.get<SkillDetail>(`/skills/${encodeURIComponent(key)}`);
   return data;
 }
 
-export async function fetchJobPathGraph(jobRef: string): Promise<{ root: string; nodes: { code: string; title: string; depth: number }[] }> {
-  const { data } = await api.get(`/jobs/${jobRef}/paths/graph`);
+export async function fetchSkillPositions(
+  key: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<SkillPositionsResponse> {
+  const { data } = await api.get<SkillPositionsResponse>(
+    `/skills/${encodeURIComponent(key)}/positions`,
+    { params },
+  );
   return data;
 }
+
+export async function fetchSkillRelations(key: string): Promise<SkillRelationsResponse> {
+  const { data } = await api.get<SkillRelationsResponse>(
+    `/skills/${encodeURIComponent(key)}/relations`,
+  );
+  return data;
+}
+
+export async function fetchSkillHistory(
+  key: string,
+  params: { limit?: number; offset?: number } = {},
+): Promise<SkillHistoryResponse> {
+  const { data } = await api.get<SkillHistoryResponse>(
+    `/skills/${encodeURIComponent(key)}/history`,
+    { params },
+  );
+  return data;
+}
+
+

@@ -55,9 +55,7 @@ async def non_admin_headers(client, db):
 
 
 async def test_curated_seed_paths_published(client, auth_headers, seeded_catalog):
-    response = await client.get(
-        "/api/v1/jobs/software-developer/paths", headers=auth_headers
-    )
+    response = await client.get("/api/v1/jobs/software-developer/paths", headers=auth_headers)
     assert response.status_code == 200
     paths = response.json()
     assert len(paths) >= 2
@@ -66,20 +64,14 @@ async def test_curated_seed_paths_published(client, auth_headers, seeded_catalog
     classic = next(p for p in paths if p["title"] == "The classic study route")
     kinds = [s["kind"] for s in classic["steps"]]
     assert kinds[0] == "education" and "job" in kinds
-    skill_step = next(
-        s for s in classic["steps"] if s.get("skill_key") == "programming"
-    )
+    skill_step = next(s for s in classic["steps"] if s.get("skill_key") == "programming")
     assert skill_step["skill_label"] == "Programming"
 
 
 async def test_draft_paths_hidden_from_public(
     client, non_admin_headers, admin_headers, seeded_catalog, db
 ):
-    job = (
-        (await db.execute(select(Job).where(Job.code == "data-scientist")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "data-scientist"))).scalars().first()
     db.add(CareerPath(job_id=job.id, title="Secret draft", source="ai", status="draft"))
     await db.commit()
 
@@ -103,13 +95,9 @@ async def test_draft_paths_hidden_from_public(
     assert forbidden.status_code == 403
 
 
-async def test_paths_graph_bfs_over_incoming_edges(
-    client, auth_headers, seeded_catalog
-):
+async def test_paths_graph_bfs_over_incoming_edges(client, auth_headers, seeded_catalog):
     """nurse --leads_to--> physician, paramedic --leads_to--> nurse."""
-    response = await client.get(
-        "/api/v1/jobs/physician/paths/graph", headers=auth_headers
-    )
+    response = await client.get("/api/v1/jobs/physician/paths/graph", headers=auth_headers)
     assert response.status_code == 200
     graph = response.json()
     assert graph["root"] == "physician"
@@ -118,18 +106,14 @@ async def test_paths_graph_bfs_over_incoming_edges(
     assert nodes["nurse"]["depth"] == 1
     assert nodes["paramedic"]["depth"] == 2
     edge = next(
-        e
-        for e in graph["edges"]
-        if e["from_code"] == "nurse" and e["to_code"] == "physician"
+        e for e in graph["edges"] if e["from_code"] == "nurse" and e["to_code"] == "physician"
     )
     assert edge["relation_type"] == "leads_to"
 
 
 async def test_paths_graph_cycle_safe(client, auth_headers, seeded_catalog, db):
     """A leads_to cycle must terminate, not loop forever."""
-    jobs = {
-        code: jid for code, jid in (await db.execute(select(Job.code, Job.id))).all()
-    }
+    jobs = dict((await db.execute(select(Job.code, Job.id))).all())
     for src, dst in (
         ("software-developer", "data-scientist"),
         ("data-scientist", "ml-engineer"),
@@ -156,9 +140,7 @@ async def test_paths_graph_cycle_safe(client, auth_headers, seeded_catalog, db):
     assert {"software-developer", "data-scientist", "ml-engineer"} <= set(codes)
 
 
-async def test_ai_path_suggester_flow(
-    client, non_admin_headers, admin_headers, seeded_catalog, db
-):
+async def test_ai_path_suggester_flow(client, non_admin_headers, admin_headers, seeded_catalog, db):
     """Enqueue path_suggest → drafts land → admin publishes → visible."""
     enqueue = await client.post(
         "/api/v1/jobs/logistics-coordinator/paths/suggest", headers=admin_headers
@@ -194,32 +176,24 @@ async def test_ai_path_suggester_flow(
     )
     assert published.status_code == 200
     public = (
-        await client.get(
-            "/api/v1/jobs/logistics-coordinator/paths", headers=non_admin_headers
-        )
+        await client.get("/api/v1/jobs/logistics-coordinator/paths", headers=non_admin_headers)
     ).json()
     assert any(p["id"] == draft["id"] for p in public)
 
     # rejection withdraws published paths to draft instead of hard delete
-    rejected = await client.post(
-        f"/api/v1/admin/paths/{draft['id']}/reject", headers=admin_headers
-    )
+    rejected = await client.post(f"/api/v1/admin/paths/{draft['id']}/reject", headers=admin_headers)
     assert rejected.status_code == 200
     after = (
-        await client.get(
-            "/api/v1/jobs/logistics-coordinator/paths", headers=non_admin_headers
-        )
+        await client.get("/api/v1/jobs/logistics-coordinator/paths", headers=non_admin_headers)
     ).json()
     assert all(p["id"] != draft["id"] for p in after)
 
 
-async def test_skill_merge_rewrites_references(
-    client, admin_headers, seeded_catalog, db
-):
+async def test_skill_merge_rewrites_references(client, admin_headers, seeded_catalog, db):
     """Merging redirects join rows + aliases; source row deprecates."""
-    from app.models.taxonomy_model import Skill as SkillModel
-    from app.models.user_model import UserSkill, User
     from app.models.job_model import JobSkill
+    from app.models.taxonomy_model import Skill as SkillModel
+    from app.models.user_model import User, UserSkill
 
     duplicate = SkillModel(
         key="software-dev-dup",
@@ -235,11 +209,7 @@ async def test_skill_merge_rewrites_references(
         .scalars()
         .first()
     )
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     # give the duplicate its own link on the same job (conflict case)
     dup_link = JobSkill(
         job_id=job.id,
@@ -287,10 +257,6 @@ async def test_skill_merge_rewrites_references(
     )
     assert "software-dev-dup" in survivor_after.aliases
 
-    links = (
-        (await db.execute(select(JobSkill).where(JobSkill.job_id == job.id)))
-        .scalars()
-        .all()
-    )
+    links = (await db.execute(select(JobSkill).where(JobSkill.job_id == job.id))).scalars().all()
     assert all(row.skill_id != duplicate.id for row in links)
     assert any(row.skill_id == survivor.id for row in links)

@@ -77,11 +77,15 @@ Validation failures use FastAPI's standard `422`.
 ## Pagination and filtering
 
 Posting/Explore endpoints paginate by **cursor** and support rich facet
-filters. Other list endpoints use standard offset/limit or return full sets.
+filters. Filters and the `total` count run in SQL; `fresh`/`salary` sorts
+are pure keyset pages, while `fit`/`relevance` rank the newest
+`limit × 5` matching postings (floor 100, cap 500) against the
+`posting_fits` cache — `total` remains the exact filtered count. Other
+list endpoints use standard offset/limit or return full sets.
 
 ## Middleware
 
-`app/main.py` adds CORS (from `CORS_ORIGINS`), rate limiting
+`app/main.py` adds CORS (from `CAREER_CORS_ORIGINS`), rate limiting
 (`RateLimitMiddleware`, buckets `auth`/`ai`/`mcp`/`default`) and security
 headers (`SecurityHeadersMiddleware`).
 

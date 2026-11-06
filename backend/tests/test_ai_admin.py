@@ -1,15 +1,17 @@
 import json
 
 import pytest
+from nx_auth.passwords import hash_password
+
+from app.ai.decide.types import DecisionTransport
+from app.ai.providers.resolution import resolve_task_model
+from app.ai.providers.service import AIProviderService
 from app.core.encryption import (
     decrypt_secret,
     encrypt_secret,
     is_encrypted,
     mask_secret,
 )
-from app.ai.providers.resolution import resolve_task_model
-from app.ai.providers.service import AIProviderService
-from nx_auth.passwords import hash_password
 from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
 from app.models.enums import AITaskType
 from app.models.user_model import User
@@ -17,9 +19,7 @@ from tests.conftest import session_headers
 
 
 async def _mk_user(db, email: str, is_admin: bool = False) -> User:
-    user = User(
-        email=email, password_hash=hash_password("password123"), is_admin=is_admin
-    )
+    user = User(email=email, password_hash=hash_password("password123"), is_admin=is_admin)
     db.add(user)
     await db.commit()
     await db.refresh(user)
@@ -197,18 +197,14 @@ async def test_admin_manages_system_provider(client, auth_headers):
     )
     assert assignment.status_code == 200, assignment.text
 
-    summary = (
-        await client.get("/api/v1/ai/config/summary", headers=auth_headers)
-    ).json()
+    summary = (await client.get("/api/v1/ai/config/summary", headers=auth_headers)).json()
     match_task = next(t for t in summary["tasks"] if t["task_type"] == "match_score")
     assert match_task["model_name"] == "gpt-4o-mini"
     assert match_task["source"] == "system:match_score"
     assert summary["can_manage_global"] is True
 
 
-async def test_user_assignment_overrides_system(
-    db, client, auth_headers, seeded_catalog
-):
+async def test_user_assignment_overrides_system(db, client, auth_headers, seeded_catalog):
     admin_headers = auth_headers
     created = await client.post(
         "/api/v1/ai/providers",
@@ -262,7 +258,10 @@ async def test_user_assignment_overrides_system(
     assert resolved_other.source == "system:match_score"
 
 
-async def test_default_task_fallback(db, client, auth_headers):
+async def test_capability_slot_default_fallback(db, client, auth_headers):
+    """Plan 100: the text capability slot is the global fallback — tasks
+    without their own binding inherit it (the `default` pseudo-task is
+    gone)."""
     created = await client.post(
         "/api/v1/ai/providers",
         json={"name": "Fallback", "provider_type": "mock", "scope": "system"},
@@ -274,7 +273,7 @@ async def test_default_task_fallback(db, client, auth_headers):
         headers=auth_headers,
     )
     await client.put(
-        "/api/v1/ai/assignments/default",
+        "/api/v1/ai/assignments/text",
         json={"scope": "system", "model_id": model.json()["id"]},
         headers=auth_headers,
     )
@@ -283,14 +282,10 @@ async def test_default_task_fallback(db, client, auth_headers):
 
     from app.models.user_model import User
 
-    user = (
-        (await db.execute(select(User).where(User.email == me["email"])))
-        .scalars()
-        .first()
-    )
+    user = (await db.execute(select(User).where(User.email == me["email"]))).scalars().first()
     resolved = await resolve_task_model(db, "chat", user.id)
     assert resolved.model_name == "fallback-model"
-    assert resolved.source == "system:default"
+    assert resolved.source == "system:text"
 
 
 async def test_invoke_uses_resolved_model(db, client, auth_headers, seeded_catalog):
@@ -389,11 +384,7 @@ async def test_model_update_and_reasoning_effort(db, client, auth_headers):
 
     from app.models.user_model import User
 
-    user = (
-        (await db.execute(select(User).where(User.email == me["email"])))
-        .scalars()
-        .first()
-    )
+    user = (await db.execute(select(User).where(User.email == me["email"]))).scalars().first()
     resolved = await resolve_task_model(db, "match_score", user.id)
     assert resolved.model_name == "o3-mini"
     assert resolved.reasoning_effort == "medium"
@@ -420,11 +411,11 @@ async def test_model_caps_persist(db, client, auth_headers):
 
     updated = await client.put(
         f"/api/v1/ai/models/{model_id}",
-        json={"caps": ["text", "tools", "audio"]},
+        json={"caps": ["text", "tools", "stt"]},
         headers=auth_headers,
     )
     assert updated.status_code == 200, updated.text
-    assert updated.json()["caps"] == ["text", "tools", "audio"]
+    assert updated.json()["caps"] == ["text", "tools", "stt"]
 
     # Sparse update: omitted caps stay unchanged.
     untouched = await client.put(
@@ -432,7 +423,7 @@ async def test_model_caps_persist(db, client, auth_headers):
         json={"name": "renamed"},
         headers=auth_headers,
     )
-    assert untouched.json()["caps"] == ["text", "tools", "audio"]
+    assert untouched.json()["caps"] == ["text", "tools", "stt"]
 
     # Explicit null clears back to "not declared".
     cleared = await client.put(
@@ -450,6 +441,111 @@ async def test_model_caps_persist(db, client, auth_headers):
     )
     assert rejected.status_code == 422
     assert "telepathy" in str(rejected.json()["detail"])
+
+
+async def test_decision_transport_stamp_and_clear(db, client, auth_headers):
+    """The decision transport seam stamps and clears with the capability:
+    creating a decision-capable model stamps the shipping transport (the
+    payload value or the default), unknown transports are rejected at the
+    schema boundary, edits unrelated to the transport re-stamp the default,
+    moving caps away from decision clears it, and restoring the capability
+    stamps it again."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={"name": "Transport Co", "provider_type": "mock", "scope": "system"},
+        headers=auth_headers,
+    )
+    provider_id = created.json()["id"]
+    model = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={"name": "decider", "model_name": "dec-1", "caps": ["decision"]},
+        headers=auth_headers,
+    )
+    assert model.status_code == 201, model.text
+    body = model.json()
+    assert body["decision_transport"] == DecisionTransport.SYSTEMONE.value
+    model_id = body["id"]
+
+    rejected = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={
+            "name": "bogus",
+            "model_name": "dec-2",
+            "caps": ["decision"],
+            "decision_transport": "pigeon-post",
+        },
+        headers=auth_headers,
+    )
+    assert rejected.status_code == 422
+    assert "pigeon-post" in str(rejected.json()["detail"])
+
+    renamed = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"name": "decider (renamed)"},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+    demoted = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"caps": ["text"]},
+        headers=auth_headers,
+    )
+    assert demoted.status_code == 200, demoted.text
+    assert demoted.json()["caps"] == ["text"]
+    assert demoted.json()["decision_transport"] is None
+
+    restored = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"caps": ["decision"]},
+        headers=auth_headers,
+    )
+    assert restored.status_code == 200, restored.text
+    assert restored.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+    explicit = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={
+            "name": "decider II",
+            "model_name": "dec-3",
+            "caps": ["decision"],
+            "decision_transport": DecisionTransport.SYSTEMONE.value,
+        },
+        headers=auth_headers,
+    )
+    assert explicit.status_code == 201, explicit.text
+    assert explicit.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
+
+
+async def test_decision_provider_type_stamps_transport_without_caps(db, client, auth_headers):
+    """A decision-typed provider implies the capability: a model registered
+    without declared caps still stamps the transport, and the stamp survives
+    an edit that leaves caps undeclared."""
+    created = await client.post(
+        "/api/v1/ai/providers",
+        json={"name": "Decision Native", "provider_type": "decision", "scope": "system"},
+        headers=auth_headers,
+    )
+    provider_id = created.json()["id"]
+    model = await client.post(
+        f"/api/v1/ai/providers/{provider_id}/models",
+        json={"name": "native", "model_name": "jev-latest"},
+        headers=auth_headers,
+    )
+    assert model.status_code == 201, model.text
+    body = model.json()
+    assert body["caps"] is None
+    assert body["decision_transport"] == DecisionTransport.SYSTEMONE.value
+    model_id = body["id"]
+
+    renamed = await client.put(
+        f"/api/v1/ai/models/{model_id}",
+        json={"name": "native (renamed)"},
+        headers=auth_headers,
+    )
+    assert renamed.status_code == 200, renamed.text
+    assert renamed.json()["decision_transport"] == DecisionTransport.SYSTEMONE.value
 
 
 async def test_all_models_listing_ships_the_declared_caps(client, auth_headers):
@@ -530,7 +626,10 @@ async def test_test_connection_endpoint(client, auth_headers):
         "expected_param",
     ),
     [
-        ("openai", "https://api.example.com/v1", "max_completion_tokens"),
+        # Endpoint decides (ADR-0038): a declared `openai` type with a
+        # non-OpenAI base URL rides the compatible wire; only an empty
+        # base URL counts as OpenAI's default endpoint.
+        ("openai", "https://api.example.com/v1", "max_tokens"),
         ("openai_compatible", "https://api.example.com/v1", "max_tokens"),
         ("openai_compatible", "https://api.openai.com/v1", "max_completion_tokens"),
     ],
@@ -563,9 +662,7 @@ async def test_run_test_sends_cap_param_per_provider_type(
     assert result["ok"] is True
     assert expected_param in captured
     unexpected = (
-        "max_tokens"
-        if expected_param == "max_completion_tokens"
-        else "max_completion_tokens"
+        "max_tokens" if expected_param == "max_completion_tokens" else "max_completion_tokens"
     )
     assert unexpected not in captured
     # Unset temperature is omitted — reasoning models reject non-default values.
@@ -594,18 +691,172 @@ async def test_run_test_reports_http_error(db):
     assert "bad key" in result["error"]
 
 
+async def test_run_test_classifies_failures_for_typed_ui_copy(db):
+    """Plan 118.3: the connection test carries the §15 code beside the text."""
+    import httpx
+
+    user = await _mk_user(db, "testconn-classify@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def unauthorized(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"message": "bad key"}})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(unauthorized),
+    )
+    assert result["ok"] is False
+    assert result["code"] == "invalid_key"
+    assert "Error code: 401" in result["error"]
+
+    def throttled(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": {"message": "slow down"}})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(throttled),
+    )
+    assert result["code"] == "new_user_quota"
+
+
+async def test_run_test_success_has_no_error_code(db):
+    import httpx
+
+    user = await _mk_user(db, "testconn-ok@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "OK"}}]})
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(ok),
+    )
+    assert result["ok"] is True
+    assert result.get("code") is None
+
+
+async def test_run_test_writes_the_ai_audit_row_both_ways(db):
+    """The connection ping spends tokens like any other LLM call — the
+    ok and the failing probe each land one ``ai_generations`` row
+    (task_type ``connection_test``), so the audit tab shows every spend."""
+    import httpx
+    from sqlalchemy import select
+
+    from app.models.ai_model import AIGeneration
+
+    user = await _mk_user(db, "testconn-audit@example.com")
+    provider, model = await _mk_provider_with_model(
+        db, user, "user", "gpt-test", provider_type="openai_compatible"
+    )
+
+    def ok(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "OK"}}]})
+
+    await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(ok),
+    )
+
+    def unauthorized(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(401, json={"error": {"message": "bad key"}})
+
+    await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(unauthorized),
+    )
+
+    rows = (
+        (
+            await db.execute(
+                select(AIGeneration)
+                .where(AIGeneration.task_type == "connection_test")
+                .order_by(AIGeneration.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [row.status for row in rows] == ["ok", "error"]
+    assert rows[0].user_id == user.id
+    assert rows[0].provider == "openai_compatible"
+    assert rows[0].model == "gpt-test"
+    assert rows[0].output == {"reply": "OK"}
+    assert rows[0].latency_ms is not None
+    assert "bad key" in rows[1].error
+    assert rows[1].output is None
+
+
+async def test_run_test_routes_decision_models_to_the_decision_probe(db, monkeypatch):
+    """A decision-capable model on a MIXED provider (openai_compatible,
+    e.g. OpenRouter) must never hit chat/completions — the vendor 400s
+    ('is a decisions model…'). The probe validates the decision transport
+    instead, honoring the model's base_url_override."""
+    import httpx
+
+    from app.ai.decide.systemone.probe import DecisionProbeResult
+
+    user = await _mk_user(db, "testconn-decision@example.com")
+    provider, model = await _mk_provider_with_model(
+        db,
+        user,
+        "user",
+        "typesafe/jev-1.13",
+        provider_type="openai_compatible",
+        api_base="https://openrouter.ai/api/v1",
+    )
+    model.decision_transport = "systemone"
+    model.caps = ["decision"]
+    await db.commit()
+
+    probed: dict = {}
+
+    async def fake_probe(probe_input):
+        probed["model_name"] = probe_input.model.model_name
+        return DecisionProbeResult(ok=True, latency_ms=3, resolved_model="typesafe/jev-1.13")
+
+    monkeypatch.setattr("app.ai.decide.systemone.probe.probe_decision_provider", fake_probe)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("chat/completions must not be called for a decision model")
+
+    result = await AIProviderService(db).run_test(
+        user,
+        provider_id=provider.id,
+        model_id=model.id,
+        transport=httpx.MockTransport(handler),
+    )
+    assert result["ok"] is True
+    assert "decision endpoint OK" in result["reply"]
+    assert probed["model_name"] == "typesafe/jev-1.13"
+
+
 async def test_provider_presets_endpoint(client, auth_headers):
     response = await client.get("/api/v1/ai/providers/presets", headers=auth_headers)
     assert response.status_code == 200, response.text
     presets = response.json()
     assert presets["openai"]["type"] == "openai"
     assert presets["gemini"]["type"] == "google"
-    assert presets["gemini"]["base_url"] == (
-        "https://generativelanguage.googleapis.com"
-    )
+    assert presets["gemini"]["base_url"] == ("https://generativelanguage.googleapis.com")
     assert presets["openrouter"]["base_url"] == "https://openrouter.ai/api/v1"
     assert presets["ollama"]["local"] is True
-    assert presets["lm_studio"]["base_url"] == "http://localhost:1234/v1"
+    assert presets["typesafe"]["type"] == "decision"
+    assert presets["typesafe"]["provisional"] is None
+    assert "anthropic" not in presets, "career's factory cannot speak the anthropic wire"
     assert all("name" in preset and "type" in preset for preset in presets.values())
 
 

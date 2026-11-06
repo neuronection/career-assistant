@@ -1,14 +1,16 @@
-"""Chat SSE stream: family event vocabulary alongside legacy names.
+"""Chat SSE stream: the family event vocabulary IS the contract.
 
-additive only: legacy `status` stays first, legacy `done`
-stays last, `delta` is already the family name. The byte-identical parity
-tripwire in test_chat_streaming.py still guards the legacy contract.
+Emitted names stay inside the family core (ai-features §5:
+`flow_started`/`node_*`/`tool_call`/`delta`/`flow_finished`/`flow_failed`)
+plus career's documented payload events (`meta`, `proposal`,
+`builder_state`, `preview`) — anything else on the wire fails here.
 """
 
 import json
 
-from app.models.ai_model import AIGeneration
 from sqlalchemy import select
+
+from app.models.ai_model import AIGeneration
 
 
 async def _post_message(client, session_id, headers, **params):
@@ -40,9 +42,7 @@ async def test_stream_emits_the_family_vocabulary(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "flow"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "flow"}, headers=auth_headers)
     ).json()
 
     response = await _post_message(client, session["id"], auth_headers, stream="true")
@@ -50,10 +50,24 @@ async def test_stream_emits_the_family_vocabulary(
     events = _parse_sse(response.text)
     names = [name for name, _ in events]
 
-    # Legacy contract intact (parity with test_chat_streaming).
+    # Family vocabulary: flow_started opens the turn, flow_finished closes it.
     assert names[0] == "flow_started"
     assert names[-1] == "flow_finished"
     assert "delta" in names
+
+    # Vocabulary wall (plan 24 V1): the main-chat stream emits family
+    # core + career payload events only — no legacy names return.
+    assert set(names) <= {
+        "flow_started",
+        "node_started",
+        "node_finished",
+        "tool_call",
+        "delta",
+        "meta",
+        "proposal",
+        "flow_finished",
+        "flow_failed",
+    }
 
     # Family vocabulary present and well-ordered.
     assert "flow_started" in names
@@ -83,9 +97,7 @@ async def test_stream_emits_flow_failed_on_error(
 
     monkeypatch.setattr(StructuredStream, "chunks", broken_chunks)
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "err"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "err"}, headers=auth_headers)
     ).json()
     response = await _post_message(client, session["id"], auth_headers, stream="true")
     events = _parse_sse(response.text)
@@ -97,15 +109,42 @@ async def test_stream_emits_flow_failed_on_error(
     assert "no valid output" in failed["message"]
 
 
+async def test_stream_maps_budget_and_rate_limit_failures_to_typed_codes(
+    client, db, auth_headers, profile_ready, seeded_catalog, monkeypatch
+):
+    """Plan 118.3: budget/limiter failures carry their own codes so the SPA
+    renders typed copy instead of the raw domain message."""
+    import app.ai.graphs.chat_turn as chat_turn
+    from app.api.v1.chat.chat import chat_failure_code
+    from app.core.errors import DomainError
+
+    async def broke(state, deps):
+        raise DomainError(
+            "AI budget 'Monthly' reached (10/10 tokens this month); "
+            "an admin can raise or remove it in Settings → AI Configuration."
+        )
+
+    monkeypatch.setattr(chat_turn, "agent_round", broke)
+    session = (
+        await client.post("/api/v1/chat/sessions", json={"title": "budget"}, headers=auth_headers)
+    ).json()
+    response = await _post_message(client, session["id"], auth_headers, stream="true")
+    failed = next(p for n, p in _parse_sse(response.text) if n == "flow_failed")
+    assert failed["code"] == "ai_budget"
+    assert "Monthly" in failed["message"]
+
+    assert chat_failure_code("AI rate limit reached; retry in 23s") == "ai_rate_limit"
+    assert chat_failure_code("AI is not configured yet.") == "ai_not_configured"
+    assert chat_failure_code("something else broke") == "ai_unavailable"
+
+
 async def test_flow_events_audit_one_row_per_model_call(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
     """Plan 98: a turn = agent round + synth — exactly one audit row per
     model call, both ok (no streaming rescue duplicates)."""
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "audit"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "audit"}, headers=auth_headers)
     ).json()
     response = await _post_message(client, session["id"], auth_headers, stream="true")
     assert response.status_code == 200
@@ -124,9 +163,7 @@ async def test_stream_emits_tool_call_trace_events(
     """: completed tool cards stream in after `ground` opens and
     before the first delta; flow_finished carries the turn meta."""
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "trace"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "trace"}, headers=auth_headers)
     ).json()
     response = await _post_message(client, session["id"], auth_headers, stream="true")
     assert response.status_code == 200
@@ -158,9 +195,7 @@ async def test_stream_emits_tool_call_trace_events(
     assert isinstance(flow_finished["model"], str) and flow_finished["model"]
 
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     meta = messages[-1]["metadata_json"]
     assert meta["model"] == flow_finished["model"]
@@ -173,9 +208,7 @@ async def test_stream_emits_tool_call_trace_events(
     # Persisted-trace wave: per-tool execution window + status, graph-node
     # windows and token usage (when the provider reports it).
     assert all(t["status"] == "done" for t in meta["tools"])
-    assert all(
-        isinstance(t["start_ms"], int) and t["start_ms"] >= 0 for t in meta["tools"]
-    )
+    assert all(isinstance(t["start_ms"], int) and t["start_ms"] >= 0 for t in meta["tools"])
     node_ids = [node["id"] for node in meta["nodes"]]
     assert node_ids == ["ground", "generate"]
     assert all(node["status"] == "done" for node in meta["nodes"])
@@ -191,16 +224,12 @@ async def test_tool_call_events_stay_additive_for_edit_and_regenerate(
     """Branching endpoints reuse the shared stream, so they
     inherit the trace events and persisted metadata."""
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "branch"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "branch"}, headers=auth_headers)
     ).json()
     first = await _post_message(client, session["id"], auth_headers, stream="true")
     assert first.status_code == 200
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session['id']}/messages", headers=auth_headers)
     ).json()
     user_message_id = messages[0]["id"]
 
@@ -234,7 +263,7 @@ async def test_interrupted_turn_persists_partial_trace(
     """The persisted-trace wave: an aborted turn keeps the tool + node
     trace gathered so far (not just the stream_interrupted flag)."""
     from app.models.chat_model import ChatSession as ChatSessionRow
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     created = (
         await client.post(
@@ -242,18 +271,12 @@ async def test_interrupted_turn_persists_partial_trace(
         )
     ).json()
     session_row = (
-        (
-            await db.execute(
-                select(ChatSessionRow).where(ChatSessionRow.id == created["id"])
-            )
-        )
+        (await db.execute(select(ChatSessionRow).where(ChatSessionRow.id == created["id"])))
         .scalars()
         .one()
     )
     service = ChatService(db)
-    _, _, parent_id = await service.begin_message(
-        session_row.user_id, session_row.id, "trace me"
-    )
+    _, _, parent_id = await service.begin_message(session_row.user_id, session_row.id, "trace me")
     await service.complete_interrupted(
         session_row,
         parent_id,
@@ -284,9 +307,7 @@ async def test_interrupted_turn_persists_partial_trace(
     )
 
     messages = (
-        await client.get(
-            f"/api/v1/chat/sessions/{created['id']}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{created['id']}/messages", headers=auth_headers)
     ).json()
     meta = messages[-1]["metadata_json"]
     assert meta["stream_interrupted"] is True

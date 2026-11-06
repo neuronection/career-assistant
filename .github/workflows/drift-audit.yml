@@ -1,5 +1,10 @@
 name: assistant-ui drift audit
 
+# The audited body of this workflow is also a required PR job — see the
+# `quality-gates` job in ci.yml (plan 124.1): shims can no longer drift
+# silently between weekly runs. This workflow keeps the issue-reporting
+# loop and watches the vendored audit script itself for upstream changes.
+
 on:
   schedule:
     - cron: '0 6 * * 1'
@@ -16,11 +21,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Fetch the upstream canonical audit script
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/neuronection/assistant-ui/main/scripts/audit-usage.mjs \
+            -o /tmp/upstream-audit.mjs
+      - name: Vendored audit script matches upstream
+        run: |
+          if cmp -s /tmp/upstream-audit.mjs scripts/audit-assistant-ui-usage.mjs; then
+            echo "vendored audit script is current"
+            exit 0
+          fi
+          message="scripts/audit-assistant-ui-usage.mjs differs from the assistant-ui canonical. Re-vendor it (byte-identical, never edited in-repo) and update the component list if the library added exports."
+          echo "$message"
+          existing=$(gh issue list --state open --search 'in:title "assistant-ui audit script out of date"' --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$message"
+          else
+            gh issue create --title "assistant-ui audit script out of date" --body "$message" --label "tech-debt"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
       - name: Run assistant-ui drift audit
         run: |
-          curl -fsSL https://raw.githubusercontent.com/neuronection/assistant-ui/main/scripts/audit-usage.mjs -o /tmp/audit-usage.mjs
           set +e
-          node /tmp/audit-usage.mjs ./frontend/src > /tmp/audit-report.txt 2>&1
+          node scripts/audit-assistant-ui-usage.mjs ./frontend/src > /tmp/audit-report.txt 2>&1
           status=$?
           set -e
           if [ $status -eq 0 ]; then

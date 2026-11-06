@@ -3,15 +3,16 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
 
-import { Catalog } from "@/pages/Catalog";
-import { CatalogGraph } from "@/components/catalog/CatalogGraph";
-import { CatalogTree } from "@/components/catalog/CatalogTree";
-import { Generate } from "@/pages/Generate";
-import { Universities } from "@/pages/Universities";
+import { Catalog } from "@/features/catalog/pages/Catalog";
+import { CatalogGraph } from "@/features/catalog/components/catalog/CatalogGraph";
+import { CatalogTree } from "@/features/catalog/components/catalog/CatalogTree";
+import { Generate } from "@/features/catalog/pages/Generate";
+import { Universities } from "@/features/university/pages/Universities";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import * as jobsApi from "@/api/jobs";
-import type { Job, JobFamilyNode } from "@/types";
+import type { Job } from "@/types/wire";
+import type { JobFamilyNode } from "@/types";
 
 vi.mock("@/api/jobs", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/jobs")>();
@@ -57,6 +58,7 @@ const job = (over: Partial<Job> = {}): Job => ({
   code: "software-developer",
   title: "Software Developer",
   family_key: "technology",
+  family_label: "",
   short_description: "Builds software systems.",
   status: "published",
   source: "seed",
@@ -110,12 +112,16 @@ function renderCatalog(initialEntries: string[] = ["/catalog"]) {
 
 describe("Catalog subtabs", () => {
   beforeEach(() => {
-    useCatalogStore.setState({ families: [], jobs: [], total: 0, loading: false, filters: {} });
+    useCatalogStore.setState({ families: [], jobs: [], total: 0, facets: {}, loading: false, filters: {} });
     vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue(families);
-    vi.mocked(jobsApi.fetchJobs).mockResolvedValue([
-      job(),
-      job({ id: "job-2", code: "ui-designer", title: "UI Designer", family_key: "creative-arts" }),
-    ]);
+    vi.mocked(jobsApi.fetchJobs).mockResolvedValue({
+      items: [
+        job(),
+        job({ id: "job-2", code: "ui-designer", title: "UI Designer", family_key: "creative-arts" }),
+      ],
+      total: 2,
+      facets: {},
+    });
     vi.mocked(jobsApi.fetchGraph).mockResolvedValue({
       nodes: [
         { id: "n1", code: "software-developer", title: "Software Developer", family_key: "technology", demand: "high" },
@@ -170,27 +176,44 @@ describe("Catalog subtabs", () => {
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "creative-arts" }))
     );
-    await waitFor(() => expect(screen.getByText("Creative & Arts")).toBeInTheDocument());
-    const familyButton = screen.getByRole("button", { name: /Creative & Arts/ });
-    expect(familyButton).toHaveAttribute("aria-current", "page");
+    const chip = await screen.findByTestId("catalog-family-creative-arts");
+    expect(chip).toHaveTextContent("Creative & Arts");
+    expect(chip).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("renders families as a SettingsShell rail and loads jobs on selection", async () => {
+  it("renders the /postings layout with one family surface in the filter rail", async () => {
+    const { container } = renderCatalog();
+
+    await waitFor(() => expect(screen.getByTestId("catalog-filter-aside")).toBeInTheDocument());
+    expect(screen.getByTestId("catalog-filter-aside")).toHaveClass("ca-stats-rail");
+    expect(screen.getByTestId("catalog-filter-rail")).toBeInTheDocument();
+    expect(container.querySelector(".ca-stats-page")).not.toBeNull();
+    expect(container.querySelector(".ca-stats-cols")).not.toBeNull();
+    expect(container.querySelector(".ca-catalog-cols")).not.toBeNull();
+    expect(container.querySelector('[data-as="settings-shell"]')).toBeNull();
+    expect(screen.queryByTestId("catalog-families")).not.toBeInTheDocument();
+    expect(screen.getByTestId("catalog-grid").className).toContain("ca-card-grid");
+
+    const familyChip = await screen.findByTestId("catalog-family-technology");
+    expect(familyChip).toHaveTextContent("Technology");
+    expect(familyChip).toHaveTextContent("2");
+  });
+
+  it("loads jobs on family selection from the rail", async () => {
     const user = userEvent.setup();
     renderCatalog();
 
-    await waitFor(() => expect(screen.getByTestId("catalog-families")).toBeInTheDocument());
-    expect(screen.getByTestId("family-count-technology")).toHaveTextContent("2");
+    const chip = await screen.findByTestId("catalog-family-technology");
     expect(screen.queryByTestId("catalog-subfamilies")).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: /Technology/ }));
+    await user.click(chip);
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "technology" }))
     );
-    expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("catalog-family-technology")).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("drills into children as chips and highlights the top-level rail ancestor", async () => {
+  it("drills into children as chips from the family section", async () => {
     const user = userEvent.setup();
     const technology: JobFamilyNode = {
       id: "f1",
@@ -218,17 +241,14 @@ describe("Catalog subtabs", () => {
     vi.mocked(jobsApi.fetchFamilyTree).mockResolvedValue([technology, families[1]]);
     renderCatalog();
 
-    const techButton = await screen.findByRole("button", { name: /Technology/ });
-    await user.click(techButton);
+    await user.click(await screen.findByTestId("catalog-family-technology"));
     await waitFor(() => expect(screen.getByTestId("catalog-subfamilies")).toBeInTheDocument());
 
     await user.click(screen.getByTestId("subfamily-software-dev"));
     await waitFor(() =>
       expect(jobsApi.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ family_key: "software-dev" }))
     );
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: /Technology/ })).toHaveAttribute("aria-current", "page")
-    );
+    expect(screen.getByTestId("catalog-family-software-dev")).toHaveAttribute("aria-pressed", "true");
   });
 
   it("shows the universities subtab (visible before bootstrap loads)", async () => {

@@ -14,6 +14,19 @@ vi.mock("@/api/admin", async (importOriginal) => {
     patchUser: vi.fn(),
     resetUserPassword: vi.fn(),
     forceLogout: vi.fn(),
+    updateInstanceMode: vi.fn(),
+  };
+});
+
+vi.mock("@/api/instance", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/api/instance")>();
+  return {
+    ...actual,
+    getInstanceConfig: vi.fn().mockResolvedValue({
+      demo_mode: false,
+      auth_mode: "authenticated",
+      registration_enabled: true,
+    }),
   };
 });
 
@@ -67,19 +80,19 @@ describe("Users (shared AdminUserTable adoption, §12 admin UI)", () => {
 
   it("promote/demote and activate/deactivate persist sparse patches", async () => {
     render(<Users />);
-    fireEvent.click(await screen.findByRole("button", { name: "Demote" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Demote$/ }));
     await waitFor(() =>
       expect(mocked.patchUser).toHaveBeenCalledWith("u-admin", { is_admin: false }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Disable" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Disable$/ }));
     await waitFor(() =>
       expect(mocked.patchUser).toHaveBeenCalledWith("u-admin", { is_active: false }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Promote" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Promote$/ }));
     await waitFor(() =>
       expect(mocked.patchUser).toHaveBeenCalledWith("u-plain", { is_admin: true }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Enable" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Enable$/ }));
     await waitFor(() =>
       expect(mocked.patchUser).toHaveBeenCalledWith("u-plain", { is_active: true }),
     );
@@ -114,7 +127,7 @@ describe("Users (shared AdminUserTable adoption, §12 admin UI)", () => {
       new AdminApiError(403, "Admins cannot demote or deactivate themselves"),
     );
     render(<Users />);
-    fireEvent.click(await screen.findByRole("button", { name: "Demote" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Demote$/ }));
     expect(
       await screen.findByText("You cannot change your own role or status."),
     ).toBeInTheDocument();
@@ -123,7 +136,7 @@ describe("Users (shared AdminUserTable adoption, §12 admin UI)", () => {
   it("the last-admin guard rail maps to its own message", async () => {
     mocked.patchUser.mockRejectedValue(new AdminApiError(403, "Cannot remove the last admin"));
     render(<Users />);
-    fireEvent.click(await screen.findByRole("button", { name: "Demote" }));
+    fireEvent.click(await screen.findByRole("button", { name: /^Demote$/ }));
     expect(
       await screen.findByText("The last admin cannot be demoted or deactivated."),
     ).toBeInTheDocument();
@@ -146,5 +159,27 @@ describe("Users (shared AdminUserTable adoption, §12 admin UI)", () => {
     render(<Users />);
     expect(await screen.findByText("Something went wrong — try again.")).toBeInTheDocument();
     expect(screen.queryByText("Traceback …")).not.toBeInTheDocument();
+  });
+  it("drives the §4.5 instance transition through the api layer", async () => {
+    mocked.updateInstanceMode.mockResolvedValue(undefined);
+    mocked.fetchUsers.mockResolvedValueOnce([USERS[0]]);
+    render(<Users />);
+    await screen.findByRole("button", { name: /^Demote$/ });
+
+    const submit = screen.getByRole("button", { name: /^Disable login$/ });
+    fireEvent.click(submit);
+    expect(mocked.updateInstanceMode).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Password"), {
+      target: { value: "current-secret-pw" },
+    });
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(mocked.updateInstanceMode).toHaveBeenCalledWith(
+        "open",
+        "current-secret-pw",
+      ),
+    );
   });
 });

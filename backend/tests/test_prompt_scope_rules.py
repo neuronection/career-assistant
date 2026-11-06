@@ -27,10 +27,7 @@ def test_planner_scope_narration_and_honesty_guard():
     prompt = _flat(CHATBOT)
     assert "SCOPE NARRATION" in prompt
     assert "reversible via unpin" in prompt
-    assert (
-        "Never present a bullet-only rewrite as making the entry concise/shorter"
-        in prompt
-    )
+    assert "Never present a bullet-only rewrite as making the entry concise/shorter" in prompt
     assert "name what stays unchanged" in prompt
 
 
@@ -43,9 +40,7 @@ def test_planner_routing_prefers_variants_for_whole_entry():
 def test_variant_list_verdict_discipline():
     prompt = _flat(CHATBOT)
     assert "ALWAYS call it with the attached CV's id VERBATIM" in prompt
-    assert (
-        "ONLY rows with a pin/applicable verdict may be claimed as rendering" in prompt
-    )
+    assert "ONLY rows with a pin/applicable verdict may be claimed as rendering" in prompt
     agent = _flat(AGENT_ROUND)
     assert "applicability verdicts" in agent
     assert "never claim a variant renders on the CV" in agent
@@ -70,3 +65,44 @@ def test_choice_card_routing_rules_locked():
     assert "do NOT pick unilaterally and do NOT ask a text question" in prompt
     assert "NEVER kind cv_choice itself" in prompt
     assert "each chosen option becomes a normal approval card" in prompt
+
+
+def test_read_parity_tools_are_in_the_prompt_index():
+    """Plan 119.1 prompt lock: the planner only calls tools it is told
+    about. The tracker/saved-search/market/fit reads must stay named."""
+    prompt = _flat(CHATBOT)
+    assert "Track their own activity" in prompt
+    for tool in (
+        "my_applications",
+        "my_application_timeline",
+        "my_deadlines",
+        "my_saved_searches",
+        "market_trend",
+        "my_fit_breakdown",
+    ):
+        assert tool in prompt, f"{tool} missing from the CHATBOT prompt index"
+
+
+def test_empty_state_honesty_is_locked():
+    prompt = _flat(CHATBOT)
+    assert 'say "nothing tracked yet"' in prompt
+    assert "never invent a summary or a trend" in prompt
+    agent = _flat(AGENT_ROUND)
+    assert 'stated as "nothing tracked yet"' in agent
+    assert "market_trend needs exactly one scope" in agent
+    assert "my_fit_breakdown takes ONE target" in agent
+
+
+def test_prompt_index_tools_are_registered():
+    from app.ai.tools import list_tools
+
+    keys = {entry["key"] for entry in list_tools() if entry["kind"] == "tool"}
+    for tool in (
+        "my_applications",
+        "my_application_timeline",
+        "my_deadlines",
+        "my_saved_searches",
+        "market_trend",
+        "my_fit_breakdown",
+    ):
+        assert tool in keys, f"{tool} is named in the prompt but not registered"

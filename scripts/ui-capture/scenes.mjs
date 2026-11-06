@@ -9,10 +9,28 @@
  * Chat scenes drive the mock provider's demo scripts / ops path on
  * purpose: prompts are chosen so answers carry rendered items — job
  * reference chips and HITL proposal cards, not just prose.
+ *
+ * Visibility: the four beta surfaces (postings, Autopilot, Interviews,
+ * Growth) are shot because the feature registry says `beta` — a scene
+ * that targets a `hidden` feature throws at import time, so the tour and
+ * the app's navigation cannot disagree.
  */
-// NOTE: scenes for pages that are hidden behind dev mode (beta) are kept
-// here commented out — Autopilot, Postings (+detail), Interviews, Growth.
-// They re-enable by uncommenting when those pages leave beta.
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const registry = JSON.parse(
+  readFileSync(join(here, "../../frontend/src/config/features.json"), "utf8")
+);
+
+function featureState(path) {
+  const clean = String(path).split("?")[0];
+  const match = registry.features
+    .filter((f) => clean === f.key || clean.startsWith(`${f.key}/`))
+    .sort((a, b) => b.key.length - a.key.length)[0];
+  return match ? match.state : "on";
+}
 export const groups = [
   "Authentication",
   "Overview",
@@ -84,28 +102,24 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='job-detail']",
   },
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "postings",
     group: "Career exploration",
-    caption: "Live postings feed from connected sources.",
-    narration: "Live postings arrive from connected boards, deduplicated and linked to catalog roles.",
+    caption: "Search live postings from connected sources — filters over the hiring those companies prove.",
+    narration: "Live postings arrive from connected boards, deduplicated and linked to catalog roles — searchable and filterable.",
     path: "/postings",
     viewports: ["desktop"],
-    waitForSelector: "[data-testid='postings-page']",
+    waitForSelector: "[data-testid='explore']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "posting-detail",
     group: "Career exploration",
     caption: "Posting detail — extracted skills, provenance and fit for a seeded demo posting.",
     narration: "Every posting is parsed: extracted skills, provenance and how it fits you.",
-    path: "/postings?posting=DE000001",
+    path: "/postings/DE000001",
     viewports: ["desktop"],
     waitForSelector: "[data-testid='posting-detail']",
   },
-  ——————————————————————————————————————————————————————————————— */
   {
     name: "universities",
     group: "Career exploration",
@@ -115,7 +129,25 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='universities']",
   },
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
+  {
+    name: "companies",
+    group: "Career exploration",
+    caption: "Companies hiring now — reviewed facts, sourced financials, every open posting.",
+    narration: "Research the employer before the application: facts, money with sources, and everything they are hiring for.",
+    path: "/companies",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='companies']",
+  },
+  {
+    name: "market-stats",
+    group: "Career exploration",
+    caption: "Market intelligence — demand, skills and pay across the whole market.",
+    narration: "Read the market like a dashboard: demand over time, the skills employers ask for, pay bands and who is hiring — all under one filter bar.",
+    path: "/postings/stats",
+    interactions: [{ action: "wait", ms: 4000 }],
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='market-stats']",
+  },
   {
     name: "autopilot",
     group: "Working life",
@@ -125,8 +157,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='autopilot-page']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "interviews",
     group: "Working life",
@@ -136,8 +166,6 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='interviews-page']",
   },
-  ——————————————————————————————————————————————————————————————— */
-  /* ——— BETA (hidden in dev mode) — re-enable when the page ships ———
   {
     name: "growth",
     group: "Working life",
@@ -147,7 +175,15 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='growth']",
   },
-  ——————————————————————————————————————————————————————————————— */
+  {
+    name: "career-paths",
+    group: "Working life",
+    caption: "Career paths — every route to a target job as graph, tree or list.",
+    narration: "The career-path explorer shows every route to your target jobs — mark what interests you and dismiss the rest.",
+    path: "/paths",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='paths-page']",
+  },
   {
     name: "profile-experience",
     group: "Your profile",
@@ -164,7 +200,8 @@ export const scenes = [
     narration: "CV Studio builds your CV three ways — from your profile, from an import, or with AI variants.",
     path: "/cv",
     interactions: [
-      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 20000 },
+      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 30000 },
+      { action: "wait", ms: 500 },
     ],
     viewports: ["desktop"],
     waitForSelector: "[data-testid='cv-studio']",
@@ -219,4 +256,89 @@ export const scenes = [
     viewports: ["desktop"],
     waitForSelector: "[data-testid='settings-account']",
   },
+  {
+    name: "settings-job-radar",
+    group: "Settings",
+    caption: "Settings — the job radar: configure your search once, preview matches.",
+    narration: "Tell it once what you are looking for — locations, work mode, salary floor — and search it everywhere.",
+    path: "/radar",
+    viewports: ["desktop"],
+    waitForSelector: "[data-testid='job-radar']",
+  },
+  // ---- Component captures (plan 48) — element crops for the hub feature rows.
+  // `tour: false` keeps them out of the manifest/GIF; `outDir: "components"`
+  // writes docs/images/components/<capability-id>.png.
+  {
+    name: "job-catalog",
+    group: "Discovery",
+    caption: "The typed relation graph — roles as nodes, relations as typed edges.",
+    path: "/catalog",
+    interactions: [
+      { action: "fill", selector: "input[placeholder*='earch']", value: "data" },
+      { action: "wait", ms: 800 },
+      { action: "click", selector: "text=Graph" },
+      { action: "wait", ms: 2500 },
+    ],
+    tour: false,
+    capture: "element",
+    selector: '[data-testid="catalog"]',
+    outDir: "components",
+    viewports: ["desktop"],
+    waitForSelector: '[data-testid="catalog"]',
+  },
+  {
+    name: "cv-studio-panel",
+    group: "Working life",
+    caption: "A CV card — title, status, dates and the rendered page thumbnail.",
+    path: "/cv",
+    interactions: [
+      { action: "waitFor", selector: "[data-testid='cv-card-thumbnail'][data-thumbnail-state='ready']", timeout: 20000 },
+    ],
+    tour: false,
+    capture: "element",
+    selector: ':nth-match([data-capture="cv-studio"], 1)',
+    outDir: "components",
+    viewports: ["desktop"],
+    waitForSelector: '[data-capture="cv-studio"]',
+  },
+  {
+    name: "proposal-card",
+    group: "AI assistant",
+    caption: "HITL proposal — approve or reject, with a revert row.",
+    path: "/chat",
+    interactions: [
+      { action: "waitFor", selector: "[data-as='chat-composer'] textarea", timeout: 20000 },
+      { action: "fill", selector: "[data-as='chat-composer'] textarea", value: "Expand my first experience description with the stock-count automation result" },
+      { action: "press", key: "Enter" },
+      { action: "waitFor", selector: '[data-capture="proposal-card"]', timeout: 30000 },
+      { action: "wait", ms: 800 },
+    ],
+    tour: false,
+    capture: "element",
+    selector: '[data-capture="proposal-card"]',
+    outDir: "components",
+    viewports: ["desktop"],
+    waitForSelector: "[data-as='chat-composer'] textarea",
+  },
+  {
+    name: "profile-matching",
+    group: "Discovery",
+    caption: "Matched rankings — fit score, AI score and your own, side by side.",
+    path: "/rankings",
+    interactions: [{ action: "wait", ms: 3000 }],
+    tour: false,
+    capture: "element",
+    selector: ':nth-match([data-testid^="ranked-job-"], 1)',
+    outDir: "components",
+    viewports: ["desktop2x"],
+    waitForSelector: '[data-testid^="ranked-job-"]',
+  },
 ];
+
+for (const scene of scenes) {
+  if (featureState(scene.path) === "hidden") {
+    throw new Error(
+      `Scene ${scene.name} targets a hidden feature (${scene.path}) — the demo tour and the feature registry disagree.`
+    );
+  }
+}

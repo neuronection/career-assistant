@@ -6,7 +6,7 @@ chat-proposed card. `ProfileProposalOut` is the wire shape of a card.
 """
 
 from datetime import datetime
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -27,6 +27,7 @@ ProposalKindLiteral = Literal[
     "cv_synth",
     "cv_set_bullets",
     "cv_choice",
+    "tool_execution",
 ]
 
 PROFILE_SECTIONS: tuple[str, ...] = (
@@ -49,8 +50,8 @@ class UserSkillAddIn(BaseModel):
 class UserSkillPatchIn(BaseModel):
     """Chat edit of one claimed skill row."""
 
-    level: Optional[int] = Field(default=None, ge=1, le=10)
-    derive_enabled: Optional[bool] = None
+    level: int | None = Field(default=None, ge=1, le=10)
+    derive_enabled: bool | None = None
 
 
 class TextEdit(BaseModel):
@@ -63,7 +64,7 @@ class TextEdit(BaseModel):
 
     field: str = Field(min_length=1, max_length=40)
     op: Literal["replace", "append", "prepend"]
-    find: Optional[str] = Field(default=None, max_length=2000)
+    find: str | None = Field(default=None, max_length=2000)
     text: str = Field(default="", max_length=2000)
 
     @model_validator(mode="after")
@@ -88,8 +89,8 @@ class CollectionEdit(BaseModel):
 
     collection: Literal["skills", "achievements", "links"]
     op: Literal["add", "remove"]
-    value: Optional[Union[str, dict]] = None
-    match: Optional[dict] = None
+    value: str | dict | None = None
+    match: dict | None = None
 
     @model_validator(mode="after")
     def _shape(self) -> "CollectionEdit":
@@ -125,16 +126,16 @@ class CvSynthOpPayload(BaseModel):
 
     refs: list[CvContextRef] = Field(min_length=1, max_length=10)
     action: Literal["summarize", "detail", "restyle", "posting_fit"] = "summarize"
-    posting_id: Optional[UUID] = None
+    posting_id: UUID | None = None
     language: str = Field(default="en", min_length=2, max_length=10)
-    tone: Optional[str] = Field(default=None, max_length=60)
-    length: Optional[str] = Field(default=None, max_length=20)
-    variant_key: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    tone: str | None = Field(default=None, max_length=60)
+    length: str | None = Field(default=None, max_length=20)
+    variant_key: str | None = Field(default=None, min_length=1, max_length=60)
     #: Server-injected (never model-written): the builder-bound session's
     #: CV — approve pins the activated variants on it (plan-104 follow-up:
     #: accept → activate + star + live preview), instead of leaving the
     #: user a manual hand-trip to the studio.
-    cv_id: Optional[UUID] = None
+    cv_id: UUID | None = None
 
 
 class CvSetBulletsOpPayload(BaseModel):
@@ -179,8 +180,22 @@ class CvChoiceOption(BaseModel):
     action: Literal["create", "update"] = "create"
     label: str = Field(min_length=1, max_length=120)
     description: str = Field(default="", max_length=400)
-    entity_id: Optional[UUID] = None
+    entity_id: UUID | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class ToolExecutionPayload(BaseModel):
+    """One confirmed destructive tool call (the D20 card's body).
+
+    ``tool`` is the registry key (extension contributions carry the
+    charter's ``<extensionId>:<id>`` namespacing); ``args`` is the exact
+    model-provided argument dict for THIS call — the card approves this
+    call, never the tool in general; ``summary`` is the server-computed
+    human line rendered on the card."""
+
+    tool: str = Field(min_length=1, max_length=200)
+    args: dict[str, Any] = Field(default_factory=dict)
+    summary: str = Field(default="", max_length=300)
 
 
 class CvChoiceOpPayload(BaseModel):
@@ -198,9 +213,7 @@ class CvChoiceOpPayload(BaseModel):
 
     @field_validator("options")
     @classmethod
-    def _unique_non_nested_keys(
-        cls, options: list[CvChoiceOption]
-    ) -> list[CvChoiceOption]:
+    def _unique_non_nested_keys(cls, options: list[CvChoiceOption]) -> list[CvChoiceOption]:
         if len({option.key for option in options}) != len(options):
             raise ValueError("option keys must be unique")
         if any(option.kind == "cv_choice" for option in options):
@@ -225,6 +238,20 @@ class CvChoiceApproveIn(BaseModel):
     option_keys: list[str] = Field(default_factory=list, max_length=16)
 
 
+class ProposalDiffRow(BaseModel):
+    """One HITL card diff row.
+
+    ``field``/``label`` are the stable envelope the card renderer keys
+    on; ``before``/``after`` carry the row's value and stay open by
+    design — scalar strings for plain fields, structured chip lists for
+    collections, full-section mappings for profile sections."""
+
+    field: str
+    label: str
+    before: Any = None
+    after: Any = None
+
+
 class ProfileProposalOut(BaseModel):
     """One HITL card (persisted state, field-level diff included)."""
 
@@ -234,18 +261,19 @@ class ProfileProposalOut(BaseModel):
     kind: ProposalKindLiteral
     action: ProposalActionLiteral
     status: ProposalStatusLiteral
-    entity_id: Optional[UUID] = None
+    entity_id: UUID | None = None
     entity_label: str
     title: str = ""
     payload: dict[str, Any] = Field(default_factory=dict)
-    diff: list[dict[str, Any]] = Field(default_factory=list)
+    diff: list[ProposalDiffRow] = Field(default_factory=list)
     destructive: bool = False
     source: str = "chat"
-    chat_session_id: Optional[UUID] = None
-    chat_message_id: Optional[UUID] = None
-    ai_generation_id: Optional[UUID] = None
+    origin: dict[str, Any] = Field(default_factory=dict)
+    chat_session_id: UUID | None = None
+    chat_message_id: UUID | None = None
+    ai_generation_id: UUID | None = None
     created_at: datetime
-    resolved_at: Optional[datetime] = None
+    resolved_at: datetime | None = None
     resolve_error: str = ""
 
 
@@ -253,7 +281,7 @@ class ProfileProposalResolveOut(BaseModel):
     """Approve/reject result: the card plus what the apply produced."""
 
     proposal: ProfileProposalOut
-    applied: Optional[dict[str, Any]] = None
+    applied: dict[str, Any] | None = None
     already: bool = False
     children: list[ProfileProposalOut] = Field(default_factory=list)
 
@@ -266,7 +294,7 @@ class CvSynthPreviewSource(BaseModel):
     source_key: str
     item_id: str
     label: str
-    snapshot: Optional[dict[str, Any]] = None
+    snapshot: dict[str, Any] | None = None
 
 
 class ProfileProposalPreviewOut(BaseModel):
@@ -275,6 +303,6 @@ class ProfileProposalPreviewOut(BaseModel):
     ``before`` is a single entity snapshot, or a stacked cv_synth source
     list (plan 101 AD2 — ``after`` stays None for variants)."""
 
-    before: Optional[dict[str, Any] | list[CvSynthPreviewSource]] = None
-    after: Optional[dict[str, Any]] = None
+    before: dict[str, Any] | list[CvSynthPreviewSource] | None = None
+    after: dict[str, Any] | None = None
     edits: dict[str, Any] = Field(default_factory=dict)

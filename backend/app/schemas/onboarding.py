@@ -1,7 +1,5 @@
 """Express onboarding + target mode schemas (Phase 27)."""
 
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -12,19 +10,24 @@ class ArchetypeOut(BaseModel):
     score: float
 
 
+class ResolveFamilyOut(BaseModel):
+    key: str
+    label: str
+
+
 class ResolveOut(BaseModel):
     query: str
     resolved_by: str
-    families: list[dict]
+    families: list[ResolveFamilyOut]
     skill_keys: list[str]
     archetypes: list[ArchetypeOut]
 
 
 class ExpressIn(BaseModel):
     targets: list[str] = Field(min_length=1, max_length=3)
-    location: Optional[str] = Field(default=None, max_length=80)
-    remote: Optional[bool] = None
-    stage: Optional[str] = Field(default=None, max_length=20)
+    location: str | None = Field(default=None, max_length=80)
+    remote: bool | None = None
+    stage: str | None = Field(default=None, max_length=20)
     min_fit: float = Field(default=7.0, ge=0, le=10)
     max_per_day: int = Field(default=5, ge=1, le=50)
 
@@ -54,9 +57,34 @@ class NudgeOut(BaseModel):
     message: str
 
 
+class OpenPostingsSalaryBandOut(BaseModel):
+    min: float | None = None
+    max: float | None = None
+
+
+class OpenPostingsEmployerOut(BaseModel):
+    org: str
+    count: int
+
+
+class OpenPostingsOut(BaseModel):
+    """Target-mode posting analytics for the dashboard banner."""
+
+    total: int
+    unseen: int
+    salary_band: OpenPostingsSalaryBandOut | None = None
+    top_employers: list[OpenPostingsEmployerOut] = Field(default_factory=list)
+
+
+class AdjacentTargetOut(BaseModel):
+    family_key: str
+    label: str
+    sample: str
+
+
 class TargetDashboardOut(BaseModel):
     families: list[str]
-    open_postings: dict
-    adjacent_targets: list[dict]
-    nudges: list[NudgeOut]
+    open_postings: OpenPostingsOut
+    adjacent_targets: list[AdjacentTargetOut] = Field(default_factory=list)
+    nudges: list[NudgeOut] = Field(default_factory=list)
     completeness: CompletenessOut

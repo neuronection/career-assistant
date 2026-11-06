@@ -5,15 +5,14 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid
-
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.ai_model import AIGeneration
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
 from app.schemas.cv_template import TemplateContent
-from app.services.cv_builder_service import FALLBACK_CONTENT
-from app.services.cv_renderer import render_cv
+from app.services.cv.cv_builder_service import FALLBACK_CONTENT
+from app.services.cv.cv_renderer import render_cv
+from tests.conftest import _make_posting, _uid
 
 
 async def _experience(client, headers, **overrides) -> dict:
@@ -46,27 +45,35 @@ async def _user_skill(db, headers, skill_row: Skill, level: int = 6) -> None:
 
 
 async def _extracted_posting(db, source, skill_row: Skill) -> dict:
+    from app.services.postings.extract_service import apply_extract
+
     posting = await _make_posting(db, source, external_id="letter-1")
-    posting.extract = PostingExtract(
-        title_norm="Junior DevOps Engineer",
-        skills=[
-            ExtractSkill(
-                skill_key=skill_row.key,
-                required_level=4,
-                priority="must_have",
-                evidence_quote="must know the thing",
-                confidence=0.9,
-            ),
-            ExtractSkill(
-                skill_key="kubernetes",
-                required_level=3,
-                priority="must_have",
-                evidence_quote="kubernetes required",
-                confidence=0.9,
-            ),
-        ],
-        responsibilities=[],
-    ).model_dump(mode="json")
+    db.add(Skill(key="kubernetes", label="Kubernetes", category="test", status="active"))
+    await db.flush()
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            title_norm="Junior DevOps Engineer",
+            skills=[
+                ExtractSkill(
+                    raw_label=skill_row.label,
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="must know the thing",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    raw_label="kubernetes",
+                    required_level=3,
+                    priority="must_have",
+                    evidence_quote="kubernetes required",
+                    confidence=0.9,
+                ),
+            ],
+            responsibilities=[],
+        ),
+    )
     db.add(posting)
     await db.commit()
     await db.refresh(posting)
@@ -145,9 +152,7 @@ async def test_brief_reports_coverage_and_quotes(
     covered = {entry["skill_key"] for entry in brief["coverage"]["covered"]}
     missing = {entry["skill_key"] for entry in brief["coverage"]["missing"]}
     assert skill_row.key in covered and "kubernetes" in missing
-    programming = next(
-        skill for skill in brief["must_have"] if skill["skill_key"] == skill_row.key
-    )
+    programming = next(skill for skill in brief["must_have"] if skill["skill_key"] == skill_row.key)
     assert programming["user_level"] == 6
     assert programming["evidence_quote"] == "must know the thing"
     assert brief["evidence_items"] > 0
@@ -183,18 +188,12 @@ async def test_draft_returns_verified_paragraphs(
     }
     assert body["paragraphs"]
     for paragraph in body["paragraphs"]:
-        refs = {
-            (ref["source_key"], ref["item_id"]) for ref in paragraph["evidence_refs"]
-        }
+        refs = {(ref["source_key"], ref["item_id"]) for ref in paragraph["evidence_refs"]}
         assert refs, "every paragraph must cite evidence"
         assert refs <= known, "citations must resolve to the letter's context"
         assert paragraph["verified"] is True
     audited = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "cv_cover_letter")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "cv_cover_letter")))
         .scalars()
         .all()
     )
@@ -205,7 +204,7 @@ async def test_draft_returns_verified_paragraphs(
 async def test_draft_verification_flags_unknown_refs():
     from app.schemas.cover_letter import CoverLetterDraft, LetterParagraph
     from app.schemas.cv_suggest import CvEvidenceRef
-    from app.services.cover_letter_service import _verified
+    from app.services.cv.cover_letter_service import _verified
 
     allowlist = {("experience", "item-1")}
     ok = LetterParagraph(
@@ -316,9 +315,7 @@ async def test_letter_exports_and_versions(
     assert docx.status_code == 200
     assert docx.content[:2] == b"PK"
 
-    lint = (
-        await client.get(f"/api/v1/cv/{letter['id']}/lint", headers=auth_headers)
-    ).json()
+    lint = (await client.get(f"/api/v1/cv/{letter['id']}/lint", headers=auth_headers)).json()
     check_ids = {check["id"] for check in lint["checks"]}
     assert "letter_length" in check_ids
     order = next(check for check in lint["checks"] if check["id"] == "section_order")

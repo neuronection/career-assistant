@@ -1,0 +1,173 @@
+{
+  "items": [
+    {
+      "id": 14771122,
+      "idParam": "16833245-engineering-manager",
+      "title": "Engineering Manager",
+      "createdAt": "2025-08-29T16:34:57.775Z",
+      "employmentTypeId": 6,
+      "salaryFrequency": "PER_YEAR",
+      "salaryAmountFrom": {
+        "amount": 9000000,
+        "currency": "EUR"
+      },
+      "salaryAmountTo": {
+        "amount": 10500000,
+        "currency": "EUR"
+      },
+      "categoryId": 362,
+      "countryId": 205,
+      "cityId": "c9744a27-78f2-4e16-ba9c-c17023486714",
+      "companyId": 54,
+      "languageId": 5,
+      "settings": {
+        "showSalary": true
+      },
+      "workplaceType": "HYBRID",
+      "office": {
+        "id": 299067,
+        "countryId": 205,
+        "cityId": "c9744a27-78f2-4e16-ba9c-c17023486714"
+      },
+      "category": {
+        "id": 362,
+        "name": "Management, Team Leader"
+      },
+      "employmentType": {
+        "id": 6,
+        "name": "Employee"
+      },
+      "country": {
+        "id": 205,
+        "iso3166": "ES",
+        "name": "Spain"
+      },
+      "city": {
+        "id": "c9744a27-78f2-4e16-ba9c-c17023486714",
+        "countryCode": "es",
+        "lat": 41.38739776611328,
+        "lng": 2.1685678958892822,
+        "defaultZipCode": "08001",
+        "cityName": "Barcelona",
+        "countryName": "Spain",
+        "googlePlaceId": "ChIJ5TCOcRaYpBIRCmZHTz37sEQ",
+        "regionName": "Catalonia"
+      }
+    },
+    {
+      "id": 16108098,
+      "idParam": "16844214-engineering-manager-m-f-d",
+      "title": "Engineering Manager (m/f/d)",
+      "createdAt": "2026-05-04T14:49:10.217Z",
+      "employmentTypeId": 6,
+      "salaryFrequency": "PER_YEAR",
+      "salaryAmountFrom": {
+        "amount": 11000000,
+        "currency": "EUR"
+      },
+      "salaryAmountTo": {
+        "amount": 12000000,
+        "currency": "EUR"
+      },
+      "categoryId": 362,
+      "countryId": 86,
+      "cityId": "04d66278-4ebb-4c00-a281-ed2aa195250d",
+      "companyId": 54,
+      "languageId": 5,
+      "settings": {
+        "showSalary": true
+      },
+      "workplaceType": "HYBRID",
+      "office": {
+        "id": 340,
+        "countryId": 86,
+        "cityId": "04d66278-4ebb-4c00-a281-ed2aa195250d"
+      },
+      "category": {
+        "id": 362,
+        "name": "Management, Team Leader"
+      },
+      "employmentType": {
+        "id": 6,
+        "name": "Employee"
+      },
+      "country": {
+        "id": 86,
+        "iso3166": "DE",
+        "name": "Germany"
+      },
+      "city": {
+        "id": "04d66278-4ebb-4c00-a281-ed2aa195250d",
+        "countryCode": "de",
+        "lat": 52.5200080871582,
+        "lng": 13.404953956604004,
+        "defaultZipCode": "10115",
+        "cityName": "Berlin",
+        "countryName": "Germany",
+        "googlePlaceId": "ChIJAVkDPzdOqEcRcDteW0YgIQQ",
+        "regionName": "Berlin"
+      }
+    },
+    {
+      "id": 14060089,
+      "idParam": "16817388-senior-backend-engineer",
+      "title": "Senior Backend Engineer",
+      "createdAt": "2025-04-28T08:08:26.215Z",
+      "employmentTypeId": 6,
+      "salaryFrequency": "PER_YEAR",
+      "salaryAmountFrom": {
+        "amount": 7000000,
+        "currency": "EUR"
+      },
+      "salaryAmountTo": {
+        "amount": 8500000,
+        "currency": "EUR"
+      },
+      "categoryId": 372,
+      "countryId": 205,
+      "cityId": "c9744a27-78f2-4e16-ba9c-c17023486714",
+      "companyId": 54,
+      "languageId": 5,
+      "settings": {
+        "showSalary": true
+      },
+      "workplaceType": "HYBRID",
+      "office": {
+        "id": 299067,
+        "countryId": 205,
+        "cityId": "c9744a27-78f2-4e16-ba9c-c17023486714"
+      },
+      "category": {
+        "id": 372,
+        "name": "Engineering"
+      },
+      "employmentType": {
+        "id": 6,
+        "name": "Employee"
+      },
+      "country": {
+        "id": 205,
+        "iso3166": "ES",
+        "name": "Spain"
+      },
+      "city": {
+        "id": "c9744a27-78f2-4e16-ba9c-c17023486714",
+        "countryCode": "es",
+        "lat": 41.38739776611328,
+        "lng": 2.1685678958892822,
+        "defaultZipCode": "08001",
+        "cityName": "Barcelona",
+        "countryName": "Spain",
+        "googlePlaceId": "ChIJ5TCOcRaYpBIRCmZHTz37sEQ",
+        "regionName": "Catalonia"
+      }
+    }
+  ],
+  "aggregations": [],
+  "pagination": {
+    "rowCount": 3,
+    "pageCount": 1,
+    "page": 1,
+    "pageSize": 3
+  }
+}

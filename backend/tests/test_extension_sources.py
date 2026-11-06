@@ -1,0 +1,1618 @@
+"""The extension import layer wall (plan 32 Phase 3 / ADR-0040 D13+D15+D22).
+
+Covers the whole pipeline against REAL local git repos (``git init`` in
+tmp dirs — no external network) plus the sibling template repo when the
+family dev layout is checked out:
+
+* e2e: add a ``local`` source → sync → discovered candidate → consent
+  install → the minted MCP job source spawns ``server.py`` FROM THE
+  CLONED CONTENT → ``sync_source`` lands postings with attribution, the
+  etag cursor short-circuits the second sync, tool calls audited;
+* consent: no install without consent; the consent record persists
+  who/when/what-digest and carries the T3 perimeter disclosure VERBATIM
+  from the vendored charter;
+* adversarial sources (the plan's required list): bad schema rejected
+  typed; wrong host profile (kind/tier not hosted) rejected with reason;
+  apiVersion too new rejected; digest drift on a pinned ref = LOUD
+  failure, pins untouched, never a silent refetch; capability growth on
+  update requires re-consent (blocked until then); malformed repo (no
+  manifests) typed error; path traversal in a local source root denied;
+  inline token in a descriptor structurally rejected (schema seam);
+* local gating: production boots reject local sources fail-closed;
+  non-allowlisted roots rejected (net_guard-style confinement);
+* GitOps conflict cases: manual installs never re-pinned (drift
+  reported); failed fetch leaves pins untouched + source failing; pin
+  moves apply; removal from the list parks disabled + data intact +
+  tombstone-able; reconcile NEVER enables anything;
+* private repo: a descriptor carrying a credential slot reference, the
+  sealed value resolving host-side into the git env (GIT_CONFIG_*),
+  nothing leaking into logs or stored echoes.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import shutil
+import subprocess
+import uuid
+from pathlib import Path
+
+import pytest
+from sqlalchemy import select
+
+from app.core.config import settings
+from app.extensions import lifecycle
+from app.extensions.lifecycle import (
+    GitTransport,
+    LifecycleError,
+    add_source,
+    apply_update,
+    get_desired_state,
+    install_extension,
+    list_sources,
+    put_desired_state,
+    reconcile,
+    set_git_transport,
+    sync_source,
+    validate_source_descriptor,
+)
+from app.extensions.registry import reset_registry
+from app.models.extension_model import ExtensionInstall, ExtensionSource
+from app.models.posting_model import JobSource
+
+TEMPLATE_DIR = Path(__file__).resolve().parents[2].parent / "career-connector-template"
+FIXTURE_SERVER = Path(__file__).resolve().parent / "fixtures" / "mcp_template_server.py"
+FIXTURE_MANIFEST = Path(__file__).resolve().parent / "fixtures" / "mcp_template_manifest.json"
+FIXTURE_DOCS = Path(__file__).resolve().parent / "fixtures" / "docs"
+
+BOARD_ROW_IDS = ("default-1", "default-2", "default-3")
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        env={
+            "PATH": __import__("os").environ.get("PATH", "/usr/bin:/bin"),
+            "HOME": str(repo.parent),
+            "GIT_AUTHOR_NAME": "t",
+            "GIT_AUTHOR_EMAIL": "t@example.com",
+            "GIT_COMMITTER_NAME": "t",
+            "GIT_COMMITTER_EMAIL": "t@example.com",
+        },
+    )
+
+
+def _copy_docs(dest: Path) -> None:
+    """Give a fixture bundle the docs tree its manifest points at."""
+    if FIXTURE_DOCS.is_dir():
+        shutil.copytree(FIXTURE_DOCS, dest / "docs", dirs_exist_ok=True)
+
+
+def make_repo(
+    root: Path,
+    name: str = "ext-repo",
+    *,
+    manifest: dict | None = None,
+    tag: str | None = "v1.0.0",
+    subpath: str = "",
+) -> Path:
+    """A real local git repo: manifest.json (+ subpath variant) + the
+    template server as the runnable entry."""
+    repo = root / name
+    repo.mkdir(parents=True, exist_ok=True)
+    _git(repo, "init", "--quiet", "--initial-branch", "main")
+    entry_dir = repo / subpath if subpath else repo
+    entry_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURE_SERVER, entry_dir / "server.py")
+    manifest = manifest if manifest is not None else json.loads(FIXTURE_MANIFEST.read_text())
+    (entry_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _copy_docs(entry_dir)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "--allow-empty", "-m", "init")
+    if tag:
+        _git(repo, "tag", tag)
+    return repo
+
+
+def template_manifest() -> dict:
+    return json.loads(FIXTURE_MANIFEST.read_text())
+
+
+@pytest.fixture
+def local_roots(tmp_path, monkeypatch):
+    """Allowlisted local roots + dev env — the local kind's confinement."""
+    monkeypatch.setattr(settings, "extension_local_source_roots", [str(tmp_path)])
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "data")
+    return tmp_path
+
+
+@pytest.fixture
+def mcp_allowlist(monkeypatch):
+    monkeypatch.setattr(settings, "connector_plugins_allowlist", ["mcp"])
+    reset_registry()
+    yield
+    reset_registry()
+
+
+def local_descriptor(repo: Path, **ref) -> dict:
+    return {
+        "local": {"path": str(repo)},
+        "ref": {"strategy": "branch", "value": "main", **ref},
+    }
+
+
+async def _actor_id(db) -> uuid.UUID:
+    from app.models.user_model import User
+
+    user = (await db.execute(select(User).limit(1))).scalars().first()
+    if user is None:
+        user = User(email="ext-admin@example.com", full_name="Ext Admin", is_admin=True)
+        db.add(user)
+        await db.commit()
+    return user.id
+
+
+async def _add(db, descriptor: dict, **kw) -> ExtensionSource:
+    view = await add_source(db, descriptor, **kw)
+    return await db.get(ExtensionSource, uuid.UUID(view["id"]))
+
+
+async def _echo_for(db, source_id, extension_id: str = "example-posting-fetcher") -> dict:
+    """The host-derived consent echo — tests never fabricate a digest."""
+    preview = await lifecycle.preview_install(db, uuid.UUID(str(source_id)), extension_id)
+    return preview["echo"]
+
+
+async def _compliant_options(db, install_id: uuid.UUID, **options) -> None:
+    """Plan 173: enabling enforces the manifest's required config fields —
+    give the minted source compliant options first, then enable."""
+    from sqlalchemy.orm.attributes import flag_modified
+
+    install = await db.get(ExtensionInstall, install_id)
+    row = await db.execute(select(JobSource).where(JobSource.key == install.source_key))
+    src = row.scalars().first()
+    src.config = {**src.config, "options": json.dumps(options)}
+    flag_modified(src, "config")
+    await db.commit()
+    return src
+
+
+def _pin_static(source: JobSource) -> None:
+    """query_mode defaults to "radar" since 2dccf4f0; these tests exercise
+    the managed spawn + sync machinery, not radar rotation (own tests) —
+    a fresh radar-mode source would politely skip with no radars."""
+    source.query_mode = "static"
+
+
+# ------------------------------------------------------------- e2e import
+
+
+async def test_e2e_import_from_a_local_git_repo(db, seeded_catalog, local_roots, mcp_allowlist):
+    """The Phase-3 wall: source → consent → installed MCP connector
+    instance → managed-spawn server.py from the CLONED content → postings
+    land with attribution; the etag short-circuits sync two; audit rows
+    exist for every tool call."""
+    from app.services.postings.postings_service import sync_source as sync_job_source
+
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True, report
+    [candidate] = report["candidates"]
+    assert candidate["extensionId"] == "example-posting-fetcher"
+    assert candidate["compatible"] is True
+    assert candidate["hasEntry"] is True
+
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    assert installed["originClass"] == "imported"
+    assert installed["enabled"] is False, "installs are disabled — enable is an explicit act"
+
+    rows = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .all()
+    )
+    assert len(rows) == 1
+    minted = rows[0]
+    assert minted.connector_key == "mcp"
+    assert minted.enabled is False
+    content_dir = Path(installed["contentPath"])
+    assert content_dir.is_dir()
+    assert (content_dir / "server.py").is_file()
+    assert str(content_dir).startswith(str(settings.data_dir / "extensions"))
+    assert str(content_dir.parent.name) == "example-posting-fetcher"
+    assert content_dir.name == installed["digest"], "content-addressed by digest"
+    assert str(content_dir / "server.py") in minted.config["command"]
+
+    _pin_static(await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs"))
+    enabled = await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
+    assert enabled["enabled"] is True
+    await db.refresh(minted)
+    assert minted.enabled is True
+
+    first = await sync_job_source(db, minted)
+    assert first["errors"] == [], first
+    assert first["synced"] == 3
+    from app.models.posting_model import JobPosting
+
+    postings = (
+        (
+            await db.execute(
+                select(JobPosting)
+                .where(JobPosting.source_id == minted.id)
+                .order_by(JobPosting.external_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert [p.external_id for p in postings] == list(BOARD_ROW_IDS)
+    for posting in postings:
+        assert posting.source_id == minted.id
+        assert posting.org == "Reference Systems"
+        assert posting.url.startswith("https://jobs.example.com/")
+    assert minted.sync_state.get("etag"), "the tool's cursor round-trips"
+
+    second = await sync_job_source(db, minted)
+    assert second["synced"] == 0, "the etag cursor short-circuits the second sync"
+
+    from app.models.ai_model import AIGeneration
+    from app.models.enums import AITaskType
+
+    audit = (
+        (
+            await db.execute(
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.MCP_TOOL_CALL.value)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert len(audit) == 2, "one audit row per tool call"
+
+
+# ---------------------------------------------------------------- consent
+
+
+async def test_consent_is_required_and_records_persist_verbatim(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+
+    with pytest.raises(LifecycleError) as no_consent:
+        await install_extension(db, source.id, "example-posting-fetcher", consent=False)
+    assert "consent is required" in no_consent.value.detail
+
+    view = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    install = await db.get(ExtensionInstall, uuid.UUID(view["id"]))
+    [record] = install.consents
+    assert record["digest"] == install.digest
+    assert record["actor"]
+    assert record["at"]
+    assert record["tier"] == "T3"
+    assert record["provenance"]["author"] == "Neuronection"
+    assert record["provenance"]["license"] == "MIT"
+    charter = json.loads(
+        (Path(__file__).resolve().parents[2] / "contracts" / "extension-charter.json").read_text()
+    )
+    assert record["disclosure"] == charter["consent"]["t3PerimeterDisclosure"], (
+        "the T3 perimeter copy renders VERBATIM from the charter (D22)"
+    )
+
+
+async def test_consent_echo_is_host_derived_and_drift_refuses(db, local_roots, mcp_allowlist):
+    """A caller can only hand back the host's exact echo; after the source
+    moves, the same echo is refused typed and nothing lands."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+
+    preview = await lifecycle.preview_install(db, source.id, "example-posting-fetcher")
+    assert set(preview["echo"]) == {"digest", "capabilities", "version"}
+    assert preview["echo"]["digest"] == preview["consent"]["digest"]
+    assert preview["consent"]["secrets"] == [], "no secret slots declared"
+
+    (repo / "server.py").write_text(
+        (repo / "server.py").read_text() + "\n# moved\n", encoding="utf-8"
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "move the source")
+
+    with pytest.raises(LifecycleError) as moved:
+        await install_extension(db, source.id, "example-posting-fetcher", consent=preview["echo"])
+    assert moved.value.code == "invalid"
+    assert "the source moved" in moved.value.detail
+    assert "re-consent" in moved.value.detail
+    assert (await db.execute(select(ExtensionInstall))).scalars().first() is None, (
+        "nothing half-landed"
+    )
+
+
+async def test_reused_content_with_altered_bytes_is_refused(db, local_roots, mcp_allowlist):
+    """F15: an existing ``<id>/<digest>/`` is re-hashed before reuse."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    echo = await _echo_for(db, source.id)
+    view = await install_extension(db, source.id, "example-posting-fetcher", consent=echo)
+    content_dir = Path(view["contentPath"])
+    (content_dir / "server.py").write_text("# tampered\n", encoding="utf-8")
+
+    await lifecycle.tombstone_install(db, uuid.UUID(view["id"]))
+    with pytest.raises(LifecycleError) as altered:
+        await install_extension(db, source.id, "example-posting-fetcher", consent=echo)
+    assert altered.value.code == "invalid"
+    assert "altered bytes" in altered.value.detail
+
+
+async def test_a_losing_writer_gets_a_typed_error(db, local_roots, mcp_allowlist):
+    """Phase 3.7: install holds a per-source lock; a concurrent writer is
+    refused typed and mutates nothing."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    echo = await _echo_for(db, source.id)
+
+    async with lifecycle._exclusive(f"source:{source.id}"):
+        with pytest.raises(LifecycleError) as busy:
+            await install_extension(db, source.id, "example-posting-fetcher", consent=echo)
+    assert busy.value.code == "not-ready"
+    assert (await db.execute(select(ExtensionInstall))).scalars().first() is None, (
+        "the losing writer did not half-mutate"
+    )
+
+
+async def test_t3_spawn_refuses_a_drifted_content_tree(db, local_roots, mcp_allowlist):
+    """F15/T3: the managed spawn re-hashes the pinned tree before running
+    server.py; drifted bytes are a typed error, never executed."""
+    from app.services.postings.postings_service import sync_source as sync_job_source
+
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+    )
+    _pin_static(await _compliant_options(db, uuid.UUID(view["id"]), board="jobs"))
+    await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .first()
+    )
+    (Path(view["contentPath"]) / "server.py").write_text("# drifted\n", encoding="utf-8")
+
+    report = await sync_job_source(db, minted)
+    [error] = report["errors"]
+    assert error["code"] == "invalid"
+    assert "pinned digest" in error["detail"]
+
+
+async def test_tombstone_retains_consent_and_never_reenables(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+    )
+    await _compliant_options(db, uuid.UUID(view["id"]), board="jobs")
+    await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
+
+    tombstoned = await lifecycle.tombstone_install(db, uuid.UUID(view["id"]))
+    assert tombstoned["state"] == "removed"
+    install = await db.get(ExtensionInstall, uuid.UUID(view["id"]))
+    assert install.consents, "consent records survive tombstoning"
+    assert install.tombstoned_at is not None
+    rows = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .all()
+    )
+    assert rows[0].enabled is False
+
+    with pytest.raises(LifecycleError) as exc:
+        await lifecycle.set_install_enabled(db, uuid.UUID(view["id"]), True)
+    assert "never re-enabled" in exc.value.detail
+
+
+# ------------------------------------------------------- adversarial sources
+
+
+async def test_bad_manifest_schema_is_rejected_typed(db, local_roots):
+    manifest = template_manifest()
+    del manifest["author"]
+    del manifest["i18n"]
+    repo = make_repo(local_roots, manifest=manifest)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "invalid"
+    assert "manifest invalid" in report["error"]["detail"]["message"]
+
+
+async def test_wrong_host_profile_rejected_with_reason(db, local_roots):
+    for kind in ("mini-app", "bridge"):
+        manifest = template_manifest()
+        manifest["kind"] = kind
+        if kind == "mini-app":
+            manifest["packKind"] = "surface"
+            manifest["apiVersion"] = 1
+            manifest.pop("kindVersion", None)
+            manifest.pop("itemSchema", None)
+            manifest.pop("supportsIncremental", None)
+        repo = make_repo(local_roots, name=f"repo-{kind}", manifest=manifest, tag=None)
+        source = await _add(db, local_descriptor(repo))
+        report = await sync_source(db, source.id)
+        if report["ok"] and report["candidates"]:
+            candidate = report["candidates"][0]
+            assert candidate["compatible"] is False
+            # Since plan-32 Phase 4 the mini-app kind IS hosted: this
+            # modified shape (no ui:* surface declared, connector caps) is
+            # still rejected typed — the precise capability/surface reason
+            # says which (D17: the compatibility check is data). bridge
+            # stays kind-named.
+            if kind == "bridge":
+                assert kind in candidate["reason"]
+            else:
+                assert candidate.get("reason"), "a typed reason is the law (D17)"
+
+
+async def test_api_version_too_new_rejected_with_ceiling(db, local_roots):
+    manifest = template_manifest()
+    manifest["kindVersion"] = 2
+    repo = make_repo(local_roots, manifest=manifest)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "invalid"
+    assert "kindVersion" in report["error"]["detail"]["message"], (
+        "the error names the ceiling precisely"
+    )
+
+
+async def test_unhonored_capability_rejected(db, local_roots):
+    manifest = template_manifest()
+    manifest["capabilities"] = ["sync", "net"]
+    manifest["domains"] = ["example.com"]
+    repo = make_repo(local_roots, manifest=manifest)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    [candidate] = report["candidates"]
+    assert candidate["compatible"] is False
+    assert "net" in candidate["reason"], "T3 imports grant no host-side net"
+
+
+async def test_malformed_repo_no_manifests_typed_error(db, local_roots):
+    repo = make_repo(local_roots, tag=None)
+    (repo / "manifest.json").unlink()
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "drop manifest")
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "invalid"
+    assert "no extension manifests" in report["error"]["detail"]["message"]
+    assert source.status == "failing"
+
+
+async def test_missing_entry_file_rejected_at_install(db, local_roots):
+    repo = make_repo(local_roots, tag=None)
+    (repo / "server.py").unlink()
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "drop entry")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    with pytest.raises(LifecycleError) as exc:
+        await install_extension(
+            db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+        )
+    assert exc.value.code == "invalid"
+    assert "is not a regular file" in exc.value.detail
+
+
+async def test_digest_drift_on_pinned_ref_is_a_loud_failure(db, local_roots, mcp_allowlist):
+    """Tag force-move under the SAME tag name: the recorded digest no
+    longer matches — loud, blocking, pins untouched, never a refetch."""
+    repo = make_repo(local_roots, tag="v1.0.0")
+    descriptor = local_descriptor(repo, strategy="release-tag")
+    source = await _add(db, descriptor)
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+    )
+    pinned_digest = view["digest"]
+
+    (repo / "manifest.json").write_text(
+        json.dumps({**template_manifest(), "version": "1.0.1"}), encoding="utf-8"
+    )
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "rewrite")
+    _git(repo, "tag", "--force", "v1.0.0")
+
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    install = await db.get(ExtensionInstall, uuid.UUID(view["id"]))
+    assert install.update["state"] == "digest-drift"
+    assert install.digest == pinned_digest, "the pin is untouched — no silent refetch"
+    assert install.update["expectedDigest"] == pinned_digest
+    assert source.status == "degraded"
+
+    with pytest.raises(LifecycleError) as exc:
+        await apply_update(db, install.id, consent=await _echo_for(db, source.id))
+    assert "no update available" in exc.value.detail
+
+
+async def test_capability_growth_requires_reconsent(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots, tag="v1.0.0")
+    descriptor = local_descriptor(repo, strategy="release-tag")
+    source = await _add(db, descriptor)
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+    )
+    install_id = uuid.UUID(view["id"])
+
+    manifest = template_manifest()
+    manifest["version"] = "1.1.0"
+    manifest["capabilities"] = ["sync", "secrets"]
+    (repo / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "grow capabilities")
+    _git(repo, "tag", "v1.1.0")
+
+    await sync_source(db, source.id)
+    install = await db.get(ExtensionInstall, install_id)
+    assert install.update["state"] == "available"
+    assert install.update["requiresReconsent"] is True, "capability growth re-consents (D15)"
+    assert install.update["manifestDiff"]["capabilitiesAdded"] == ["secrets"]
+    assert install.digest == view["digest"], "nothing applied without the explicit act"
+
+    with pytest.raises(LifecycleError) as no_apply:
+        await apply_update(db, install_id, consent=False)
+    assert "re-consent" in no_apply.value.detail
+    reapplied = await apply_update(db, install_id, consent=await _echo_for(db, source.id))
+    assert reapplied["digest"] != view["digest"], "the re-consent applies the new pin"
+    install = await db.get(ExtensionInstall, install_id)
+    assert install.update == {}
+    assert [c for c in install.consents if c.get("reconsent")], "the re-consent is recorded"
+
+
+async def test_benign_ref_move_applies_without_reconsent(db, local_roots, mcp_allowlist):
+    """A ref that moved with IDENTICAL content is a pin move, not an
+    update — nothing consented changed."""
+    repo = make_repo(local_roots, tag="v1.0.0")
+    descriptor = local_descriptor(repo, strategy="release-tag")
+    source = await _add(db, descriptor)
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+    )
+    install_id = uuid.UUID(view["id"])
+
+    _git(repo, "tag", "v1.0.1")
+
+    await sync_source(db, source.id)
+    install = await db.get(ExtensionInstall, install_id)
+    assert install.update == {}
+    assert install.digest == view["digest"]
+    assert install.pin_ref == "v1.0.1", "the identical-content ref move applied"
+    assert len(install.pin_history) == 2
+
+
+# --------------------------------------------------------- local gating
+
+
+async def test_local_sources_fail_closed_in_production(db, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "app_env", "production")
+    monkeypatch.setattr(settings, "extension_local_source_roots", [str(tmp_path)])
+    with pytest.raises(LifecycleError) as exc:
+        validate_source_descriptor(
+            {"local": {"path": str(tmp_path)}, "ref": {"strategy": "branch", "value": "main"}}
+        )
+    assert exc.value.code == "path-denied"
+    assert "production" in exc.value.detail
+
+
+async def test_local_roots_confine_no_arbitrary_traversal(db, tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "extension_local_source_roots", [str(tmp_path / "allowed")])
+    repo = make_repo(tmp_path, name="outside")
+    with pytest.raises(LifecycleError) as exc:
+        validate_source_descriptor(local_descriptor(repo))
+    assert exc.value.code == "path-denied"
+    assert "outside every allowlisted root" in exc.value.detail
+
+    with pytest.raises(LifecycleError) as rel:
+        validate_source_descriptor(
+            {"local": {"path": "../etc"}, "ref": {"strategy": "branch", "value": "main"}}
+        )
+    assert rel.value.code == "invalid", "relative/traversal paths die at the schema seam"
+
+
+async def test_descriptor_with_inline_token_structurally_rejected(db, tmp_path):
+    from app.extensions import contract
+
+    schema = json.loads(
+        (
+            Path(__file__).resolve().parents[2] / "contracts" / "extension-sources.schema.json"
+        ).read_text()
+    )
+    userinfo = {
+        "url": "https://user:ghp_token123@git.example.com/ext/repo",
+        "ref": {"strategy": "release-tag"},
+    }
+    assert contract.validate(schema, userinfo, schema) is not None
+    smuggled = {
+        "url": "https://git.example.com/ext/repo",
+        "ref": {"strategy": "release-tag"},
+        "credentials": [{"slot": "ok-slot", "value": "ghp_token123"}],
+    }
+    assert contract.validate(schema, smuggled, schema) is not None
+
+
+# ------------------------------------------------------------- GitOps
+
+
+async def _gitops_doc(repo: Path, *, digest: str, ref: str = "v1.0.0") -> dict:
+    return {
+        "schema": 1,
+        "sources": [
+            {
+                "url": "https://git.example.com/example/ext-repo",
+                "ref": {"strategy": "release-tag"},
+            }
+        ],
+        "extensions": [
+            {
+                "id": "example-posting-fetcher",
+                "sourceUrl": "https://git.example.com/example/ext-repo",
+                "pin": {"ref": ref, "digest": digest},
+                "enabled": True,
+            }
+        ],
+    }
+
+
+class FakeHttpsTransport(GitTransport):
+    """An https git transport seam: serves a local repo's objects behind a
+    required Bearer header — the private-repo fixture (no network)."""
+
+    def __init__(self, repo: Path, *, expect_token: str | None = None):
+        self.repo = repo
+        self.expect_token = expect_token
+        self.saw_header = False
+        self.env_seen: dict | None = None
+
+    async def resolve(self, origin: str, ref: dict, *, token: str | None = None):
+        if self.expect_token is not None:
+            if token != self.expect_token:
+                raise LifecycleError("auth", "https transport: missing/invalid bearer token")
+            self.saw_header = True
+        return await super().resolve(str(self.repo), ref)
+
+    async def fetch(self, origin, resolved, dest, *, token: str | None = None):
+        await super().fetch(str(self.repo), resolved, dest)
+
+
+async def test_gitops_pin_move_applies_and_never_enables(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots, tag="v1.0.0")
+    fake = FakeHttpsTransport(repo)
+    set_git_transport(fake)
+    try:
+        digest = lifecycle.digest_tree(repo)
+        await put_desired_state(db, await _gitops_doc(repo, digest=digest, ref="v1.0.0"))
+        report = await reconcile(db)
+        assert report["needsConsent"] and not report["installed"], (
+            "consent is the gate — the list is only a pin-mover (D13)"
+        )
+        assert report["ignoredEnableIntent"], "reconcile never auto-enables (D22)"
+
+        source = (await db.execute(select(ExtensionSource))).scalars().first()
+        await sync_source(db, source.id)
+        await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            managed_by="gitops",
+        )
+        rows = (
+            (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+            .scalars()
+            .all()
+        )
+        assert rows[0].enabled is False, "reconcile never enables anything"
+
+        _git(repo, "tag", "v1.0.1")
+        await put_desired_state(db, await _gitops_doc(repo, digest=digest, ref="v1.0.1"))
+        report = await reconcile(db)
+        assert report["pinsMoved"], "the identical-content pin move applies"
+        install = (
+            (
+                await db.execute(
+                    select(ExtensionInstall).where(
+                        ExtensionInstall.extension_id == "example-posting-fetcher"
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert install.pin_ref == "v1.0.1"
+        assert install.digest == digest
+        await db.refresh(rows[0])
+        assert rows[0].enabled is False, "still never enabled"
+    finally:
+        set_git_transport(None)
+
+
+async def test_gitops_removal_from_list_parks_data_intact(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots, tag="v1.0.0")
+    digest = lifecycle.digest_tree(repo)
+    await put_desired_state(db, await _gitops_doc(repo, digest=digest))
+    set_git_transport(FakeHttpsTransport(repo))
+    try:
+        source = await _add(
+            db,
+            {
+                "url": "https://git.example.com/example/ext-repo",
+                "ref": {"strategy": "release-tag"},
+            },
+        )
+        await sync_source(db, source.id)
+        view = await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            managed_by="gitops",
+        )
+        install_id = uuid.UUID(view["id"])
+        await _compliant_options(db, install_id, board="jobs")
+        await lifecycle.set_install_enabled(db, install_id, True)
+
+        await put_desired_state(db, {"schema": 1, "sources": [], "extensions": []})
+        report = await reconcile(db)
+        assert any(entry["extensionId"] == "example-posting-fetcher" for entry in report["parked"])
+        install = await db.get(ExtensionInstall, install_id)
+        assert install.parked is True
+        assert install.state == "disabled"
+        assert install.enabled is False
+        assert install.consents, "data + consent records intact"
+        assert Path(install.content_path).is_dir(), "content never deleted"
+
+        tombstoned = await lifecycle.tombstone_install(db, install_id)
+        assert tombstoned["state"] == "removed"
+    finally:
+        set_git_transport(None)
+
+
+async def test_gitops_never_repins_manual_installs(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots, tag="v1.0.0")
+    url = "https://git.example.com/example/ext-repo"
+    set_git_transport(FakeHttpsTransport(repo))
+    try:
+        source = await _add(db, {"url": url, "ref": {"strategy": "release-tag"}})
+        await sync_source(db, source.id)
+        view = await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            managed_by="manual",
+        )
+        install_id = uuid.UUID(view["id"])
+
+        doc = await _gitops_doc(repo, digest="9" * 64, ref="v0.9.9-fake")
+        await put_desired_state(db, doc)
+        report = await reconcile(db)
+        assert any(
+            entry["extensionId"] == "example-posting-fetcher" and "manual" in entry["reason"]
+            for entry in report["drift"]
+        ), "drift vs manual installs is REPORTED, never reverted"
+        install = await db.get(ExtensionInstall, install_id)
+        assert install.pin_ref == view["pinRef"]
+        assert install.managed_by == "manual"
+        assert install.digest == view["digest"]
+    finally:
+        set_git_transport(None)
+
+
+async def test_gitops_failed_fetch_leaves_pins_untouched(db, local_roots, mcp_allowlist):
+    repo = make_repo(local_roots, tag="v1.0.0")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    view = await install_extension(
+        db, source.id, "example-posting-fetcher", consent=await _echo_for(db, source.id)
+    )
+    install_id = uuid.UUID(view["id"])
+
+    class BrokenTransport(GitTransport):
+        async def resolve(self, origin, ref, *, token=None):
+            raise LifecycleError("unreachable", "the remote is down (simulated)")
+
+    set_git_transport(BrokenTransport())
+    try:
+        report = await sync_source(db, source.id)
+        assert report["ok"] is False
+        assert report["error"]["code"] == "unreachable"
+        install = await db.get(ExtensionInstall, install_id)
+        assert install.digest == view["digest"], "pins untouched"
+        assert install.pin_ref == view["pinRef"]
+        await db.refresh(source)
+        assert source.status == "failing"
+        assert source.consecutive_failures == 1
+        assert install.update.get("lastCheckFailed") is True
+    finally:
+        set_git_transport(None)
+
+
+async def test_gitops_never_auto_applies_code_updates(db, local_roots, mcp_allowlist):
+    """A digest change named by the desired list is still only an
+    update-offer: without a prior consent at that digest, nothing lands."""
+    repo = make_repo(local_roots, tag="v1.0.0")
+    set_git_transport(FakeHttpsTransport(repo))
+    try:
+        source = await _add(
+            db,
+            {
+                "url": "https://git.example.com/example/ext-repo",
+                "ref": {"strategy": "release-tag"},
+            },
+        )
+        await sync_source(db, source.id)
+        view = await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            managed_by="gitops",
+        )
+
+        manifest = template_manifest()
+        manifest["version"] = "2.0.0"
+        (repo / "server.py").write_text(
+            (repo / "server.py").read_text() + "\n# changed\n", encoding="utf-8"
+        )
+        (repo / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        _git(repo, "add", ".")
+        _git(repo, "commit", "--quiet", "-m", "code change")
+        _git(repo, "tag", "v2.0.0")
+        new_digest = lifecycle.digest_tree(repo)
+
+        doc = await _gitops_doc(repo, digest=new_digest, ref="v2.0.0")
+        await put_desired_state(db, doc)
+        report = await reconcile(db)
+        assert any(entry.get("requiresReconsent") for entry in report["updatesAvailable"]), (
+            "code updates never auto-apply (D22)"
+        )
+        install = (
+            (
+                await db.execute(
+                    select(ExtensionInstall).where(
+                        ExtensionInstall.extension_id == "example-posting-fetcher"
+                    )
+                )
+            )
+            .scalars()
+            .first()
+        )
+        assert install.digest == view["digest"], "the pin did NOT move"
+    finally:
+        set_git_transport(None)
+
+
+# -------------------------------------------------------- private repos
+
+
+async def test_private_repo_secret_slot_resolves_and_never_leaks(
+    db, local_roots, mcp_allowlist, caplog
+):
+    """The descriptor references a credential SLOT; the sealed value
+    resolves host-side into the git environment — the transport sees the
+    header, logs and stored echoes never see the token."""
+    from app.core.encryption import decrypt_secret
+
+    repo = make_repo(local_roots, tag="v1.0.0")
+    token = "ghp_supersecret_private_repo_token"
+    fake = FakeHttpsTransport(repo, expect_token=token)
+    set_git_transport(fake)
+    caplog.set_level(logging.DEBUG)
+    try:
+        source = await _add(
+            db,
+            {
+                "url": "https://git.example.com/example/private-ext",
+                "ref": {"strategy": "release-tag"},
+                "credentials": [{"slot": "repo-token", "purpose": "private repo read"}],
+            },
+            secrets={"repo-token": token},
+        )
+        sealed = source.secrets["repo-token"]
+        assert sealed.startswith("enc::"), "the slot value is atrest-sealed"
+        assert decrypt_secret(sealed) == token
+        assert token not in json.dumps(source.descriptor), "never in the descriptor"
+
+        report = await sync_source(db, source.id)
+        assert report["ok"] is True
+        assert fake.saw_header is True, "the sealed value reached the git env"
+
+        views = await list_sources(db)
+        dumped = json.dumps(views)
+        assert token not in dumped
+        assert "repo-token" in dumped, "slot presence IS surfaced"
+    finally:
+        set_git_transport(None)
+    assert token not in caplog.text, "nothing leaks into logs"
+
+
+# ------------------------------------------------------- desired state law
+
+
+async def test_desired_state_rejects_deletion_structurally(db):
+    doc = {
+        "schema": 1,
+        "sources": [],
+        "extensions": [
+            {
+                "id": "example-posting-fetcher",
+                "sourceUrl": "https://git.example.com/x",
+                "pin": {"ref": "v1", "digest": "9" * 64},
+                "remove": True,
+            }
+        ],
+    }
+    with pytest.raises(LifecycleError) as exc:
+        await put_desired_state(db, doc)
+    assert "remove" in exc.value.detail
+
+
+async def test_reconcile_without_desired_state_is_a_noop(db):
+    assert await get_desired_state(db) == {}
+    report = await reconcile(db)
+    assert report == {key: [] for key in report}
+
+
+# ------------------------------------------------------ the admin API path
+
+
+async def test_sources_ride_the_admin_api_surface(
+    db, client, auth_headers, local_roots, mcp_allowlist
+):
+    """The settings-UI surface: add → sync → consent install (400 without
+    consent) → enable → desired-state PUT validated → secret-safe list."""
+    from app.models.user_model import User
+
+    user = (await db.execute(select(User).limit(1))).scalars().first()
+    user.is_admin = True
+    await db.commit()
+
+    repo = make_repo(local_roots)
+    created = await client.post(
+        "/api/v1/admin/extensions/sources",
+        json={"descriptor": local_descriptor(repo)},
+        headers=auth_headers,
+    )
+    assert created.status_code == 201, created.text
+    source_id = created.json()["id"]
+
+    listed = await client.get("/api/v1/admin/extensions/sources", headers=auth_headers)
+    assert listed.status_code == 200
+    assert listed.json()[0]["origin"] == str(repo)
+    assert listed.json()[0]["kind"] == "local"
+
+    synced = await client.post(
+        f"/api/v1/admin/extensions/sources/{source_id}/sync", headers=auth_headers
+    )
+    assert synced.status_code == 200, synced.text
+    assert synced.json()["ok"] is True
+
+    denied = await client.post(
+        f"/api/v1/admin/extensions/sources/{source_id}/install",
+        json={"extension_id": "example-posting-fetcher", "consent": False},
+        headers=auth_headers,
+    )
+    assert denied.status_code == 400
+    assert "consent" in denied.json()["detail"]
+
+    preview = await client.get(
+        f"/api/v1/admin/extensions/sources/{source_id}/preview/example-posting-fetcher",
+        headers=auth_headers,
+    )
+    assert preview.status_code == 200, preview.text
+    assert set(preview.json()["echo"]) == {"digest", "capabilities", "version"}
+
+    installed = await client.post(
+        f"/api/v1/admin/extensions/sources/{source_id}/install",
+        json={
+            "extension_id": "example-posting-fetcher",
+            "consent": preview.json()["echo"],
+        },
+        headers=auth_headers,
+    )
+    assert installed.status_code == 201, installed.text
+    assert installed.json()["enabled"] is False
+    install_id = installed.json()["id"]
+
+    await _compliant_options(db, uuid.UUID(install_id), board="jobs")
+    enabled = await client.post(
+        f"/api/v1/admin/extensions/installs/{install_id}/enabled",
+        json={"enabled": True},
+        headers=auth_headers,
+    )
+    assert enabled.status_code == 200
+    assert enabled.json()["enabled"] is True
+
+    bad_doc = await client.put(
+        "/api/v1/admin/extensions/desired-state",
+        json={"schema": 1, "sources": [], "extensions": [{"id": "x"}]},
+        headers=auth_headers,
+    )
+    assert bad_doc.status_code == 400
+
+    doc = await client.put(
+        "/api/v1/admin/extensions/desired-state",
+        json={"schema": 1, "sources": [], "extensions": []},
+        headers=auth_headers,
+    )
+    assert doc.status_code == 200
+    got = await client.get("/api/v1/admin/extensions/desired-state", headers=auth_headers)
+    assert got.json() == {"schema": 1, "sources": [], "extensions": []}
+
+
+# ------------------------------------------------- template-repo fidelity
+
+
+def test_fixture_manifest_matches_the_canonical_template():
+    canonical = TEMPLATE_DIR / "manifest.json"
+    if not canonical.exists():
+        pytest.skip(f"sibling template repo not checked out: {TEMPLATE_DIR}")
+    assert FIXTURE_MANIFEST.read_bytes() == canonical.read_bytes(), (
+        "fixtures/mcp_template_manifest.json drifted from career-connector-template/manifest.json"
+    )
+
+
+def _template_roots() -> list[Path]:
+    """The CI-safe fixture files always build the repo; the canonical
+    sibling checkout joins when the family dev layout exists."""
+    roots = [Path(__file__).resolve().parent / "fixtures"]
+    if (TEMPLATE_DIR / "manifest.json").exists():
+        roots.append(TEMPLATE_DIR)
+    return roots
+
+
+@pytest.fixture(params=_template_roots(), ids=lambda p: p.name)
+def template_repo(local_roots, request) -> Path:
+    """A real git repo built from the template's manifest+server — either
+    the byte-identical fixture copies or the canonical sibling checkout."""
+    origin = request.param
+    names = (
+        {"manifest.json": "manifest.json", "server.py": "server.py"}
+        if (origin / "manifest.json").exists()
+        else {"manifest.json": "mcp_template_manifest.json", "server.py": "mcp_template_server.py"}
+    )
+    repo = local_roots / "template-import"
+    repo.mkdir(parents=True, exist_ok=True)
+    for dest, source_file in names.items():
+        shutil.copyfile(origin / source_file, repo / dest)
+    if (origin / "docs").is_dir():
+        shutil.copytree(origin / "docs", repo / "docs", dirs_exist_ok=True)
+    else:
+        _copy_docs(repo)
+    _git(repo, "init", "--quiet", "--initial-branch", "main")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "template import")
+    return repo
+
+
+async def test_e2e_import_runs_against_the_canonical_template_too(
+    db, seeded_catalog, mcp_allowlist, template_repo
+):
+    """The full import e2e against the template's own bytes (CI-safe: the
+    fixture-copy parametrization always runs)."""
+    from app.services.postings.postings_service import sync_source as sync_job_source
+
+    source = await _add(db, local_descriptor(template_repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    _pin_static(await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs"))
+    await lifecycle.set_install_enabled(db, uuid.UUID(installed["id"]), True)
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .first()
+    )
+    first = await sync_job_source(db, minted)
+    assert first["errors"] == []
+    assert first["synced"] == 3
+    second = await sync_job_source(db, minted)
+    assert second["synced"] == 0, "etag cursor honored from the imported spawn"
+
+
+async def test_code_bearing_miniapp_is_not_tiered_t0(db, local_roots):
+    """Plan 37 7A-1 / evaluation H4: career never executes mini-app code, so
+    an entry-carrying mini-app must not be consented as declarative T0. The
+    uniform outcome shape: the candidate self-disables with a typed reason at
+    sync (never a source failure), and install refuses typed."""
+    manifest = template_manifest()
+    manifest["kind"] = "mini-app"
+    manifest["packKind"] = "surface"
+    manifest["apiVersion"] = 1
+    manifest.pop("kindVersion", None)
+    manifest.pop("itemSchema", None)
+    manifest.pop("supportsIncremental", None)
+    manifest["entry"] = "extension.py"
+    manifest.pop("mcp", None)
+    repo = make_repo(local_roots, manifest=manifest, tag=None)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    candidate = next(c for c in report["candidates"] if c["extensionId"] == manifest["id"])
+    assert candidate["compatible"] is False
+    assert "code-bearing mini-app" in candidate["reason"]
+
+
+async def test_surfaceless_miniapp_self_disables_typed(db, local_roots):
+    """Plan 38 W5: "surfaces required" is HOST PROFILE policy
+    (miniAppRendering), not a manifest law — a surface-less mini-app is a
+    different profile, not a bad bundle: typed self-disable with a reason."""
+    manifest = template_manifest()
+    manifest["kind"] = "mini-app"
+    manifest["packKind"] = "surface"
+    manifest["apiVersion"] = 1
+    manifest.pop("kindVersion", None)
+    manifest.pop("itemSchema", None)
+    manifest.pop("supportsIncremental", None)
+    manifest.pop("surfaces", None)
+    manifest.pop("mcp", None)
+    manifest.pop("entry", None)
+    manifest["capabilities"] = ["ui:page"]
+    repo = make_repo(local_roots, manifest=manifest, tag=None)
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True
+    candidate = next(c for c in report["candidates"] if c["extensionId"] == manifest["id"])
+    assert candidate["compatible"] is False
+    assert "miniAppRendering" in candidate["reason"]
+
+
+async def test_forged_echo_version_is_refused(db, local_roots):
+    """Plan 38 W6: the echo is host-derived and version-bound — a forged
+    version is refused typed and nothing half-lands."""
+    repo = make_repo(local_roots)
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    echo = await _echo_for(db, source.id)
+    forged = dict(echo)
+    forged["version"] = "9.9.9-forged"
+    with pytest.raises(LifecycleError) as exc:
+        await install_extension(db, source.id, "example-posting-fetcher", consent=forged)
+    assert exc.value.code == "invalid"
+    assert "version" in exc.value.detail
+    assert (await db.execute(select(ExtensionInstall))).scalars().first() is None
+
+
+# ------------------------------------------------- file-path form (no ref)
+
+
+async def test_release_tag_without_value_resolves_latest(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """Schema semantics: release-tag with no value = 'latest release'."""
+    repo = make_repo(local_roots, name="taggy", tag="v2.1.0")
+    source = await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}})
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True, report
+    [candidate] = report["candidates"]
+    assert candidate["ref"] == "v2.1.0"
+
+
+async def test_release_tag_on_tagless_repo_is_actionable(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """release-tag = 'latest tag' per the schema — a tagless repo gets a
+    typed, actionable error, never the old empty-glob message."""
+    repo = make_repo(local_roots, name="tagless", tag=None)
+    source = await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "release-tag"}})
+    report = await sync_source(db, source.id)
+    assert report["ok"] is False
+    assert report["error"]["code"] == "not-found"
+    assert "no tags found" in report["error"]["detail"]["message"]
+    assert "branch or commit-pin" in report["error"]["detail"]["message"]
+
+
+async def test_value_requiring_strategies_reject_empty(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """tag-pattern/branch/commit-pin require `value` at the schema seam —
+    the dialog must never submit a value-less strategy."""
+    repo = make_repo(local_roots, name="branchy")
+    with pytest.raises(LifecycleError) as exc:
+        await _add(db, {"local": {"path": str(repo)}, "ref": {"strategy": "branch"}})
+    assert exc.value.code == "invalid"
+    assert "missing required property 'value'" in exc.value.detail
+
+
+# ------------------------------------------------- zip bundle import (132)
+
+
+def _bundle_zip() -> bytes:
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("manifest.json", json.dumps(template_manifest()))
+        zf.writestr("server.py", FIXTURE_SERVER.read_text(encoding="utf-8"))
+        zf.writestr("docs/overview.md", "# overview\n")
+        zf.writestr("docs/docs-tree.json", '{"version": 1, "categories": []}')
+    return buf.getvalue()
+
+
+async def test_zip_upload_stages_and_runs_the_source_flow(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    import re
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    view = await import_zip_bundle(db, _bundle_zip())
+    assert view["kind"] == "local"
+    descriptor = view["descriptor"]
+    assert descriptor["ref"]["strategy"] == "commit-pin"
+    assert re.fullmatch(r"[0-9a-f]{40}", descriptor["ref"]["value"])
+    report = view["sync"]
+    assert report["ok"] is True, report
+    [candidate] = report["candidates"]
+    assert candidate["extensionId"] == "example-posting-fetcher"
+    assert candidate["compatible"] is True
+
+
+async def test_zip_upload_refuses_path_escape_and_symlinks(db, local_roots, mcp_allowlist):
+    import io
+    import zipfile
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    evil = io.BytesIO()
+    with zipfile.ZipFile(evil, "w") as zf:
+        zf.writestr("../escape.json", "{}")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, evil.getvalue())
+    assert exc.value.code == "invalid"
+    assert "escapes the bundle root" in exc.value.detail
+
+    linked = io.BytesIO()
+    with zipfile.ZipFile(linked, "w") as zf:
+        info = zipfile.ZipInfo("manifest.json")
+        info.external_attr = 0o120777 << 16
+        zf.writestr(info, "target")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, linked.getvalue())
+    assert exc.value.code == "invalid"
+    assert "symlink" in exc.value.detail
+
+
+async def test_zip_upload_requires_a_manifest(db, local_roots, mcp_allowlist):
+    import io
+    import zipfile
+
+    from app.extensions.lifecycle import import_zip_bundle
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("readme.md", "nothing here\n")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, buf.getvalue())
+    assert exc.value.code == "invalid"
+    assert "manifest.json" in exc.value.detail
+
+
+async def test_zip_upload_is_gated_off_in_production(db, local_roots, mcp_allowlist, monkeypatch):
+    from app.core.config import settings
+    from app.extensions.lifecycle import import_zip_bundle
+
+    monkeypatch.setattr(settings, "app_env", "production")
+    with pytest.raises(LifecycleError) as exc:
+        await import_zip_bundle(db, _bundle_zip())
+    assert exc.value.code == "path-denied"
+
+
+# ------------------------------------------- reinstall over a parked install
+
+
+async def test_reimport_after_remove_reinstalls_with_fresh_consent(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The Remove flow PARKS installs (removal never deletes) — a later
+    re-import with fresh consent re-pins the same install row instead of
+    refusing with "already installed"."""
+    from app.extensions.lifecycle import install_extension, remove_source
+
+    repo = make_repo(local_roots, name="reimport")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    install_id = uuid.UUID(installed["id"])
+
+    await remove_source(db, source.id)
+
+    fresh = await _add(db, local_descriptor(repo))
+    await sync_source(db, fresh.id)
+    reinstalled = await install_extension(
+        db,
+        fresh.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, fresh.id),
+        actor_id=await _actor_id(db),
+    )
+    assert reinstalled["id"] == installed["id"], "the same install row re-pins"
+
+    row = await db.get(ExtensionInstall, install_id)
+    assert row.state == "installed"
+    assert row.enabled is False, "re-install never silently enables"
+    assert len(row.consents or []) == 2, "a fresh consent record is appended"
+    assert len(row.pin_history or []) == 2
+    assert row.source_id == fresh.id
+
+
+async def test_reinstall_over_enabled_install_refuses_with_remedy(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """A LIVE install still refuses — that guard protects a running
+    instance — but the error names the remedy."""
+    from app.extensions.lifecycle import install_extension, set_install_enabled
+
+    repo = make_repo(local_roots, name="enabled-x")
+    source = await _add(db, local_descriptor(repo))
+    await sync_source(db, source.id)
+    installed = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await _compliant_options(db, uuid.UUID(installed["id"]), board="jobs")
+    await set_install_enabled(db, uuid.UUID(installed["id"]), True)
+
+    with pytest.raises(LifecycleError) as exc:
+        await install_extension(
+            db,
+            source.id,
+            "example-posting-fetcher",
+            consent=await _echo_for(db, source.id),
+            actor_id=await _actor_id(db),
+        )
+    assert exc.value.code == "invalid"
+    assert "already installed and enabled" in exc.value.detail
+    assert "disable it first" in exc.value.detail
+
+
+async def test_install_mints_the_bundle_venv_interpreter(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The managed-spawn command runs an interpreter that HAS the bundle
+    deps — the bundle checkout's own .venv python (the managed spawn's
+    interpreter rule in docs/dev/sdk/installation-and-modes.md), never
+    the host's, which usually lacks them. Re-imports re-mint
+    the same interpreter; a checkout without a venv falls back to the
+    host's."""
+    import sys as _sys
+
+    repo = make_repo(local_roots, subpath="src")
+    venv_python = repo / "src" / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True, exist_ok=True)
+    venv_python.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    venv_python.chmod(0o755)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "venv")
+
+    source = await _add(db, local_descriptor(repo))
+    report = await sync_source(db, source.id)
+    assert report["ok"] is True, report
+    await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    minted = (
+        (await db.execute(select(JobSource).where(JobSource.key == "example-posting-fetcher")))
+        .scalars()
+        .one()
+    )
+    assert minted.config["command"].startswith(f'"{venv_python}"'), (
+        "the bundle venv interpreter is minted"
+    )
+    assert minted.config["timeout_seconds"] == 120, (
+        "the tool timeout covers the fetch's own run budget"
+    )
+
+    # a re-import re-mints the same interpreter — never silently swaps
+    reimported = await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await db.refresh(minted)
+    assert minted.config["command"].startswith(f'"{venv_python}"')
+    assert str(reimported["contentPath"]) in minted.config["command"]
+
+    # no venv in the checkout -> the host interpreter
+    shutil.rmtree(venv_python.parent.parent)
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "--quiet", "-m", "no venv")
+    await sync_source(db, source.id)
+    await install_extension(
+        db,
+        source.id,
+        "example-posting-fetcher",
+        consent=await _echo_for(db, source.id),
+        actor_id=await _actor_id(db),
+    )
+    await db.refresh(minted)
+    assert minted.config["command"].startswith(f'"{_sys.executable}"')
+
+
+# ------------------------------------------------ origin+subpath uniqueness
+
+
+def _descriptor_at(repo: Path, subpath: str) -> dict:
+    return {**local_descriptor(repo), "subpath": subpath}
+
+
+def _second_bundle(repo: Path, subpath: str, extension_id: str) -> None:
+    """A second bundle inside the SAME repo — the integrations-repo shape."""
+    manifest = template_manifest()
+    manifest["id"] = extension_id
+    bundle_dir = repo / subpath
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(FIXTURE_SERVER, bundle_dir / "server.py")
+    (bundle_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    _copy_docs(bundle_dir)
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "second bundle")
+
+
+async def test_same_origin_different_subpath_is_a_second_source(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """The multi-bundle repo shape: one origin, one source PER bundle
+    subpath — same origin + a different subpath adds a second source and
+    each sync discovers only its own bundle; the same origin+subpath
+    refuses typed."""
+    repo = make_repo(local_roots, name="multi-bundle", subpath="a/src")
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+
+    first = await _add(db, _descriptor_at(repo, "a/src"))
+    second = await _add(db, _descriptor_at(repo, "b/src"))
+    assert first.id != second.id
+
+    with pytest.raises(LifecycleError) as exc:
+        await add_source(db, _descriptor_at(repo, "a/src"))
+    assert "already exists" in exc.value.detail and "a/src" in exc.value.detail
+
+    first_report = await sync_source(db, first.id)
+    second_report = await sync_source(db, second.id)
+    assert [c["extensionId"] for c in first_report["candidates"]] == ["example-posting-fetcher"]
+    assert [c["extensionId"] for c in second_report["candidates"]] == ["second-posting-fetcher"]
+
+
+async def test_gitops_reconcile_follows_the_install_host_across_same_origin_sources(
+    db, seeded_catalog, local_roots, mcp_allowlist
+):
+    """Two same-origin sources (the multi-bundle shape): bootstrap adds BOTH
+    declared sources; a missing install drifts typed (its home is not
+    knowable); an install hosted on one source pins on THAT source —
+    never guessed."""
+    from app.models.extension_model import ExtensionInstall
+
+    repo = make_repo(local_roots, name="multi-gitops", subpath="a/src", tag=None)
+    _second_bundle(repo, "b/src", "second-posting-fetcher")
+    _git(repo, "tag", "v1.0.0")
+    fake = FakeHttpsTransport(repo)
+    set_git_transport(fake)
+    try:
+        url = "https://git.example.com/example/multi-gitops"
+        digest = lifecycle.digest_tree(repo)
+        await put_desired_state(
+            db,
+            {
+                "schema": 1,
+                "sources": [
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "a/src",
+                    },
+                    {
+                        "url": url,
+                        "ref": {"strategy": "release-tag"},
+                        "subpath": "b/src",
+                    },
+                ],
+                "extensions": [
+                    {
+                        "id": "second-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                    {
+                        "id": "example-posting-fetcher",
+                        "sourceUrl": url,
+                        "pin": {"ref": "v1.0.0", "digest": digest},
+                        "enabled": True,
+                    },
+                ],
+            },
+        )
+        report = await reconcile(db)
+        # Both declared sources bootstrap (installs are consent-gated); the
+        # two extensions drift once — no install identifies their homes yet.
+        assert len((await db.execute(select(ExtensionSource))).scalars().all()) == 2
+        drifted = {entry["extensionId"]: entry["reason"] for entry in report["drift"]}
+        assert set(drifted) == {
+            "example-posting-fetcher",
+            "second-posting-fetcher",
+        }, drifted
+        assert all("install once manually" in reason for reason in drifted.values()), drifted
+
+        # The human installs once on the hosting source — reconcile follows.
+        sources = (await db.execute(select(ExtensionSource))).scalars().all()
+        host = next(s for s in sources if s.subpath == "b/src")
+        await sync_source(db, host.id)
+        await install_extension(
+            db,
+            host.id,
+            "second-posting-fetcher",
+            consent=await _echo_for(db, host.id, "second-posting-fetcher"),
+            managed_by="gitops",
+        )
+        report = await reconcile(db)
+        assert report["drift"] == [] or all(
+            entry["extensionId"] == "example-posting-fetcher" for entry in report["drift"]
+        ), "the hosted extension reconciles clean; only the still-uninstalled one drifts"
+        pinned = (await db.execute(select(ExtensionInstall))).scalars().all()
+        [second_install] = [
+            install for install in pinned if install.extension_id == "second-posting-fetcher"
+        ]
+        assert second_install.source_id == host.id, "the pin never leaves the hosting source"
+    finally:
+        set_git_transport(None)

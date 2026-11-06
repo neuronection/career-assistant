@@ -2,7 +2,7 @@
 driven queueing, skill+level search, profile-coverage parity, provenance."""
 
 import uuid as uuid_mod
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 
@@ -10,16 +10,15 @@ from app.models.background_job_model import BackgroundJob
 from app.models.enums import BackgroundJobStatus
 from app.models.posting_model import JobPosting, PostingSkill
 from app.models.taxonomy_model import Skill
-from app.services import extract_service
-from app.services.extract_service import (
+from app.services.postings import extract_service
+from app.services.postings.extract_service import (
     EXTRACT_VERSION,
     apply_extract,
     extract_posting_now,
     queue_posting_extract,
     run_extract_job,
 )
-from app.services.postings_service import sync_source, upsert_posting
-
+from app.services.postings.postings_service import sync_source, upsert_posting
 from tests.conftest import _make_posting, _raw_posting
 
 
@@ -59,27 +58,21 @@ async def test_deep_extract_schema_resolution_and_evidence(
 
     extract = posting.extract or {}
     skills = extract.get("skills") or []
-    resolved = [s for s in skills if not s.get("unresolved")]
-    assert resolved, "mock should resolve taxonomy keys present in the text"
-    assert all(s["skill_key"] in ("programming", "problem-solving") for s in resolved)
+    assert skills, "mock should resolve taxonomy keys present in the text"
+    assert all(s["skill_key"] in ("programming", "problem-solving") for s in skills)
+    assert all(s["raw_label"] for s in skills), "v5 entries carry the verbatim label too"
     assert all(1 <= s["required_level"] <= 10 for s in skills)
     assert all(s["priority"] in ("must_have", "nice_to_have", "bonus") for s in skills)
     assert all(len(s["evidence_quote"]) >= 3 for s in skills)
 
     rows = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
     filled = {r.skill_id: r for r in rows if r.required_level is not None}
     assert filled, "deep extraction fills posting_skills levels"
-    assert all(
-        r.priority in ("must_have", "nice_to_have", "bonus") for r in filled.values()
-    )
+    assert all(r.priority in ("must_have", "nice_to_have", "bonus") for r in filled.values())
 
 
 async def test_unresolved_labels_become_moderation_proposals(
@@ -96,34 +89,25 @@ async def test_unresolved_labels_become_moderation_proposals(
     await extract_posting_now(db, posting)
     await db.refresh(posting)
 
-    unresolved = [
-        s for s in (posting.extract or {}).get("skills") or [] if s.get("unresolved")
-    ]
+    unresolved = [s for s in (posting.extract or {}).get("skills") or [] if not s.get("skill_key")]
     assert unresolved and unresolved[0]["raw_label"] == "cobol"
     assert unresolved[0]["evidence_quote"]
 
     proposed = (
-        (
-            await db.execute(
-                select(Skill).where(Skill.key == "cobol", Skill.status == "proposed")
-            )
-        )
+        (await db.execute(select(Skill).where(Skill.key == "cobol", Skill.status == "proposed")))
         .scalars()
         .first()
     )
-    assert proposed is not None, "unresolved labels feed the queue"
+    assert proposed is not None, "unmatched labels feed the queue"
     assert proposed.provenance["posting_id"] == str(posting.id)
-    # proposed skills get no posting_skills edge (active-only matching)
     skill_rows = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
-    assert all(row.skill_id != proposed.id for row in skill_rows)
+    assert all(row.skill_id != proposed.id for row in skill_rows), (
+        "a freshly created proposal gets no posting_skills edge yet"
+    )
 
 
 async def test_low_confidence_fields_suppressed_and_flagged(
@@ -140,14 +124,14 @@ async def test_low_confidence_fields_suppressed_and_flagged(
         salary=ExtractSalary(min=1.0, max=2.0, currency="EUR", period="year"),
         skills=[
             ExtractSkill(
-                skill_key="programming",
+                raw_label="programming",
                 required_level=5,
                 priority="must_have",
                 evidence_quote="we need programming",
                 confidence=0.95,
             ),
             ExtractSkill(
-                skill_key="problem-solving",
+                raw_label="problem-solving",
                 required_level=3,
                 priority="bonus",
                 evidence_quote="and problem-solving",
@@ -166,11 +150,7 @@ async def test_low_confidence_fields_suppressed_and_flagged(
     kept = [s["skill_key"] for s in posting.extract["skills"]]
     assert kept == ["programming"]  # low-confidence skill dropped
     levels = (
-        (
-            await db.execute(
-                select(PostingSkill).where(PostingSkill.posting_id == posting.id)
-            )
-        )
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
         .scalars()
         .all()
     )
@@ -179,6 +159,34 @@ async def test_low_confidence_fields_suppressed_and_flagged(
     for r in levels:
         by_key[str(r.skill_id)] = r
     assert len([r for r in levels if r.required_level is not None]) == 1
+
+
+def test_extract_model_reads_suppressed_stored_rows():
+    """Suppressed fields are stored as nulls — the typed readers (cover
+    letter brief, CV synth, suggestions) must coerce them instead of
+    failing every posting that has a suppressed field."""
+    from app.ai.agents.posting_extractor import PostingExtract
+
+    extract = PostingExtract.model_validate(
+        {
+            "languages": None,
+            "benefits": None,
+            "responsibilities": None,
+            "prerequisites": None,
+            "skills": None,
+            "schedule_cues": None,
+            "values_cues": None,
+            "field_confidence": None,
+        }
+    )
+    assert extract.languages == []
+    assert extract.benefits == []
+    assert extract.responsibilities == []
+    assert extract.prerequisites == []
+    assert extract.skills == []
+    assert extract.schedule_cues == []
+    assert extract.values_cues == []
+    assert extract.field_confidence == {}
 
 
 async def test_column_normalization_from_extract(
@@ -268,9 +276,7 @@ async def test_changed_content_resets_extract(
     await upsert_posting(
         db,
         source,
-        _raw_posting(
-            raw={"description": "Totally different content now with programming."}
-        ),
+        _raw_posting(raw={"description": "Totally different content now with programming."}),
     )
     await db.commit()
     await db.refresh(posting)
@@ -301,7 +307,7 @@ async def test_sync_enqueues_demand_first_without_blocking(
 ):
     """Demand-matched postings enqueue before the rest; sync itself never
     runs the AI (extraction is a queued job)."""
-    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()
+    jobs = (await client.get("/api/v1/jobs", headers=auth_headers)).json()["items"]
     target = jobs[0]
     family_key = target["family_key"]
     rule = await client.put(
@@ -320,6 +326,11 @@ async def test_sync_enqueues_demand_first_without_blocking(
     assert rule.status_code == 200
 
     # The synthetic connector's posting maps onto the catalog (fast pass).
+    # Detail mode is pinned off here: this test covers the inline
+    # extraction ordering (plan 154 made "all" the default, which defers
+    # extraction to the enrichment pass instead).
+    source.config = {**source.config, "detail_mode": "off"}
+    await db.commit()
     result = await sync_source(db, source)
     await db.commit()
     assert result["synced"] == 1
@@ -341,7 +352,7 @@ async def test_demand_posting_claims_before_backlog(
 ):
     """A demand posting enqueued after backlog rows still claims first via
     insertion order: plan_extractions appends backlog after demand rows."""
-    from app.services.extract_service import plan_extractions
+    from app.services.postings.extract_service import plan_extractions
 
     demand_posting = await _make_posting(db, source)
     stale = JobPosting(
@@ -352,7 +363,7 @@ async def test_demand_posting_claims_before_backlog(
         url="https://ex.example/s",
         content_hash=uuid_mod.uuid4().hex,
         raw={"description": "nothing"},
-        posted_at=datetime(2026, 7, 1, tzinfo=timezone.utc),
+        posted_at=datetime(2026, 7, 1, tzinfo=UTC),
     )
     db.add(stale)
     await db.commit()
@@ -365,12 +376,95 @@ async def test_demand_posting_claims_before_backlog(
     assert str(stale.id) in ids
 
 
+async def _add_backlog_postings(db, source, count: int, start: datetime):
+    from datetime import timedelta
+
+    postings = []
+    for index in range(count):
+        posting = JobPosting(
+            source_id=source.id,
+            external_id=f"backlog-{index}",
+            title=f"Backlog role {index}",
+            org="ACME",
+            url=f"https://ex.example/backlog/{index}",
+            content_hash=uuid_mod.uuid4().hex,
+            raw={"description": "nothing"},
+            posted_at=start,
+            created_at=start + timedelta(minutes=index),
+        )
+        db.add(posting)
+        postings.append(posting)
+    await db.commit()
+    for posting in postings:
+        await db.refresh(posting)
+    return postings
+
+
+async def test_the_backlog_is_capped_and_reports_the_remainder(db, source):
+    """Plan 203: one sync queues at most `backlog_limit`, oldest first."""
+    from app.services.postings.extract_service import plan_extractions
+
+    postings = await _add_backlog_postings(db, source, 5, datetime(2026, 1, 1, tzinfo=UTC))
+
+    plan = await plan_extractions(db, [], backlog=True, backlog_limit=2)
+
+    assert plan.queued == 2
+    assert plan.backlog_remaining == 3
+    queued = await _queued_extract_jobs(db)
+    assert {job.payload["posting_id"] for job in queued} == {
+        str(postings[0].id),
+        str(postings[1].id),
+    }
+
+
+async def test_a_second_sync_drains_the_next_backlog_slice(db, source):
+    from app.services.postings.extract_service import plan_extractions
+
+    postings = await _add_backlog_postings(db, source, 5, datetime(2026, 1, 1, tzinfo=UTC))
+
+    first = await plan_extractions(db, [], backlog=True, backlog_limit=2)
+    second = await plan_extractions(db, [], backlog=True, backlog_limit=2)
+
+    assert (first.queued, first.backlog_remaining) == (2, 3)
+    assert (second.queued, second.backlog_remaining) == (2, 1)
+    queued = await _queued_extract_jobs(db)
+    assert {job.payload["posting_id"] for job in queued} == {
+        str(posting.id) for posting in postings[:4]
+    }
+
+
+async def test_a_zero_backlog_limit_disables_the_drip(db, source):
+    from app.services.postings.extract_service import plan_extractions
+
+    await _add_backlog_postings(db, source, 3, datetime(2026, 1, 1, tzinfo=UTC))
+
+    plan = await plan_extractions(db, [], backlog=True, backlog_limit=0)
+
+    assert plan.queued == 0
+    assert plan.backlog_remaining == 3, "the count is still reported"
+    assert await _queued_extract_jobs(db) == []
+
+
+async def test_a_fresh_posting_is_not_also_queued_from_the_backlog(db, source):
+    from app.services.postings.extract_service import plan_extractions
+
+    postings = await _add_backlog_postings(db, source, 3, datetime(2026, 1, 1, tzinfo=UTC))
+
+    plan = await plan_extractions(db, [(postings[0], True)], backlog=True, backlog_limit=10)
+
+    assert plan.queued == 3, "one fresh + the other two backlog rows, once each"
+    assert plan.backlog_remaining == 0
+    queued = await _queued_extract_jobs(db)
+    assert len(queued) == 3
+    assert len({job.payload["posting_id"] for job in queued}) == 3
+    fresh = [job for job in queued if job.payload["posting_id"] == str(postings[0].id)]
+    assert fresh and fresh[0].payload["demand"] is True
+
+
 # ----------------------------------------------------------------- search
 
 
-async def test_search_level_threshold_and_all_mode(
-    client, auth_headers, search_fixtures
-):
+async def test_search_level_threshold_and_all_mode(client, auth_headers, search_fixtures):
     response = await client.get(
         "/api/v1/postings/search",
         params={"skills": "programming:4"},
@@ -398,7 +492,7 @@ async def test_search_any_mode_and_null_level_included_without_threshold(
         params={"skills": "problem-solving", "mode": "any"},
         headers=auth_headers,
     )
-    ids = set(i["id"] for i in response.json()["items"])
+    ids = {i["id"] for i in response.json()["items"]}
     assert str(b.id) in ids and str(c.id) in ids  # C matches (no level asked)
 
 
@@ -506,12 +600,12 @@ async def test_admin_needs_review_listing_and_reextract(
     await db.commit()
 
     listing = await client.get(
-        "/api/v1/admin/postings",
+        "/api/v1/admin/mappings/unmapped",
         params={"needs_review": "true"},
         headers=auth_headers,
     )
     assert listing.status_code == 200, listing.text
-    ids = [row["id"] for row in listing.json()]
+    ids = [row["id"] for row in listing.json()["items"]]
     assert str(posting.id) in ids
 
     reextract = await client.post(
@@ -522,7 +616,65 @@ async def test_admin_needs_review_listing_and_reextract(
 
 
 async def test_search_endpoints_require_auth(client, search_fixtures):
-    response = await client.get(
-        "/api/v1/postings/search", params={"skills": "programming"}
-    )
+    response = await client.get("/api/v1/postings/search", params={"skills": "programming"})
     assert response.status_code in (401, 403)
+
+
+async def test_corroborated_label_auto_promotes_after_two_postings(
+    db, client, auth_headers, seeded_catalog, source, kinds
+):
+    """plan 147 — the same normalized extraction label from two distinct
+    postings is corroboration: the proposed skill promotes itself."""
+    first = await _make_posting(
+        db,
+        source,
+        external_id="corr-1",
+        title="Mainframe Dev",
+        skills_raw=["cobol"],
+        raw={"description": "Maintain cobol systems."},
+    )
+    await extract_posting_now(db, first)
+    proposed = (await db.execute(select(Skill).where(Skill.key == "cobol"))).scalars().first()
+    assert proposed.status == "proposed", "one posting is not corroboration yet"
+
+    second = await _make_posting(
+        db,
+        source,
+        external_id="corr-2",
+        title="COBOL Engineer",
+        skills_raw=["cobol"],
+        raw={"description": "Write new cobol modules."},
+    )
+    await extract_posting_now(db, second)
+
+    await db.refresh(proposed)
+    assert proposed.status == "active", "two distinct postings promote the label"
+    assert proposed.provenance["auto_promoted"]["postings"] == 2
+    assert proposed.provenance["corroborated_postings"] == [str(second.id)]
+
+    # the promoted label is part of the public catalog now
+    keys = (await client.get("/api/v1/skills", headers=auth_headers)).json()
+    assert "cobol" in {row["key"] for row in keys}
+
+
+async def test_single_posting_never_promotes_and_reextract_is_not_self_corroboration(
+    db, client, auth_headers, seeded_catalog, source, kinds
+):
+    posting = await _make_posting(
+        db,
+        source,
+        external_id="corr-solo",
+        title="Mainframe Dev",
+        skills_raw=["fortran"],
+        raw={"description": "Maintain fortran systems."},
+    )
+    await extract_posting_now(db, posting)
+    proposed = (await db.execute(select(Skill).where(Skill.key == "fortran"))).scalars().first()
+    assert proposed.status == "proposed"
+    assert proposed.provenance.get("corroborated_postings") is None
+
+    # the re-extract wave runs the same posting again — never self-corroboration
+    await extract_posting_now(db, posting, trigger="bulk")
+    await db.refresh(proposed)
+    assert proposed.status == "proposed", "a posting cannot corroborate itself"
+    assert proposed.provenance.get("corroborated_postings") is None

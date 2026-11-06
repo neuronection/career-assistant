@@ -1,10 +1,12 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 import random
 
-from app.models.enums import AITaskType
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture, stable_hash
 from app.ai.schemas import MatchResult
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.enums import AITaskType
 
 
 def _build_user_prompt(profile_snapshot: dict, job_snapshot: dict) -> str:
@@ -19,11 +21,7 @@ def _mock_match_result(schema: type, user_prompt: str) -> dict:
     h = stable_hash(seed_text)
     score = round(3.0 + (h % 70) / 10, 1)
     title = job.get("title", "this job")
-    interests = [
-        i.get("tag_key")
-        for i in profile.get("interests", [])[:2]
-        if isinstance(i, dict)
-    ]
+    interests = [i.get("tag_key") for i in profile.get("interests", [])[:2] if isinstance(i, dict)]
     overlap = [k for k in interests if k in (job.get("interests", []) or [])]
     positives = [
         {

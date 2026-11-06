@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 
-import { ScoreLegend } from "@/components/ScoreLegend";
+import { ScoreLegend } from "@/features/catalog/components/ScoreLegend";
 
 describe("ScoreLegend", () => {
   it("opens and explains the score layers", () => {

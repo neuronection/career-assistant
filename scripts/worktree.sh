@@ -10,7 +10,7 @@
 # Layout per worktree (created next to the primary checkout):
 #   ../career-assistant-<name>/
 #     .env.wt.local      # port/DB overrides for scripts (gitignored)
-#     .env               # app config: own DATABASE_URL/ports (gitignored)
+#     .env               # app config: own CAREER_DATABASE_URL/ports (gitignored)
 #     backend/venv       # own venv
 #     frontend/node_modules
 #     docker compose project `career-<name>`: postgres :<db-port>,
@@ -112,8 +112,8 @@ wt_summary() {
 
 wt_bootstrap() {
   local root="$1"
-  dc_step "bootstrapping backend venv"
-  dc_ensure_venv "$root/backend/venv" "$root/backend/requirements.txt"
+  dc_step "bootstrapping backend environment"
+  (cd "$root" && uv sync --extra pdf)
   dc_step "installing frontend dependencies"
   dc_ensure_node_deps "$root/frontend" npm
 }
@@ -123,9 +123,14 @@ wt_start_db() {
   dc_step "starting worktree dev DB (own compose project, own ports)"
   (
     cd "$root"
-    export COMPOSE_PROJECT_NAME POSTGRES_PORT POSTGRES_TEST_DB \
-      POSTGRES_CONTAINER REDIS_CONTAINER
-    docker compose -f docker/docker-compose.dev-db.yml up -d
+    set -a
+    # shellcheck disable=SC1091
+    source .env.wt.local
+    set +a
+    # --env-file: pin ${POSTGRES_*} interpolation to the worktree's .env —
+    # without it compose reads docker/.env (the production stack's env
+    # file) and initializes the volume with the wrong password.
+    docker compose --env-file .env -f docker/docker-compose.dev-db.yml up -d
   ) || wt_die "worktree dev DB failed to start"
   local i
   for i in $(seq 1 30); do
@@ -144,15 +149,14 @@ wt_migrate_test_db() {
   dc_step "applying migrations to the worktree test DB"
   (
     cd "$root/backend"
-    export PATH="$root/backend/venv/bin:$PATH"
-    DATABASE_URL="$DATABASE_URL_TEST" PYTHONPATH="$(pwd)" alembic upgrade head
+    CAREER_DATABASE_URL="$DATABASE_URL_TEST" uv run alembic upgrade head
   ) || wt_die "migration of worktree test DB failed"
   wt_ok "Worktree test DB is migrated."
 }
 
 wt_copy_local_config() {
   local root="$1"
-  dc_step "copying local-only config (.opencode) into the worktree"
+  dc_step "copying local-only agent config into the worktree"
   if [[ -d "$PRIMARY_ROOT/.opencode" ]]; then
     rm -rf "$root/.opencode"
     cp -R "$PRIMARY_ROOT/.opencode" "$root/.opencode"
@@ -202,20 +206,20 @@ BACKEND_PORT=$backend_port
 FRONTEND_PORT=$frontend_port
 POSTGRES_PORT=$db_port
 REDIS_PORT=$redis_port
-DATABASE_URL=$db_url
+CAREER_DATABASE_URL=$db_url
 DATABASE_URL_TEST=$db_url_test
 EOF
   cat > "$dir/.env" <<EOF
 APP_NAME=Career Assistant
-APP_ENV=development
+CAREER_APP_ENV=development
 DEBUG=true
-API_HOST=0.0.0.0
-API_PORT=$backend_port
-CORS_ORIGINS=http://localhost:$frontend_port,http://127.0.0.1:$frontend_port
-DATABASE_URL=$db_url
-REDIS_URL=redis://127.0.0.1:$redis_port/0
-UPLOAD_DIR=uploads
-RATE_LIMIT_ENABLED=true
+CAREER_API_HOST=0.0.0.0
+CAREER_API_PORT=$backend_port
+CAREER_CORS_ORIGINS=http://localhost:$frontend_port,http://127.0.0.1:$frontend_port
+CAREER_DATABASE_URL=$db_url
+CAREER_REDIS_URL=redis://127.0.0.1:$redis_port/0
+CAREER_UPLOAD_DIR=uploads
+CAREER_RATELIMIT_ENABLED=true
 EOF
 
   wt_copy_local_config "$dir"
@@ -264,7 +268,7 @@ cmd_remove() {
     cd "$dir"
     export COMPOSE_PROJECT_NAME="$project" \
       POSTGRES_CONTAINER="$project-postgres" REDIS_CONTAINER="$project-redis"
-    docker compose -f docker/docker-compose.dev-db.yml down -v
+    docker compose --env-file .env -f docker/docker-compose.dev-db.yml down -v
   ) || dc_warn "compose down failed; continuing"
   dc_step "removing worktree"
   git worktree remove --force "$dir" || git worktree remove "$dir"

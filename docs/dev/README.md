@@ -18,8 +18,9 @@ Read this page for the map, then jump into the page you need. The
 | Changing the database schema | [data-model.md](data-model.md) and [migrations.md](migrations.md) |
 | Adding or changing an endpoint | [api.md](api.md) |
 | Touching anything under `app/ai/` | [ai-layer.md](ai-layer.md) |
-| Writing a posting source | [connectors.md](connectors.md) |
+| Writing a posting source | [the Connector SDK docs](sdk/overview.md) |
 | Working on periodic work or notifications | [scheduler-and-jobs.md](scheduler-and-jobs.md) |
+| Operating the vector index (reindex, cutover, maintenance) | [retrieval-ops.md](retrieval-ops.md) |
 | Working on CV generation, rendering or templates | [cv-engine.md](cv-engine.md) |
 | Building UI | [frontend.md](frontend.md) and [ui-conventions.md](ui-conventions.md) |
 | Writing or fixing tests | [testing.md](testing.md) |
@@ -38,8 +39,9 @@ Read this page for the map, then jump into the page you need. The
 | [data-model.md](data-model.md) | Tables by area, taxonomy joins, typed JSONB, dialect rules |
 | [api.md](api.md) | The versioned REST surface, auth, errors, pagination, streaming, OpenAPI |
 | [ai-layer.md](ai-layer.md) | Gateway-only invocation, tasks, agents, graphs, tools, packs, embeddings, MCP |
-| [connectors.md](connectors.md) | The posting-connector contract, built-ins, plugin registry, contract tests |
+| [Connector SDK docs (`sdk/`)](sdk/overview.md) | The ten-chapter SDK doc set: quickstart, core concepts, authoring, recipes, reference — the extension home |
 | [scheduler-and-jobs.md](scheduler-and-jobs.md) | Job queue, job types, triggers, misfire policies, the notification funnel |
+| [retrieval-ops.md](retrieval-ops.md) | Vector-index operations: surfaces, reindex, space cutover, maintenance, locks, alerts, troubleshooting |
 | [cv-engine.md](cv-engine.md) | Block kinds, renderer, context/variants, PDF measurement, the polish loop |
 | [frontend.md](frontend.md) | Routing, stores, API client, assistant-ui, theming, i18n |
 | [ui-conventions.md](ui-conventions.md) | Workspace pattern, primitives, tokens, motion, drag, previews, testids |

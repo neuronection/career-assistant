@@ -12,7 +12,6 @@ unique constraints).
 
 import uuid
 from datetime import date, datetime
-from typing import Optional
 
 from sqlalchemy import (
     Boolean,
@@ -27,10 +26,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 
@@ -56,8 +55,8 @@ class MarketSnapshot(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     scope_kind: Mapped[str] = mapped_column(String(10), nullable=False)
     scope_key: Mapped[str] = mapped_column(String(120), nullable=False)
-    family_key: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
-    job_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    family_key: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("jobs.id", ondelete="CASCADE"), nullable=True
     )
     capture_date: Mapped[date] = mapped_column(Date, nullable=False)

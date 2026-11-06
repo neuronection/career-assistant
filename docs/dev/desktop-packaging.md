@@ -31,7 +31,7 @@ data dir, migrations, and (unless `CAREER_SKIP_SEED=1`) seeding.
 
 ```bash
 (cd frontend && npm ci && npm run build)          # the spec requires frontend/dist
-backend/venv/bin/pyinstaller --clean --noconfirm packaging/career-assistant.spec
+uv run pyinstaller --clean --noconfirm packaging/career-assistant.spec
 
 packaging/build-linux.sh [bundle|deb|appimage|all] [version]
 ```
@@ -46,6 +46,18 @@ The spec reads the app version from `backend/app/__init__.py`, so a release
 tag must match it. Env overrides: `CA_ONEFILE=1|0` (default one-file on
 Windows/macOS, onedir on Linux), `CA_CONSOLE=1` to keep a console.
 
+### Runtime data files
+
+PyInstaller only collects Python modules, so every file the app *reads*
+must be added to the spec's `datas`. The builtin extension bundles are the
+critical set: the registry validates each `manifest.json` at registration
+and fails closed, and the admin docs surface serves the per-bundle
+markdown. `packaging/bundle_data.py` projects those files (and only
+`.json`/`.md`, no `__pycache__`) and the spec imports it;
+`backend/tests/test_packaging_data.py` fails when a builtin manifest or doc
+is not covered. The same set is copied into the Docker image, where
+`contracts/` must also ship (the schemas the registry validates against).
+
 ## The PDF engine
 
 CV export and page counting need a print engine (plan 76). The build installs
@@ -57,6 +69,25 @@ Without an engine, export answers `503` (print-view fallback) and page counts
 are flagged `unverified` — capability detection, never a hard dependency.
 Probe a frozen install with `careerassistant enginecheck`.
 
+## The T2 sandbox child assets
+
+The extension sandbox spawns its child as
+`<interpreter> -I -B child.py` (plan 32 Phase 5). The spec ships the
+bootstrap as **data** so it exists as a real file in the frozen layout:
+
+```
+<bundle>/_internal/app/extensions/runtime/sandbox/child.py
+```
+
+Frozen builds bundle **no interpreter** (`sys.executable` is the app
+bundle itself) — the capability check in
+`app/extensions/runtime/sandbox/runtime.py` probes both halves at spawn
+and T2 imports honestly self-disable with the remedy on frozen installs
+(a future package may drop a runtime at
+`<bundle>/_internal/runtime/python` without code changes). Detection
+logic is pinned by `tests/test_extension_sandbox_runtime.py` (mocked
+lookups — no frozen build required).
+
 ## Releases
 
 `.github/workflows/release.yml` triggers on `v*` tags:
@@ -67,20 +98,25 @@ Probe a frozen install with `careerassistant enginecheck`.
    desktop launch under xvfb), upload artifacts and publish the GitHub
    Release. Stable-name download aliases are created
    (`CareerAssistant-x86_64.AppImage`, `careerassistant_amd64.deb`).
+   The smoke includes one **stdio MCP source sync** (script tier, plan
+   32 Phase 2): spawn a local FastMCP server from the frozen app and
+   sync one source — pinning the frozen-build PATH lesson (stdio spawns
+   ride the mcp SDK's sanitized env with PATH preserved; a broken spawn
+   path must fail the release, not surface as a silent sync error).
 3. **Windows job** (`windows-latest`): build the one-file exe, smoke-test
    headless web mode, rename and upload.
 
 Use `scripts/version_manager.py` for the bump + tag flow (see the
-`family-release` skill).
+family release process).
 
 ## CI workflows
 
 | Workflow | Purpose |
 |---|---|
-| `ci.yml` | pytest (Postgres + serial SQLite desktop job), frontend build + vitest, ruff, docs-sync |
+| `ci.yml` | pytest (Postgres + serial SQLite desktop job, both with contract + coverage floors), frontend build + vitest, ruff, mypy + the ratchet, blocking pip-audit/npm audit, the required assistant-ui drift audit (`quality-gates` job), docs-sync, packaging + docker + e2e |
 | `release.yml` | Tag-driven packaging and GitHub Release |
 | `ai-alignment.yml` | The AI architecture gate (`scripts/check-ai-alignment.sh`) |
-| `drift-audit.yml` | assistant-ui adoption drift |
+| `drift-audit.yml` | Weekly assistant-ui drift sweep + vendored-audit-script freshness (the PR gate lives in `ci.yml`) |
 | `gitleaks.yml` | Secret scanning |
 
 ## Related

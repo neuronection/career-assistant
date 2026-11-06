@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -29,36 +28,36 @@ class FitDimension(BaseModel):
 class FitBreakdownOut(BaseModel):
     dimensions: dict[str, FitDimension] = Field(default_factory=dict)
     gates: list[str] = Field(default_factory=list)
-    specialist_dimension: Optional[str] = None
+    specialist_dimension: str | None = None
 
 
 class MatchInsightOut(BaseModel):
     id: UUID
     job_id: UUID
-    ai_score: Optional[float] = None
-    ai_confidence: Optional[float] = None
+    ai_score: float | None = None
+    ai_confidence: float | None = None
     ai_summary: str
     ai_positives: list[ScoredAspect]
     ai_negatives: list[ScoredAspect]
     prerequisites: list[PrerequisiteCheck]
     ai_model: str
-    ai_generated_at: Optional[datetime] = None
-    fit_score: Optional[float] = None
-    fit_breakdown: Optional[FitBreakdownOut] = None
+    ai_generated_at: datetime | None = None
+    fit_score: float | None = None
+    fit_breakdown: FitBreakdownOut | None = None
     fit_version: int = 0
-    user_score: Optional[int] = None
-    status: Optional[MatchStatus] = None
+    user_score: int | None = None
+    status: MatchStatus | None = None
     user_notes: str
-    seen_at: Optional[datetime] = None
-    saved_at: Optional[datetime] = None
-    hidden_at: Optional[datetime] = None
+    seen_at: datetime | None = None
+    saved_at: datetime | None = None
+    hidden_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
 
 class ScoreIn(BaseModel):
-    job_id: Optional[UUID] = None
-    family_key: Optional[str] = None
+    job_id: UUID | None = None
+    family_key: str | None = None
     all_candidates: bool = False
     limit: int = Field(default=10, ge=1, le=50)
     force: bool = False
@@ -67,7 +66,7 @@ class ScoreIn(BaseModel):
 class FitRefitIn(BaseModel):
     """Deterministic refit: one job sync, `all` via the queue."""
 
-    job_id: Optional[UUID] = None
+    job_id: UUID | None = None
     all: bool = False
 
 
@@ -81,23 +80,23 @@ class ScoringWeightsIn(BaseModel):
 
 class RateIn(BaseModel):
     job_id: UUID
-    user_score: Optional[int] = Field(default=None, ge=0, le=10)
-    status: Optional[MatchStatus] = None
-    notes: Optional[str] = Field(default=None, max_length=2000)
+    user_score: int | None = Field(default=None, ge=0, le=10)
+    status: MatchStatus | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
 
 class RankedJob(BaseModel):
     job: JobOut
     score: float
     fit_score: float
-    ai_score: Optional[float] = None
-    user_score: Optional[int] = None
-    status: Optional[MatchStatus] = None
-    breakdown: Optional[FitBreakdownOut] = None
-    specialist_dimension: Optional[str] = None
+    ai_score: float | None = None
+    user_score: int | None = None
+    status: MatchStatus | None = None
+    breakdown: FitBreakdownOut | None = None
+    specialist_dimension: str | None = None
     gated: bool = False
     gate_reasons: list[str] = Field(default_factory=list)
-    insight: Optional[MatchInsightOut] = None
+    insight: MatchInsightOut | None = None
 
 
 class RankingsOut(BaseModel):
@@ -108,4 +107,4 @@ class RankingsOut(BaseModel):
 class CandidateOut(BaseModel):
     job: JobOut
     fit_score: float
-    breakdown: Optional[FitBreakdownOut] = None
+    breakdown: FitBreakdownOut | None = None

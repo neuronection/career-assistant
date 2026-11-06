@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "description": "Admin-authored, versioned golden-query sets per vector space (plan 51). Query text is lawful only here: Retrieval DTOs expose query ids, expected/retrieved document ids and scores. Empty by default — the Quality section reports no_golden_set until an admin records a set. A set row uses the family shape: {spaceId, setVersion, k, floor: {recall, precision}, queries: [{queryId, query, expectedDocumentIds, k}]}.",
+  "sets": []
+}

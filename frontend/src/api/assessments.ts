@@ -1,5 +1,5 @@
-import { api } from "./client";
-import type { FitBreakdown } from "@/types";
+import { api } from "@/api/client";
+import type { FitBreakdown } from "@/types/wire";
 
 export type AssessmentQuestionKind =
   | "scenario_mcq"

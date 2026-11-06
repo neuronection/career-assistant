@@ -30,11 +30,7 @@ async def seed_taxonomy(db) -> tuple[int, int]:
             db.add(InterestTag(**tag))
             i_added += 1
     for tag in SKILL_TAGS:
-        exists = (
-            (await db.execute(select(Skill).where(Skill.key == tag["key"])))
-            .scalars()
-            .first()
-        )
+        exists = (await db.execute(select(Skill).where(Skill.key == tag["key"]))).scalars().first()
         if exists is None:
             db.add(Skill(**tag))
             s_added += 1
@@ -44,7 +40,7 @@ async def seed_taxonomy(db) -> tuple[int, int]:
 
 async def seed_catalog(db) -> tuple[int, int]:
     """Insert missing families, jobs and relations."""
-    family_ids: dict[str, object] = {}
+    family_ids: dict[str, JobFamily] = {}
     families_added = 0
     for spec in FAMILIES:
         exists = (
@@ -55,7 +51,8 @@ async def seed_catalog(db) -> tuple[int, int]:
         if exists:
             family_ids[spec["key"]] = exists
             continue
-        parent = family_ids.get(spec.get("parent"))
+        parent_key = spec.get("parent")
+        parent = family_ids.get(parent_key) if isinstance(parent_key, str) else None
         parent_id = parent.id if parent is not None else None
         level = 0
         path = spec["key"]
@@ -77,31 +74,23 @@ async def seed_catalog(db) -> tuple[int, int]:
 
     jobs_added = 0
     for spec in JOBS:
-        exists = (
-            (await db.execute(select(Job).where(Job.code == spec["code"])))
-            .scalars()
-            .first()
-        )
+        exists = (await db.execute(select(Job).where(Job.code == spec["code"]))).scalars().first()
         if exists:
             continue
-        family = family_ids.get(spec["family"])
-        if family is None:
-            logger.warning(
-                "Job %s references unknown family %s", spec["code"], spec["family"]
-            )
+        job_family = family_ids.get(spec["family"])
+        if job_family is None:
+            logger.warning("Job %s references unknown family %s", spec["code"], spec["family"])
             continue
         job = Job(
             code=spec["code"],
             title=spec["title"],
-            family_id=family.id,
+            family_id=job_family.id,
             short_description=spec["description"],
             status="published",
             source="seed",
             attributes={
                 "subjects": spec["subjects"],
-                "experience_typical_years": list(
-                    EXPERIENCE_YEARS.get(spec["code"], (0, 3))
-                ),
+                "experience_typical_years": list(EXPERIENCE_YEARS.get(spec["code"], (0, 3))),
                 "work_style": spec["work_style"],
                 "education": spec["education"],
                 "physical": spec["physical"],
@@ -123,11 +112,7 @@ async def seed_catalog(db) -> tuple[int, int]:
             if tag is not None:
                 db.add(JobTag(job_id=job.id, interest_tag_id=tag.id, source="seed"))
         for key in spec["skills"]:
-            skill = (
-                (await db.execute(select(Skill).where(Skill.key == key)))
-                .scalars()
-                .first()
-            )
+            skill = (await db.execute(select(Skill).where(Skill.key == key))).scalars().first()
             if skill is not None:
                 db.add(
                     JobSkill(
@@ -143,10 +128,7 @@ async def seed_catalog(db) -> tuple[int, int]:
         jobs_added += 1
     await db.commit()
 
-    code_to_id = {
-        code: job_id
-        for code, job_id in (await db.execute(select(Job.code, Job.id))).all()
-    }
+    code_to_id = dict((await db.execute(select(Job.code, Job.id))).all())
     relations_added = 0
     for rel in RELATIONS:
         from_id = code_to_id.get(rel["from"])
@@ -221,9 +203,7 @@ async def seed_paths(db) -> int:
         await db.flush()
         for position, step in enumerate(spec["steps"]):
             skill = skills.get(step["skill_key"]) if step.get("skill_key") else None
-            family = (
-                families.get(step["family_key"]) if step.get("family_key") else None
-            )
+            family = families.get(step["family_key"]) if step.get("family_key") else None
             db.add(
                 CareerPathStep(
                     path_id=path.id,
@@ -284,7 +264,18 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop", "browser"],
         "mutable": True,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8020",
+        "key": "mapping_alert",
+        "label": "Mapping coverage alerts",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=mappings",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8005",
@@ -295,7 +286,7 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop"],
         "mutable": False,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8006",
@@ -328,7 +319,7 @@ NOTIFICATION_KINDS = [
         "default_enabled": True,
         "default_channels": ["in_app", "desktop", "browser"],
         "mutable": True,
-        "manage_url": "/settings/scheduler",
+        "manage_url": "/settings/automations",
     },
     {
         "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8009",
@@ -385,6 +376,141 @@ NOTIFICATION_KINDS = [
         "mutable": True,
         "manage_url": "/profile",
     },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c800f",
+        "key": "smart_digest",
+        "label": "Daily smart matches",
+        "group": "postings",
+        "severity": "info",
+        # The opt-in toggle (plan 179): off until the user enables the
+        # kind in the notification settings — enabling it provisions the
+        # per-user daily schedule.
+        "default_enabled": False,
+        "default_channels": ["in_app", "desktop", "browser"],
+        "mutable": True,
+        "manage_url": "/settings/notifications",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8010",
+        "key": "retrieval.coverage_low",
+        "label": "Retrieval coverage below gate",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=retrieval",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8011",
+        "key": "retrieval.reindex_failed",
+        "label": "Retrieval reindex failed",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=runs",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8012",
+        "key": "retrieval.reindex_stalled",
+        "label": "Retrieval reindex stalled",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=runs",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8013",
+        "key": "retrieval.quality_gate",
+        "label": "Retrieval quality below floor",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=quality",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8014",
+        "key": "retrieval.query_slo",
+        "label": "Retrieval query latency above budget",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=query-health",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8015",
+        "key": "retrieval.degraded_rate",
+        "label": "Retrieval degraded query share high",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=query-health",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8016",
+        "key": "retrieval.provider_unassigned",
+        "label": "Embeddings provider not assigned",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=retrieval",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8017",
+        "key": "retrieval.index_missing",
+        "label": "Retrieval index missing",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=retrieval",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8018",
+        "key": "retrieval.budget_exhausted",
+        "label": "Embedding token budget exhausted",
+        "group": "system",
+        "severity": "warning",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/audit?tab=retrieval&section=usage",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c8019",
+        "key": "retrieval.space_drop_pending",
+        "label": "Retired retrieval space waiting to drop",
+        "group": "system",
+        "severity": "info",
+        "default_enabled": True,
+        "default_channels": ["in_app", "desktop"],
+        "mutable": True,
+        "manage_url": "/settings/tools?section=retrieval",
+    },
+    {
+        "id": "a24e6f70-1c2d-4e3f-9a4b-2f5d6e7c800e",
+        "key": "channel_test",
+        "label": "Channel test delivery",
+        "group": "system",
+        "severity": "info",
+        "default_enabled": True,
+        "default_channels": ["in_app"],
+        "mutable": False,
+        "manage_url": "/settings/notifications",
+    },
 ]
 
 
@@ -395,16 +521,12 @@ async def seed_notification_kinds(db) -> int:
     added = 0
     for spec in NOTIFICATION_KINDS:
         exists = (
-            (
-                await db.execute(
-                    select(NotificationKind).where(NotificationKind.key == spec["key"])
-                )
-            )
+            (await db.execute(select(NotificationKind).where(NotificationKind.key == spec["key"])))
             .scalars()
             .first()
         )
         if exists is None:
-            db.add(NotificationKind(**{**spec, "id": uuid.UUID(spec["id"])}))
+            db.add(NotificationKind(**{**spec, "id": uuid.UUID(str(spec["id"]))}))
             added += 1
     await db.commit()
     return added
@@ -418,7 +540,7 @@ async def run() -> None:
         logger.info("taxonomy: +%d interests, +%d skills", i, s)
         j, r = await seed_catalog(db)
         logger.info("catalog: +%d jobs, +%d relations", j, r)
-        from app.services.metric_service import MetricService
+        from app.services.catalog.metric_service import MetricService
 
         t_count = await MetricService(db).recompute_skill_transferability()
         logger.info("catalog: transferability for %d skills", t_count)
@@ -449,6 +571,10 @@ async def run() -> None:
 
         packs = await seed_skill_packs(db)
         logger.info("ai: +%d bank skill packs", packs)
+        from app.seeds.econ_regions import seed_econ_regions
+
+        regions = await seed_econ_regions(db)
+        logger.info("econ: +%d gazetteer regions", regions)
         gaps = await unmapped_categories(db)
         if gaps:
             logger.warning(

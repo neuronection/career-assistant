@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app.services import cv_pdf_service as pdf_service
-from app.services.cv_pdf_service import PDFEngineUnavailable
+from app.services.cv import cv_pdf_service as pdf_service
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable
 
 
 def _blank_pdf(pages: int) -> bytes:
@@ -238,7 +238,7 @@ def test_bundled_browsers_path_checks_the_internal_layout(monkeypatch, tmp_path)
 
 
 def test_page_overflow_message_carries_the_real_budget():
-    from app.services.cv_export_service import lint
+    from app.services.cv.cv_export_service import lint
 
     report = lint(
         {"snapshot": {}, "blocks": []},
@@ -252,10 +252,10 @@ def test_page_overflow_message_carries_the_real_budget():
 
 
 def test_render_metrics_expose_max_pages():
-    from app.services.cv_blocks import SAMPLE_SNAPSHOT
-    from app.services.cv_builder_service import FALLBACK_CONTENT
-    from app.services.cv_renderer import render_cv
     from app.schemas.cv_template import TemplateContent
+    from app.services.cv.cv_blocks import SAMPLE_SNAPSHOT
+    from app.services.cv.cv_builder_service import FALLBACK_CONTENT
+    from app.services.cv.cv_renderer import render_cv
 
     content = TemplateContent.model_validate(FALLBACK_CONTENT)
     result = render_cv(content, SAMPLE_SNAPSHOT, max_pages=2)
@@ -287,6 +287,81 @@ def test_frozen_env_untouched_without_bundled_tree(monkeypatch, tmp_path: Path):
     assert os.environ.get("PLAYWRIGHT_BROWSERS_PATH") is None
 
 
+async def test_transient_launch_failure_is_retried_once(monkeypatch):
+    """Parallel render/test load can make a Chromium launch fail
+    transiently. The engine is only declared absent after a second
+    sweep — one flaky launch used to read as "no engine on this host"."""
+
+    class _Browser:
+        def on(self, *_args):
+            return None
+
+    launched: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            launched.append(kwargs)
+            if len(launched) == 1:
+                raise RuntimeError("Browser closed")
+            return _Browser()
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None,), raising=False)
+    browser = await pdf_service._launch_browser(_Playwright())
+    assert isinstance(browser, _Browser)
+    assert len(launched) == 2, "the launch was retried once"
+    assert pdf_service._BROWSER_CHANNEL is None
+
+
+async def test_permanent_launch_failure_declares_the_engine_unavailable(monkeypatch):
+    attempts: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            attempts.append(kwargs)
+            raise RuntimeError("missing browser")
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None,), raising=False)
+    with pytest.raises(PDFEngineUnavailable) as excinfo:
+        await pdf_service._launch_browser(_Playwright())
+    assert len(attempts) == 2, "absence is declared only after the retry sweep"
+    assert "missing browser" in str(excinfo.value)
+    assert pdf_service._BROWSER_CHANNEL is pdf_service._UNRESOLVED
+
+
+async def test_cached_channel_falls_back_to_the_full_sweep(monkeypatch):
+    """A cached channel is trusted until it fails; the retry sweep then
+    covers the bundled browser and the remaining system channels."""
+
+    class _Browser:
+        def on(self, *_args):
+            return None
+
+    tried: list[dict] = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            tried.append(kwargs)
+            if kwargs.get("channel") == "msedge":
+                raise RuntimeError("edge went away")
+            return _Browser()
+
+    class _Playwright:
+        chromium = _Chromium()
+
+    monkeypatch.setattr(pdf_service, "_CHANNEL_CANDIDATES", (None, "msedge"), raising=False)
+    pdf_service._BROWSER_CHANNEL = "msedge"
+    browser = await pdf_service._launch_browser(_Playwright())
+    assert isinstance(browser, _Browser)
+    assert [entry.get("channel") for entry in tried] == ["msedge", None]
+    assert pdf_service._BROWSER_CHANNEL is None
+
+
 def test_running_footer_reaches_printed_pdf_page_2():
     """Margin-box counters land in the printed PDF's own page 2 text
     (the engine is the page-count truth per plan 76). Skips cleanly on
@@ -296,7 +371,7 @@ def test_running_footer_reaches_printed_pdf_page_2():
 
     import pypdfium2 as pdfium
 
-    from app.services.cv_pdf_service import (
+    from app.services.cv.cv_pdf_service import (
         PDFEngineUnavailable,
         html_to_pdf,
     )

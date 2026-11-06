@@ -14,10 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import DomainError
 from app.models.enums import BackgroundJobType, DocumentStatus
-from app.services.cv_intake_service import CvIntakeService
+from app.services.cv.cv_intake_service import CvIntakeService
 from app.services.deps import get_current_user
-from app.services.document_service import DocumentService
 from app.services.job_worker import enqueue
+from app.services.profile.document_service import DocumentService
 
 router = APIRouter(prefix="/cv/intake", tags=["cv"])
 
@@ -59,9 +59,7 @@ async def parse_cv_document(
         DocumentStatus.READY.value,
         DocumentStatus.PROCESSING.value,
     ):
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "Document text extraction not ready"
-        )
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Document text extraction not ready")
     job = await enqueue(
         db,
         BackgroundJobType.CV_PARSE.value,

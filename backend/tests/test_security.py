@@ -1,50 +1,81 @@
 """Security hardening: rate limits, lockout, token revocation, headers."""
 
+import asyncio
 from dataclasses import replace
+from datetime import UTC
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
 from app.core.config import settings
-from app.core.ratelimit import SlidingWindowRateLimiter, client_identity
+from app.middleware import RATE_LIMIT_POLICY, client_identity
 from app.models.user_model import User
-from sqlalchemy import select
 from tests.conftest import auth_kit, session_headers
 
 
 @pytest.fixture(autouse=True)
 def _reset_limiter_state():
-    from app.core import ratelimit
-
-    ratelimit.limiter._events.clear()
+    RATE_LIMIT_POLICY.counter.clear()
     yield
-    ratelimit.limiter._events.clear()
+    RATE_LIMIT_POLICY.counter.clear()
 
 
-async def _register(
-    client: AsyncClient, email="student@example.com", password="supersecret1"
-):
+async def _register(client: AsyncClient, email="student@example.com", password="supersecret1"):
     return await client.post(
         "/api/v1/auth/register",
         json={"email": email, "password": password, "full_name": "T"},
     )
 
 
+def _hit(key: str, limit: int):
+    """One raw keyed tick (the gateway/MCP/tool shape) — async-safe."""
+    import threading
+
+    outcome: dict[str, int | None] = {}
+
+    def _run() -> None:
+        outcome["retry"] = asyncio.run(RATE_LIMIT_POLICY.hit(key, limit=limit))
+
+    worker = threading.Thread(target=_run)
+    worker.start()
+    worker.join(timeout=10)
+    return outcome["retry"]
+
+
+def _check(bucket: str, identity: str):
+    """One tick against career's mounted kit policy — works from sync
+    and async tests alike (the counter is thread-safe)."""
+    import threading
+
+    outcome: dict[str, int | None] = {}
+
+    def _run() -> None:
+        outcome["retry"] = asyncio.run(RATE_LIMIT_POLICY.check(bucket, identity))
+
+    worker = threading.Thread(target=_run)
+    worker.start()
+    worker.join(timeout=10)
+    return outcome["retry"]
+
+
+@pytest.mark.contract  # §18.19 — burst over ceiling ⇒ 429/retry, window resets (R1)
 def test_sliding_window_allows_then_blocks(monkeypatch):
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 3)
-    limiter = SlidingWindowRateLimiter()
+    monkeypatch.setattr(settings, "ratelimit_enabled", True)
+    monkeypatch.setattr(settings, "ratelimit_auth", 3)
     for _ in range(3):
-        assert limiter.check("auth", "1.2.3.4") is None
-    retry = limiter.check("auth", "1.2.3.4")
+        assert _check("AUTH", "1.2.3.4") is None
+    retry = _check("AUTH", "1.2.3.4")
     assert retry is not None and retry >= 1
-    assert limiter.check("auth", "5.6.7.8") is None
+    assert _check("AUTH", "5.6.7.8") is None
 
 
+@pytest.mark.contract  # §18.19 — ceiling 0 disables the bucket (R5)
 def test_sliding_window_zero_limit_disables_bucket(monkeypatch):
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 0)
-    limiter = SlidingWindowRateLimiter()
+    monkeypatch.setattr(settings, "ratelimit_enabled", True)
+    monkeypatch.setattr(settings, "ratelimit_auth", 0)
     for _ in range(10):
-        assert limiter.check("auth", "1.2.3.4") is None
+        assert _check("AUTH", "1.2.3.4") is None
 
 
 def _scope(headers=None, client=("9.9.9.9", 1234)):
@@ -53,13 +84,13 @@ def _scope(headers=None, client=("9.9.9.9", 1234)):
 
 
 def test_client_identity_uses_rightmost_forwarded_hop(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 2.2.2.2, 203.0.113.9"})
     assert client_identity(scope) == "203.0.113.9"
 
 
 def test_client_identity_ignores_spoofable_leading_hops(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 1)
+    monkeypatch.setattr(settings, "trusted_proxy_count", 1)
     scope = _scope({"X-Forwarded-For": "1.1.1.1"}, client=("203.0.113.9", 5))
     assert client_identity(scope) == "1.1.1.1"
     scope = _scope({"X-Forwarded-For": "1.1.1.1, 203.0.113.9"}, client=None)
@@ -71,6 +102,7 @@ def test_client_identity_falls_back_to_socket_address():
     assert client_identity({"headers": [], "client": None}) == "unknown"
 
 
+@pytest.mark.contract  # §18.19 — spoofed XFF ignored at count 0 (R2)
 def test_client_identity_default_trusts_no_forwarded_hops():
     """§7/§16: with `CAREER_TRUSTED_PROXY_COUNT=0` (default) a
     client-supplied X-Forwarded-For is never believed — per-IP limits
@@ -80,17 +112,17 @@ def test_client_identity_default_trusts_no_forwarded_hops():
     assert client_identity(scope) == "203.0.113.9"
 
 
+@pytest.mark.contract  # §18.19 — rightmost N hops trusted (R3)
 def test_client_identity_trusts_exactly_n_hops(monkeypatch):
-    monkeypatch.setattr(settings, "TRUSTED_PROXY_COUNT", 2)
-    scope = _scope(
-        {"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5)
-    )
+    monkeypatch.setattr(settings, "trusted_proxy_count", 2)
+    scope = _scope({"X-Forwarded-For": "6.6.6.6, 1.1.1.1, 203.0.113.9"}, client=("9.9.9.9", 5))
     assert client_identity(scope) == "1.1.1.1", "rightmost 2 hops trusted"
 
 
+@pytest.mark.contract  # §18.19 — per-IP AUTH bucket 429 with Retry-After (R1)
 async def test_login_rate_limited_per_ip(client, monkeypatch):
-    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", True)
-    monkeypatch.setattr(settings, "AUTH_RATE_LIMIT", 3)
+    monkeypatch.setattr(settings, "ratelimit_enabled", True)
+    monkeypatch.setattr(settings, "ratelimit_auth", 3)
     for _ in range(3):
         await client.post(
             "/api/v1/auth/login",
@@ -105,7 +137,7 @@ async def test_login_rate_limited_per_ip(client, monkeypatch):
 
 
 async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
-    monkeypatch.setattr(settings, "RATE_LIMIT_ENABLED", False)
+    monkeypatch.setattr(settings, "ratelimit_enabled", False)
     kit = auth_kit()
     kit.ip_limiter.per_minute = 10**6  # the kit's auth limiter is out of scope here
     kit.email_limiter.per_minute = 10**6
@@ -118,7 +150,7 @@ async def test_disabled_limiter_lets_requests_through(client, monkeypatch):
 
 
 async def test_lockout_after_threshold_then_expiry(client, db):
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     kit = auth_kit()
     kit.config = replace(kit.config, lockout_threshold=3, lockout_minutes=15)
@@ -131,9 +163,7 @@ async def test_lockout_after_threshold_then_expiry(client, db):
         )
         assert response.status_code == 401
     assert (
-        await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
-        )
+        await client.post("/api/v1/auth/login", json={"email": email, "password": "wrong-pass"})
     ).status_code == 423
 
     locked = await client.post(
@@ -144,11 +174,9 @@ async def test_lockout_after_threshold_then_expiry(client, db):
 
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     # Lock window elapsed (§7) — simulate the clock passing.
-    kit.users.set_login_failures(user.id, 2, datetime.now(timezone.utc))
+    kit.users.set_login_failures(user.id, 2, datetime.now(UTC))
 
-    ok = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": "supersecret1"}
-    )
+    ok = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret1"})
     assert ok.status_code == 200
 
 
@@ -156,12 +184,8 @@ async def test_successful_login_resets_failure_counter(client, db):
     await _register(client, "reset@example.com")
     email = "reset@example.com"
     for _ in range(2):
-        await client.post(
-            "/api/v1/auth/login", json={"email": email, "password": "wrong-pass"}
-        )
-    ok = await client.post(
-        "/api/v1/auth/login", json={"email": email, "password": "supersecret1"}
-    )
+        await client.post("/api/v1/auth/login", json={"email": email, "password": "wrong-pass"})
+    ok = await client.post("/api/v1/auth/login", json={"email": email, "password": "supersecret1"})
     assert ok.status_code == 200
     user = (await db.execute(select(User).where(User.email == email))).scalars().first()
     assert user.failed_login_attempts == 0
@@ -187,6 +211,7 @@ async def test_revoke_sessions_invalidates_old_token(client, db):
     assert stale.status_code == 401
 
 
+@pytest.mark.contract  # §18.20 — family baseline on every response (H1)
 async def test_security_headers_present(client):
     response = await client.get("/health")
     headers = {k.lower(): v for k, v in response.headers.items()}
@@ -195,8 +220,19 @@ async def test_security_headers_present(client):
     assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
     assert "default-src 'self'" in headers["content-security-policy"]
     assert "frame-ancestors 'none'" in headers["content-security-policy"]
+    # Plan 21: the kit's family template must be byte-identical to the
+    # product-local CSP it replaced (D4 — career's rule, family law).
+    from nx_auth.headers import web_csp
+
+    assert headers["content-security-policy"] == web_csp()
+    assert headers["content-security-policy"] == (
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
+        " script-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none';"
+        " frame-ancestors 'none'; base-uri 'self'"
+    )
 
 
+@pytest.mark.contract  # §18.21 — web CSP strict, no eval (H2)
 async def test_web_csp_stays_strict(client):
     """No eval anywhere on the web deployment — even with a shell-shaped query."""
     from app.desktop import shell_token
@@ -212,6 +248,7 @@ async def test_web_csp_stays_strict(client):
         shell_token.reset()
 
 
+@pytest.mark.contract  # §18.21 — eval only under the per-boot marker (H2)
 async def test_desktop_shell_query_gets_eval_csp(client):
     """The per-boot shell token unlocks the desktop CSP variant; old tokens
     die with the next issue() (token rotates per boot)."""
@@ -239,17 +276,15 @@ async def test_password_minimum_length_enforced(client):
 
 
 async def test_ai_rate_limit_per_user(monkeypatch):
-    monkeypatch.setattr(settings, "AI_RATE_LIMIT", 2)
+    monkeypatch.setattr(settings, "ratelimit_ai", 2)
     from app.ai import gateway
-    from app.core import ratelimit
     from app.core.errors import DomainError
     from app.models.enums import AITaskType
 
     uid = "11111111-1111-1111-1111-111111111111"
+    # Pre-spend the gateway's per-user window (raw keyed shape).
     for _ in range(2):
-        assert ratelimit.limiter.check("ai", f"user:{uid}") is None
+        assert _hit(f"ai:user:{uid}", settings.ratelimit_ai) is None
 
     with pytest.raises(DomainError, match="rate limit"):
-        await gateway.ainvoke_structured(
-            None, AITaskType.ASSIST, dict, "sys", "usr", user_id=uid
-        )
+        await gateway.ainvoke_structured(None, AITaskType.ASSIST, dict, "sys", "usr", user_id=uid)

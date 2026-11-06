@@ -1,14 +1,5 @@
-import { api } from "./client";
-import type {
-  Bootstrap,
-  CompletenessRing,
-  ExpressResult,
-  ExpressStart,
-  Nudge,
-  OnboardingPath,
-  ResolveResponse,
-  TargetDashboard,
-} from "@/types";
+import { api } from "@/api/client";
+import type { Bootstrap, CompletenessRing, ExpressResult, ExpressStart, Nudge, OnboardingPath, ResolveResponse, TargetDashboard } from "@/types/wire";
 
 export async function setOnboardingPath(
   path: OnboardingPath | null

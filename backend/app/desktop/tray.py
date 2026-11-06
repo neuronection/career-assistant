@@ -9,8 +9,8 @@ the app keeps running (never crashes over a missing systray host).
 """
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -35,8 +35,8 @@ def icon_state(status: TrayStatus) -> str:
     return "idle"
 
 
-def badge_label(unread: int) -> Optional[str]:
-    """Badge count math: 1–9 numeric, 10+ capped, 0/None ⇒ no badge."""
+def badge_label(unread: int) -> str | None:
+    """Badge count math: 1-9 numeric, 10+ capped, 0/None ⇒ no badge."""
     if unread <= 0:
         return None
     return str(unread) if unread <= BADGE_CAP else f"{BADGE_CAP}+"
@@ -53,7 +53,10 @@ def build_menu_model(
 ) -> list[dict]:
     """The menu: Open · Sync now · Saved searches ▸ ·
     Notifications ▸ (last 5, mark read) · Quit (+ pref toggles)."""
-    menu: list[dict] = [{"id": "open", "label": "Open Career Assistant"}]
+    menu: list[dict] = [
+        {"id": "open", "label": "Open Career Assistant"},
+        {"id": "configure_ai", "label": "Configure AI provider"},
+    ]
     if has_tray:
         menu.append({"id": "sync_now", "label": "Sync now"})
         menu.append(
@@ -71,8 +74,7 @@ def build_menu_model(
                         {
                             "id": f"search:{item['schedule_id']}:toggle",
                             "label": (
-                                f"{'Disable' if item['enabled'] else 'Enable'}"
-                                f" {item['label']}"
+                                f"{'Disable' if item['enabled'] else 'Enable'} {item['label']}"
                             ),
                         },
                     )
@@ -80,9 +82,7 @@ def build_menu_model(
                 or [{"id": "noop", "label": "No saved searches", "enabled": False}],
             }
         )
-    notifications_label = (
-        f"Notifications ({badge_label(unread)})" if unread else "Notifications"
-    )
+    notifications_label = f"Notifications ({badge_label(unread)})" if unread else "Notifications"
     menu.append(
         {
             "id": "notifications",
@@ -106,9 +106,7 @@ def build_menu_model(
             "checked": close_to_tray,
         }
     )
-    menu.append(
-        {"id": "toggle_autostart", "label": "Start on login", "checked": autostart}
-    )
+    menu.append({"id": "toggle_autostart", "label": "Start on login", "checked": autostart})
     menu.append({"id": "quit", "label": "Quit"})
     return menu
 
@@ -128,13 +126,15 @@ class TrayActions:
     async def open(self) -> None:
         self._bridge.show_and_focus()
 
+    async def configure_ai(self) -> None:
+        """Open Settings → AI (plan 118.2: setup without hunting the UI)."""
+        self._bridge.show_and_navigate("/settings/ai")
+
     async def owner_ids(self) -> list[UUID]:
         from app.models.user_model import User
 
         async with self._session_factory() as db:
-            rows = await db.execute(
-                select(User.id).where(User.is_admin.is_(True)).limit(5)
-            )
+            rows = await db.execute(select(User.id).where(User.is_admin.is_(True)).limit(5))
             return list(rows.scalars().all())
 
     async def sync_now(self) -> int:
@@ -150,7 +150,7 @@ class TrayActions:
                     try:
                         await service.run_now(schedule.id)
                         fired += 1
-                    except Exception:  # noqa: BLE001 — degrade per schedule
+                    except Exception:
                         logger.warning("Tray sync-now failed", exc_info=True)
         return fired
 
@@ -171,9 +171,7 @@ class TrayActions:
                     query = None
                     if search_id:
                         row = await db.execute(
-                            select(SearchHistory.query).where(
-                                SearchHistory.id == UUID(search_id)
-                            )
+                            select(SearchHistory.query).where(SearchHistory.id == UUID(search_id))
                         )
                         query = row.scalars().first()
                     items.append(
@@ -277,13 +275,14 @@ class TrayIcon:
         self._snapshot_data: dict = {}
 
     def start(self) -> None:
-        self._icon = self._pystray.Icon(
+        icon = self._pystray.Icon(
             "career-assistant",
             self._render(self._status),
             "Career Assistant",
             menu=self._build_menu(),
         )
-        self._icon.run_detached()
+        self._icon = icon
+        icon.run_detached()
 
     def poll(self) -> None:
         """Refresh badge/state + menu from the services (tray thread)."""
@@ -300,7 +299,7 @@ class TrayIcon:
                     "syncing" if status.sync_running else "idle"
                 )
                 self._icon.menu = self._build_menu()
-            except Exception:  # noqa: BLE001 — icon refresh is cosmetic
+            except Exception:
                 logger.debug("Tray refresh failed", exc_info=True)
 
     async def _snapshot(self, status: TrayStatus) -> dict:
@@ -314,7 +313,7 @@ class TrayIcon:
         if self._icon is not None:
             try:
                 self._icon.stop()
-            except Exception:  # noqa: BLE001 — degrade
+            except Exception:
                 logger.debug("Tray stop failed", exc_info=True)
             self._icon = None
 
@@ -363,6 +362,8 @@ class TrayIcon:
 
         if menu_id in ("open", ""):
             fire(self._actions.open())
+        elif menu_id == "configure_ai":
+            fire(self._actions.configure_ai())
         elif menu_id == "sync_now":
             fire(self._actions.sync_now())
         elif menu_id == "notifications:mark_read":
@@ -376,11 +377,7 @@ class TrayIcon:
                     if verb == "run":
                         fire(self._actions.run_saved_search(schedule_id))
                     else:
-                        fire(
-                            self._actions.toggle_saved_search(
-                                schedule_id, not item["enabled"]
-                            )
-                        )
+                        fire(self._actions.toggle_saved_search(schedule_id, not item["enabled"]))
                     break
             else:
                 fire(self._actions.open())

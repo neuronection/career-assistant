@@ -6,36 +6,75 @@ Nodes do one thing each: an LLM step is one audited gateway call
 The graph is checkpointed (``thread_id`` = run id), so a worker crash
 resumes from the last completed node via ``ainvoke(None, config)``; a
 budget abort routes straight to ``deliver`` so partial findings still
-ship. Final ordering is deterministic (fit sort) — the LLM curates, math
-ranks. There is no auto-apply node: findings are suggestions, applying
-stays a user click.
+ship. Three recall sources feed one pool (keyword variants, a semantic
+sweep over stored embeddings, a curated job-relation sweep), every source
+behind the same deterministic gates; final ordering is deterministic
+(must-term coverage, then fit) — the LLM curates, math ranks. There is no
+auto-apply node: findings are suggestions, applying stays a user click.
 """
 
 import json
 import logging
+import re
+import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from typing import Any, Awaitable, Callable, Optional, TypedDict
+from datetime import UTC, datetime, timedelta
+from typing import Any, TypedDict
 from uuid import UUID
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.gateway import ainvoke_structured, register_mock_fixture
+from app.ai.gateway import RunRef, ainvoke_structured, register_mock_fixture
 from app.ai.schemas import Curation, SearchPlan
+from app.core.errors import sanitize_error_detail
 from app.models.ai_model import AIGeneration
-from app.models.enums import AITaskType, AutopilotRunStatus
-from app.services.explore_service import explore, parse_explore_filters
+from app.models.enums import AITaskType, AutopilotRunStatus, SkillExpandMode
+from app.services.postings.explore_service import (
+    ALLOWED_FILTER_KEYS,
+    BENEFIT_KIND_VALUES,
+    OPEN_STATUSES,
+    POSTED_WINDOWS,
+    REMOTE_VALUES,
+    SCHEDULE_CUE_VALUES,
+    SENIORITY_VALUES,
+    SKILL_EXPAND_MODES,
+    SKILL_MODE_VALUES,
+    explore,
+    parse_explore_filters,
+)
+from app.services.postings.posting_fit_service import FitOverrides
 
 logger = logging.getLogger(__name__)
 
-CURATOR_POOL = 12
+CURATOR_POOL_MIN = 12
+CURATOR_POOL_FACTOR = 3
+CANDIDATE_CAP = 120
 DEFAULT_TOP_N = 5
 DEFAULT_COOLDOWN_DAYS = 7
-SEARCH_LIMIT = 25
+SEARCH_LIMIT = 40
 SNIPPET_CHARS = 600
+SEMANTIC_K = 60
+SEARCH_VARIANTS = 6
+REPLAN_LIMIT = 1
+GRAPH_SEEDS = 3
+GRAPH_NEIGHBORS = 6
+
+PROFILE_SKILL_LIMIT = 12
+PLAN_SKILL_LIMIT = 40
+PLAN_FAMILY_LIMIT = 40
+PLAN_SOURCE_LIMIT = 20
+SKILL_GRAPH_HOPS = 1
+
+
+def curator_pool(top_n: int | None = None) -> int:
+    """The curated pool size: wide enough that a must-term-perfect
+    candidate at fit-rank 13 is still visible."""
+    return max(CURATOR_POOL_MIN, CURATOR_POOL_FACTOR * int(top_n or DEFAULT_TOP_N))
+
 
 ProgressCb = Callable[[int, str], Awaitable[None]]
 CancelCb = Callable[[], Awaitable[bool]]
@@ -57,11 +96,15 @@ class AutopilotState(TypedDict, total=False):
     plan: dict
     searches: list
     candidates: list
+    replan_attempts: int
+    replans: list
+    progress_pct: int
     curation: dict
     findings: list
     abort_reason: str
     error: str
     tokens_used: int
+    trace_steps: list
 
 
 @dataclass
@@ -69,16 +112,17 @@ class GraphDeps:
     """Per-invocation dependencies (never checkpointed)."""
 
     db: AsyncSession
-    progress: Optional[ProgressCb] = None
-    cancelled: Optional[CancelCb] = None
+    progress: ProgressCb | None = None
+    cancelled: CancelCb | None = None
     cooldown_ids: set[str] = field(default_factory=set)
+    fit_overrides: FitOverrides | None = None
 
 
 # ------------------------------------------------------------------ helpers
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 async def _report(deps: GraphDeps, pct: int, stage: str) -> None:
@@ -91,7 +135,7 @@ async def _is_cancelled(deps: GraphDeps) -> bool:
         return False
     try:
         return bool(await deps.cancelled())
-    except Exception:  # noqa: BLE001 — cancel checks never break the flow
+    except Exception:
         return False
 
 
@@ -99,9 +143,7 @@ def _constraints(state: AutopilotState) -> dict:
     return state.get("constraints") or {}
 
 
-async def _ledger_usage(
-    db: AsyncSession, user_id: str, since: datetime
-) -> tuple[int, int]:
+async def _ledger_usage(db: AsyncSession, user_id: str, since: datetime) -> tuple[int, int]:
     """(tokens, calls) this user's autopilot task consumed since ``since``.
 
     The audit ledger is the single source of spend — the same source the
@@ -127,15 +169,29 @@ def _plan_system() -> str:
     return (
         "You are a career-search planner. Design 2-5 diverse search "
         "variants to find vacancies matching the user's goal. Each variant "
-        "has a short query plus optional explore filters drawn ONLY from "
-        "the allowed filter keys. Vary scope (broad vs niche, different "
-        "skill emphases). Honor every never-term (never search for it) "
-        "and must-term. Respond with JSON only."
+        "has optional explore filters drawn ONLY from the allowed filter "
+        "keys, and its text goes in `keywords` (a LIST — any of them may "
+        "match a title or employer) or `q` (ONE exact phrase matched "
+        "against title and employer only); multi-word concepts always go "
+        "to `keywords`, never to `q`. "
+        f"Allowed filter keys: {', '.join(sorted(ALLOWED_FILTER_KEYS))}. "
+        f"seniority values: {', '.join(SENIORITY_VALUES)}; "
+        f"remote_policy values: {', '.join(REMOTE_VALUES)}; "
+        f"posted_within values: {', '.join(POSTED_WINDOWS)}; "
+        f"schedule cues: {', '.join(SCHEDULE_CUE_VALUES)}; "
+        f"benefit kinds: {', '.join(BENEFIT_KIND_VALUES)}; "
+        f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
+        f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}. "
+        "Vary scope (broad vs niche, different skill emphases) and prefer "
+        "skill keys from the user's own skill neighbourhood. Honor every "
+        "never-term (never search for it) and must-term. Respond with JSON "
+        "only."
     )
 
 
-def _plan_user_prompt(state: AutopilotState) -> str:
+def _plan_user_prompt(state: AutopilotState, vocabulary: dict | None = None) -> str:
     c = _constraints(state)
+    vocab = vocabulary or {}
     return json.dumps(
         {
             "goal": state.get("goal_text", ""),
@@ -146,6 +202,174 @@ def _plan_user_prompt(state: AutopilotState) -> str:
             "salary_min": c.get("salary_min"),
             "seniority": c.get("seniority") or [],
             "profile_context": state.get("profile_context") or {},
+            "valid_filter_keys": sorted(ALLOWED_FILTER_KEYS),
+            "skill_keys": vocab.get("skills") or [],
+            "family_keys": vocab.get("families") or [],
+            "source_keys": vocab.get("sources") or [],
+        },
+        ensure_ascii=False,
+    )
+
+
+async def collect_profile_context(db: AsyncSession, user_id: UUID, constraints: dict) -> dict:
+    """The planner's small profile dict: skills with levels, education,
+    location, languages and the effective career stage — gated by the
+    goal's profile-usage flags (plan 169).
+
+    A disabled input is DROPPED (the planner plans from the goal text and
+    the vocabulary alone); languages join when ``use_languages``; the
+    stage is the effective one — ``stage_source="goal"`` derives it from
+    the seniority selection (its max rank), ``use_experience=False``
+    omits it entirely. ``target_seniority`` is the goal's own constraint
+    and stays. A dict composer over existing queries — no new profile
+    modeling, the same ``SkillService.user_skills`` the profile surfaces
+    read.
+    """
+    from app.schemas.autopilot import ProfileUsage
+    from app.services.catalog.skills_service import SkillService
+    from app.services.deps import get_profile_for_user
+    from app.services.postings.posting_fit_service import FitOverrides
+    from app.services.profile.stages_service import stage_for_user
+
+    profile = await get_profile_for_user(db, user_id)
+    usage = ProfileUsage.model_validate(constraints.get("profile") or {})
+    overrides = FitOverrides.from_profile_usage(
+        usage, [str(value) for value in constraints.get("seniority") or []]
+    )
+    basics = profile.basics or {}
+    context: dict = {}
+    if usage.use_skills:
+        context["skills"] = [
+            {"key": row.skill.key, "level": int(row.level)}
+            for row in await SkillService(db).user_skills(user_id)
+            if row.skill is not None
+        ][:PROFILE_SKILL_LIMIT]
+    if usage.use_education:
+        context["education_level"] = basics.get("education_level")
+    if usage.use_location:
+        context["country"] = basics.get("country") or None
+        context["city"] = basics.get("city") or None
+    if usage.use_languages:
+        context["languages"] = [
+            {"code": str(row.get("code", "")).lower(), "level": str(row.get("level", "basic"))}
+            for row in (profile.academics or {}).get("languages") or []
+            if row.get("code")
+        ]
+    if usage.use_experience:
+        stage, _source = await stage_for_user(db, user_id)
+        effective = overrides.stage if overrides.stage is not None else stage
+        context["stage"] = effective.value
+        context["stage_source"] = "goal" if overrides.stage is not None else "profile"
+    context["target_seniority"] = [str(value) for value in constraints.get("seniority") or []]
+    return context
+
+
+async def plan_vocabulary(db: AsyncSession, user_id: UUID, *, use_skills: bool = True) -> dict:
+    """The planner's skill/family/source vocabulary (plan 158 S1.2).
+
+    The user's own skills and their 1-hop curated graph neighbourhood
+    (synonyms + subtree + ``is_a`` children, ``down`` mode) come FIRST,
+    then top-by-posting-frequency keys pad the list to ``PLAN_SKILL_LIMIT``.
+    With ``use_skills`` off the user-skill neighbourhood is skipped
+    entirely — the planner plans from the goal text and the
+    posting-frequency padding only (plan 169).
+    """
+    from app.models.job_model import JobFamily
+    from app.models.posting_model import JobPosting, JobSource, PostingSkill
+    from app.models.taxonomy_model import Skill
+    from app.services.catalog.skill_relations import SkillRelationService
+    from app.services.catalog.skills_service import SkillService
+
+    keys: list[str] = []
+    own_ids: set = set()
+    if use_skills:
+        for row in await SkillService(db).user_skills(user_id):
+            key = row.skill.key if row.skill is not None else None
+            if key and key not in keys:
+                keys.append(key)
+        own_ids = set(
+            (await db.execute(select(Skill.id).where(Skill.key.in_(keys)))).scalars().all()
+        )
+        if own_ids:
+            graph = await SkillRelationService(db).load_graph()
+            reached = graph.expand(own_ids, mode=SkillExpandMode.DOWN, hops=SKILL_GRAPH_HOPS)
+            for key in sorted(graph.keys_for(reached)):
+                if key not in keys:
+                    keys.append(key)
+    families = list(
+        (await db.execute(select(JobFamily.key).order_by(JobFamily.key))).scalars().all()
+    )
+    sources = list(
+        (
+            await db.execute(
+                select(JobSource.key).where(JobSource.enabled.is_(True)).order_by(JobSource.key)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(keys) < PLAN_SKILL_LIMIT:
+        open_postings = select(JobPosting.id).where(JobPosting.status.in_(OPEN_STATUSES))
+        frequent = await db.execute(
+            select(Skill.key)
+            .join(PostingSkill, PostingSkill.skill_id == Skill.id)
+            .where(PostingSkill.posting_id.in_(open_postings))
+            .group_by(Skill.key)
+            .order_by(func.count(PostingSkill.posting_id).desc(), Skill.key)
+            .limit(PLAN_SKILL_LIMIT)
+        )
+        for key in frequent.scalars().all():
+            if len(keys) >= PLAN_SKILL_LIMIT:
+                break
+            if key not in keys:
+                keys.append(key)
+    return {
+        "skills": keys[:PLAN_SKILL_LIMIT],
+        "families": families[:PLAN_FAMILY_LIMIT],
+        "sources": sources[:PLAN_SOURCE_LIMIT],
+    }
+
+
+def _replan_system() -> str:
+    return (
+        "You are a career-search planner recovering from a thin first pass. "
+        "Broaden: relax or drop the text query, widen family/seniority scope, "
+        "and keep every never-term (never search for it). Filters stay inside "
+        "the explore vocabulary listed here: "
+        f"{', '.join(sorted(ALLOWED_FILTER_KEYS))}. "
+        f"skill_expand values: {', '.join(SKILL_EXPAND_MODES)}; "
+        f"skill_mode values: {', '.join(SKILL_MODE_VALUES)}. Put multi-word concepts in "
+        "`keywords` (a LIST — any may match a title or employer), never in `q`. "
+        "Design 1-3 genuinely different variants for the SAME goal. Respond "
+        "with JSON only."
+    )
+
+
+def _replan_user_prompt(
+    state: AutopilotState, previous: list[dict], vocabulary: dict | None = None
+) -> str:
+    c = _constraints(state)
+    vocab = vocabulary or {}
+    return json.dumps(
+        {
+            "goal": state.get("goal_text", ""),
+            "previous_variants": [
+                {
+                    "query": entry.get("query") or "",
+                    "filters": entry.get("filters") or {},
+                    "found": int(entry.get("found") or 0),
+                }
+                for entry in previous
+            ],
+            "must_terms": c.get("must_terms") or [],
+            "never_terms": c.get("never_terms") or [],
+            "target_families": c.get("family_keys") or [],
+            "seniority": c.get("seniority") or [],
+            "profile_context": state.get("profile_context") or {},
+            "valid_filter_keys": sorted(ALLOWED_FILTER_KEYS),
+            "skill_keys": vocab.get("skills") or [],
+            "family_keys": vocab.get("families") or [],
+            "source_keys": vocab.get("sources") or [],
         },
         ensure_ascii=False,
     )
@@ -157,15 +381,20 @@ def _curate_system(top_n: int) -> str:
         f"the best {top_n} for the user's goal and explain each in 1-3 "
         f"sentences. Ground EVERY claim in the candidate's provided fields "
         f"(fit score, breakdown, skills, responsibilities, snippet); never "
-        f"invent requirements or benefits. Include 1-2 short verbatim "
-        f"quotes copied exactly from that candidate's own text (snippet, "
-        f"responsibilities). Prefer higher fit_score and honest coverage "
-        f"of must-terms; skip noise. Respond with JSON only."
+        f"invent requirements or benefits. Dimensions marked `disabled` "
+        f"were excluded at the user's instruction: never cite them as "
+        f"strengths or weaknesses. Weigh must_hits against "
+        f"must_total: covering the user's must-terms outranks a higher fit "
+        f"score without them. Include 1-2 short verbatim quotes copied "
+        f"exactly from that candidate's own text (snippet, "
+        f"responsibilities). Prefer higher fit_score at equal coverage; "
+        f"skip noise. Respond with JSON only."
     )
 
 
 def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
     c = _constraints(state)
+    must_total = len(_must_terms(state))
     return json.dumps(
         {
             "goal": state.get("goal_text", ""),
@@ -183,6 +412,8 @@ def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
                     "posted_at": cand.get("posted_at"),
                     "fit_score": cand.get("fit"),
                     "fit_breakdown": cand.get("breakdown") or {},
+                    "must_hits": int(cand.get("must_hits") or 0),
+                    "must_total": must_total,
                     "skills": cand.get("skills") or [],
                     "responsibilities": cand.get("responsibilities") or [],
                     "description_snippet": cand.get("snippet") or "",
@@ -195,29 +426,43 @@ def _curate_user_prompt(state: AutopilotState, pool: list[dict]) -> str:
 
 
 def _deterministic_why(candidate: dict) -> str:
-    """LLM-free fallback explanation grounded in the fit breakdown."""
-    parts = []
-    for name, dim in list((candidate.get("breakdown") or {}).items())[:3]:
-        if isinstance(dim, dict) and dim.get("score") is not None:
-            parts.append(f"{str(name).replace('_', ' ')} {float(dim['score']):.1f}/10")
+    """LLM-free fallback explanation grounded in the fit breakdown.
+
+    Dimensions marked ``disabled`` (the goal's profile toggles) are
+    filtered out FIRST — a neutral-by-instruction dim is never cited as
+    a signal — then the list slices to three; with none remaining the
+    ``why`` falls back to the fit-only line.
+    """
+    dims = [
+        (name, dim)
+        for name, dim in (candidate.get("breakdown") or {}).items()
+        if isinstance(dim, dict) and dim.get("score") is not None and not dim.get("disabled")
+    ]
+    parts = [
+        f"{str(name).replace('_', ' ')} {float(dim['score']):.1f}/10" for name, dim in dims[:3]
+    ]
     why = f"Fit {float(candidate.get('fit') or 0):.1f}/10"
     if parts:
         why += f" ({', '.join(parts)})"
-    skills = [
-        s.get("key", "") for s in candidate.get("skills") or [] if isinstance(s, dict)
-    ]
+    skills = [s.get("key", "") for s in candidate.get("skills") or [] if isinstance(s, dict)]
     top = [key for key in skills[:3] if key]
     if top:
         why += f"; looking for {', '.join(top)}"
     return why[:1200]
 
 
+def _must_terms(state: AutopilotState) -> list[str]:
+    return [
+        str(term).strip().casefold()
+        for term in _constraints(state).get("must_terms") or []
+        if str(term).strip()
+    ]
+
+
 def _candidate_texts(candidate: dict) -> str:
     """All text a quote may come from (the quote-verification corpus)."""
     skills = " ".join(
-        str(s.get("key", ""))
-        for s in candidate.get("skills") or []
-        if isinstance(s, dict)
+        str(s.get("key", "")) for s in candidate.get("skills") or [] if isinstance(s, dict)
     )
     duties = " ".join(str(r) for r in candidate.get("responsibilities") or [])
     return " ".join(
@@ -244,7 +489,7 @@ def _verify_quotes(candidate: dict, quotes: list) -> list[str]:
     return verified[:5]
 
 
-def _serialize_candidate(item: dict) -> Optional[dict]:
+def _serialize_candidate(item: dict) -> dict | None:
     """JSON-safe candidate dict (checkpoint state) with evidence fields."""
     posting = item.get("posting")
     if posting is None or item.get("fit") is None:
@@ -270,8 +515,10 @@ def _serialize_candidate(item: dict) -> Optional[dict]:
         salary_max = extract["salary"].get("max")
     description = str((posting.raw or {}).get("description") or "")
     interaction = item.get("interaction")
+    application = item.get("application")
     return {
         "posting_id": str(posting.id),
+        "catalog_job_id": str(posting.catalog_job_id) if posting.catalog_job_id else None,
         "ref": posting.ref,
         "title": posting.title,
         "org": posting.org,
@@ -293,8 +540,8 @@ def _serialize_candidate(item: dict) -> Optional[dict]:
             else None
         ),
         "applied_at": (
-            interaction.applied_at.isoformat()
-            if interaction is not None and interaction.applied_at
+            application.applied_at.isoformat()
+            if application is not None and application.applied_at
             else None
         ),
         "hidden_at": (
@@ -308,24 +555,462 @@ def _serialize_candidate(item: dict) -> Optional[dict]:
 # -------------------------------------------------------------------- nodes
 
 
+async def _gated_rows(
+    deps: GraphDeps,
+    state: AutopilotState,
+    *,
+    posting_ids: list[UUID] | None = None,
+    catalog_job_ids: list[UUID] | None = None,
+    exclude_ids: set[str] | None = None,
+) -> list[tuple]:
+    """Postings (with the caller's interaction/application) that pass the
+    deterministic gates every recall source shares: open status, the
+    exclude-seen axes, the per-goal cooldown. Never-terms are judged on
+    the serialized candidate text (``_candidate_texts``).
+    """
+    from app.models.application_model import Application
+    from app.models.posting_model import JobPosting, PostingInteraction
+
+    if not posting_ids and not catalog_job_ids:
+        return []
+    user_id = UUID(state["user_id"])
+    exclude_seen = _constraints(state).get("exclude_seen", True)
+    query = select(JobPosting, PostingInteraction, Application).outerjoin(
+        PostingInteraction,
+        (PostingInteraction.posting_id == JobPosting.id) & (PostingInteraction.user_id == user_id),
+    )
+    query = query.outerjoin(
+        Application,
+        (Application.posting_id == JobPosting.id) & (Application.user_id == user_id),
+    )
+    if posting_ids:
+        query = query.where(JobPosting.id.in_(posting_ids))
+    if catalog_job_ids:
+        query = query.where(JobPosting.catalog_job_id.in_(catalog_job_ids))
+    rows = (await deps.db.execute(query)).all()
+    excluded = exclude_ids or set()
+    fresh: list[tuple] = []
+    for posting, interaction, application in rows:
+        if posting.status not in OPEN_STATUSES:
+            continue
+        if str(posting.id) in excluded or str(posting.id) in deps.cooldown_ids:
+            continue
+        if exclude_seen and (
+            (interaction is not None and (interaction.seen_at or interaction.hidden_at))
+            or application is not None
+        ):
+            continue
+        fresh.append((posting, interaction, application))
+    return fresh
+
+
+async def _scored_candidates(
+    deps: GraphDeps, state: AutopilotState, rows: list[tuple]
+) -> list[dict]:
+    """Serialize loaded rows into candidates: goal-adjusted batch fit (the
+    seam serves BOTH sweep paths), no never-term hits, must-term
+    coverage."""
+    from app.services.postings.posting_fit_service import get_posting_fits_batch
+
+    if not rows:
+        return []
+    fits = await get_posting_fits_batch(
+        deps.db,
+        UUID(state["user_id"]),
+        [row[0] for row in rows],
+        fit_overrides=deps.fit_overrides,
+    )
+    never_terms = [str(term).casefold() for term in _constraints(state).get("never_terms") or []]
+    must_terms = _must_terms(state)
+    scored: list[dict] = []
+    for posting, interaction, application in rows:
+        fit = fits.get(posting.id) or {}
+        candidate = _serialize_candidate(
+            {
+                "posting": posting,
+                "interaction": interaction,
+                "application": application,
+                "fit": fit.get("score"),
+            }
+        )
+        if candidate is None:
+            continue
+        if fit.get("breakdown") is not None:
+            candidate["breakdown"] = fit["breakdown"]
+        haystack = _candidate_texts(candidate)
+        if any(term and term in haystack for term in never_terms):
+            continue
+        candidate["must_hits"] = sum(1 for term in must_terms if term in haystack)
+        scored.append(candidate)
+    return scored
+
+
+def _merge_candidates(best: dict[str, dict], candidates: list[dict]) -> int:
+    """Dedupe by posting id, keeping the higher fit; returns the number of
+    newly added postings."""
+    merged = 0
+    for candidate in candidates:
+        key = str(candidate["posting_id"])
+        existing = best.get(key)
+        if existing is None:
+            best[key] = candidate
+            merged += 1
+        elif float(candidate.get("fit") or 0) > float(existing.get("fit") or 0):
+            best[key] = candidate
+    return merged
+
+
+def _cap_candidates(candidates: list[dict]) -> list[dict]:
+    """Bound the checkpointed working set: the merge pool can reach a few
+    hundred postings, and candidates ride every checkpoint write. The cap
+    sits far above the curator pool, so the cut is invisible to curation."""
+    if len(candidates) <= CANDIDATE_CAP:
+        return candidates
+    ordered = sorted(
+        candidates,
+        key=lambda c: (float(c.get("fit") or 0), str(c.get("posting_id") or "")),
+        reverse=True,
+    )
+    return ordered[:CANDIDATE_CAP]
+
+
+# ------------------------------------------------------------- trace channel
+
+
+def record_step(
+    state: AutopilotState,
+    *,
+    step: str,
+    kind: str,
+    duration_ms: int,
+    args: dict,
+    output: dict,
+    error: str = "",
+    abort: str = "",
+) -> list[dict]:
+    """Append one trace entry and return the ACCUMULATED list.
+
+    Append-return, exactly the ``searches`` precedent: a retried node
+    contributes nothing on its failed attempt (the exception propagates
+    before any update is returned), so entries never duplicate or drop.
+    ``iteration`` (``replan_attempts`` + 1 in the pre-update state) marks
+    the legitimate second ``search``/``filter`` pass after a replan. The
+    list persists on ``autopilot_runs.run_steps`` — a durable ledger, not
+    checkpoint history (checkpoints are TTL-pruned).
+    """
+    entry = {
+        "step": step,
+        "kind": kind,
+        "iteration": int(state.get("replan_attempts") or 0) + 1,
+        "at": _utcnow().isoformat(),
+        "duration_ms": duration_ms,
+        "args": args,
+        "output": output,
+        "error": str(error or "")[:300],
+        "abort": str(abort or ""),
+    }
+    return [*(state.get("trace_steps") or []), entry]
+
+
+def _spanned(step: str, kind: str, node):
+    """Open the ``autopilot.node`` span around one node execution.
+
+    Every graph node goes through this wrapper — ``deliver`` included —
+    so an exported waterfall shows the full graph. The span carries the
+    node/kind metadata plus the post-run status and latency; a node that
+    raises still records the failure on its span before propagating.
+    """
+
+    async def spanned(state: AutopilotState) -> dict:
+        from app.ai.tracing import sink
+
+        started = time.perf_counter()
+        with sink().span("autopilot.node", {"node": step, "kind": kind}) as node_span:
+            update = await node(state)
+            node_span.set(
+                {
+                    "status": "ok",
+                    "latency_ms": int((time.perf_counter() - started) * 1000),
+                    "abort_reason": str(update.get("abort_reason") or ""),
+                }
+            )
+        return update
+
+    return spanned
+
+
+def _traced(step: str, kind: str, args_of, output_of, node):
+    """Run one node and land exactly one trace entry per execution.
+
+    The wrapper is what LangGraph invokes, so a retry or a replan
+    re-entry starts fresh (and records fresh); a node that raises
+    contributes no entry — the service's failure path reads the last
+    completed superstep from the checkpointer instead.
+    """
+
+    async def traced(state: AutopilotState) -> dict:
+        started = time.perf_counter()
+        update = await node(state)
+        update["trace_steps"] = record_step(
+            state,
+            step=step,
+            kind=kind,
+            duration_ms=int((time.perf_counter() - started) * 1000),
+            args=args_of(state),
+            output=output_of(state, update),
+            error=str(update.get("error") or ""),
+            abort=str(update.get("abort_reason") or ""),
+        )
+        return update
+
+    return _spanned(step, kind, traced)
+
+
+def _fresh_entries(state: AutopilotState, update: dict) -> list[dict]:
+    timeline = update.get("searches") or []
+    return timeline[len(state.get("searches") or []) :]
+
+
+def _plan_args(state: AutopilotState) -> dict:
+    profile = state.get("profile_context") or {}
+    summary: dict = {"target_seniority": profile.get("target_seniority") or []}
+    if "skills" in profile:
+        summary["skills"] = len(profile.get("skills") or [])
+    if "languages" in profile:
+        summary["languages"] = len(profile.get("languages") or [])
+    for key in ("education_level", "country", "city", "stage", "stage_source"):
+        if key in profile:
+            summary[key] = profile.get(key)
+    return {
+        "goal": str(state.get("goal_text") or "")[:400],
+        "constraints": sorted(_constraints(state).keys()),
+        "budget": sorted((state.get("budget") or {}).keys()),
+        "profile": summary,
+    }
+
+
+def _plan_output(_state: AutopilotState, update: dict) -> dict:
+    return {"variants": len((update.get("plan") or {}).get("variants") or [])}
+
+
+def _search_args(state: AutopilotState) -> dict:
+    variants = (state.get("plan") or {}).get("variants") or []
+    return {
+        "variants": [
+            {
+                "query": str(variant.get("query") or ""),
+                "filters": variant.get("filters") or {},
+            }
+            for variant in variants[:SEARCH_VARIANTS]
+        ]
+    }
+
+
+def _search_output(state: AutopilotState, update: dict) -> dict:
+    keys = ("step", "query", "filters", "rationale", "found", "examined", "error")
+    return {
+        "searches": [
+            {key: entry.get(key) for key in keys} for entry in _fresh_entries(state, update)
+        ],
+        "pool": len(update.get("candidates") or []),
+    }
+
+
+def _filter_args(state: AutopilotState) -> dict:
+    constraints = _constraints(state)
+    return {
+        "pool": len(state.get("candidates") or []),
+        "never_terms": len(constraints.get("never_terms") or []),
+        "exclude_seen": bool(constraints.get("exclude_seen", True)),
+    }
+
+
+def _filter_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(
+        (e for e in reversed(_fresh_entries(state, update)) if e.get("step") == "filter"),
+        {},
+    )
+    return {
+        "kept": int(entry.get("kept") or 0),
+        "seen": int(entry.get("seen") or 0),
+        "never": int(entry.get("never") or 0),
+        "cooldown": int(entry.get("cooldown") or 0),
+        "pool": len(update.get("candidates") or []),
+    }
+
+
+def _evaluate_args(state: AutopilotState) -> dict:
+    return {"pool": len(state.get("candidates") or [])}
+
+
+def _evaluate_output(_state: AutopilotState, update: dict) -> dict:
+    pool = update.get("candidates") or []
+    fits = [float(c.get("fit") or 0) for c in pool]
+    histogram: dict[str, int] = {}
+    for candidate in pool:
+        hits = str(candidate.get("must_hits") or 0)
+        histogram[hits] = histogram.get(hits, 0) + 1
+    return {
+        "pool": len(pool),
+        "top_fit_range": [min(fits), max(fits)] if fits else [],
+        "must_hits_histogram": histogram,
+    }
+
+
+def _replan_args(state: AutopilotState) -> dict:
+    previous = [entry for entry in state.get("searches") or [] if entry.get("step") == "search"]
+    return {
+        "previous_variants": [str(entry.get("query") or "") for entry in previous],
+        "attempts": int(state.get("replan_attempts") or 0),
+    }
+
+
+def _replan_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(
+        (e for e in reversed(_fresh_entries(state, update)) if e.get("step") == "replan"),
+        {},
+    )
+    return {
+        "queries": entry.get("queries") or [],
+        "variants": len((update.get("plan") or {}).get("variants") or []),
+        "note": str(entry.get("error") or entry.get("rationale") or ""),
+    }
+
+
+def _sweep_args(state: AutopilotState) -> dict:
+    pool = sorted(state.get("candidates") or [], key=_pool_order, reverse=True)
+    return {"pool": len(pool), "seeds": [str(c.get("title") or "") for c in pool[:GRAPH_SEEDS]]}
+
+
+def _sweep_output(state: AutopilotState, update: dict) -> dict:
+    entry = next(iter(_fresh_entries(state, update)), {})
+    return {
+        "found": int(entry.get("found") or 0),
+        "examined": int(entry.get("examined") or 0),
+        "pool": len(update.get("candidates") or []),
+        "error": str(entry.get("error") or ""),
+    }
+
+
+def _guard_args(state: AutopilotState) -> dict:
+    budget = state.get("budget") or {}
+    return {
+        "max_tokens": int(budget.get("max_tokens") or 0),
+        "max_calls": int(budget.get("max_calls") or 0),
+    }
+
+
+def _guard_output(_state: AutopilotState, update: dict) -> dict:
+    return {
+        "tokens_used": update.get("tokens_used"),
+        "abort": str(update.get("abort_reason") or ""),
+    }
+
+
+def _curate_args(state: AutopilotState) -> dict:
+    return {
+        "pool": min(
+            len(state.get("candidates") or []),
+            curator_pool(state.get("top_n")),
+        ),
+        "top_n": int(state.get("top_n") or DEFAULT_TOP_N),
+    }
+
+
+def _curate_output(_state: AutopilotState, update: dict) -> dict:
+    return {
+        "picked": len((update.get("curation") or {}).get("findings") or []),
+        "abort": str(update.get("abort_reason") or ""),
+    }
+
+
+async def _semantic_sweep(deps: GraphDeps, state: AutopilotState, best: dict[str, dict]) -> dict:
+    """One prediction-free recall pass over the indexed posting documents.
+
+    A candidate GENERATOR, never a filter: every hit passes the same
+    deterministic gates as the lexical variants before it enters the pool,
+    and any embedding failure degrades to lexical-only (ADR-0012 §13,
+    plan 50 §6). The index is filled by the vector reconcile job, so a board
+    that has not been backfilled yet simply contributes no semantic hits.
+    """
+    entry = {
+        "step": "search",
+        "query": "",
+        "filters": {},
+        "rationale": "semantic sweep over stored posting embeddings",
+        "found": 0,
+        "examined": 0,
+        "error": "",
+    }
+    try:
+        from app.services.vector_retrieval_service import VectorRetrievalService
+        from app.storage.vector_contract import DegradedReason
+
+        query = " ".join([state.get("goal_text") or "", *_must_terms(state)]).strip()
+        result = await VectorRetrievalService(
+            deps.db, run=RunRef(id=UUID(state["run_id"]), stage="autopilot.semantic_sweep")
+        ).search_text(query, kind="posting", limit=SEMANTIC_K)
+        if result.degraded is not None:
+            entry["error"] = sanitize_error_detail(_degraded_detail(result.degraded))
+            if result.degraded in (
+                DegradedReason.PROVIDER_UNASSIGNED,
+                DegradedReason.INDEX_MISSING,
+            ):
+                entry["error"] = ""
+        ids = [UUID(hit.source_id) for hit in result.hits if float(hit.score or 0) > 0]
+        rows = await _gated_rows(deps, state, posting_ids=ids)
+        entry["examined"] = len(rows)
+        candidates = await _scored_candidates(deps, state, rows)
+        entry["found"] = _merge_candidates(best, candidates)
+    except Exception as exc:
+        logger.warning("autopilot semantic sweep degraded", exc_info=True)
+        entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+    return entry
+
+
+def _degraded_detail(reason) -> str:
+    """The run trace's human line for one structured degrade reason."""
+    from app.storage.vector_contract import DegradedReason
+
+    return {
+        DegradedReason.EMBED_FAILED: "semantic sweep skipped: the query embedding failed",
+        DegradedReason.SPACE_MISMATCH: (
+            "semantic sweep skipped: dimension mismatch between the query "
+            "embedding and the active retrieval space"
+        ),
+        DegradedReason.OVER_CAP: "semantic sweep skipped: over the backend's capacity cap",
+        DegradedReason.PROVIDER_UNASSIGNED: "semantic sweep skipped: no embedding provider",
+        DegradedReason.INDEX_MISSING: "semantic sweep skipped: no retrieval index",
+    }.get(reason, f"semantic sweep skipped: {reason}")
+
+
 def make_plan_node(deps: GraphDeps):
     async def plan(state: AutopilotState) -> dict:
-        """LLM step 1: goal + constraints + profile context → SearchPlan."""
+        """LLM step 1: goal + constraints + profile context + the explore
+        vocabulary → SearchPlan."""
         try:
+            try:
+                vocabulary = await plan_vocabulary(
+                    deps.db,
+                    UUID(state["user_id"]),
+                    use_skills=deps.fit_overrides.use_skills if deps.fit_overrides else True,
+                )
+            except Exception:
+                logger.warning("autopilot vocabulary collection failed", exc_info=True)
+                vocabulary = {}
             result = await ainvoke_structured(
                 deps.db,
                 AITaskType.AUTOPILOT_RUN,
                 SearchPlan,
                 system=_plan_system(),
-                user=_plan_user_prompt(state),
+                user=_plan_user_prompt(state, vocabulary),
                 user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.plan"),
             )
             return {"plan": result.model_dump(mode="json")}
-        except Exception as exc:  # noqa: BLE001 — abort cleanly, deliver
+        except Exception as exc:
             lowered = str(exc).lower()
-            reason = (
-                "budget" if "budget" in lowered or "rate limit" in lowered else "error"
-            )
+            reason = "budget" if "budget" in lowered or "rate limit" in lowered else "error"
             return {"abort_reason": reason, "error": f"{type(exc).__name__}: {exc}"}
 
     return plan
@@ -346,9 +1031,7 @@ def make_guard_node(deps: GraphDeps):
         except (KeyError, ValueError):
             return {}
         tokens, calls = await _ledger_usage(deps.db, state["user_id"], since)
-        over = (max_tokens and tokens > max_tokens) or (
-            max_calls and calls >= max_calls
-        )
+        over = (max_tokens and tokens > max_tokens) or (max_calls and calls >= max_calls)
         if over:
             return {"abort_reason": "budget", "tokens_used": tokens}
         return {"tokens_used": tokens}
@@ -359,22 +1042,32 @@ def make_guard_node(deps: GraphDeps):
 def make_search_node(deps: GraphDeps):
     async def search(state: AutopilotState) -> dict:
         """Deterministic: execute each planned variant through the same
-        explore code the API uses, collecting candidates."""
+        explore code the API uses, then one semantic sweep over the stored
+        posting embeddings; every source feeds the same candidate pool."""
         variants = (state.get("plan") or {}).get("variants") or []
-        timeline: list[dict] = []
-        best: dict[str, dict] = {}
-        for variant in variants[:6]:
+        exclude_seen = _constraints(state).get("exclude_seen", True)
+        timeline: list[dict] = list(state.get("searches") or [])
+        best: dict[str, dict] = {
+            str(candidate["posting_id"]): candidate for candidate in state.get("candidates") or []
+        }
+        progress = int(state.get("progress_pct") or 0)
+        searched = 0
+        for variant in variants[:SEARCH_VARIANTS]:
             if await _is_cancelled(deps):
                 return {"abort_reason": "cancelled"}
             raw_filters = dict(variant.get("filters") or {})
             if variant.get("query"):
                 raw_filters["q"] = variant["query"]
+            if exclude_seen:
+                raw_filters.setdefault("seen_exclude", True)
+                raw_filters.setdefault("applied_exclude", True)
             entry = {
                 "step": "search",
                 "query": variant.get("query") or "",
                 "filters": raw_filters,
                 "rationale": (variant.get("rationale") or "")[:400],
                 "found": 0,
+                "examined": 0,
                 "error": "",
             }
             try:
@@ -385,8 +1078,11 @@ def make_search_node(deps: GraphDeps):
                     filters,
                     sort="fit",
                     limit=SEARCH_LIMIT,
+                    with_facets=False,
+                    fit_overrides=deps.fit_overrides,
                 )
                 entry["found"] = int(result.get("total") or 0)
+                entry["examined"] = len(result.get("items") or [])
                 for item in result.get("items") or []:
                     candidate = _serialize_candidate(item)
                     if candidate is None:
@@ -397,15 +1093,26 @@ def make_search_node(deps: GraphDeps):
                         existing.get("fit") or 0
                     ):
                         best[key] = candidate
-            except Exception as exc:  # noqa: BLE001 — a bad variant never kills the run
-                entry["error"] = f"{type(exc).__name__}: {exc}"[:300]
+            except Exception as exc:
+                logger.warning("autopilot candidate evaluation failed", exc_info=True)
+                entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
             timeline.append(entry)
+            searched += 1
+            progress = max(
+                progress,
+                min(55, 15 + int(40 * searched / max(len(variants), 1))),
+            )
             await _report(
                 deps,
-                min(55, 15 + int(40 * len(timeline) / max(len(variants), 1))),
-                f"searched {len(timeline)}/{max(len(variants), 1)} variants",
+                progress,
+                f"searched {searched}/{max(len(variants), 1)} variants",
             )
-        return {"searches": timeline, "candidates": list(best.values())}
+        timeline.append(await _semantic_sweep(deps, state, best))
+        return {
+            "searches": timeline,
+            "candidates": _cap_candidates(list(best.values())),
+            "progress_pct": progress,
+        }
 
     return search
 
@@ -413,9 +1120,12 @@ def make_search_node(deps: GraphDeps):
 def make_filter_node(deps: GraphDeps):
     async def filter_node(state: AutopilotState) -> dict:
         """Deterministic: seen/applied/hidden, never-terms, per-goal
-        cooldown; counts land in the transparency timeline."""
+        cooldown; counts land in the transparency timeline. Every survivor
+        carries its must-term coverage — coverage is ranked downstream,
+        never a gate."""
         constraints = _constraints(state)
         never_terms = [str(t).casefold() for t in constraints.get("never_terms") or []]
+        must_terms = _must_terms(state)
         exclude_seen = constraints.get("exclude_seen", True)
         candidates = state.get("candidates") or []
         kept: list[dict] = []
@@ -435,10 +1145,16 @@ def make_filter_node(deps: GraphDeps):
             if str(candidate["posting_id"]) in deps.cooldown_ids:
                 dropped["cooldown"] += 1
                 continue
-            kept.append(candidate)
+            kept.append(
+                {
+                    **candidate,
+                    "must_hits": sum(1 for term in must_terms if term in haystack),
+                }
+            )
         await _report(deps, 62, "filtered candidates")
         return {
             "candidates": kept,
+            "progress_pct": max(int(state.get("progress_pct") or 0), 62),
             "searches": [
                 *(state.get("searches") or []),
                 {"step": "filter", **dropped, "kept": len(kept)},
@@ -448,22 +1164,35 @@ def make_filter_node(deps: GraphDeps):
     return filter_node
 
 
+def _pool_order(candidate: dict) -> tuple[int, float, str]:
+    """The deterministic ranking: constraints are promises, fit is
+    preference — must-term coverage first, then fit, then recency."""
+    return (
+        int(candidate.get("must_hits") or 0),
+        float(candidate.get("fit") or 0),
+        str(candidate.get("posted_at") or ""),
+    )
+
+
 def make_evaluate_node(deps: GraphDeps):
     async def evaluate(state: AutopilotState) -> dict:
-        """Deterministic: canonical posting_fit breakdowns + fit ordering,
-        cut to the curator pool."""
+        """Deterministic: goal-adjusted posting_fit breakdowns +
+        ``(must_hits, fit)`` ordering, cut to the curator pool."""
         candidates = state.get("candidates") or []
         if not candidates:
             await _report(deps, 70, "evaluated fit")
-            return {}
+            return {"progress_pct": max(int(state.get("progress_pct") or 0), 70)}
         from app.models.posting_model import JobPosting
-        from app.services.posting_fit_service import get_posting_fits_batch
+        from app.services.postings.posting_fit_service import get_posting_fits_batch
 
         ids = [UUID(c["posting_id"]) for c in candidates]
         rows = await deps.db.execute(select(JobPosting).where(JobPosting.id.in_(ids)))
         postings = {str(p.id): p for p in rows.scalars().all()}
         fits = await get_posting_fits_batch(
-            deps.db, UUID(state["user_id"]), list(postings.values())
+            deps.db,
+            UUID(state["user_id"]),
+            list(postings.values()),
+            fit_overrides=deps.fit_overrides,
         )
         enriched: list[dict] = []
         for candidate in candidates:
@@ -484,20 +1213,178 @@ def make_evaluate_node(deps: GraphDeps):
                     ),
                 }
             )
-        enriched.sort(
-            key=lambda c: (float(c.get("fit") or 0), c.get("posted_at") or ""),
-            reverse=True,
-        )
+        enriched.sort(key=_pool_order, reverse=True)
         await _report(deps, 70, "evaluated fit")
-        return {"candidates": enriched[:CURATOR_POOL]}
+        return {
+            "candidates": enriched[: curator_pool(state.get("top_n"))],
+            "progress_pct": max(int(state.get("progress_pct") or 0), 70),
+        }
 
     return evaluate
+
+
+def make_replan_node(deps: GraphDeps):
+    async def replan(state: AutopilotState) -> dict:
+        """LLM step: one bounded broaden after a thin pass. Returns ONLY the
+        new variants (the search node keeps the merged pool); a budget that
+        is already spent skips the call instead of overspending."""
+        previous = [entry for entry in state.get("searches") or [] if entry.get("step") == "search"]
+        entry = {
+            "step": "replan",
+            "queries": [],
+            "rationale": "broadened the search after a thin first pass",
+            "found": 0,
+            "error": "",
+        }
+        record = {"previous_variants": entry["queries"], "reason": ""}
+        budget = state.get("budget") or {}
+        max_tokens = int(budget.get("max_tokens") or 0)
+        max_calls = int(budget.get("max_calls") or 0)
+        spent = 0
+        if max_tokens or max_calls:
+            try:
+                since = datetime.fromisoformat(state["started_at"])
+                tokens, calls = await _ledger_usage(deps.db, state["user_id"], since)
+                spent = tokens if max_tokens and tokens > max_tokens else 0
+                if max_calls and calls >= max_calls:
+                    spent = spent or 1
+            except (KeyError, ValueError):
+                spent = 0
+        if spent:
+            record["reason"] = "run budget reached"
+            return {
+                "replan_attempts": 1,
+                "plan": {"variants": []},
+                "replans": [*(state.get("replans") or []), record],
+                "searches": [*(state.get("searches") or []), entry],
+            }
+        try:
+            try:
+                vocabulary = await plan_vocabulary(
+                    deps.db,
+                    UUID(state["user_id"]),
+                    use_skills=deps.fit_overrides.use_skills if deps.fit_overrides else True,
+                )
+            except Exception:
+                logger.warning("autopilot vocabulary collection failed", exc_info=True)
+                vocabulary = {}
+            result = await ainvoke_structured(
+                deps.db,
+                AITaskType.AUTOPILOT_RUN,
+                SearchPlan,
+                system=_replan_system(),
+                user=_replan_user_prompt(state, previous, vocabulary),
+                user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.replan"),
+            )
+            variants = [variant.model_dump(mode="json") for variant in result.variants]
+        except Exception as exc:
+            logger.warning("autopilot replan failed", exc_info=True)
+            entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+            variants = []
+        entry["queries"] = [
+            str(variant.get("query") or "")
+            or ", ".join(str(k) for k in (variant.get("filters") or {}).get("keywords") or [])
+            for variant in variants
+        ]
+        record["previous_variants"] = [item.get("query") or "" for item in previous]
+        record["new_variants"] = entry["queries"]
+        return {
+            "replan_attempts": int(state.get("replan_attempts") or 0) + 1,
+            "plan": {"variants": variants},
+            "replans": [*(state.get("replans") or []), record],
+            "searches": [*(state.get("searches") or []), entry],
+            "progress_pct": int(state.get("progress_pct") or 0),
+        }
+
+    return replan
+
+
+def make_graph_sweep_node(deps: GraphDeps):
+    async def graph_sweep(state: AutopilotState) -> dict:
+        """Deterministic: expand the pool over the catalog's curated
+        ``similar_to``/``alternative_to`` edges — role adjacency no text
+        signal encodes. No embeddings, no AI; degrades to a no-op entry."""
+        entry = {
+            "step": "search",
+            "query": "",
+            "filters": {},
+            "rationale": "curated graph expansion (no mapped seeds)",
+            "found": 0,
+            "examined": 0,
+            "error": "",
+        }
+        pool = list(state.get("candidates") or [])
+        try:
+            from app.models.enums import JobStatus, RelationType
+            from app.models.job_model import Job, JobRelation
+
+            seeds = [
+                candidate
+                for candidate in sorted(pool, key=_pool_order, reverse=True)
+                if candidate.get("catalog_job_id")
+            ][:GRAPH_SEEDS]
+            if not seeds:
+                return {"candidates": pool, "searches": [*(state.get("searches") or []), entry]}
+            titles = [str(seed.get("title") or "") for seed in seeds]
+            entry["rationale"] = f"curated graph expansion from {', '.join(titles)}"[:400]
+            seed_ids = {UUID(str(seed["catalog_job_id"])) for seed in seeds}
+            rows = await deps.db.execute(
+                select(JobRelation)
+                .where(
+                    JobRelation.relation_type.in_(
+                        [RelationType.SIMILAR_TO.value, RelationType.ALTERNATIVE_TO.value]
+                    ),
+                    or_(
+                        JobRelation.from_job_id.in_(seed_ids),
+                        JobRelation.to_job_id.in_(seed_ids),
+                    ),
+                )
+                .order_by(JobRelation.weight.desc(), JobRelation.id)
+            )
+            related: list[UUID] = []
+            for relation in rows.scalars().all():
+                other = (
+                    relation.to_job_id if relation.from_job_id in seed_ids else relation.from_job_id
+                )
+                if other in seed_ids or other in related:
+                    continue
+                related.append(other)
+            published = set(
+                (
+                    await deps.db.execute(
+                        select(Job.id).where(
+                            Job.id.in_(related), Job.status == JobStatus.PUBLISHED.value
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            targets = [job_id for job_id in related if job_id in published][:GRAPH_NEIGHBORS]
+            if targets:
+                known = {str(candidate["posting_id"]) for candidate in pool}
+                gated = await _gated_rows(deps, state, catalog_job_ids=targets, exclude_ids=known)
+                entry["examined"] = len(gated)
+                merged = {str(candidate["posting_id"]): candidate for candidate in pool}
+                entry["found"] = _merge_candidates(
+                    merged, await _scored_candidates(deps, state, gated)
+                )
+                pool = sorted(merged.values(), key=_pool_order, reverse=True)[
+                    : curator_pool(state.get("top_n"))
+                ]
+        except Exception as exc:
+            logger.warning("autopilot graph sweep degraded", exc_info=True)
+            entry["error"] = sanitize_error_detail(f"{type(exc).__name__}: {exc}")
+        return {"candidates": pool, "searches": [*(state.get("searches") or []), entry]}
+
+    return graph_sweep
 
 
 def make_curate_node(deps: GraphDeps):
     async def curate(state: AutopilotState) -> dict:
         """LLM step 2: top candidates → explained shortlist (audited)."""
-        pool = (state.get("candidates") or [])[:CURATOR_POOL]
+        pool = (state.get("candidates") or [])[: curator_pool(state.get("top_n"))]
         if not pool:
             return {}
         try:
@@ -508,13 +1395,12 @@ def make_curate_node(deps: GraphDeps):
                 system=_curate_system(int(state.get("top_n") or DEFAULT_TOP_N)),
                 user=_curate_user_prompt(state, pool),
                 user_id=UUID(state["user_id"]),
+                run=RunRef(id=UUID(state["run_id"]), stage="autopilot.curate"),
             )
             return {"curation": result.model_dump(mode="json")}
-        except Exception as exc:  # noqa: BLE001 — fall back to deterministic
+        except Exception as exc:
             lowered = str(exc).lower()
-            reason = (
-                "budget" if "budget" in lowered or "rate limit" in lowered else "error"
-            )
+            reason = "budget" if "budget" in lowered or "rate limit" in lowered else "error"
             return {
                 "abort_reason": state.get("abort_reason") or reason,
                 "error": f"{type(exc).__name__}: {exc}",
@@ -535,6 +1421,7 @@ def make_deliver_node(deps: GraphDeps):
         )
         from app.services.notification_service import NotificationService
 
+        deliver_started = time.perf_counter()
         top_n = int(state.get("top_n") or DEFAULT_TOP_N)
         pool = state.get("candidates") or []
         by_id = {str(c["posting_id"]): c for c in pool}
@@ -553,9 +1440,10 @@ def make_deliver_node(deps: GraphDeps):
         picked = curated.keys() if curated else [str(c["posting_id"]) for c in pool]
         ordered = sorted(
             (by_id[pid] for pid in picked if pid in by_id),
-            key=lambda c: float(c.get("fit") or 0),
+            key=_pool_order,
             reverse=True,
         )[:top_n]
+        must_total = len(_must_terms(state))
         now = _utcnow()
         findings: list[dict] = []
         for candidate in ordered:
@@ -570,6 +1458,10 @@ def make_deliver_node(deps: GraphDeps):
                     "quotes": explanation.get("quotes") or [],
                     "breakdown": candidate.get("breakdown") or {},
                     "verified": bool(explanation.get("quotes")),
+                    "must_coverage": {
+                        "hits": int(candidate.get("must_hits") or 0),
+                        "total": must_total,
+                    },
                 },
             )
             deps.db.add(row)
@@ -609,6 +1501,7 @@ def make_deliver_node(deps: GraphDeps):
             goal.last_run_at = now
         await deps.db.flush()
         status = run.status if run is not None else AutopilotRunStatus.COMPLETED.value
+        notified = False
         if findings and status in (
             AutopilotRunStatus.COMPLETED.value,
             AutopilotRunStatus.BUDGET_ABORTED.value,
@@ -617,8 +1510,7 @@ def make_deliver_node(deps: GraphDeps):
                 "autopilot_findings",
                 [UUID(state["user_id"])],
                 title=(
-                    f"Autopilot found {len(findings)} match"
-                    f"{'es' if len(findings) != 1 else ''}"
+                    f"Autopilot found {len(findings)} match{'es' if len(findings) != 1 else ''}"
                 ),
                 body=(state.get("goal_text") or "")[:300],
                 payload={
@@ -626,13 +1518,31 @@ def make_deliver_node(deps: GraphDeps):
                     "run_id": state["run_id"],
                     "count": len(findings),
                     "status": status,
-                    "link": "/autopilot",
+                    "link": f"/autopilot/runs/{state['run_id']}",
                 },
                 source_ref={"goal_id": state["goal_id"], "run_id": state["run_id"]},
                 dedup_key=f"autopilot:{state['run_id']}",
             )
+            notified = True
         await _report(deps, 100, "delivered")
-        return {"findings": findings, "tokens_used": tokens}
+        steps = record_step(
+            state,
+            step="deliver",
+            kind="deterministic",
+            duration_ms=int((time.perf_counter() - deliver_started) * 1000),
+            args={"pool": len(pool), "top_n": top_n},
+            output={
+                "findings": [{"id": f["posting_id"], "score": float(f["score"])} for f in findings],
+                "status": status,
+                "tokens": tokens,
+                "notified": notified,
+            },
+            error=str(state.get("error") or ""),
+            abort=str(state.get("abort_reason") or ""),
+        )
+        if run is not None:
+            run.run_steps = steps
+        return {"findings": findings, "tokens_used": tokens, "trace_steps": steps}
 
     return deliver
 
@@ -645,32 +1555,83 @@ def route_by_abort(state: AutopilotState) -> str:
     return "deliver" if state.get("abort_reason") else "continue"
 
 
-def build_autopilot_graph(deps: GraphDeps, checkpointer: Optional[Any] = None):
-    """Compile plan → search → filter → evaluate → guard → curate →
-    deliver. The guard sits between the deterministic pipeline and the
-    second LLM call: at budget the searched candidates still ship with
-    deterministic explanations (partial findings). Tests pass an
-    ``InMemorySaver``; production passes the app checkpointer
-    (thread_id = run id)."""
+def route_after_filter(state: AutopilotState) -> str:
+    """A pool thinner than the shortlist gets ONE broaden pass — never
+    after an abort, and never more than ``REPLAN_LIMIT`` times."""
+    if state.get("abort_reason"):
+        return "evaluate"
+    kept = len(state.get("candidates") or [])
+    attempts = int(state.get("replan_attempts") or 0)
+    if kept < int(state.get("top_n") or DEFAULT_TOP_N) and attempts < REPLAN_LIMIT:
+        return "replan"
+    return "evaluate"
+
+
+def build_autopilot_graph(deps: GraphDeps, checkpointer: Any | None = None):
+    """Compile plan → search → filter (⇄ replan, bounded) → evaluate →
+    graph_sweep → budget_guard → curate → deliver. The guard sits between
+    the deterministic pipeline and the last LLM call: at budget the searched
+    candidates still ship with deterministic explanations (partial
+    findings). Tests pass an ``InMemorySaver``; production passes the app
+    checkpointer (thread_id = run id)."""
     builder = StateGraph(AutopilotState)
     retry = RetryPolicy(max_attempts=2)
-    builder.add_node("plan", make_plan_node(deps), retry_policy=retry)
-    builder.add_node("budget_guard", make_guard_node(deps))
-    builder.add_node("search", make_search_node(deps))
-    builder.add_node("filter", make_filter_node(deps))
-    builder.add_node("evaluate", make_evaluate_node(deps))
-    builder.add_node("curate", make_curate_node(deps), retry_policy=retry)
-    builder.add_node("deliver", make_deliver_node(deps))
+    builder.add_node(
+        "plan",
+        _traced("plan", "llm", _plan_args, _plan_output, make_plan_node(deps)),
+        retry_policy=retry,
+    )
+    builder.add_node(
+        "budget_guard",
+        _traced("budget_guard", "deterministic", _guard_args, _guard_output, make_guard_node(deps)),
+    )
+    builder.add_node(
+        "search",
+        _traced("search", "deterministic", _search_args, _search_output, make_search_node(deps)),
+    )
+    builder.add_node(
+        "filter",
+        _traced("filter", "deterministic", _filter_args, _filter_output, make_filter_node(deps)),
+    )
+    builder.add_node(
+        "replan",
+        _traced("replan", "llm", _replan_args, _replan_output, make_replan_node(deps)),
+        retry_policy=retry,
+    )
+    builder.add_node(
+        "evaluate",
+        _traced(
+            "evaluate", "deterministic", _evaluate_args, _evaluate_output, make_evaluate_node(deps)
+        ),
+    )
+    builder.add_node(
+        "graph_sweep",
+        _traced(
+            "graph_sweep", "deterministic", _sweep_args, _sweep_output, make_graph_sweep_node(deps)
+        ),
+    )
+    builder.add_node(
+        "curate",
+        _traced("curate", "llm", _curate_args, _curate_output, make_curate_node(deps)),
+        retry_policy=retry,
+    )
+    builder.add_node("deliver", _spanned("deliver", "deterministic", make_deliver_node(deps)))
 
     builder.add_edge(START, "plan")
     builder.add_conditional_edges(
         "plan", route_by_abort, {"deliver": "deliver", "continue": "search"}
     )
     builder.add_edge("search", "filter")
-    builder.add_edge("filter", "evaluate")
     builder.add_conditional_edges(
-        "evaluate", route_by_abort, {"deliver": "deliver", "continue": "budget_guard"}
+        "filter",
+        route_after_filter,
+        {"replan": "replan", "evaluate": "evaluate"},
     )
+    builder.add_edge("replan", "search")
+    builder.add_conditional_edges(
+        "evaluate", route_by_abort, {"deliver": "deliver", "continue": "graph_sweep"}
+    )
+    builder.add_edge("graph_sweep", "budget_guard")
     builder.add_conditional_edges(
         "budget_guard",
         route_by_abort,
@@ -689,8 +1650,9 @@ def initial_state(
     goal_text: str,
     constraints: dict,
     budget: dict,
-    top_n: Optional[int] = None,
-    cooldown_days: Optional[int] = None,
+    top_n: int | None = None,
+    cooldown_days: int | None = None,
+    profile_context: dict | None = None,
 ) -> AutopilotState:
     """The first checkpoint's payload (everything a resumed run needs)."""
     now = _utcnow()
@@ -705,8 +1667,13 @@ def initial_state(
         started_at=now.isoformat(),
         cooldown_cutoff=(now - timedelta(days=max(days, 0))).isoformat(),
         top_n=int(top_n or DEFAULT_TOP_N),
+        profile_context=profile_context or {},
         searches=[],
         candidates=[],
+        replan_attempts=0,
+        replans=[],
+        progress_pct=0,
+        trace_steps=[],
     )
 
 
@@ -724,27 +1691,56 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
         ctx = json.loads(user_prompt)
     except json.JSONDecodeError:
         ctx = {}
+    if schema is SearchPlan and ctx.get("previous_variants") is not None:
+        goal = str(ctx.get("goal") or "matching roles")
+        tokens = [
+            token for token in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]+", goal) if len(token) > 3
+        ][:2]
+        variants = [{"rationale": "broadened to every open posting", "query": "", "filters": {}}]
+        if tokens:
+            variants.insert(
+                0,
+                {
+                    "rationale": "relaxed keyword variant for the same goal",
+                    "query": "",
+                    "filters": {"keywords": tokens},
+                },
+            )
+        return {"variants": variants[:3]}
     if schema is SearchPlan:
         goal = str(ctx.get("goal") or "matching roles")
-        words = " ".join(goal.split())[:60]
-        variants: list[dict] = [
-            {
-                "rationale": "broad sweep matching the goal text",
-                "query": words,
-                "filters": {},
-            }
-        ]
+        tokens = [
+            token for token in re.findall(r"[A-Za-z][A-Za-z0-9+#.-]+", goal) if len(token) > 3
+        ][:4]
+        plan_variants: list[dict] = []
+        if tokens:
+            plan_variants.append(
+                {
+                    "rationale": "keyword sweep over the goal's core terms",
+                    "query": "",
+                    "filters": {"keywords": tokens},
+                }
+            )
+        skills = [str(key) for key in (ctx.get("skill_keys") or [])][:2]
+        if skills:
+            plan_variants.append(
+                {
+                    "rationale": "skill keys from the user's own neighbourhood",
+                    "query": "",
+                    "filters": {"skills": skills},
+                }
+            )
         must = [str(t) for t in (ctx.get("must_terms") or [])][:2]
         if must:
-            variants.append(
+            plan_variants.append(
                 {
                     "rationale": "focused on must-have terms",
-                    "query": " ".join(must),
-                    "filters": {},
+                    "query": "",
+                    "filters": {"keywords": must},
                 }
             )
         if ctx.get("seniority"):
-            variants.append(
+            plan_variants.append(
                 {
                     "rationale": "seniority-scoped variant",
                     "query": "",
@@ -752,23 +1748,21 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
                 }
             )
         if ctx.get("target_families"):
-            variants.append(
+            plan_variants.append(
                 {
                     "rationale": "target families only",
                     "query": "",
-                    "filters": {
-                        "mapped_family": [str(k) for k in ctx["target_families"][:3]]
-                    },
+                    "filters": {"mapped_family": [str(k) for k in ctx["target_families"][:3]]},
                 }
             )
-        variants.append(
+        plan_variants.append(
             {
                 "rationale": "broad net across every connected source",
                 "query": "",
                 "filters": {},
             }
         )
-        return {"variants": variants[:5]}
+        return {"variants": plan_variants[:5]}
     if schema is Curation:
         candidates = [c for c in ctx.get("candidates") or [] if isinstance(c, dict)]
         ranked = sorted(
@@ -781,9 +1775,9 @@ def _mock_autopilot(schema: type, user_prompt: str) -> dict:
             snippet = " ".join(str(candidate.get("description_snippet") or "").split())
             quote = snippet[:80].strip()
             skills = [
-                s.get("key")
+                str(s.get("key"))
                 for s in candidate.get("skills") or []
-                if isinstance(s, dict)
+                if isinstance(s, dict) and s.get("key")
             ]
             skill_bit = f" Seeks {skills[0]}." if skills else ""
             why = (

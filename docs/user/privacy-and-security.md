@@ -26,8 +26,9 @@ Encryption uses a dedicated per-instance `CAREER_DATA_KEY` (identity-auth
 from any other key. On the desktop a strong key family (`auth_keys.json`)
 is created on first launch; on servers you pin all three `CAREER_*_KEY`
 secrets in the environment. Older releases encrypted with a key derived
-from `JWT_SECRET`; migration `0044` retires that ciphertext (AI provider
-keys are wiped once and re-entered in Settings → AI Configuration).
+from `JWT_SECRET`; the v0.17 baseline derives nothing from it (pre-baseline
+installations had that ciphertext retired once, with AI provider keys
+re-entered in Settings → AI Configuration).
 
 ## Authentication
 
@@ -55,13 +56,13 @@ Family auth contract (identity-auth, ADR-0013):
 
 ## Fail-safe production mode
 
-`APP_ENV=production` is the default. Boot guards (`app/core/boot.py`) **refuse
+`CAREER_APP_ENV=production` is the default. Boot guards (`app/core/boot.py`) **refuse
 to start** in production with:
 
 - a weak, partial or missing key family (`CAREER_SESSION_KEY` /
   `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY` — production servers pin all
   three long random values; desktop generates its own on first run), or
-- `DEBUG=true` or `DEMO_MODE=true`.
+- `DEBUG=true` or `CAREER_DEMO_MODE=true`.
 
 This is intentional. The dev-only defaults in `.env.example` and the dev
 compose file are valid only for localhost and are rejected by the production
@@ -78,7 +79,7 @@ guards.
   as reference material and explicitly marked untrusted — it cannot redirect
   the assistant.
 - **The mock provider can never serve production results.** It is dev/test
-  only and opt-in via `MOCK_AI=1`.
+  only and opt-in via `CAREER_MOCK_AI=1`.
 
 ## Full audit trail
 
@@ -88,7 +89,7 @@ around the AI gateway, so the trail is complete.
 
 ## Uploads and outbound requests
 
-- Uploads are size-capped (`MAX_UPLOAD_MB`) and type-checked; nginx enforces a
+- Uploads are size-capped (`CAREER_MAX_UPLOAD_MB`) and type-checked; nginx enforces a
   matching body cap.
 - Outbound fetches are guarded against SSRF (resolve-then-connect blocklist,
   manual redirect hops, size and time caps).

@@ -1,0 +1,39 @@
+# JSONB inventory (guidelines/data-model.md §5).
+# table.column :: verdict (keep-open | typed-out) — verdict, optional note.
+# This file starts with plan 127 §3.0; pre-existing JSONB columns are not
+# yet classified (the repo runs the gate in transition mode) and are
+# covered by a follow-up sweep. Every column added from here on lands
+# with its row in the same commit.
+econ_packs.coverage :: keep-open coverage document per pack (granularity, period bounds, categories)
+econ_packs.manifest :: keep-open pack manifest, embeds pack_format
+econ_series.provider_dims :: keep-open provider-specific dimension codes
+econ_observations.evidence :: keep-open verbatim span + locator + content hash
+scenarios.assumptions :: keep-open per-scenario assumption document
+scenarios.indicators :: keep-open observable indicator refs + thresholds
+job_sources.query_cache :: keep-open merged radar query artifact (role groups, provenance, rotation cursor)
+claims.evidence_refs :: keep-open references to series/observation rows
+company_profiles.financials :: typed-out FinancialClaim rows (kind/amount/currency/as_of/source)
+company_profiles.industry_tags :: typed-out list[str] tags
+company_profiles.links :: typed-out list[{label,url}]
+job_radars.keywords :: typed-out list[str] role/keyword strings
+job_radars.locations :: typed-out list[{city,country,remote}] preference rows
+job_radars.seniority :: typed-out list[str] seniority bands
+job_radars.source_keys :: typed-out list[str] connector keys (unconsumed until source-follows)
+source_runs.report :: keep-open per-attempt sync report (typed errors, counts) for the source run ledger
+organization_match_pairs.evidence :: keep-open gray-band matcher evidence (url/domain/city signals, provenance)
+organization_merge_suggestions.evidence :: keep-open suggestion evidence payload (score signals, arbiter verdict)
+job_postings.org_match :: typed-out {layer,score,matched_on,state} link provenance (audit + corrections)
+job_postings.mapping_features :: keep-open versioned mapping provenance (bounded candidates, policy, space_key, degraded reason; validated at the service boundary)
+skill_relations.evidence :: keep-open per-edge provenance (rationale, signals, prompt_version)
+posting_filter_presets.filters :: typed-out versioned postings filter spec (v-pinned pydantic shape, additive-only evolution — plan 136)
+posting_filter_presets.tags :: keep-open user-applied preset tags (free-form strings — plan 136)
+posting_changes.operation :: keep-open operation parameters (links, never content)
+posting_changes.diff :: keep-open field→{from,to} compact diffs (strings capped at 200 chars; skills set-diff)
+skill_changes.actor_ref :: keep-open ids-only actor links (user/posting/job refs, never content)
+skill_changes.detail :: keep-open capped field diffs / merge targets / corroboration counts (strings capped at 200 chars)
+autopilot_runs.run_steps :: keep-open durable per-node run trace (step/kind/iteration/timing + whitelisted args/output summaries — plan 168; a ledger, never checkpoint history)
+smart_query_cache.spec :: typed-out closed SmartSearchSpec projection (pydantic extra=forbid over the explore vocabulary — plan 179)
+vector_records.text_ref :: keep-open {table,id,field} pointer rehydrated under ACL (validated at the service boundary; no raw text)
+retrieval_query_rollups.latency_buckets :: keep-open latency histogram bucket-to-count map (plan 51 Q0 owns the boundaries; latency_bucket_schema_version is the sibling)
+ai_generations.metadata :: keep-open caller-supplied embedding tags (space_id/kind/view/chunk_index; schema version sibling; never text)
+mapping_coverage_snapshots.reasons :: keep-open funnel-state→count histogram at capture time (closed keys from the AD2 precedence; no text)

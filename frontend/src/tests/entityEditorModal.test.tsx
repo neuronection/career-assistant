@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { EntityEditorModal } from "@/components/profile/EntityEditorModal";
+import { EntityEditorModal } from "@/features/profile/components/profile/EntityEditorModal";
 import {
   createExperienceItem,
   fetchExperience,

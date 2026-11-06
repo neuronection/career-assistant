@@ -1,19 +1,22 @@
+import json
+from pathlib import Path
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.budgets import usage_rollups as usage_rollups_view
 from app.ai.providers.resolution import known_task_types, resolve_task_model
-from app.ai.providers.presets import PRESETS, PRESET_ORDER
 from app.ai.providers.service import AIProviderService
 from app.ai.tools import list_tools
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import mask_secret
-from app.core.errors import DomainError
+from app.core.errors import DomainError, PermissionDeniedError
 from app.models.ai_model import AIBudget
+from app.models.ai_provider_model import AIProvider, AITaskAssignment
 from app.models.user_model import User
 from app.schemas.ai_admin import (
     AssignmentOut,
@@ -27,7 +30,10 @@ from app.schemas.ai_admin import (
     ModelUpdate,
     ProviderCreate,
     ProviderOut,
+    ProviderSetupIn,
     ProviderUpdate,
+    SetDefaultIn,
+    SetupOut,
     TestResult,
     UsageRollup,
     WebSettingsOut,
@@ -51,6 +57,7 @@ def _provider_out(provider, user: User) -> dict:
         "is_active": provider.is_active,
         "is_local": provider.is_local,
         "country": provider.country,
+        "preset_key": provider.preset_key,
         "is_mine": provider.scope == "system" or provider.user_id == user.id,
         "created_at": provider.created_at,
     }
@@ -74,9 +81,7 @@ async def config_summary(
                 tier=resolved.tier if resolved else None,
             )
         )
-    return ConfigSummary(
-        tasks=tasks, can_manage_global=user.is_admin, mock_allowed=settings.is_dev
-    )
+    return ConfigSummary(tasks=tasks, can_manage_global=user.is_admin, mock_allowed=settings.is_dev)
 
 
 @router.get("/tasks")
@@ -98,13 +103,18 @@ async def list_providers(
 async def provider_presets(
     user: User = Depends(get_current_user),
 ) -> dict[str, dict]:
-    """The settings form's provider catalog (name/type/base URL/local).
+    """The settings form's provider catalog (family §15 canonical data).
 
-    Static metadata — the client never has to hardcode endpoint URLs;
-    ``local`` presets default the hosting toggle. Must be declared before
+    Every preset career's factory can serve, with the guided-setup
+    metadata (key URL, steps, curated models, STT + decision catalogs).
+    Tiles order by ``presetOrder`` client-side; the docs-verified
+    ``typesafe`` preset rides the order like every preset (the §13.3
+    exposure switch flipped 2026-10-13). Must be declared before
     ``/providers/{provider_id}``.
     """
-    return {key: dict(PRESETS[key]) for key in PRESET_ORDER}
+    from app.ai.providers.presets import ALL_PRESETS
+
+    return {key: dict(row) for key, row in ALL_PRESETS.items()}
 
 
 @router.post("/providers", response_model=ProviderOut, status_code=201)
@@ -179,9 +189,7 @@ async def list_models(
     return [ModelOut.model_validate(m) for m in rows]
 
 
-@router.post(
-    "/providers/{provider_id}/models", response_model=ModelOut, status_code=201
-)
+@router.post("/providers/{provider_id}/models", response_model=ModelOut, status_code=201)
 async def add_model(
     provider_id: UUID,
     data: ModelCreate,
@@ -200,6 +208,7 @@ async def add_model(
             reasoning_effort=data.reasoning_effort,
             tier=data.tier,
             caps=data.caps,
+            decision_transport=data.decision_transport,
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -224,10 +233,12 @@ async def update_model(
             temperature=data.temperature,
             max_tokens=data.max_tokens,
             caps=data.caps,
+            decision_transport=data.decision_transport,
             set_temperature="temperature" in data.model_fields_set,
             set_max_tokens="max_tokens" in data.model_fields_set,
             set_reasoning_effort="reasoning_effort" in data.model_fields_set,
             set_caps="caps" in data.model_fields_set,
+            set_decision_transport="decision_transport" in data.model_fields_set,
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -260,6 +271,125 @@ async def fetch_external_models(
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
+@router.post("/providers/{preset_key}/setup", response_model=SetupOut)
+async def setup_preset_provider(
+    preset_key: str,
+    data: ProviderSetupIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> SetupOut:
+    """One-click §15 setup: fetch-first validation, curated catalog,
+    append-union persistence, capability-aware gap-fill — all at the
+    caller's scope (system scope requires admin)."""
+    from app.ai.providers.setup import (
+        SetupError,
+        SetupOptions,
+        UnknownPresetError,
+        setup_provider_from_preset,
+    )
+
+    options = None
+    if data.options is not None:
+        options = SetupOptions(
+            curated_ids=data.options.curated_ids,
+            bind_chat=data.options.bind_chat,
+            bind_vision=data.options.bind_vision,
+            bind_stt=data.options.bind_stt,
+            bind_embeddings=data.options.bind_embeddings,
+            bind_decision=data.options.bind_decision,
+        )
+    try:
+        outcome = await setup_provider_from_preset(
+            db,
+            user,
+            preset_key,
+            data.api_key,
+            name=data.name,
+            scope=data.scope,
+            options=options,
+        )
+    except UnknownPresetError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except SetupError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "code": exc.classified.code.value,
+                "suspected_vendor": exc.classified.suspected_vendor,
+                "detail": exc.vendor_message,
+            },
+        ) from exc
+    except DomainError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from exc
+    await db.commit()
+    rows = await db.execute(select(AIProvider).where(AIProvider.id == outcome.provider_id))
+    provider = rows.scalars().first()
+    assert provider is not None
+    return SetupOut(
+        ok=True,
+        provider=ProviderOut.model_validate(_provider_out(provider, user)),
+        catalog_count=outcome.catalog_count,
+        curated_missed=outcome.curated_missed,
+        assigned_chat_model=outcome.assigned_chat_model,
+        assigned_vision_model=outcome.assigned_vision_model,
+        assigned_stt_model=outcome.assigned_stt_model,
+        assigned_embeddings_model=outcome.assigned_embeddings_model,
+        assigned_decision_slots=outcome.assigned_decision_slots,
+    )
+
+
+@router.put("/providers/{provider_id}/set-default", response_model=AssignmentOut)
+async def set_provider_default(
+    provider_id: UUID,
+    data: SetDefaultIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AssignmentOut:
+    """Bind one of a provider's models as a task default (scope-aware).
+
+    Capability guards reject cross-slot models (422); a model name that
+    belongs to another provider is a 409, never a silent duplicate.
+    """
+    from app.ai.providers.setup import (
+        CrossProviderModelError,
+        set_default_model,
+    )
+
+    try:
+        await set_default_model(
+            db,
+            user,
+            provider_id=provider_id,
+            model_name=data.model_name,
+            task=data.task,
+            scope=data.scope,
+        )
+    except CrossProviderModelError as exc:
+        await db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except DomainError as exc:
+        await db.rollback()
+        status_code = (
+            status.HTTP_403_FORBIDDEN
+            if isinstance(exc, PermissionDeniedError)
+            else status.HTTP_422_UNPROCESSABLE_ENTITY
+        )
+        raise HTTPException(status_code, str(exc)) from exc
+    user_id = user.id if data.scope == "user" else None
+    rows = await db.execute(
+        select(AITaskAssignment).where(
+            AITaskAssignment.task_type == data.task,
+            AITaskAssignment.scope == data.scope,
+            AITaskAssignment.user_id == user_id,
+        )
+    )
+    assignment = rows.scalars().first()
+    assert assignment is not None
+    return AssignmentOut.model_validate(assignment)
+
+
 @router.get("/models")
 async def list_all_models(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
@@ -277,6 +407,7 @@ async def list_all_models(
             # what the per-model edit dialog declares — not on the
             # client's model-name guesses.
             "caps": list(model.caps or []),
+            "decision_transport": model.decision_transport,
             "provider_name": provider.name,
             "provider_scope": provider.scope,
             "provider_type": provider.provider_type,
@@ -293,9 +424,7 @@ async def list_assignments(
 ) -> list[AssignmentOut]:
     """Stored assignments at a scope ('user' or 'system'; system = admin view)."""
     if scope == "system" and not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can view global assignments"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can view global assignments")
     rows = await AIProviderService(db).list_assignments(user, scope)
     return [AssignmentOut.model_validate(a) for a in rows]
 
@@ -328,6 +457,7 @@ async def tools(
     include_capabilities: bool = False,
     bindable_only: bool = False,
     user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Registered AI tools (callable only, unless capabilities are opted in).
 
@@ -336,7 +466,9 @@ async def tools(
     the callable-only default. ``bindable_only=true`` narrows to the
     subset the main chat's LLM actually binds (the chat-audience
     allowlist) — the chat's "tools the assistant can use" dialog shows
-    THAT, not the whole copilot/admin registry."""
+    THAT, not the whole copilot/admin registry. Every row carries its
+    ADR-0011 risk class (D20) plus the caller's grant state for
+    state-changing tools (the catalog toggle)."""
     listed = list_tools()
     if not include_capabilities:
         listed = [t for t in listed if t.get("kind") == "tool"]
@@ -349,7 +481,42 @@ async def tools(
             for t in listed
             if t.get("key") in bindable or (t.get("hitl") and include_capabilities)
         ]
-    return listed
+    from app.ai.tools.grants import granted_keys
+
+    granted = await granted_keys(db, user.id)
+    return [
+        {**t, "granted": (t["risk_class"] == "state-changing" and t["key"] in granted)}
+        for t in listed
+    ]
+
+
+@router.put("/tools/{key}/grant")
+async def grant_tool(
+    key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The tools-catalog toggle ON: per-user enablement of one
+    state-changing tool (D20 per-grant law). Destructive tools are
+    rejected here by construction — they confirm every call and are
+    never grant-bypassable; read-only tools need no grant."""
+    from app.ai.tools.grants import grant
+
+    await grant(db, user.id, key)
+    return {"key": key, "granted": True}
+
+
+@router.delete("/tools/{key}/grant")
+async def revoke_tool_grant(
+    key: str,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The tools-catalog toggle OFF."""
+    from app.ai.tools.grants import revoke
+
+    removed = await revoke(db, user.id, key)
+    return {"key": key, "granted": False, "removed": removed}
 
 
 # --------------------------------------------------- web tools config (plan 80)
@@ -358,22 +525,14 @@ async def tools(
 async def _web_setting(db: AsyncSession, key: str) -> dict:
     from app.models.settings_model import AppSetting
 
-    row = (
-        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
-        .scalars()
-        .first()
-    )
+    row = (await db.execute(select(AppSetting).where(AppSetting.key == key))).scalars().first()
     return row.value if row is not None else {}
 
 
 async def _put_web_setting(db: AsyncSession, key: str, value: dict) -> None:
     from app.models.settings_model import AppSetting
 
-    row = (
-        (await db.execute(select(AppSetting).where(AppSetting.key == key)))
-        .scalars()
-        .first()
-    )
+    row = (await db.execute(select(AppSetting).where(AppSetting.key == key))).scalars().first()
     if row is None:
         db.add(AppSetting(key=key, value=value))
     else:
@@ -385,17 +544,12 @@ async def _put_web_setting(db: AsyncSession, key: str, value: dict) -> None:
 async def web_settings(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ) -> WebSettingsOut:
-    """SearXNG URL + probe status; GitHub token presence only (secret-safe)."""
-    from app.services.webfetch import probe_searxng
+    """GitHub token presence only (secret-safe).
 
-    value = await _web_setting(db, "web.searxng_url")
-    url = (value or {}).get("url") or ""
+    Web-search config moved to the family providers[] shape (plan 28 /
+    ADR-0035) — see /web/search-providers."""
     return WebSettingsOut(
-        searxng_url=url,
-        searxng_probe=await probe_searxng(url),
-        github_token_set=bool(
-            (await _web_setting(db, "web.github_token")).get("token")
-        ),
+        github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
 
 
@@ -405,88 +559,187 @@ async def update_web_settings(
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> WebSettingsOut:
-    """Set the web-tool config; the GitHub token lands Fernet-encrypted.
-
-    An empty ``searxng_url`` clears the search config; an empty
-    ``github_token`` clears the stored token."""
+    """GitHub token lands Fernet-encrypted; an empty ``github_token`` clears
+    the stored token. Web-search providers use /web/search-providers."""
     from app.core.encryption import encrypt_secret
-    from app.services.webfetch import probe_searxng
 
-    if data.searxng_url is not None:
-        url = data.searxng_url.strip()
-        await _put_web_setting(db, "web.searxng_url", {"url": url})
     if data.github_token is not None:
         await _put_web_setting(
             db,
             "web.github_token",
             {"token": encrypt_secret(data.github_token) or ""},
         )
-    value = await _web_setting(db, "web.searxng_url")
-    url = (value or {}).get("url") or ""
     return WebSettingsOut(
-        searxng_url=url,
-        searxng_probe=await probe_searxng(url),
-        github_token_set=bool(
-            (await _web_setting(db, "web.github_token")).get("token")
-        ),
+        github_token_set=bool((await _web_setting(db, "web.github_token")).get("token")),
     )
 
 
-@router.post("/embeddings/recompute")
-async def recompute_embeddings(
-    limit: int = 50,
+# --------------------------------------------- web search providers (plan 28)
+
+
+class SearchProviderIn(BaseModel):
+    name: str | None = Field(default=None, max_length=120)
+    type: str | None = None
+    base_url: str | None = Field(default=None, max_length=500)
+    enabled: bool | None = None
+    max_results: int | None = Field(default=None, ge=1, le=10)
+    timeout_ms: int | None = Field(default=None, ge=500, le=30_000)
+    google_cx: str | None = Field(default=None, max_length=120)
+    api_key: str | None = Field(default=None, max_length=500)
+
+
+class SearchProviderOut(BaseModel):
+    id: str
+    name: str
+    type: str
+    enabled: bool
+    base_url: str
+    google_cx: str | None = None
+    key_hint: str | None = None
+    max_results: int = 5
+    timeout_ms: int = 8000
+    key_set: bool = False
+
+
+class SearchProvidersOut(BaseModel):
+    providers: list[SearchProviderOut]
+
+
+class SearchProviderMoveIn(BaseModel):
+    direction: str = Field(pattern="^(up|down)$")
+
+
+class SearchProviderProbeOut(BaseModel):
+    status: str
+    latency_ms: int
+    result_count: int | None = None
+    error: str | None = None
+
+
+def _provider_view(view: dict) -> SearchProviderOut:
+    return SearchProviderOut.model_validate(view)
+
+
+_CATALOG_PATH = Path(__file__).resolve().parents[4] / "contracts" / "search-providers.json"
+
+
+@router.get("/web/search-providers/catalog")
+async def search_provider_catalog(
     user: User = Depends(require_admin),
-    db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Embed stale/un-embedded postings.
-
-    Admin-triggered batch pass; the gateway ``embed`` task carries the
-    provider config (DB-only) and the audit funnel."""
-    from app.services.embedding_service import EmbeddingService
-
-    result = await EmbeddingService(db).recompute_postings(
-        limit=max(1, min(limit, 200))
-    )
-    return result
+    """The vendored family provider catalog (ADR-0035) — data-once."""
+    return json.loads(_CATALOG_PATH.read_text(encoding="utf-8"))
 
 
-@router.get("/embeddings/status")
-async def embeddings_status(
+@router.get("/web/search-providers", response_model=SearchProvidersOut)
+async def list_search_providers(
+    user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
+) -> SearchProvidersOut:
+    """Ordered web-search providers — the first enabled one that answers wins."""
+    from app.extensions.search_providers import list_providers
+
+    return SearchProvidersOut(providers=[_provider_view(view) for view in await list_providers(db)])
+
+
+@router.post("/web/search-providers", response_model=SearchProviderOut, status_code=201)
+async def create_search_provider(
+    data: SearchProviderIn,
     user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
-    """Embedding store coverage per entity kind."""
-    from app.services.embedding_service import EmbeddingService
+) -> SearchProviderOut:
+    from app.extensions.search_providers import SearchProviderError, upsert_provider
 
-    return await EmbeddingService(db).status()
+    try:
+        view = await upsert_provider(db, data.model_dump())
+    except SearchProviderError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return _provider_view(view)
+
+
+@router.put("/web/search-providers/{provider_id}", response_model=SearchProviderOut)
+async def update_search_provider(
+    provider_id: str,
+    data: SearchProviderIn,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProviderOut:
+    from app.extensions.search_providers import SearchProviderError, upsert_provider
+
+    try:
+        view = await upsert_provider(db, data.model_dump(), provider_id=provider_id)
+    except SearchProviderError as error:
+        status = 404 if "not found" in str(error) else 422
+        raise HTTPException(status_code=status, detail=str(error)) from error
+    return _provider_view(view)
+
+
+@router.post("/web/search-providers/{provider_id}/move", response_model=SearchProvidersOut)
+async def reorder_search_provider(
+    provider_id: str,
+    data: SearchProviderMoveIn,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProvidersOut:
+    from app.extensions.search_providers import SearchProviderError, move_provider
+
+    try:
+        views = await move_provider(db, provider_id, data.direction)
+    except SearchProviderError as error:
+        raise HTTPException(
+            status_code=404 if "not found" in str(error) else 422, detail=str(error)
+        ) from error
+    return SearchProvidersOut(providers=[_provider_view(view) for view in views])
+
+
+@router.delete("/web/search-providers/{provider_id}", status_code=204)
+async def remove_search_provider(
+    provider_id: str,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    from app.extensions.search_providers import delete_provider
+
+    if not await delete_provider(db, provider_id):
+        raise HTTPException(status_code=404, detail="provider not found")
+
+
+@router.post("/web/search-providers/{provider_id}/test", response_model=SearchProviderProbeOut)
+async def test_search_provider(
+    provider_id: str,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SearchProviderProbeOut:
+    """Probe one provider through career's guarded transport."""
+    import time
+
+    from app.extensions.search_providers import list_providers, provider_api_key
+    from app.services.integrations.webfetch import probe_searxng
+
+    provider = next(
+        (entry for entry in await list_providers(db) if entry["id"] == provider_id), None
+    )
+    if provider is None:
+        raise HTTPException(status_code=404, detail="provider not found")
+    started = time.monotonic()
+    if provider["type"] == "searxng":
+        probe = await probe_searxng(provider["base_url"])
+        status = probe.get("status", "error")
+        if status == "unconfigured":
+            status = "error"
+        return SearchProviderProbeOut(
+            status=status,
+            latency_ms=int((time.monotonic() - started) * 1000),
+            result_count=probe.get("result_count"),
+            error=probe.get("detail") or probe.get("status"),
+        )
+    from app.extensions.search_adapters import probe_provider
+
+    key = await provider_api_key(db, provider_id)
+    probe = await probe_provider(provider, api_key=key)
+    return SearchProviderProbeOut(**probe)
 
 
 # ------------------------------------------------------- MCP bridge (41b)
-
-
-@router.get("/mcp/token")
-async def mcp_token_status(user: User = Depends(require_admin)) -> dict:
-    """The instance MCP server token status (never the token itself)."""
-    from app.ai.mcp_server import token_store
-
-    info = token_store().read()
-    return {
-        "provisioned": bool(info and info.get("token")),
-        "bound_user_id": (info or {}).get("user_id"),
-        "created_at": (info or {}).get("created_at"),
-    }
-
-
-@router.post("/mcp/token")
-async def rotate_mcp_token(
-    user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Generate a fresh MCP token bound to the calling admin — the old
-    token is invalidated immediately. Shown once."""
-    from app.ai.mcp_server import token_store
-
-    info = token_store().rotate(str(user.id))
-    return {"token": info["token"], "bound_user_id": info["user_id"]}
 
 
 @router.get("/mcp/servers")
@@ -494,7 +747,7 @@ async def list_mcp_servers(
     user: User = Depends(require_admin), db: AsyncSession = Depends(get_db)
 ) -> list[dict]:
     """Registered external MCP servers."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     rows = await MCPBridgeService(db).list_servers()
     return [
@@ -508,9 +761,7 @@ async def list_mcp_servers(
             "enabled": row.enabled,
             "discovered_tools": row.discovered_tools or [],
             "enabled_tools": row.enabled_tools or [],
-            "last_synced_at": (
-                row.last_synced_at.isoformat() if row.last_synced_at else None
-            ),
+            "last_synced_at": (row.last_synced_at.isoformat() if row.last_synced_at else None),
         }
         for row in rows
     ]
@@ -523,7 +774,7 @@ async def register_mcp_server(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Register an external MCP server (disabled by default)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).register(
         name=str(payload.get("name") or ""),
@@ -543,16 +794,14 @@ async def refresh_mcp_server(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Re-discover the server's tools (new tools start disabled)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).refresh(server_id)
     return {
         "id": str(row.id),
         "discovered_tools": row.discovered_tools or [],
         "enabled_tools": row.enabled_tools or [],
-        "last_synced_at": (
-            row.last_synced_at.isoformat() if row.last_synced_at else None
-        ),
+        "last_synced_at": (row.last_synced_at.isoformat() if row.last_synced_at else None),
     }
 
 
@@ -565,7 +814,7 @@ async def set_mcp_tool_enabled(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Enable/disable one namespaced tool (explicit allowlist)."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     row = await MCPBridgeService(db).set_tool_enabled(
         server_id, tool_name, bool(payload.get("enabled"))
@@ -582,7 +831,7 @@ async def invoke_mcp_tool(
 ) -> dict:
     """Execute one enabled tool on an external MCP server — audited and
     budgeted through the ``mcp_tool_call`` task."""
-    from app.services.mcp_bridge_service import MCPBridgeService
+    from app.extensions.mcp_bridge import MCPBridgeService
 
     result = await MCPBridgeService(db).invoke(
         server_id,
@@ -601,12 +850,14 @@ async def test_connection(
     db: AsyncSession = Depends(get_db),
 ) -> TestResult:
     """Send a tiny completion to verify provider credentials."""
-    result = await AIProviderService(db).run_test(
-        user, provider_id=provider_id, model_id=model_id
-    )
+    result = await AIProviderService(db).run_test(user, provider_id=provider_id, model_id=model_id)
     if result["ok"]:
         return TestResult(ok=True, reply=result.get("reply", ""))
-    return TestResult(ok=False, error=result.get("error", "unknown error"))
+    return TestResult(
+        ok=False,
+        error=result.get("error", "unknown error"),
+        code=result.get("code", ""),
+    )
 
 
 @router.get("/budgets", response_model=list[BudgetOut])
@@ -615,9 +866,7 @@ async def list_budgets(
 ) -> list[BudgetOut]:
     """Active + inactive token budgets (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     rows = await db.execute(select(AIBudget).order_by(AIBudget.name))
     return [BudgetOut.model_validate(b) for b in rows.scalars().all()]
 
@@ -630,16 +879,12 @@ async def create_budget(
 ) -> BudgetOut:
     """Add a token budget with a hard stop (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     if data.task_type is not None and data.task_type not in {
         t["value"] for t in known_task_types()
     }:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown task type")
-    exists = await db.execute(
-        select(AIBudget).where(AIBudget.name == data.name).limit(1)
-    )
+    exists = await db.execute(select(AIBudget).where(AIBudget.name == data.name).limit(1))
     if exists.scalars().first() is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Budget name already exists")
     budget = AIBudget(
@@ -663,9 +908,7 @@ async def delete_budget(
 ) -> None:
     """Remove a budget (admin-only)."""
     if not user.is_admin:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets"
-        )
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only admins can manage AI budgets")
     rows = await db.execute(select(AIBudget).where(AIBudget.id == budget_id))
     budget = rows.scalars().first()
     if budget is None:

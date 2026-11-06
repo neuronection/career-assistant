@@ -1,8 +1,8 @@
 """Autopilot API schemas."""
 
-from typing import Literal, Optional
+from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.core.errors import ValidationError
 
@@ -11,6 +11,27 @@ SENIORITY_VALUES = ("intern", "junior", "mid", "senior", "lead", "principal")
 
 def _clean_term(value: str) -> str:
     return str(value).strip().lower()[:60]
+
+
+class ProfileUsage(BaseModel):
+    """Per-goal profile-usage controls (goal constraints JSONB).
+
+    Which profile inputs the planner and the fit engine may use for this
+    goal, and where the career stage comes from. Defaults reproduce the
+    pre-plan behavior exactly (everything on, stage from the profile).
+    Updates replace the whole constraints payload — a PATCH without
+    ``profile`` resets the block to these defaults.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    use_skills: bool = True
+    use_education: bool = True
+    use_languages: bool = True
+    use_location: bool = True
+    use_experience: bool = True
+    use_lifestyle: bool = True
+    stage_source: Literal["profile", "goal"] = "profile"
 
 
 class AutopilotConstraints(BaseModel):
@@ -24,12 +45,13 @@ class AutopilotConstraints(BaseModel):
     never_terms: list[str] = Field(default_factory=list, max_length=20)
     family_keys: list[str] = Field(default_factory=list, max_length=10)
     source_keys: list[str] = Field(default_factory=list, max_length=10)
-    remote: Optional[bool] = None
-    salary_min: Optional[float] = Field(default=None, ge=0)
+    remote: bool | None = None
+    salary_min: float | None = Field(default=None, ge=0)
     seniority: list[str] = Field(default_factory=list, max_length=6)
     exclude_seen: bool = True
     cooldown_days: int = Field(default=7, ge=0, le=90)
     top_n: int = Field(default=5, ge=1, le=10)
+    profile: ProfileUsage = Field(default_factory=ProfileUsage)
 
     @model_validator(mode="after")
     def _normalize(self) -> "AutopilotConstraints":
@@ -39,12 +61,8 @@ class AutopilotConstraints(BaseModel):
         self.never_terms = list(
             dict.fromkeys(t for t in (_clean_term(t) for t in self.never_terms) if t)
         )
-        self.family_keys = [
-            str(k).strip()[:80] for k in self.family_keys if str(k).strip()
-        ]
-        self.source_keys = [
-            str(k).strip()[:80] for k in self.source_keys if str(k).strip()
-        ]
+        self.family_keys = [str(k).strip()[:80] for k in self.family_keys if str(k).strip()]
+        self.source_keys = [str(k).strip()[:80] for k in self.source_keys if str(k).strip()]
         overlap = set(self.must_terms) & set(self.never_terms)
         if overlap:
             raise ValidationError(
@@ -53,32 +71,48 @@ class AutopilotConstraints(BaseModel):
         if self.seniority:
             unknown = [s for s in self.seniority if s not in SENIORITY_VALUES]
             if unknown:
-                raise ValidationError(
-                    "seniority must be one of: " + ", ".join(SENIORITY_VALUES)
-                )
+                raise ValidationError("seniority must be one of: " + ", ".join(SENIORITY_VALUES))
         return self
 
 
 class AutopilotBudget(BaseModel):
     """Run-level cap layered over ai_budgets."""
 
-    max_tokens: Optional[int] = Field(default=None, ge=1)
-    max_calls: Optional[int] = Field(default=None, ge=1, le=20)
+    max_tokens: int | None = Field(default=None, ge=1)
+    max_calls: int | None = Field(default=None, ge=1, le=20)
+
+
+class ProfileContextPreviewIn(BaseModel):
+    """A DRAFT profile-usage block + the goal's seniority selection."""
+
+    profile: ProfileUsage = Field(default_factory=ProfileUsage)
+    seniority: list[str] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def _normalize(self) -> "ProfileContextPreviewIn":
+        unknown = [s for s in self.seniority if s not in SENIORITY_VALUES]
+        if unknown:
+            raise ValidationError("seniority must be one of: " + ", ".join(SENIORITY_VALUES))
+        return self
 
 
 class AutopilotGoalCreate(BaseModel):
     goal_text: str = Field(min_length=3, max_length=2000)
     constraints: AutopilotConstraints = Field(default_factory=AutopilotConstraints)
     budget: AutopilotBudget = Field(default_factory=AutopilotBudget)
-    cadence: Optional[dict] = None
+    cadence: dict | None = None
 
 
 class AutopilotGoalUpdate(BaseModel):
-    goal_text: Optional[str] = Field(default=None, min_length=3, max_length=2000)
-    constraints: Optional[AutopilotConstraints] = None
-    budget: Optional[AutopilotBudget] = None
-    status: Optional[Literal["active", "paused"]] = None
-    cadence: Optional[dict] = None
+    """Goal patch — ``constraints`` (the whole JSONB, ``profile`` block
+    included) replaces what is stored; an update without ``profile``
+    resets that block to defaults."""
+
+    goal_text: str | None = Field(default=None, min_length=3, max_length=2000)
+    constraints: AutopilotConstraints | None = None
+    budget: AutopilotBudget | None = None
+    status: Literal["active", "paused"] | None = None
+    cadence: dict | None = None
     remove_cadence: bool = False
 
 

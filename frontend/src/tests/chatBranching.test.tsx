@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
-import { ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatMessage } from "@/types";
 import * as uniApi from "@/api/universities";
@@ -17,7 +17,6 @@ vi.mock("@/api/chatStream", () => ({
   streamChatMessage: streamChatMessage,
   streamChatEdit: streamChatEdit,
   streamChatRegenerate: streamChatRegenerate,
-  streamChatRequest: vi.fn(),
 }));
 
 vi.mock("@/api/universities", async (importOriginal) => {

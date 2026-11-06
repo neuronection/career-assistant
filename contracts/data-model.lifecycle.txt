@@ -1,0 +1,47 @@
+# Lifecycle inventory (guidelines/data-model.md §7).
+# table :: class (record | operational | transient).
+# This file starts with plan 127 §3.0; pre-existing tables are not yet
+# classified (the repo runs the gate in transition mode) and are covered
+# by a follow-up sweep. Every table added from here on lands with its row
+# in the same commit.
+geo_regions :: record
+geo_region_aliases :: operational
+econ_packs :: record
+econ_series :: record
+econ_observations :: record
+code_crosswalks :: record
+exposure_scores :: record
+scenarios :: record
+scenario_points :: record
+claims :: record
+claim_events :: record
+econ_watchlist :: operational
+company_profiles :: record
+job_radars :: record
+skill_relations :: record
+# claim_events.note is user-authored prose that survives user erasure
+# (user_id nulls): the erasure path scrubs it on that transition.
+organization_aliases :: record
+organization_match_exclusions :: record
+organization_match_pairs :: operational
+organization_merge_suggestions :: record
+posting_filter_presets :: record
+posting_changes :: record
+# plan 205: the human mapping-review set is admin/audit data retained with the posting
+mapping_reviews :: record
+# plan 205 S9: the daily coverage snapshots are operational aggregates (90d retention,
+# pruned by the capture job); the trend is derivable from the next capture
+mapping_coverage_snapshots :: operational
+skill_changes :: record
+# plan 179: the NL-search cache is TTL-pruned (7d) by the daily smart-digest job — cache data, never a record
+smart_query_cache :: transient
+# plan 50 P1: the vector store is derived/rebuildable; a retired space is kept only
+# for its purge grace period, and the two rollups are TTL-pruned aggregates (not ledgers)
+vector_spaces :: operational
+vector_documents :: operational
+vector_records :: operational
+retrieval_query_rollups :: operational
+retrieval_coverage_snapshots :: operational
+# plan 51 Q1a: the retrieval tags live on the AI ledger and the run locks on the queue
+ai_generations :: record
+background_jobs :: operational

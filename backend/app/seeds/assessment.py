@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Seeded question bank for phase 2 (standardized scenarios, Phase 23).
 
 Seed-review checklist (admin-enforced): every option set must span >= 3
@@ -345,12 +346,7 @@ async def seed_assessment_bank(db) -> int:
     from app.models.assessment_model import AssessmentQuestion
     from app.models.enums import QuestionSource, QuestionStatus
 
-    existing = {
-        prompt
-        for prompt in (await db.execute(select(AssessmentQuestion.prompt)))
-        .scalars()
-        .all()
-    }
+    existing = set((await db.execute(select(AssessmentQuestion.prompt))).scalars().all())
     added = 0
     for spec in BANK_QUESTIONS:
         if spec["prompt"] in existing:

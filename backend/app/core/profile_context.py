@@ -8,9 +8,7 @@ only the middleware writes these.
 
 from contextvars import ContextVar, Token
 
-_active_profile_id: ContextVar[str | None] = ContextVar(
-    "active_profile_id", default=None
-)
+_active_profile_id: ContextVar[str | None] = ContextVar("active_profile_id", default=None)
 _active_user_id: ContextVar[str | None] = ContextVar("active_user_id", default=None)
 
 

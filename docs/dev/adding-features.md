@@ -31,21 +31,26 @@ them.
    touch a provider SDK outside `app/ai/chat_models.py`.
 5. **Assignment UI** — the task appears in Settings → AI Configuration; make
    sure the model capabilities line up.
-6. **Tests** — use the mock provider (`MOCK_AI=1`); assert the validated shape
+6. **Tests** — use the mock provider (`CAREER_MOCK_AI=1`); assert the validated shape
    and the audit row.
 7. **Gates** — `scripts/check-ai-alignment.sh`; docs in
    [ai-layer.md](ai-layer.md).
 
 ## Add a connector
 
-1. Subclass `PostingConnector` in `app/connectors/builtin/` (or a plugin
-   package) with a unique `key` and a `config_model()`.
-2. Implement `fetch(config, state, *, transport)` emitting `RawPosting`s;
-   never open sockets yourself.
-3. Provide a `fixture_payload` and pass `ConnectorContractTests`.
+1. Subclass `PostingConnector` in `app/extensions/builtin/` (or a plugin
+   package) with a unique `key` and a `config_model()`; author the
+   bundle's `manifest.json` at `builtin/<key>/manifest.json` (a FILE —
+   the family form, never code-declared).
+2. Implement `fetch(config, state, *, transport, secrets)` emitting
+   `RawPosting`s; never open sockets yourself — the injected polite
+   transport owns SSRF guarding, robots, rate caps and conditional GET.
+3. Provide a `fixture_payload` and pass `ConnectorConformanceTests`; mark
+   credential fields `x-secret` in the manifest configSchema.
 4. For a plugin, ship the `career_assistant.connectors` entry point; it is
-   admin-opt-in via `CONNECTOR_PLUGINS_ALLOWLIST`.
-5. Docs in [connectors.md](connectors.md).
+   admin-opt-in via `CAREER_CONNECTOR_PLUGINS_ALLOWLIST` and T1-bundled only.
+5. Docs in the [Connector SDK docs](sdk/overview.md) — authoring guide
+   and the T1 recipe walk a complete connector.
 
 ## Add a scheduler trigger or job type
 
@@ -63,7 +68,7 @@ them.
 
 ## Add a CV block kind
 
-1. Register the kind in `app/services/cv_blocks.py`
+1. Register the kind in `app/services/cv/cv_blocks.py`
    (`register_block_kind`): a props schema + renderer behavior + `area` mark.
 2. Handle it in `cv_renderer.py` and in the exports
    (`cv_export_service.py` `_visible_blocks`) so every format matches.
@@ -108,8 +113,8 @@ them.
 ## Before you commit
 
 ```bash
-cd backend && ./venv/bin/pytest tests -q -n auto
-cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests
+cd backend && uv run pytest tests -q -n auto
+cd backend && uv run ruff check . && uv run ruff format --check .
 cd frontend && npm run build && npm run test -- --run && npm run lint
 ./scripts/check-changelog.sh
 ./scripts/check-ai-alignment.sh    # if you touched app/ai/

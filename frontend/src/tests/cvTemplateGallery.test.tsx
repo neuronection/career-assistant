@@ -2,7 +2,7 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { vi, describe, it, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 
-import { TemplateGallery, galleryFilter } from "@/components/cv/TemplateGallery";
+import { TemplateGallery, galleryFilter } from "@/features/cv/components/cv/TemplateGallery";
 import type { CvTemplateSummary } from "@/types/cvTemplate";
 
 vi.mock("@/api/cvTemplates", () => ({

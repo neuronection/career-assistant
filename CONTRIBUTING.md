@@ -33,6 +33,11 @@ cd frontend && npm run build && npm run test -- --run
 cd frontend && npm run lint
 ```
 
+The backend pytest env file is not tracked (plan 126): the first
+`./scripts/run-tests.sh` run self-bootstraps `backend/.env.test` from the
+tracked `backend/.env.test.example`; on a fresh clone, a direct `pytest`
+needs that one copy made first.
+
 ## Project conventions
 
 These are enforced in review — they are what keeps the codebase coherent:

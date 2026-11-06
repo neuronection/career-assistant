@@ -2,8 +2,8 @@
 benefits-driven values hints, moderation-reviewed enrichment sweep."""
 
 from app.models.enums import ScheduleKind
-from app.services.catalog_enrich_service import CatalogEnrichService
-from app.services.fit.dimensions import FIT_VERSION, job_values_signal
+from app.services.catalog.catalog_enrich_service import CatalogEnrichService
+from app.services.postings.fit.dimensions import FIT_VERSION, job_values_signal
 from app.services.scheduler.runner import KIND_TASKS
 
 
@@ -37,9 +37,7 @@ def test_benefit_kinds_feed_values_signal():
     assert base == {}, "no inputs ⇒ no signal"
 
     pension_only = job_values_signal({"benefits_kinds": ["pension"]})
-    assert pension_only == {"values.security": 7.0}, (
-        "a pension alone is a grounded security signal"
-    )
+    assert pension_only == {"values.security": 7.0}, "a pension alone is a grounded security signal"
 
     combined = job_values_signal(
         {
@@ -53,7 +51,7 @@ def test_benefit_kinds_feed_values_signal():
 
 
 def test_fit_version_bumped_for_signal_change():
-    assert FIT_VERSION == 5
+    assert FIT_VERSION == 7
 
 
 async def test_generator_emits_v2_vocabulary(db, auth_headers, seeded_catalog):
@@ -85,11 +83,7 @@ async def test_enrichment_sweep_propose_apply_reject(
 
     from app.models.job_model import Job
 
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     assert job is not None
     salary_before = (job.attributes or {}).get("salary")
     assert salary_before, "seeded archetype carries human-owned salary"
@@ -114,9 +108,7 @@ async def test_enrichment_sweep_propose_apply_reject(
     assert (job.ai_metadata or {}).get("enrichment_proposal") is None
     assert job not in await service.candidates()
 
-    other = next(
-        candidate for candidate in await service.pending() if candidate.id != job.id
-    )
+    other = next(candidate for candidate in await service.pending() if candidate.id != job.id)
     rejected = await service.reject(other)
     assert rejected is other
     assert ((other.ai_metadata or {}).get("enrichment_proposal")) is None
@@ -130,19 +122,13 @@ async def test_enrichment_moderation_endpoints(
 
     from app.models.job_model import Job
 
-    job = (
-        (await db.execute(select(Job).where(Job.code == "software-developer")))
-        .scalars()
-        .first()
-    )
+    job = (await db.execute(select(Job).where(Job.code == "software-developer"))).scalars().first()
     service = CatalogEnrichService(db)
     await service.run_sweep(limit=5)
     await db.refresh(job)
 
-    queue = (
-        await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)
-    ).json()
-    assert any(row["id"] == str(job.id) for row in queue)
+    queue = (await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)).json()
+    assert any(row["id"] == str(job.id) for row in queue["items"])
 
     rejected = await client.post(
         f"/api/v1/admin/jobs/{job.id}/enrichment/reject",
@@ -151,10 +137,8 @@ async def test_enrichment_moderation_endpoints(
     assert rejected.status_code == 200
     assert rejected.json() == {"id": str(job.id), "applied": False}
 
-    empty = (
-        await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)
-    ).json()
-    assert all(row["id"] != str(job.id) for row in empty)
+    empty = (await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)).json()
+    assert all(row["id"] != str(job.id) for row in empty["items"])
 
     missing = await client.post(
         f"/api/v1/admin/jobs/{job.id}/enrichment/reject",
@@ -163,11 +147,57 @@ async def test_enrichment_moderation_endpoints(
     assert missing.status_code == 404
 
 
+async def test_enrichment_queue_pages_with_an_opaque_cursor(
+    client, client_admin_headers, seeded_catalog, db
+):
+    """Plan 206: the queue is walked one window at a time — the cursor
+    repeats no row and skips none, and `total` rides the first page only."""
+    service = CatalogEnrichService(db)
+    await service.run_sweep(limit=5)
+    total = await service.count_pending()
+    assert total >= 2, "the sweep left a multi-row queue"
+
+    stats = (await client.get("/api/v1/admin/taxonomy/stats", headers=client_admin_headers)).json()
+    assert stats["queue"]["enrichment"] == total, "the badge count is server truth"
+
+    seen: list[str] = []
+    cursor: str | None = None
+    first = True
+    while True:
+        params: dict[str, str | int] = {"limit": 1}
+        if cursor:
+            params["cursor"] = cursor
+        page = (
+            await client.get(
+                "/api/v1/admin/jobs/enrichment", params=params, headers=client_admin_headers
+            )
+        ).json()
+        if first:
+            assert page["total"] == total
+            first = False
+        else:
+            assert page["total"] is None, "a later page does not recount the queue"
+        seen.extend(row["id"] for row in page["items"])
+        cursor = page["next_cursor"]
+        if not cursor:
+            break
+
+    assert len(seen) == total, "the cursor walks the whole queue"
+    assert len(set(seen)) == total, "no row repeats across pages"
+
+    bad = await client.get(
+        "/api/v1/admin/jobs/enrichment",
+        params={"cursor": "not-a-cursor"},
+        headers=client_admin_headers,
+    )
+    assert bad.status_code == 400, "a hand-edited cursor is a 400, never an empty page"
+
+
 async def test_sweep_runs_through_the_queue(
     client, auth_headers, client_admin_headers, seeded_catalog, db
 ):
-    from app.services.job_worker import JobWorker, enqueue
     from app.models.enums import BackgroundJobType
+    from app.services.job_worker import JobWorker, enqueue
 
     await enqueue(db, BackgroundJobType.CATALOG_ENRICH.value, {"limit": 5})
     worker = JobWorker(db)
@@ -176,7 +206,7 @@ async def test_sweep_runs_through_the_queue(
     result = (
         await client.get("/api/v1/admin/jobs/enrichment", headers=client_admin_headers)
     ).json()
-    assert result, "queue-run sweep produced moderation proposals"
+    assert result["items"], "queue-run sweep produced moderation proposals"
 
 
 def test_scheduler_provisions_the_enrichment_sweep():

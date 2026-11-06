@@ -126,8 +126,29 @@ class DesktopBridge:
             window.show()
             window.restore()
             window.evaluate_js("window.focus()")
-        except Exception:  # noqa: BLE001 — focus is best-effort
+        except Exception:
             logger.warning("Could not focus desktop window", exc_info=True)
+
+    def navigate(self, path: str) -> bool:
+        """Ask the SPA router to open a route (tray → window deep link)."""
+        if not isinstance(path, str) or not path.startswith("/"):
+            return False
+        window = self._window
+        if window is None:
+            return False
+        try:
+            window.evaluate_js(
+                f"window.__caDesktopNavigate && window.__caDesktopNavigate({json.dumps(path)})"
+            )
+            return True
+        except Exception:
+            logger.warning("Desktop navigation push failed", exc_info=True)
+            return False
+
+    def show_and_navigate(self, path: str) -> bool:
+        """Focus the window, then route it (one user gesture, one entry)."""
+        self.show_and_focus()
+        return self.navigate(path)
 
     def notify(
         self,
@@ -164,10 +185,9 @@ class DesktopBridge:
             return False
         try:
             window.evaluate_js(
-                f"window.__caDesktopBridge && "
-                f"window.__caDesktopBridge.onNotify({json.dumps(item)})"
+                f"window.__caDesktopBridge && window.__caDesktopBridge.onNotify({json.dumps(item)})"
             )
             return True
-        except Exception:  # noqa: BLE001 — toast loss beats a crash
+        except Exception:
             logger.warning("Desktop toast push failed", exc_info=True)
             return False

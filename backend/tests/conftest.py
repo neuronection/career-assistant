@@ -1,7 +1,12 @@
+import contextlib
+import fnmatch
+import json
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import AsyncGenerator, Iterator
-from uuid import UUID
+from collections.abc import AsyncGenerator, Iterator
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import ClassVar
+from uuid import UUID, uuid4
 
 import httpx
 import pytest
@@ -9,20 +14,19 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 
-from app.connectors.base import (
+from app.core.config import settings
+from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
+from app.extensions.registry import register_connector, reset_registry
+from app.extensions.sdk import (
     ConnectorCapabilities,
     ConnectorResult,
     PostingConnector,
     RawPosting,
 )
-from app.connectors.registry import register_connector, reset_registry
+from app.main import app
 from app.models.posting_model import JobPosting, JobSource, PostingSkill
 
-from app.core.config import settings
-from app.core.database import AsyncSessionLocal, get_db, sqlite_pragmas
-from app.main import app
-
-TEST_DB_URL = settings.DATABASE_URL
+TEST_DB_URL = settings.database_url
 IS_SQLITE = TEST_DB_URL.startswith("sqlite")
 
 _engine = create_async_engine(TEST_DB_URL, pool_pre_ping=True)
@@ -40,6 +44,35 @@ if IS_SQLITE:
     _autocommit_engine = _engine.execution_options(isolation_level="AUTOCOMMIT")
 
 TABLES = [
+    "retrieval_query_rollups",
+    "retrieval_coverage_snapshots",
+    "vector_records",
+    "vector_documents",
+    "vector_spaces",
+    "claim_events",
+    "scenario_points",
+    "econ_observations",
+    "econ_series",
+    "econ_watchlist",
+    "econ_packs",
+    "claims",
+    "scenarios",
+    "exposure_scores",
+    "code_crosswalks",
+    "geo_region_aliases",
+    "geo_regions",
+    "application_events",
+    "applications",
+    "user_path_flags",
+    "label_overrides",
+    "mcp_tokens",
+    "user_feed_tokens",
+    "followup_rules",
+    "user_channel_configs",
+    "webhook_endpoints",
+    "extension_sandbox_runs",
+    "extension_installs",
+    "extension_sources",
     "cv_versions",
     "cv_documents",
     "cv_templates",
@@ -66,32 +99,45 @@ TABLES = [
     "learning_resources",
     "growth_plan_steps",
     "growth_plans",
+    "posting_filter_presets",
     "posting_interactions",
+    "posting_changes",
     "posting_skills",
+    "mapping_reviews",
+    "mapping_coverage_snapshots",
     "posting_fits",
     "interview_sessions",
     "cv_synth_items",
     "job_postings",
+    "source_runs",
+    "company_profiles",
+    "job_radars",
+    "organization_aliases",
+    "organization_match_exclusions",
+    "organization_match_pairs",
+    "organization_merge_suggestions",
     "organizations",
     "job_sources",
     "notifications",
     "notification_rules",
     "notification_preferences",
     "notification_kinds",
+    "smart_query_cache",
     "search_history",
     "assessment_answers",
     "assessment_questions",
     "assessment_runs",
     "assessment_templates",
     "background_jobs",
+    "embedding_model_profiles",
     "ai_task_assignments",
     "ai_models",
     "ai_providers",
     "profile_proposals",
+    "user_tool_grants",
     "chat_messages",
     "chat_sessions",
     "ai_skill_packs",
-    "ai_embeddings",
     "ai_mcp_servers",
     "ai_generations",
     "market_snapshots",
@@ -115,6 +161,8 @@ TABLES = [
     "jobs",
     "job_families",
     "interest_tags",
+    "skill_changes",
+    "skill_relations",
     "skills",
     "profiles",
     "documents",
@@ -132,10 +180,8 @@ async def warm_vapid_keys():
     """
     from app.services.webpush_service import get_or_create_vapid_keys
 
-    try:
+    with contextlib.suppress(Exception):
         await get_or_create_vapid_keys()
-    except Exception:  # noqa: BLE001 — browser push stays fail-soft
-        pass
     yield
 
 
@@ -154,10 +200,8 @@ async def warm_checkpointer():
     """
     from app.ai.checkpointer import aclose_checkpointer, get_checkpointer
 
-    try:
+    with contextlib.suppress(Exception):
         await get_checkpointer()
-    except Exception:  # noqa: BLE001 — flows degrade without a checkpointer
-        pass
     yield
     await aclose_checkpointer()
 
@@ -170,6 +214,85 @@ def restore_kit_config() -> Iterator[None]:
     original = kit.config
     yield
     kit.config = original
+
+
+@pytest.fixture(autouse=True)
+def reset_embed_cache() -> Iterator[None]:
+    """Plan 201 S6: the query-embedding cache is process-wide; a hit from a
+    previous test would fake a provider call (and its absence)."""
+    from app.services.embed_cache import clear
+
+    clear()
+    yield
+    clear()
+
+
+@pytest.fixture(autouse=True)
+def reset_embedding_model_cache() -> Iterator[None]:
+    """Plan 201 S2: the embedding client cache is process-wide.
+
+    A cached ``OpenAIEmbeddings`` carries an httpx/AsyncOpenAI client; leaking
+    one into the next test (or across the auth/provider permutations) would
+    mask a broken cache key and can hold a closed loop's client. Clear before
+    and after every test.
+    """
+    from app.ai.model_cache import clear_embedding_models
+
+    clear_embedding_models()
+    yield
+    clear_embedding_models()
+
+
+@pytest.fixture(autouse=True)
+def clean_vector_store() -> Iterator[None]:
+    """Drop vector-store state left behind by a previous test's sync writes.
+
+    The Postgres lane rolls the app session back, but the vector store is
+    written through its own sync engine (provisioning/jobs), so a test that
+    fails before its cleanup would otherwise leave an ``active`` space whose
+    name collides with the next test's fixture — and a per-space ``vec_*``
+    table, which the migration tests assume cannot exist. SQLite's deletion
+    isolation covers the rows but not the extension-owned tables.
+    """
+    from sqlalchemy import delete as sql_delete
+    from sqlalchemy import inspect, text
+
+    from app.core.database import sync_engine
+    from app.models.vector_model import (
+        RetrievalCoverageSnapshot,
+        RetrievalQueryRollup,
+        VectorDocument,
+        VectorRecord,
+    )
+    from app.models.vector_model import VectorSpace as VectorSpaceRow
+    from app.storage.vector_backends import reset_backend_cache
+
+    reset_backend_cache()
+
+    def _clear_residue() -> None:
+        with sync_engine.begin() as connection:
+            tables = set(inspect(connection).get_table_names())
+            suffix = " CASCADE" if connection.dialect.name == "postgresql" else ""
+            for table in sorted(
+                name for name in tables if name.startswith("vec_") and len(name) >= 12
+            ):
+                connection.execute(text(f"DROP TABLE IF EXISTS {table}{suffix}"))
+            if "vector_entry_ids" in tables:
+                connection.execute(text("DELETE FROM vector_entry_ids"))
+            if "vector_spaces" in tables:
+                for model in (
+                    RetrievalQueryRollup,
+                    RetrievalCoverageSnapshot,
+                    VectorRecord,
+                    VectorDocument,
+                    VectorSpaceRow,
+                ):
+                    connection.execute(sql_delete(model))
+
+    with contextlib.suppress(Exception):
+        # a mid-chain migration test legitimately has no schema
+        _clear_residue()
+    yield
 
 
 @pytest.fixture(autouse=True)
@@ -223,10 +346,48 @@ async def _provision_vapid_keys() -> None:
     from app.services import webpush_service
 
     webpush_service._keys_cache = None
-    try:
+    with contextlib.suppress(Exception):
         await webpush_service.get_or_create_vapid_keys()
-    except Exception:  # noqa: BLE001 — browser push stays fail-soft
-        pass
+
+
+async def _provision_quality_denylist() -> None:
+    """Re-seed the baseline's junk-label exclusions for the next test.
+
+    The denylist is DATA (admin-editable `organization_match_exclusions`
+    rows, seeded by the 0001 baseline). SQLite's deletion isolation wipes
+    them with everything else, while the Postgres lanes keep them outside
+    the per-test rollback — without this the quality gate admits
+    "Confidential" on the desktop lane only. The list stays owned by the
+    baseline module (loaded by path: revision modules are not importable by
+    name), so the seed and this provision can never drift apart.
+    """
+    import importlib.util
+    from pathlib import Path
+
+    from sqlalchemy import text
+
+    revision_path = (
+        Path(__file__).resolve().parent.parent / "alembic" / "versions" / "0001_baseline_schema.py"
+    )
+    spec = importlib.util.spec_from_file_location("_plan135_revision", revision_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+
+    seen_keys: set[str] = set()
+    async with _autocommit_engine.connect() as conn:
+        for label in module._QUALITY_DENYLIST:  # type: ignore[attr-defined]
+            label_key = module._alias_key(label)  # type: ignore[attr-defined]
+            if label_key in seen_keys:
+                continue
+            seen_keys.add(label_key)
+            await conn.execute(
+                text(
+                    "INSERT INTO organization_match_exclusions "
+                    "(id, label, label_key, org_id, reason, source, created_by) "
+                    "VALUES (:id, :label, :lkey, NULL, 'quality', 'seed', 'system')"
+                ),
+                {"id": str(uuid4()), "label": label, "lkey": label_key},
+            )
 
 
 async def _truncate_all(conn) -> None:
@@ -235,19 +396,34 @@ async def _truncate_all(conn) -> None:
     The fast path is one transaction; migration tests legitimately leave
     the schema mid-chain (tables absent), so a failure falls back to
     best-effort per-table deletes.
+
+    Self-referencing FKs need their links cleared first: ``skills.parent_id``
+    is RESTRICT and RESTRICT is checked immediately, so one DELETE cannot
+    remove a parent row while its child row still exists (a test that seeds
+    a skill hierarchy would otherwise leak its rows into the next test).
     """
     from sqlalchemy import text
     from sqlalchemy.exc import SQLAlchemyError
 
+    clearers = {
+        "skills": "UPDATE skills SET parent_id = NULL",
+    }
+
+    async def delete_table(table: str) -> None:
+        clearer = clearers.get(table)
+        if clearer is not None:
+            await conn.execute(text(clearer))
+        await conn.execute(text(f"DELETE FROM {table}"))
+
     try:
         for table in TABLES:
-            await conn.execute(text(f"DELETE FROM {table}"))
+            await delete_table(table)
         await conn.commit()
     except SQLAlchemyError:
         await conn.rollback()
         for table in TABLES:
             try:
-                await conn.execute(text(f"DELETE FROM {table}"))
+                await delete_table(table)
                 await conn.commit()
             except SQLAlchemyError:
                 await conn.rollback()
@@ -271,12 +447,14 @@ async def clean_db(clean_identity) -> AsyncGenerator:
     snapshot (bridge commits invisible → stale assertions). Truncate
     before the test and run sessions in short (autocommit) transactions.
     """
-    from app.core.ratelimit import limiter
+    from app.middleware import RATE_LIMIT_POLICY
 
-    limiter.reset()
+    # Plan 21: the kit counter is the app-wide limiter state.
+    RATE_LIMIT_POLICY.counter.clear()
     if IS_SQLITE:
         async with _engine.connect() as conn:
             await _truncate_all(conn)
+        await _provision_quality_denylist()
         await _provision_vapid_keys()
         # A short-transaction connection for the tests that bind their own
         # sessions to the fixture (desktop tray, browser-push channel).
@@ -292,9 +470,7 @@ async def clean_db(clean_identity) -> AsyncGenerator:
 
 def _test_session(conn) -> AsyncSession:
     """A session on the test's outer transaction (commit = savepoint)."""
-    return AsyncSession(
-        bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint"
-    )
+    return AsyncSession(bind=conn, expire_on_commit=False, join_transaction_mode="create_savepoint")
 
 
 def _sqlite_session() -> AsyncSession:
@@ -422,9 +598,7 @@ def mint_session_headers(
     kit = auth_kit()
     user = kit.users.get_by_email(email) or kit.users.create(
         email=email,
-        password_hash=_fixture_password_hash()
-        if password is None
-        else _fixture_hash(password),
+        password_hash=_fixture_password_hash() if password is None else _fixture_hash(password),
         full_name=full_name,
         is_admin=is_admin,
     )
@@ -478,9 +652,7 @@ def session_headers(response) -> dict:
             refresh = value
         elif name.strip() == "nx_csrf":
             csrf = value
-    assert access, (
-        f"no session cookie in response: {response.headers.get_list('set-cookie')}"
-    )
+    assert access, f"no session cookie in response: {response.headers.get_list('set-cookie')}"
     cookie = f"{_cookie_access_name()}={access}"
     if refresh:
         cookie += f"; nx_refresh={refresh}"
@@ -562,8 +734,8 @@ async def seeded_catalog(db) -> dict:
 @pytest.fixture
 async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
     """A user with a filled profile; returns the profile payload."""
-    from app.seeds.run import seed_taxonomy
     from app.seeds.metrics import seed_metric_dimensions
+    from app.seeds.run import seed_taxonomy
 
     await seed_taxonomy(db)
     await seed_metric_dimensions(db)
@@ -587,12 +759,8 @@ async def profile_ready(client: AsyncClient, auth_headers: dict, db) -> dict:
             {"tag_key": "technology-ai", "weight": 4, "source": "self"},
             {"tag_key": "technology-games", "weight": 3, "source": "self"},
         ],
-        "hobbies": [
-            {"key": "gaming", "label": "Playing and modding games", "weight": 4}
-        ],
-        "likes": [
-            {"tag_key": "technology-data", "label": "Solving puzzles", "weight": 4}
-        ],
+        "hobbies": [{"key": "gaming", "label": "Playing and modding games", "weight": 4}],
+        "likes": [{"tag_key": "technology-data", "label": "Solving puzzles", "weight": 4}],
         "dislikes": [{"label": "Public speaking", "weight": 2}],
         "aspirations": [
             {
@@ -640,12 +808,13 @@ class SyntheticConnector(PostingConnector):
 
     key = "synthetic"
     title = "Synthetic test connector"
+    manifest_file = Path(__file__).resolve().parent / "fixtures" / "synthetic-connector.json"
     docs_url = "https://docs.example/synthetic"
     capabilities = ConnectorCapabilities(supports_incremental=True)
     counter = 0
 
     def config_model(self):
-        from app.connectors.base import EmptyConfig
+        from app.extensions.sdk import EmptyConfig
 
         return EmptyConfig
 
@@ -658,17 +827,48 @@ class SyntheticConnector(PostingConnector):
             title="QA Automation Engineer",
             org="SynthCo",
             url="https://syn.example/1",
-            posted_at=datetime.now(timezone.utc) - timedelta(days=2),
+            posted_at=datetime.now(UTC) - timedelta(days=2),
             skills_raw=["programming", "problem-solving"],
             raw={"description": "We need programming and problem-solving."},
         )
-        return ConnectorResult(postings=[posting], next_state={"etag": '"syn-etag"'})
+        return ConnectorResult(items=[posting], next_state={"etag": '"syn-etag"'})
 
 
 @pytest.fixture
 def synthetic_connector():
     register_connector(SyntheticConnector())
     yield SyntheticConnector
+    reset_registry()
+
+
+class DynamicSynthetic(SyntheticConnector):
+    key = "dynamic-synthetic"
+    capabilities = ConnectorCapabilities(supports_incremental=True, dynamic_queries=True)
+    last_config: ClassVar[dict] = {}
+    calls = 0
+
+    async def fetch(self, config, state, *, transport=None, **_kw):
+        DynamicSynthetic.last_config = dict(config)
+        DynamicSynthetic.calls += 1
+        return ConnectorResult(
+            items=[
+                RawPosting(
+                    external_id=f"dyn-{DynamicSynthetic.calls}",
+                    title="Engineer",
+                    url=f"https://example.test/{DynamicSynthetic.calls}",
+                    posted_at=datetime.now(UTC),
+                )
+            ],
+            next_state={"etag": str(DynamicSynthetic.calls)},
+        )
+
+
+@pytest.fixture
+def dynamic_connector():
+    register_connector(DynamicSynthetic())
+    DynamicSynthetic.last_config = {}
+    DynamicSynthetic.calls = 0
+    yield DynamicSynthetic
     reset_registry()
 
 
@@ -689,29 +889,28 @@ async def kinds(db):
 
 
 def _raw_posting(**kw) -> RawPosting:
-    defaults = dict(
-        external_id="ex-1",
-        title="Data Analyst",
-        org="ExtractCo",
-        url="https://ex.example/1",
+    defaults = {
+        "external_id": "ex-1",
+        "title": "Data Analyst",
+        "org": "ExtractCo",
+        "url": "https://ex.example/1",
         # Relative, never a fixed date: a pinned posted_at ages out of
         # posted_within windows and time-bombs the freshness tests.
-        posted_at=datetime.now(timezone.utc) - timedelta(days=2),
-        skills_raw=["programming", "problem-solving"],
-        raw={
+        "posted_at": datetime.now(UTC) - timedelta(days=2),
+        "skills_raw": ["programming", "problem-solving"],
+        "raw": {
             "description": (
-                "We need programming and problem-solving. "
-                "Salary: 40000-60000 EUR per year."
+                "We need programming and problem-solving. Salary: 40000-60000 EUR per year."
             )
         },
-    )
+    }
     defaults.update(kw)
     return RawPosting(**defaults)
 
 
 async def _make_posting(db, source, **kw) -> JobPosting:
     """Sync one raw posting through the real fast pass."""
-    from app.services.postings_service import upsert_posting
+    from app.services.postings.postings_service import upsert_posting
 
     posting = await upsert_posting(db, source, _raw_posting(**kw))
     await db.commit()
@@ -719,17 +918,11 @@ async def _make_posting(db, source, **kw) -> JobPosting:
     return posting
 
 
-async def _add_posting_skill(
-    db, posting: JobPosting, skill_key: str, level, priority
-) -> None:
+async def _add_posting_skill(db, posting: JobPosting, skill_key: str, level, priority) -> None:
     """Upsert — the deep pass updates fast-pass rows in place."""
     from app.models.taxonomy_model import Skill
 
-    skill = (
-        (await db.execute(select(Skill).where(Skill.key == skill_key)))
-        .scalars()
-        .first()
-    )
+    skill = (await db.execute(select(Skill).where(Skill.key == skill_key))).scalars().first()
     assert skill is not None, f"seeded skill missing: {skill_key}"
     row = (
         (
@@ -791,9 +984,90 @@ def _chat_agent_mock():
     """Script the chat agent-round mock + register the structured reply
     mock for every test (the chatbot import side effect is gone — plan 98
     moved the builders to app/ai/mock_chat.py)."""
-    from app.ai import gateway as gateway_module, mock_chat  # noqa: F401
+    from app.ai import gateway as gateway_module
     from app.models.enums import AITaskType
 
     gateway_module.register_agent_mock(AITaskType.CHAT.value, _chat_agent_script)
     yield
     gateway_module.AGENT_MOCK_SCRIPTS.pop(AITaskType.CHAT.value, None)
+
+
+async def grant_tool(db, user, key: str) -> None:
+    """D20 test helper: the catalog grant a state-changing tool needs
+    before the registry funnel lets its write run. Accepts a User row or
+    a bare user id."""
+    from uuid import UUID
+
+    from app.ai.tools.grants import grant
+
+    user_id = user if isinstance(user, UUID) else user.id
+    await grant(db, user_id, key)
+
+
+_SKIP_ALLOWLIST_PATH = Path(__file__).with_name("skip_allowlist.json")
+_observed_skips: dict[str, str] = {}
+
+
+def _skip_allowlist() -> list[dict[str, str]]:
+    data = json.loads(_SKIP_ALLOWLIST_PATH.read_text(encoding="utf-8"))
+    return data.get("sqlite" if IS_SQLITE else "postgres", [])
+
+
+def _targets_full_suite(config: pytest.Config) -> bool:
+    if getattr(config.option, "markexpr", "") or getattr(config.option, "keyword", ""):
+        return False
+    targets = [str(arg).rstrip("/") for arg in config.args] or ["tests"]
+    return targets == ["tests"]
+
+
+def pytest_runtest_logreport(report) -> None:
+    """Record every skip so the wall can compare it against the allowlist."""
+    if not report.skipped or report.nodeid in _observed_skips:
+        return
+    reason = ""
+    if isinstance(report.longrepr, tuple) and len(report.longrepr) == 3:
+        reason = str(report.longrepr[2]).removeprefix("Skipped: ")
+    _observed_skips[report.nodeid] = reason
+
+
+def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
+    """Fail the run when the skip list grows beyond the reviewed allowlist.
+
+    Skips are intentional coverage gaps: a dialect-only case, a missing
+    optional engine, or a documented environment limitation. A new skip
+    must be reviewed and added to ``tests/skip_allowlist.json`` (with a
+    reason) instead of silently shrinking the suite. The completeness
+    half (every ``when: always`` entry actually fired) only applies to a
+    full-suite run.
+    """
+    if hasattr(session.config, "workerinput"):
+        return
+    allowlist = _skip_allowlist()
+    problems: list[str] = []
+    matched: set[int] = set()
+    for nodeid, reason in _observed_skips.items():
+        for index, entry in enumerate(allowlist):
+            if not fnmatch.fnmatch(nodeid, entry["id"]):
+                continue
+            if entry["reason_contains"] not in reason:
+                continue
+            matched.add(index)
+            break
+        else:
+            problems.append(f"unlisted skip: {nodeid} ({reason})")
+    if _targets_full_suite(session.config):
+        for index, entry in enumerate(allowlist):
+            if entry.get("when", "always") == "always" and index not in matched:
+                problems.append(
+                    f"allowlisted skip did not fire: {entry['id']} ({entry['reason_contains']})"
+                )
+    if not problems:
+        return
+    session.exitstatus = 1
+    reporter = session.config.pluginmanager.getplugin("terminalreporter")
+    if reporter is not None:
+        reporter.write_line("")
+        reporter.write_line("skip wall FAILED — expected skip list drifted:", red=True)
+        for problem in problems:
+            reporter.write_line(f"  {problem}", red=True)
+        reporter.write_line(f"  update {_SKIP_ALLOWLIST_PATH} (documented skips only)")

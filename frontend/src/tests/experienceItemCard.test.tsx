@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import {
   ExperienceItemCard,
   type ExperienceItemCardData,
-} from "@/components/experience/ExperienceItemCard";
+} from "@/features/profile/components/experience/ExperienceItemCard";
 import { safeExternalUrl } from "@/lib/url";
 
 const ITEM: ExperienceItemCardData = {

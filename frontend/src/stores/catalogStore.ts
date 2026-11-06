@@ -1,11 +1,13 @@
 import { create } from "zustand";
 import * as jobsApi from "@/api/jobs";
-import type { Job, JobFamilyNode } from "@/types";
+import type { Job, JobFacets } from "@/types/wire";
+import type { JobFamilyNode } from "@/types";
 
 interface CatalogState {
   families: JobFamilyNode[];
   jobs: Job[];
   total: number;
+  facets: JobFacets;
   loading: boolean;
   filters: Record<string, unknown>;
   loadFamilies: () => Promise<void>;
@@ -17,6 +19,7 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   families: [],
   jobs: [],
   total: 0,
+  facets: {},
   loading: false,
   filters: {},
 
@@ -28,9 +31,14 @@ export const useCatalogStore = create<CatalogState>((set, get) => ({
   loadJobs: async (filters) => {
     set({ loading: true });
     try {
-      const merged = { ...get().filters, ...filters };
-      const jobs = await jobsApi.fetchJobs({ page_size: 100, ...merged });
-      set({ jobs, total: jobs.length, filters: merged });
+      const next = filters ?? {};
+      const page = await jobsApi.fetchJobs({ page_size: 100, ...next });
+      set({
+        jobs: page.items ?? [],
+        total: page.total ?? 0,
+        facets: page.facets ?? {},
+        filters: next,
+      });
     } finally {
       set({ loading: false });
     }

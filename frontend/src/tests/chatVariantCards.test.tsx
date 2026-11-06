@@ -1,12 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
-import { MessageProposals } from "@/components/chat/MessageProposals";
-import { ProposalPreviewModal } from "@/components/chat/ProposalPreviewModal";
-import type {
-  ChatMessage,
-  ProfileProposalCardData,
-} from "@/types";
+import { MessageProposals } from "@/features/chat/components/chat/MessageProposals";
+import { ProposalPreviewModal } from "@/features/chat/components/chat/ProposalPreviewModal";
+import type { ChatMessage, ProfileProposalCardData } from "@/types";
 import type { ProfileProposalPreviewData } from "@/api/profileProposals";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 

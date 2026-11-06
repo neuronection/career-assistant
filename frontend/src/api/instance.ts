@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 /** Public instance facts (`GET /api/v1/instance/config`) — readable
  * without a session so the demo badge renders before login
@@ -7,6 +7,9 @@ export interface InstanceConfig {
   demo_mode: boolean;
   auth_mode: string;
   registration_enabled: boolean;
+  /** Entrypoint mode (identity-auth §4) — `server` instances are
+   * permanently authenticated; the §4.5 control blocks accordingly. */
+  identity_mode: "server" | "desktop";
 }
 
 export async function getInstanceConfig(): Promise<InstanceConfig> {

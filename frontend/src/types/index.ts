@@ -1,105 +1,30 @@
-export type DemandOutlook = "declining" | "stable" | "growing" | "hot";
-export type EducationLevel =
-  | "no_formal"
-  | "middle_school"
-  | "high_school"
-  | "vocational"
-  | "bachelor"
-  | "master"
-  | "doctorate";
-export type Environment =
-  | "office"
-  | "field"
-  | "lab"
-  | "studio"
-  | "workshop"
-  | "clinic"
-  | "classroom"
-  | "vehicle"
-  | "outdoors"
-  | "remote"
-  | "kitchen"
-  | "stage";
-export type PhysicalActivity = "sedentary" | "light" | "moderate" | "active" | "physical_intense";
-export type RelationType =
-  | "similar_to"
-  | "specialises_into"
-  | "leads_to"
-  | "alternative_to"
-  | "prerequisite_of";
-export type MatchStatus = "interested" | "considering" | "dismissed";
-export type PrerequisiteStatus = "met" | "unmet" | "unknown";
+/**
+ * Hand-written view models.
+ *
+ * Wire types live in `@/types/wire` (named aliases over the generated
+ * contract in `@/types/api.gen`). The shapes here narrow JSONB payloads
+ * the contract deliberately leaves open (chat message metadata, posting
+ * extraction, document extraction), compose several wire calls into one
+ * UI shape (JobMatchDetail, JobFamilyNode), or carry SSE payloads that
+ * are not part of the OpenAPI surface at all (ProfileProposalCardData,
+ * chat previews/attachments). Vocabulary unions for free-string wire
+ * fields (severity/channel/template literals) are also view-side.
+ */
 
-export interface Aspect {
-  title: string;
-  detail: string;
-  weight?: number;
-}
+import type {
+  CareerStage,
+  DocumentStatus,
+  EducationLevel,
+  Job,
+  MatchInsight,
+  NotificationRuleKind,
+  OnboardingPath,
+  PhysicalActivity,
+  ProfileLinkKind,
+  ScoringWeights,
+} from "@/types/wire";
 
-export interface JobAttributes {
-  subjects: string[];
-  work_style: {
-    teamwork: number;
-    environment: number;
-    structure: number;
-    pace: number;
-    leadership: number;
-    physical_activity: PhysicalActivity;
-  };
-  education: { level: EducationLevel; fields: string[] };
-  physical: { activity: PhysicalActivity; requirements: string[] };
-  salary: {
-    currency: string;
-    entry: [number, number] | null;
-    median: [number, number] | null;
-    senior: [number, number] | null;
-  };
-  demand: { outlook: DemandOutlook; note: string; sources: Record<string, unknown> };
-  environments: Environment[];
-  typical_positives: Aspect[];
-  typical_negatives: Aspect[];
-}
-
-export type JobSkillImportance = "core" | "important" | "bonus";
-
-export interface JobSkill {
-  skill_id: string;
-  key: string;
-  label: string;
-  required_level: number;
-  importance: JobSkillImportance;
-  rationale: string;
-}
-
-export interface InterestRef {
-  key: string;
-  label: string;
-}
-
-export interface Job {
-  id: string;
-  code: string;
-  title: string;
-  family_key: string;
-  short_description: string;
-  status: "draft" | "published";
-  source: "seed" | "ai" | "user";
-  attributes: JobAttributes;
-  interests: InterestRef[];
-  skills: JobSkill[];
-  links?: JobLink[];
-  created_at: string;
-}
-
-export type JobLinkKind = "apply" | "learn" | "certification" | "video";
-
-export interface JobLink {
-  label: string;
-  url: string;
-  kind: JobLinkKind;
-}
-
-export type SkillStatus = "proposed" | "active" | "deprecated";
+// ------------------------------------------------------------- skills
 
 export interface LevelAnchor {
   level: number;
@@ -107,6 +32,27 @@ export interface LevelAnchor {
   description: string;
 }
 
+export type SkillStatus = "proposed" | "active" | "deprecated";
+
+/** Taxonomy tag as the interests UI reads it (the wire row adds admin fields). */
+export interface TaxonomyTag {
+  key: string;
+  label: string;
+  category: string;
+  description: string;
+}
+
+export type PostingSkillPriority = "must_have" | "nice_to_have" | "bonus";
+
+/** Taxonomy tag as the UI reads it (the wire row carries admin fields too). */
+export interface TaxonomyTag {
+  key: string;
+  label: string;
+  category: string;
+  description: string;
+}
+
+/** Skill row; the wire carries level_anchors as free objects. */
 export interface Skill {
   id: string;
   key: string;
@@ -120,88 +66,21 @@ export interface Skill {
   origin: string;
 }
 
-export type UserSkillSource =
-  | "self_report"
-  | "assessment"
-  | "experience"
-  | "ai_inferred"
-  | "document";
-
+/** User skill row; the wire carries level_anchors as free objects. */
 export interface UserSkill {
   skill_id: string;
   key: string;
   label: string;
   category: string;
   level: number;
-  source: UserSkillSource;
+  source: "self_report" | "assessment" | "experience" | "ai_inferred" | "document";
   confidence: number;
   level_anchors: LevelAnchor[];
   derive_enabled: boolean;
   hidden?: boolean;
 }
 
-export interface SkillGap {
-  skill_id: string;
-  key: string;
-  label: string;
-  required_level: number;
-  importance: JobSkillImportance;
-  user_level: number | null;
-  delta: number | null;
-  suggestion: string;
-  next_step: string | null;
-}
-
-export interface SkillGapReport {
-  job_id: string;
-  job_code: string;
-  job_title: string;
-  gaps: SkillGap[];
-}
-
-export interface PathStep {
-  position: number;
-  kind: "education" | "job" | "experience" | "certification";
-  label: string;
-  optional: boolean;
-  family_key: string | null;
-  family_label: string | null;
-  skill_key: string | null;
-  skill_label: string | null;
-  education_level: string | null;
-}
-
-export interface CareerPath {
-  id: string;
-  job_id: string;
-  title: string;
-  description: string;
-  source: string;
-  status: string;
-  steps: PathStep[];
-}
-
-export interface PathGraphNode {
-  code: string;
-  title: string;
-  family_key: string;
-  demand: string | null;
-  depth: number;
-}
-
-export interface PathGraphEdge {
-  from_code: string;
-  to_code: string;
-  relation_type: string;
-  weight: number;
-}
-
-export interface PathGraph {
-  root: string;
-  nodes: PathGraphNode[];
-  edges: PathGraphEdge[];
-  truncated: boolean;
-}
+// ------------------------------------------------------------- catalog
 
 export interface JobFamilyNode {
   id: string;
@@ -215,62 +94,269 @@ export interface JobFamilyNode {
   children: JobFamilyNode[];
 }
 
-export interface GraphNode {
+// -------------------------------------------------------- universities
+
+/** Document row; extraction narrows the wire's free-form payload. */
+export interface DocumentRecord {
   id: string;
-  code: string;
+  kind: string;
+  filename: string;
+  mime: string;
+  size_bytes: number;
+  page_count: number;
+  status: DocumentStatus;
+  error: string;
+  created_at?: string | null;
+  extraction: {
+    universities: {
+      name: string;
+      country: string;
+      city: string;
+      university_type: string;
+      departments: {
+        name: string;
+        field_key: string;
+        degree: string;
+        duration_years: number;
+        language: string;
+        application_deadline: string | null;
+        admissions: {
+          year: number;
+          baseline_score: number | null;
+          top_score: number | null;
+          quota: number | null;
+          units: string;
+          confidence: number;
+        }[];
+      }[];
+    }[];
+  } | null;
+}
+
+// ---------------------------------------------------------------- chat
+
+/** One assistant-drafted career path riding the message metadata
+ * (plan 125) — the chat-side review artifact. */
+export interface ChatPathDraftStep {
+  kind: string;
+  label?: string;
+  optional?: boolean;
+  parent?: number | null;
+  edge_label?: string;
+  skill_key?: string | null;
+  family_key?: string | null;
+  education_level?: string | null;
+}
+
+export interface ChatPathDraftMeta {
+  draft: {
+    title: string;
+    description?: string;
+    steps: ChatPathDraftStep[];
+    job_code?: string | null;
+    job_title?: string | null;
+  } | null;
+  proposed_job?: { code: string; title: string; status: string } | null;
+  note?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: "user" | "assistant" | "system";
+  content: string;
+  parent_id?: string | null;
+  variant_index?: number;
+  variant_count?: number;
+  sibling_ids?: string[];
+  /** Persisted turn metadata — the wire carries it as free JSONB. */
+  metadata_json: {
+    referenced_job_codes?: string[];
+    referenced_posting_refs?: string[];
+    explore_query?: string;
+    model?: string;
+    elapsed_ms?: number;
+    tokens_in?: number;
+    tokens_out?: number;
+    tools?: {
+      name: string;
+      title?: string;
+      status?: string;
+      start_ms?: number;
+      duration_ms?: number;
+      args_summary?: string;
+      result_summary?: string;
+      results?: string[];
+    }[];
+    nodes?: {
+      id: string;
+      label?: string;
+      status?: string;
+      start_ms?: number;
+      duration_ms?: number;
+    }[];
+    stream_interrupted?: boolean;
+    surface?: string;
+    operations?: { op: string; ok: boolean; detail: string }[];
+    critique?: {
+      summary: string;
+      issues: { severity: "minor" | "major"; area: string; message: string }[];
+      safe_token_fixes: Record<string, string>;
+    } | null;
+    version?: number | null;
+    proposals?: ProfileProposalCardData[];
+    proposals_dropped?: number;
+    proposals_dropped_reasons?: {
+      kind?: string | null;
+      reason: string;
+    }[];
+    profile_op_errors?: {
+      kind?: string | null;
+      code: string;
+    }[];
+    attachments?: ChatCvAttachment[];
+    referenced_cv_ids?: string[];
+    template_previews?: ChatTemplatePreview[];
+    path_draft?: ChatPathDraftMeta;
+  } | null;
+  created_at: string;
+}
+
+/** One template preview (plan 83): SSE `preview` event and persisted
+ * message metadata share the shape — the URL serves the cached PNG. */
+export interface ChatTemplatePreview {
+  template_id: string;
   title: string;
-  family_key: string;
-  demand: string | null;
-}
-
-export interface GraphEdge {
-  from_code: string;
-  to_code: string;
-  relation_type: RelationType;
-  weight: number;
-}
-
-export interface JobGraph {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
-
-export interface Relation {
-  id: string;
-  from_code: string;
-  to_code: string;
-  from_title: string;
-  to_title: string;
-  relation_type: RelationType;
-  weight: number;
-  rationale: string;
-  source: string;
-}
-
-export interface TaxonomyTag {
-  key: string;
-  label: string;
-  category: string;
-  description: string;
-}
-
-export type CareerStage =
-  | "student"
-  | "early_career"
-  | "experienced"
-  | "switching"
-  | "returning";
-
-export type OnboardingPath = "explore" | "target" | "cv_import" | "browse";
-
-export type ProfileLinkKind = "linkedin" | "github" | "portfolio" | "other";
-
-export interface ProfileLink {
-  kind: ProfileLinkKind;
   url: string;
-  label: string;
 }
 
+export interface ChatCvAttachment {
+  kind: "cv";
+  cv_id: string;
+  title: string;
+}
+
+// ------------------------------------------------- HITL proposal cards
+
+/** Wire shape of one HITL card (SSE `proposal` event, list endpoint and
+ * persisted message metadata all share it — the backend serializes once
+ * via `proposal_event`, which is not part of the OpenAPI surface). */
+export interface ProfileProposalCardData {
+  id: string;
+  kind: string;
+  action: string;
+  status: "pending" | "approved" | "rejected" | "conflict" | "expired" | "reverted";
+  title: string;
+  entity_id?: string | null;
+  entity_label?: string;
+  diff: ProposalDiffRowView[];
+  destructive: boolean;
+  source: string;
+  /** Non-chat provenance (ADR-0015): MCP token label + request id. */
+  origin?: {
+    channel?: string;
+    token_id?: string;
+    token_label?: string;
+    request_id?: string;
+    tool?: string;
+  };
+  chat_session_id?: string | null;
+  created_at: string;
+  /** Picker cards (plan 108): the option list rides the payload. */
+  payload?: Record<string, unknown>;
+}
+
+/** SSE card rows tolerate a missing label (renderer falls back). */
+export type ProposalDiffRowView = {
+  field: string;
+  label?: string;
+  before?: unknown;
+  after?: unknown;
+};
+
+// --------------------------------------------------------------- jobs
+
+/** The job detail view: composed client-side from job + insight +
+ * university pathways (separate wire calls). */
+export interface JobMatchDetail {
+  job: Job;
+  insight: MatchInsight | null;
+  university_pathways: {
+    department: {
+      id: string;
+      name: string;
+      degree: string;
+      duration_years: number;
+      application_deadline: string | null;
+      university: { id: string; name: string; country: string; city: string };
+    };
+    relevance: number;
+    rationale: string;
+    required_subjects: string[];
+    typical_position: string;
+    employment_rate_pct: number | null;
+    admissions: { year: number; baseline_score: number | null; units: string }[];
+  }[];
+}
+
+// ------------------------------------------------------------ postings
+
+export interface ExploreParams {
+  q?: string;
+  basis?: "open" | "all";
+  skills?: string;
+  skill_exclude?: string;
+  skill_mode?: "all" | "any";
+  skill_priority?: string;
+  education_min?: string;
+  languages?: string;
+  posted_within?: string;
+  fresh_only?: boolean;
+  salary_min?: number;
+  salary_currency?: string;
+  seniority?: string;
+  seniority_exclude?: string;
+  employment_type?: string;
+  remote_policy?: string;
+  remote_policy_exclude?: string;
+  city?: string;
+  country?: string;
+  source?: string;
+  source_exclude?: string;
+  mapped_family?: string;
+  job?: string;
+  saved?: boolean;
+  seen?: boolean;
+  seen_exclude?: boolean;
+  applied?: boolean;
+  extracted_only?: boolean;
+  contract?: string;
+  contract_exclude?: string;
+  travel?: string;
+  travel_exclude?: string;
+  schedule?: string;
+  schedule_exclude?: string;
+  benefits?: string;
+  org?: string | string[];
+  org_exclude?: string | string[];
+  sort?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+// ------------------------------------------------------- notifications
+
+export type NotificationChannel = "in_app" | "desktop" | "browser" | "email" | "webhook";
+
+export type NotificationChannelKey = "in_app" | "desktop" | "browser" | "email" | "webhook";
+
+export type AlertRuleKind = Extract<NotificationRuleKind, "fit_threshold" | "new_in_family">;
+
+export type WebhookTemplate = "generic" | "slack" | "teams" | "telegram" | "ntfy";
+
+// --------------------------------------------------------- profile form
+
+/** The sectioned profile form payload (GET/PUT /profile composes it as
+ * a free dict on the wire — sections validate server-side). */
 export interface Profile {
   basics: {
     birth_year: number | null;
@@ -285,7 +371,7 @@ export interface Profile {
     email: string;
     phone: string;
     headline: string;
-    links?: ProfileLink[];
+    links?: { kind: ProfileLinkKind; url: string; label: string }[];
   };
   academics: {
     favorite_subjects: { key: string; weight: number }[];
@@ -312,14 +398,7 @@ export interface Profile {
     creativity_priority: number;
   };
   preferences: {
-    scoring_weights: {
-      skills: number;
-      location: number;
-      experience: number;
-      education: number;
-      interests: number;
-      values: number;
-    };
+    scoring_weights: ScoringWeights;
   };
   constraints: {
     physical_conditions: string[];
@@ -349,752 +428,65 @@ export interface Profile {
   };
 }
 
-export interface Bootstrap {
-  career_stage: CareerStage;
-  stage_source: "derived" | "explicit";
-  onboarding_path?: OnboardingPath | null;
-  features: {
-    universities: boolean;
-    grade_fields: boolean;
-    education_step: boolean;
-  };
-  suggested_scoring_weights: ScoringWeights;
-  effective_scoring_weights: ScoringWeights;
-  weights_overridden: boolean;
-  fit_stale?: boolean;
-  refit_queued?: boolean;
-  refit_job_id?: string;
-  refitted?: number;
-  target_mode?: boolean;
-  target_families?: string[];
-  notification_channels?: NotificationChannel[];
-}
+// --------------------------------------------------------- career paths
 
-export type NotificationChannel = "in_app" | "desktop" | "browser";
+/** One mark a user can put on a path or a step (the backend `PathFlag`
+ * vocabulary — marks are preferences, never scoring inputs). */
+export type PathMark = "interested" | "dismissed" | "pinned";
 
-export interface NotificationPreferences {
-  desktop_channel_enabled: boolean;
-  quiet_hours: { start: string; end: string } | null;
-}
-
-export interface PrerequisiteCheck {
-  requirement: string;
-  status: PrerequisiteStatus;
-  detail: string;
-}
-
-export interface FitDimension {
-  score: number;
-  weight: number;
-  detail: string;
-}
-
-export interface FitBreakdown {
-  dimensions: Record<string, FitDimension>;
-  gates: string[];
-  specialist_dimension: string | null;
-}
-
-export interface ScoringWeights {
-  skills: number;
-  location: number;
-  experience: number;
-  education: number;
-  interests: number;
-  values: number;
-}
-
-export interface MatchInsight {
-  id: string;
-  job_id: string;
-  ai_score: number | null;
-  ai_confidence: number | null;
-  ai_summary: string;
-  ai_positives: Aspect[];
-  ai_negatives: Aspect[];
-  prerequisites: PrerequisiteCheck[];
-  ai_model: string;
-  ai_generated_at: string | null;
-  fit_score: number | null;
-  fit_breakdown: FitBreakdown | null;
-  fit_version: number;
-  user_score: number | null;
-  status: MatchStatus | null;
-  user_notes: string;
-  seen_at: string | null;
-  saved_at: string | null;
-  hidden_at: string | null;
-}
-
-export interface RankedJob {
-  job: Job;
-  score: number;
-  fit_score: number;
-  ai_score: number | null;
-  user_score: number | null;
-  status: MatchStatus | null;
-  breakdown: FitBreakdown | null;
-  specialist_dimension: string | null;
-  gated: boolean;
-  gate_reasons: string[];
-  insight: MatchInsight | null;
-}
-
-export interface Candidate {
-  job: Job;
-  fit_score: number;
-  breakdown: FitBreakdown | null;
-}
-
-export interface University {
-  id: string;
-  name: string;
-  country: string;
-  city: string;
-  university_type: string;
-  website: string;
-  notes: string;
-  source: string;
-  department_count: number;
-}
-
-export interface Admission {
-  id: string;
-  year: number;
-  baseline_score: number | null;
-  top_score: number | null;
-  quota: number | null;
-  units: string;
-  source: string;
-  confidence: number;
-}
-
-export interface JobDepartmentLink {
-  id: string;
-  job_id: string;
-  department_id: string;
-  relevance: number;
-  rationale: string;
-  required_subjects: string[];
-  typical_position: string;
-  salary_band: Record<string, unknown> | null;
-  employment_rate_pct: number | null;
-  source: string;
-}
-
-export interface Department {
-  id: string;
-  university_id: string;
-  name: string;
-  field_key: string;
-  degree: string;
-  duration_years: number;
-  language: string;
-  application_deadline: string | null;
-  description: string;
-  admissions: Admission[];
-  job_links: JobDepartmentLink[];
-}
-
-export interface UniversityDetail extends University {
-  departments: Department[];
-}
-
-export interface DocumentRecord {
-  id: string;
-  kind: string;
-  filename: string;
-  mime: string;
-  size_bytes: number;
-  page_count: number;
-  status:
-    | "uploaded"
-    | "parsing"
-    | "parsed"
-    | "error"
-    | "applied"
-    | "processing"
-    | "ready"
-    | "failed";
-  error: string;
-  created_at?: string | null;
-  extraction: {
-    universities: {
-      name: string;
-      country: string;
-      city: string;
-      university_type: string;
-      departments: {
-        name: string;
-        field_key: string;
-        degree: string;
-        duration_years: number;
-        language: string;
-        application_deadline: string | null;
-        admissions: {
-          year: number;
-          baseline_score: number | null;
-          top_score: number | null;
-          quota: number | null;
-          units: string;
-          confidence: number;
-        }[];
-      }[];
-    }[];
-  } | null;
-}
-
-export interface ChatSession {
-  id: string;
-  title: string;
-  context: Record<string, unknown> | null;
-  created_at: string;
-  last_activity_at?: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  parent_id?: string | null;
-  variant_index?: number;
-  variant_count?: number;
-  sibling_ids?: string[];
-  metadata_json: {
-    referenced_job_codes?: string[];
-    referenced_posting_refs?: string[];
-    explore_query?: string;
-    model?: string;
-    elapsed_ms?: number;
-    tokens_in?: number;
-    tokens_out?: number;
-    /** Persisted turn trace: per-tool execution windows + graph-node state. */
-    tools?: {
-      name: string;
-      title?: string;
-      status?: string;
-      start_ms?: number;
-      duration_ms?: number;
-      args_summary?: string;
-      result_summary?: string;
-      results?: string[];
-    }[];
-    nodes?: {
-      id: string;
-      label?: string;
-      status?: string;
-      start_ms?: number;
-      duration_ms?: number;
-    }[];
-    stream_interrupted?: boolean;
-    /** CV builder copilot turns. */
-    surface?: string;
-    operations?: { op: string; ok: boolean; detail: string }[];
-    critique?: {
-      summary: string;
-      issues: { severity: "minor" | "major"; area: string; message: string }[];
-      safe_token_fixes: Record<string, string>;
-    } | null;
-    version?: number | null;
-    /** HITL profile proposals created by this turn (plan 77). */
-    proposals?: ProfileProposalCardData[];
-    proposals_dropped?: number;
-    /** Why each dropped op failed validation (plan 77 diagnosability). */
-    proposals_dropped_reasons?: {
-      kind?: string | null;
-      reason: string;
-    }[];
-    /** Plan-99 pipeline drops (validated op failures op_errors). */
-    profile_op_errors?: {
-      kind?: string | null;
-      code: string;
-    }[];
-    /** CV reference attachments stored on this (user) message (plan 78). */
-    attachments?: ChatCvAttachment[];
-    /** CVs the reply grounded in (plan 78). */
-    referenced_cv_ids?: string[];
-    /** Template first-page previews the copilot compared (plan 83). */
-    template_previews?: ChatTemplatePreview[];
-  } | null;
-  created_at: string;
-}
-
-/** One template preview (plan 83): SSE `preview` event and persisted
- * message metadata share the shape — the URL serves the cached PNG. */
-export interface ChatTemplatePreview {
-  template_id: string;
-  title: string;
-  url: string;
-}
-
-export interface ChatCvAttachment {
-  kind: "cv";
-  cv_id: string;
-  title: string;
-}
-
-export type ProfileProposalStatus =
-  | "pending"
-  | "approved"
-  | "rejected"
-  | "conflict"
-  | "expired"
-  | "reverted";
-
-export interface ProfileProposalDiffRow {
-  field: string;
-  label?: string;
-  before?: unknown;
-  after?: unknown;
-}
-
-/** Wire shape of one HITL card (SSE `proposal` event, list endpoint and
- * persisted message metadata all share it — the backend serializes once). */
-export interface ProfileProposalCardData {
-  id: string;
-  kind: string;
-  action: string;
-  status: ProfileProposalStatus;
-  title: string;
-  entity_id?: string | null;
-  entity_label?: string;
-  diff: ProfileProposalDiffRow[];
-  destructive: boolean;
-  source: string;
-  chat_session_id?: string | null;
-  created_at: string;
-  /** Picker cards (plan 108): the option list rides the payload. */
-  payload?: Record<string, unknown>;
-}
-
-export interface JobMatchDetail {
-  job: Job;
-  insight: MatchInsight | null;
-  university_pathways: {
-    department: {
-      id: string;
-      name: string;
-      degree: string;
-      duration_years: number;
-      application_deadline: string | null;
-      university: { id: string; name: string; country: string; city: string };
-    };
-    relevance: number;
-    rationale: string;
-    required_subjects: string[];
-    typical_position: string;
-    employment_rate_pct: number | null;
-    admissions: { year: number; baseline_score: number | null; units: string }[];
-  }[];
-}
-
-export type SearchScope = "catalog" | "rankings" | "universities" | "postings";
-
-export interface SearchRecord {
-  id: string;
-  scope: SearchScope;
-  query: string;
-  filters: Record<string, unknown>;
-  result_count: number;
-  saved: boolean;
-  created_at: string;
-}
-
-export interface FeedItem {
-  job: Job;
-  fit_score: number;
-  insight: MatchInsight | null;
-  seen: boolean;
-  saved: boolean;
-  user_notes: string;
-  exploration: boolean;
-}
-
-export interface FeedResponse {
-  items: FeedItem[];
-  total: number;
-  unseen: number;
-}
-
-export type AlertRuleKind = "fit_threshold" | "new_in_family";
-
-export interface AlertRuleParams {
-  min_fit: number;
-  family_keys: string[];
-  muted_family_keys: string[];
-  max_per_day: number;
-}
-
-export interface AlertRule {
-  kind: AlertRuleKind;
-  params: AlertRuleParams;
-  enabled: boolean;
-  is_default: boolean;
-}
-
-export interface NotificationItem {
-  id: string;
-  notification_id: string;
-  kind: string;
-  severity: "info" | "success" | "warning" | "critical";
-  status: "unread" | "read" | "dismissed";
-  title: string;
-  body: string;
-  payload: {
-    job_id?: string;
-    job_code?: string;
-    family_key?: string;
-    score?: number;
-    link?: string;
-    [key: string]: unknown;
-  };
-  source_ref: Record<string, string>;
-  thread_key: string | null;
-  read_at: string | null;
-  dismissed_at: string | null;
-  created_at: string;
-}
-
-export interface NotificationsResponse {
-  items: NotificationItem[];
-  unread_count: number;
-}
-
-export interface NotificationThread {
-  thread_key: string;
-  kind: string;
-  severity: "info" | "success" | "warning" | "critical";
-  title: string;
-  payload: NotificationItem["payload"];
-  source_ref: Record<string, string>;
-  unread_count: number;
-  items: NotificationItem[];
-  created_at: string;
-}
-
-export interface ThreadsResponse {
-  threads: NotificationThread[];
-  unread_count: number;
-}
-
-export interface NotificationKindPref {
-  key: string;
-  label: string;
-  group: string;
-  severity: "info" | "success" | "warning" | "critical";
-  manage_url: string | null;
-  mutable: boolean;
-  default_channels: NotificationChannelKey[];
-  enabled: boolean;
-  channels: NotificationChannelKey[];
-  overridden: boolean;
-}
-
-export type NotificationChannelKey = "in_app" | "desktop" | "browser";
-
-export interface PreferencesMatrix {
-  channels: NotificationChannelKey[];
-  quiet_hours: { start: string; end: string } | null;
-  desktop_channel_enabled: boolean;
-  kinds: NotificationKindPref[];
-}
-
-export interface PushSubscriptionRecord {
-  device_id: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface NotificationPreferences {
-  desktop_channel_enabled: boolean;
-  quiet_hours: { start: string; end: string } | null;
-}
-
-export interface PostingMatchBreakdown {
-  score: number;
-  weight: number;
-  detail: string;
-  neutral?: boolean;
-}
-
-export interface PostingMatch {
-  score: number;
-  breakdown: Record<string, PostingMatchBreakdown>;
-  extracted: boolean;
-  estimate: boolean;
-  gates?: string[];
-  inputs_hash: string;
-}
-
-export interface PostingSimilar {
-  ref: string;
-  title: string;
-  org: string;
-  score: number;
-}
-
-export type ExploreFacets = Record<string, Record<string, number>>;
-
-export interface ExploreResponse {
-  items: JobPostingItem[];
-  total: number;
-  next_cursor: string | null;
-  facets: ExploreFacets;
-}
-
-export interface ExploreParams {
-  q?: string;
-  skills?: string;
-  skill_mode?: "all" | "any";
-  skill_priority?: string;
-  education_min?: string;
-  languages?: string;
-  posted_within?: string;
-  fresh_only?: boolean;
-  salary_min?: number;
-  salary_currency?: string;
-  seniority?: string;
-  employment_type?: string;
-  remote_policy?: string;
-  city?: string;
-  country?: string;
-  source?: string;
-  mapped_family?: string;
-  saved?: boolean;
-  seen?: boolean;
-  applied?: boolean;
-  extracted_only?: boolean;
-  contract?: string;
-  travel?: string;
-  schedule?: string;
-  benefits?: string;
-  org?: string;
-  sort?: string;
-  cursor?: string;
-  limit?: number;
-}
-
-export interface PostingSourceInfo {
-  key: string;
-  connector_key: string;
-  open_postings: number;
-}
-
-export type PostingSeniority = "intern" | "junior" | "mid" | "senior" | "lead" | "principal";
-
-export type PostingSkillPriority = "must_have" | "nice_to_have" | "bonus";
-
-export interface PostingExtractSkill {
-  skill_key?: string | null;
-  raw_label?: string | null;
-  unresolved?: boolean;
-  required_level: number;
-  priority: PostingSkillPriority;
-  evidence_quote: string;
-  confidence: number;
-}
-
-export interface PostingExtractResponsibility {
-  text: string;
-  time_pct?: number | null;
-  optional?: boolean;
-}
-
-export interface PostingExtract {
-  title_norm?: string | null;
-  seniority?: string | null;
-  employment_type?: string | null;
-  remote_policy?: string | null;
-  location?: { city?: string | null; country?: string | null } | null;
-  salary?: {
-    min?: number | null;
-    max?: number | null;
-    currency?: string | null;
-    period?: string | null;
-  } | null;
-  education?: { level?: string | null; field?: string | null } | null;
-  languages?: string[];
-  benefits?: string[];
-  responsibilities?: PostingExtractResponsibility[];
-  skills?: PostingExtractSkill[];
-  field_confidence?: Record<string, number>;
-  _suppressed_fields?: string[];
-}
-
-export interface JobPostingItem {
-  id: string;
-  ref?: string;
-  source_id: string;
-  external_id: string;
-  title: string;
-  org: string;
-  location: { city?: string | null; country?: string | null; remote?: boolean };
-  url: string;
-  seniority?: PostingSeniority | null;
-  employment_type?: string | null;
-  onsite_policy?: string | null;
-  salary_currency?: string | null;
-  salary_min?: number | null;
-  salary_max?: number | null;
-  salary_period?: string | null;
-  posted_at?: string | null;
-  expires_at?: string | null;
-  status: "new" | "mapped" | "expired" | "hidden";
-  catalog_job_id?: string | null;
-  mapping_method?: string | null;
-  mapping_confidence?: number | null;
-  mapping_reason?: string;
-  fit?: number | null;
-  seen: boolean;
-  saved: boolean;
-  applied_at?: string | null;
-  notes?: string;
-  source_key: string;
-  extract_version?: number | null;
-  needs_review?: boolean;
-  coverage?: number | null;
-  extract?: PostingExtract | null;
-  // Detail-only fields (GET /postings/{ref}):
-  source_title?: string;
-  source_connector?: string;
-  source_synced_at?: string | null;
-  match?: PostingMatch | null;
-  similar?: PostingSimilar[];
-}
-
-export interface PostingsResponse {
-  items: JobPostingItem[];
-  total: number;
-  unseen: number;
-}
-
-export interface ResolveArchetype {
-  code: string;
-  title: string;
-  family_key: string;
-  score: number;
-}
-
-export interface ResolveResponse {
-  query: string;
-  resolved_by: string;
-  families: { key: string; label: string }[];
-  skill_keys: string[];
-  archetypes: ResolveArchetype[];
-}
-
-export interface ExpressStart {
-  targets: string[];
-  location?: string;
-  remote?: boolean;
-  stage?: string;
-  min_fit?: number;
-  max_per_day?: number;
-}
-
-export interface ExpressResult {
-  target_families: string[];
-  target_labels: string[];
-  interest_tags_written: number;
-  target_mode: boolean;
-}
-
-export interface CompletenessSegment {
-  key: string;
-  label: string;
-  filled: boolean;
-  hint: string;
-  href: string;
-}
-
-export interface CompletenessRing {
-  percent: number;
-  segments: CompletenessSegment[];
-}
-
-export interface Nudge {
-  type: string;
-  message: string;
-}
-
-export interface TargetDashboard {
-  families: string[];
-  open_postings: {
-    total: number;
-    unseen: number;
-    salary_band: { min: number | null; max: number | null };
-    top_employers: { org: string; count: number }[];
-  };
-  adjacent_targets: { family_key: string; label: string; sample: string }[];
-  nudges: Nudge[];
-  completeness: CompletenessRing;
-}
-
-export interface GrowthStep {
-  id: string;
+/** Structural step input for the view builder — the wire `PathStepOut`
+ * shape plus the branch fields the detail API adds. */
+export interface PathStepInput {
+  id?: string | null;
   position: number;
   kind: string;
   label: string;
-  skill_id?: string | null;
-  target_level?: number | null;
-  status: "todo" | "doing" | "done" | "skipped";
-  completed_level?: number | null;
-  resources: { id: string; kind: string; title: string; provider: string; url: string; cost: string }[];
+  optional?: boolean;
+  family_key?: string | null;
+  family_label?: string | null;
+  skill_key?: string | null;
+  skill_label?: string | null;
+  education_level?: string | null;
+  parent_step_id?: string | null;
+  edge_label?: string | null;
 }
 
-export interface GrowthPlanItem {
-  id: string;
-  status: string;
-  target_job: { id: string; title: string; code: string };
-  completed_at?: string | null;
-  steps: GrowthStep[];
-}
-
-export interface RadarEntry {
-  job_id: string;
-  code: string;
-  title: string;
-  family_key: string;
-  fit_score: number;
-  deficits: {
-    skill_id: string;
-    key: string;
-    label: string;
-    current_level: number;
-    required_level: number;
-    delta: number;
-    importance: string;
-  }[];
-  headline: string;
-}
-
-export interface MarketSnapshot {
-  sample_size: number;
-  thin_sample: boolean;
-  months: { month: string; postings: number }[];
-  salary_band: { p25: number | null; p75: number | null } | null;
-  top_employers: { org: string; count: number }[];
-  top_skills: { key: string; count: number }[];
-}
-
-export interface CheckinStatus {
-  due: boolean;
-  next_at: string;
-  last_at?: string | null;
-}
-
-export interface ScheduleItem {
-  id: string;
+/** One rendered step of a career path (a view-model node). */
+export interface PathViewNode {
+  stepId: string;
+  position: number;
   kind: string;
-  task?: string | null;
-  trigger: { type: string; params: Record<string, unknown> };
-  payload: Record<string, unknown>;
-  enabled: boolean;
-  next_run_at?: string | null;
-  last_run_at?: string | null;
-  last_status?: string | null;
-  consecutive_failures?: number;
-  misfire_policy?: string;
-  error?: string;
-  removed?: boolean;
+  label: string;
+  optional: boolean;
+  familyKey: string | null;
+  familyLabel: string | null;
+  skillKey: string | null;
+  skillLabel: string | null;
+  educationLevel: string | null;
+  /** Why this branch exists ("or: research track") — incoming edge label. */
+  edgeLabel: string | null;
+  /** True when the step hangs off the chain via an explicit parent. */
+  branch: boolean;
+}
+
+/** A rendered edge; `from`/`to` reference step ids or the reserved
+ * `__start__` / `__target__` sentinels. */
+export interface PathViewEdge {
+  from: string;
+  to: string;
+  label: string;
+  branch: boolean;
+}
+
+/** The one typed view model every path projection consumes. */
+export interface PathView {
+  id: string;
+  title: string;
+  description: string;
+  status: string;
+  source: string;
+  /** The destination job every step leads into. */
+  target: { code: string | null; title: string };
+  nodes: PathViewNode[];
+  edges: PathViewEdge[];
 }

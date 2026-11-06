@@ -3,8 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useNavigate } from "react-router-dom";
 
-import { ChatDock } from "@/components/chat/ChatWidget";
-import { openCvChat } from "@/components/chat/cvChatLink";
+import { ChatDock } from "@/features/chat/components/chat/ChatWidget";
+import { openCvChat } from "@/features/chat/components/chat/cvChatLink";
 import { useChatStore } from "@/stores/chatStore";
 import type { ChatStreamCallbacks } from "@/api/chatStream";
 
@@ -251,7 +251,7 @@ describe("CV reference attachments (plan 78.3)", () => {
     const bound = {
       ...SESSION,
       id: "s0",
-      context: { surface: "cv_builder", cv_id: 999 },
+      context: { surface: "interview", interview_id: "i-1" },
     };
     const fresh = { ...SESSION, id: "s2", title: "CV chat" };
     useChatStore.setState({

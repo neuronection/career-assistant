@@ -92,6 +92,13 @@ short version; this page is the reference. Statuses live in
   deterministic coverage of your skills, and read the provenance (raw →
   fast-mapped → extracted) on every card. Low-confidence fields are suppressed
   for review, never guessed.
+- **Track every application** — a board (or list) from applied through
+  screening, interview, offer and acceptance, with the documents you sent,
+  a per-application event timeline, notes, follow-up snoozes, deadlines and
+  close-with-outcome. Follow-up reminders follow your own cadence, the
+  dashboard shows the real saved → applied → interviewing → offers funnel,
+  and the assistant can read the pipeline and proposes stage changes and
+  notes as approval cards.
 - **Explore page** — filters every structured field (including contract type,
   travel, schedule cues, benefits and organization) with live facet counts,
   saves searches you can schedule, and paginates by cursor. Posting detail
@@ -112,13 +119,38 @@ short version; this page is the reference. Statuses live in
 Describe a goal once ("junior QA role, remote, €30k+") and an agent searches
 your connected boards on a cadence or on demand: it plans multiple
 query/filter variants, filters noise (seen/applied, never-terms, a per-goal
-cooldown), ranks by your deterministic fit score, and delivers a curated
-shortlist where every explanation cites verbatim quotes verified against the
-posting's own text. A "what I searched & why" timeline shows each run's work;
+cooldown), ranks by your deterministic fit score — each goal can turn
+single profile inputs off, and a disabled input scores a neutral 7/10
+instead of a penalty — and delivers a curated shortlist where every
+explanation cites verbatim quotes verified against the posting's own
+text. A "what I searched & why" timeline shows each run's work;
 budgets hard-cap runs (partials still ship); "more/hide like this" teaches the
 goal's constraints, dismissing a whole shortlist pauses it, and three empty
 runs trigger a refine-the-goal nudge — never wasted spend, never
 auto-applying.
+
+## Career paths
+
+Every route to a target job in one place (beta):
+
+- **Path explorer** (`/paths`) — curated routes, your own path copies and
+  computed "roads into this job" relations, filterable by target job,
+  family or career stage.
+- **One renderer, three views** — graph (default; tree is the
+  reduced-motion fallback), tree and list render the same typed path.
+- **Marks** — interested / pinned / dismissed on every path and step,
+  with an optional note; dismissed steps leave the completeness count.
+  Marks are preferences — they never feed fit or rankings.
+- **Editing** — fork a curated path into your own copy, add or branch
+  steps (parent + edge label), reorder within a branch, mark optional;
+  your copy activates only after you review it.
+- **Chat drafts** — ask the assistant to draft a route; the draft renders
+  in chat for review and "Save to my paths" creates a draft you activate
+  on the paths page. Missing jobs route through the catalog moderation
+  queue (never auto-created as active).
+- **Handoffs** — JobDetail's path section and the near-miss radar link
+  into the explorer; a path header adds its target job to a growth
+  roadmap.
 
 ## Growth toolkit
 
@@ -144,6 +176,9 @@ The product works after you're hired:
 - **Threshold alerts** (fit ≥ your line, or new jobs in families you follow)
   with per-day caps, cooldowns and a kind registry — the substrate's
   multi-channel notification center builds on.
+- **Reach beyond the tab** — email (confirmed address, optional digest mode),
+  webhooks with Slack/Teams/Telegram/ntfy presets, and rotatable `.ics` /
+  Atom subscription links for your calendar and feed reader.
 
 ## Assessment & metric model
 
@@ -219,11 +254,13 @@ structured profile.
   staleness is detected when the source changes, you star to activate, and a
   dedicated variant editor drafts fill-in-form with slot comparison against
   what's on the CV now, with an in-editor AI generate-fill.
-- **Cover letters per posting** (coming soon — creation entry points are
-  gated in the UI until the feature ships) — a deterministic brief (must-haves, fit, your
-  goal), audited AI drafts that cite your evidence per paragraph with unbacked
-  claims flagged, letters rendered through the same template engine with your
-  CV's design tokens, and the same versions/exports as CVs.
+- **Cover letters per posting** — start one from **CV Studio → New cover
+  letter** (pick a saved posting and, optionally, a CV to reuse) or from any
+  posting's **Draft cover letter** button; the builder opens a deterministic
+  brief (must-haves, fit, your goal), audited AI drafts that cite your
+  evidence per paragraph with unbacked claims flagged, and the letter renders
+  through the same template engine with your CV's design tokens — with the
+  same versions/exports as CVs.
 - **Listing at a glance** — every CV card in the studio carries a first-page
   thumbnail printed by the same engine as the PDF (downscaled, cached per
   edit), the whole card opens the CV, and the list shows exactly your CVs —
@@ -268,7 +305,7 @@ structured profile.
   generation, parsing, chat…) are managed in **Settings → AI Configuration**
   — stored in the database, encrypted at rest, with no AI environment
   variables at all.
-- **Dev-only mock provider** — opt-in via `MOCK_AI=1` (or
+- **Dev-only mock provider** — opt-in via `CAREER_MOCK_AI=1` (or
   `./scripts/run-dev.sh --mock-ai`): the deterministic mock makes everything
   work offline; without it dev AI endpoints answer 503 until a provider is
   configured, and production refuses to serve mock results (503, audited)
@@ -326,6 +363,6 @@ structured profile.
   masked in every response.
 - **Full AI audit trail** — every AI call (task, model, tokens, output,
   latency) is recorded in `ai_generations`.
-- **Fail-safe production mode** — `APP_ENV=production` is the default; boot
+- **Fail-safe production mode** — `CAREER_APP_ENV=production` is the default; boot
   guards refuse a weak or missing key family (`CAREER_SESSION_KEY` /
   `CAREER_REFRESH_KEY` / `CAREER_DATA_KEY`) or `DEBUG=true`.

@@ -1,0 +1,388 @@
+"""Connector SDK (Phase 26 / plan 32 Phase 1): the only extension point for
+posting sources.
+
+Connectors are pure normalizers: ``fetch(config, state, transport) ->
+ConnectorResult`` with no DB and no AI access. Everything downstream
+(mapping, fit, feed, alerts) is connector-agnostic. The result envelope is
+the family extension charter's connector shape (ADR-0040 clause 9, D18
+convergence): ``items``, opaque ``next_state`` and ``partial_errors`` as
+TYPED charter errors (:class:`ConnectorError`) — never strings.
+
+Politeness is enforced, not documented: connectors never open sockets.
+The runtime injects the vendored polite HTTP transport
+(:mod:`app.extensions.polite_http`, built app-side by
+:mod:`app.extensions.runtime.http`) — SSRF guard with resolve-then-connect
+pinning re-validated on every redirect hop, robots.txt (fail-closed),
+per-host token buckets sized by each connector's declared cap,
+conditional GET and response size caps. Legal/operational constraints are
+a contract: declare your rate limit and network scopes; the runtime
+enforces them.
+"""
+
+from __future__ import annotations
+
+import json
+from collections.abc import Awaitable, Callable
+from copy import deepcopy
+from dataclasses import dataclass
+from datetime import datetime
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+from app.extensions.polite_http import PoliteHttpError, PoliteResponse
+from app.models.base import StructuredJSON  # noqa: F401 — re-export convenience
+
+__all__ = [
+    "RAW_POSTING_ITEM_SCHEMA",
+    "AuditFn",
+    "ChatToolContribution",
+    "ConnectorCapabilities",
+    "ConnectorError",
+    "ConnectorResult",
+    "EmploymentType",
+    "EmptyConfig",
+    "ExternalEffect",
+    "HttpTransport",
+    "LocationSpec",
+    "OnsitePolicy",
+    "PostingConnector",
+    "RawPosting",
+    "SalarySpec",
+    "SeniorityLevel",
+    "manifest_path",
+]
+
+ErrorCode = Literal[
+    "not-ready",
+    "needs-secret",
+    "invalid",
+    "unsupported",
+    "io",
+    "not-found",
+    "path-denied",
+    "net-denied",
+    "auth",
+    "rate-limited",
+    "unreachable",
+    "protocol",
+    "provider",
+    "budget",
+    "canceled",
+]
+
+Retryable = Literal["yes", "no", "after-delay", "after-config-change"]
+
+
+class ConnectorError(BaseModel):
+    """One typed charter error (ADR-0040 clause 4) — the only shape a
+    partial error may take. ``detail`` is capped data, never a raw
+    exception dump; ``retry_after_ms`` surfaces the RFC 7231 payload when
+    the upstream sent one."""
+
+    code: ErrorCode
+    detail: str = Field(default="", max_length=500)
+    retryable: Retryable
+    retry_after_ms: int | None = Field(default=None, ge=0)
+
+    @classmethod
+    def from_polite(cls, exc: PoliteHttpError) -> ConnectorError:
+        return cls(
+            code=exc.code,  # type: ignore[arg-type]
+            detail=exc.detail,
+            retryable=exc.retryable,  # type: ignore[arg-type]
+            retry_after_ms=exc.retry_after_ms,
+        )
+
+    @classmethod
+    def needs_secret(cls, detail: str) -> ConnectorError:
+        return cls(code="needs-secret", detail=detail[:500], retryable="after-config-change")
+
+
+class SalarySpec(BaseModel):
+    """ISO-4217 currency + NUMERIC range + period (+ stated basis)."""
+
+    currency: str = Field(default="USD", min_length=3, max_length=3)
+    min: float | None = Field(default=None, ge=0)
+    max: float | None = Field(default=None, ge=0)
+    period: Literal["hour", "day", "week", "month", "year"] = "year"
+    basis: Literal["gross", "net"] | None = None
+
+
+SeniorityLevel = Literal["intern", "junior", "mid", "senior", "lead", "principal"]
+EmploymentType = Literal["full_time", "part_time", "contract", "temporary", "internship"]
+OnsitePolicy = Literal["onsite", "hybrid", "remote"]
+
+
+class LocationSpec(BaseModel):
+    city: str | None = None
+    country: str | None = None
+    remote: bool = False
+
+
+class RawPosting(BaseModel):
+    """The only type a connector may emit — normalized, pre-taxonomy."""
+
+    external_id: str = Field(min_length=1, max_length=300)
+    title: str = Field(min_length=1, max_length=300)
+    org: str = Field(default="", max_length=200)
+    location: LocationSpec = Field(default_factory=LocationSpec)
+    url: str = Field(default="", max_length=1000)
+    posted_at: datetime | None = None
+    expires_at: datetime | None = None
+    salary: SalarySpec | None = None
+    seniority: SeniorityLevel | None = None
+    employment_type: EmploymentType | None = None
+    contract_type: str | None = Field(default=None, max_length=60)
+    onsite_policy: OnsitePolicy | None = None
+    work_hours: str | None = Field(default=None, max_length=60)
+    hours_per_week_min: float | None = Field(default=None, ge=0)
+    hours_per_week_max: float | None = Field(default=None, ge=0)
+    travel_class: str | None = Field(default=None, max_length=60)
+    education_level: str | None = Field(default=None, max_length=40)
+    # Skill mentions BEFORE taxonomy mapping (free text/keys); core maps them.
+    skills_raw: list[str] = Field(default_factory=list, max_length=60)
+    raw: dict = Field(default_factory=dict)
+
+
+class ConnectorCapabilities(BaseModel):
+    """Declared operational constraints; the runtime enforces them."""
+
+    network_scopes: list[str] = Field(default_factory=list)
+    requires_credentials: bool = False
+    supports_incremental: bool = False
+    max_requests_per_minute: int = Field(default=30, ge=1)
+    url_fetching: bool = True
+    # Plan 130: the connector accepts a call-time ``config["query"]``
+    # overlay ({keywords, location}) — the radar-driven rotation seam.
+    dynamic_queries: bool = False
+
+
+class ConnectorResult(BaseModel):
+    """The charter result envelope (ADR-0040 clause 9): ``{items,
+    next_state, partial_errors}``. ``next_state`` is opaque and
+    host-round-tripped (conditional-GET validators ride it).
+    ``run_summary`` (plan 003) is the optional structured observability
+    block a connector may emit beside them — shape-agnostic to the host
+    (persisted verbatim on the source run, never ingested); ``None``
+    when the connector emits none."""
+
+    items: list[RawPosting] = Field(default_factory=list)
+    next_state: dict = Field(default_factory=dict)
+    partial_errors: list[ConnectorError] = Field(default_factory=list)
+    run_summary: dict | None = None
+
+
+# Transport injected by the runtime (or tests): a polite GET over the
+# vendored runtime. Connectors never open sockets themselves, so the SSRF
+# guard, robots, rate caps and size caps stay in one place.
+HttpTransport = Callable[[str, dict], Awaitable[PoliteResponse]]
+
+
+@dataclass(frozen=True)
+class ChatToolContribution:
+    """One chat tool a bundled connector contributes (D20).
+
+    The MANIFEST carries the law (``tools`` entries with the riskClass);
+    the code side carries the implementation. The tool registry bridges
+    the two at registration and throws on any disagreement (undeclared
+    implementation, declared-but-missing implementation, risk-class
+    drift). ``risk_class`` must be the charter vocabulary verbatim —
+    the host namespaces the registry key as ``<extensionId>:<id>``."""
+
+    id: str
+    title: str
+    description: str
+    risk_class: str
+    input_model: type[BaseModel]
+    handler: Callable[[Any, Any, Any], Awaitable[Any]]
+
+    def as_tool(self, namespaced_key: str) -> Any:
+        """Project onto the host's chat tool metadata (a late import keeps
+        the SDK free of host AI-layer imports)."""
+        from app.ai.tools.base import AITool, ToolScope
+
+        return AITool(
+            key=namespaced_key,
+            title=self.title,
+            description=self.description,
+            input_model=self.input_model,
+            handler=self.handler,
+            scope=ToolScope.WRITE,
+            risk_class=_risk_class(self.risk_class),
+            audiences=frozenset({"chat"}),
+        )
+
+
+def _risk_class(value: str) -> Any:
+    from app.ai.tools.base import ToolRiskClass
+
+    return ToolRiskClass(value)
+
+
+class ExternalEffect(BaseModel):
+    """One observable external interaction of a fetch (charter lifecycle
+    law: one audit row per external effect). Connectors with effects
+    outside the injected transport — the T3 script tier's MCP tool calls
+    and the T2 sandbox's capability calls — report each one through the
+    injected ``audit`` callback; the host maps it onto the audit funnel.
+    ``arguments``/``meta`` must already be secret-free."""
+
+    kind: Literal["mcp_tool_call", "sandbox_capability_call"]
+    ref: str = Field(max_length=300)
+    arguments: dict = Field(default_factory=dict)
+    meta: dict = Field(default_factory=dict)
+    ok: bool = True
+    error: str = Field(default="", max_length=1000)
+    latency_ms: float = Field(default=0.0, ge=0)
+
+
+AuditFn = Callable[[ExternalEffect], Awaitable[None]]
+
+FetchFn = Callable[..., Awaitable[ConnectorResult]]
+
+RAW_POSTING_ITEM_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "external_id": {"type": "string", "title": "External id"},
+        "title": {"type": "string", "title": "Title"},
+        "url": {"type": "string", "title": "URL"},
+    },
+    "required": ["external_id", "title"],
+}
+
+
+BUILTIN_MANIFEST_ROOT = Path(__file__).resolve().parent / "builtin"
+
+
+def manifest_path(connector: PostingConnector) -> Path:
+    """Where a connector's manifest file lives: the bundle root's
+    ``manifest.json`` — ``builtin/<key>/manifest.json`` for in-repo
+    builtins, or the connector's ``manifest_file`` override for
+    out-of-tree T1 entry-point plugins (their package ships the file
+    beside its code). One filename, one form, family-wide."""
+    if connector.manifest_file:
+        return Path(connector.manifest_file).resolve()
+    return BUILTIN_MANIFEST_ROOT / connector.key / "manifest.json"
+
+
+@lru_cache(maxsize=64)
+def _load_manifest_json(path: str) -> dict:
+    from app.core.errors import ValidationError
+
+    try:
+        doc = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValidationError(
+            f"manifest file unavailable at {path}: {exc} — registration "
+            "fails closed (every extension bundle carries manifest.json)"
+        ) from exc
+    if not isinstance(doc, dict):
+        raise ValidationError(f"manifest file at {path} is not a JSON object")
+    return doc
+
+
+class PostingConnector:
+    """Protocol every connector engine implements."""
+
+    key: str = ""
+    title: str = ""
+    docs_url: str = ""
+    capabilities: ConnectorCapabilities = ConnectorCapabilities()
+    fixture_payload: str | bytes = ""
+    # Connectors that cause effects outside the injected transport (the
+    # T3 script tier) set this: sync/probe then inject the ``audit``
+    # callback so every external effect lands on the audit funnel.
+    audits_effects: bool = False
+    # Out-of-tree T1 entry-point plugins override this with the path of
+    # their shipped manifest.json (absolute, or relative to their own
+    # package). In-repo builtins leave it None — the loader resolves
+    # builtin/<key>/manifest.json by convention.
+    manifest_file: str | Path | None = None
+
+    def chat_tools(self) -> list[ChatToolContribution]:
+        """Chat tool contributions (D20) — default none. A connector
+        declaring ``chat-tools`` in its manifest MUST implement this
+        consistently with the manifest's ``tools`` list (the registration
+        bridge cross-checks both directions)."""
+        return []
+
+    def config_model(self) -> type[BaseModel]:
+        raise NotImplementedError
+
+    def manifest(self) -> dict:
+        """The connector-kind extension manifest — a FILE at the bundle
+        root (``manifest.json``, the family form — never code-declared),
+        loaded here and validated against the vendored envelope schema
+        at registration (data, not code)."""
+        return deepcopy(_load_manifest_json(str(manifest_path(self))))
+
+    async def fetch(
+        self,
+        config: dict,
+        state: dict,
+        *,
+        transport: HttpTransport | None = None,
+        secrets: dict | None = None,
+        audit: AuditFn | None = None,
+    ) -> ConnectorResult:
+        raise NotImplementedError
+
+    def secret_slots(self) -> dict[str, str]:
+        """Declared secret slots (D19): manifest ``configSchema`` fields
+        marked ``x-secret: true`` plus the manifest ``secrets`` list —
+        slot id → purpose. Values live only in the atrest-sealed
+        ``job_sources.secrets`` store (INV-4), never in config."""
+        from app.extensions.contract import secret_fields
+
+        manifest = self.manifest()
+        slots = dict.fromkeys(secret_fields(manifest.get("configSchema")), "")
+        for slot in manifest.get("secrets") or []:
+            if isinstance(slot, dict) and slot.get("id"):
+                slots[slot["id"]] = slot.get("purpose") or ""
+        return slots
+
+    def validate_config(self, config: dict, *, relax_keys: tuple[str, ...] = ()) -> dict:
+        """Config round-trip: validated JSONB for `job_sources.config`.
+
+        The x-secret law (ADR-0040 clause 18): a value present for any
+        declared secret slot is a registration-time THROW — secrets never
+        live in stored config. Model violations surface as the app's
+        ValidationError (HTTP 400 at the admin API), never a raw
+        pydantic dump.
+
+        ``relax_keys`` makes those config fields optional for the
+        round-trip — the host passes query fields its query overlay
+        supplies per sync (radar mode), where a stored fallback is not
+        required."""
+        from app.core.errors import ValidationError
+
+        for field in self.secret_slots():
+            if config.get(field):
+                raise ValidationError(
+                    f"Secret {field!r} never lives in config — "
+                    "send it via the source's secrets payload"
+                )
+        from pydantic import ValidationError as PydanticValidationError
+        from pydantic import create_model
+
+        model = self.config_model()
+        if relax_keys:
+            overrides: dict[str, Any] = {}
+            for name in relax_keys:
+                model_field = model.model_fields.get(name)
+                if model_field is not None:
+                    annotation = model_field.annotation or Any
+                    overrides[name] = (annotation | None, None)
+            if overrides:
+                model = create_model(f"{model.__name__}Relaxed", __base__=model, **overrides)
+        try:
+            return model.model_validate(config).model_dump(mode="json")
+        except PydanticValidationError as exc:
+            raise ValidationError(str(exc)) from exc
+
+
+class EmptyConfig(BaseModel):
+    """For connectors that need no per-source settings."""

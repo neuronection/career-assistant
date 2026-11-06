@@ -24,10 +24,10 @@ catalog, career paths, assessment bank, CV templates) live in
 synthetic experience rows can link to real skill ids. Catalog rows are
 never removed by `--reset`.
 
-Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
+Usage (interpreter with the app's dependencies, e.g. `uv run --directory backend python`):
 
     # PostgreSQL demo database (the docker demo flavor):
-    DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\
+    CAREER_DATABASE_URL=postgresql+asyncpg://user:pass@db:5432/neuronection_career_demo \\
         python scripts/seed-demo.py
 
     # Isolated demo data dir (SQLite), first run on an empty database:
@@ -39,7 +39,7 @@ Usage (interpreter with the app's dependencies, e.g. `backend/venv/bin/python`):
 Flags: `--database-url` (explicit target URL — wins over everything),
 `--demo-dir` (the isolated demo data dir: with no `--database-url` it
 selects the SQLite target `career.sqlite3` inside it), `--init-demo`,
-`--reset`. Without either, `DATABASE_URL` / the Settings value is the
+`--reset`. Without either, `CAREER_DATABASE_URL` / the Settings value is the
 target — which the guards then judge. The run is idempotent: re-running
 changes no counts.
 
@@ -89,6 +89,7 @@ from sqlalchemy import create_engine, delete, event, func, inspect, select  # no
 from sqlalchemy.engine import make_url  # noqa: E402
 from sqlalchemy.orm import Session, sessionmaker  # noqa: E402
 
+from app.models.application_model import Application  # noqa: E402
 from app.models.cv_model import CvDocument  # noqa: E402
 from app.models.cv_template_model import CvTemplate  # noqa: E402
 from app.models.experience_model import (  # noqa: E402
@@ -1178,11 +1179,17 @@ def purge_seeded(session: Session) -> dict[str, int]:
 
     run(delete(AuthSession).where(AuthSession.user_id.in_(user_ids)))
     counts["applications"] = run(
-        delete(PostingInteraction).where(PostingInteraction.user_id.in_(user_ids))
+        delete(Application).where(Application.user_id.in_(user_ids))
     )
+    run(delete(PostingInteraction).where(PostingInteraction.user_id.in_(user_ids)))
     run(delete(PostingFit).where(PostingFit.user_id.in_(user_ids)))
     if posting_ids:
         run(delete(PostingSkill).where(PostingSkill.posting_id.in_(posting_ids)))
+        run(
+            delete(Application).where(
+                Application.posting_id.in_(posting_ids)
+            )
+        )
         run(
             delete(PostingInteraction).where(
                 PostingInteraction.posting_id.in_(posting_ids)
@@ -1608,6 +1615,12 @@ def _ensure_application(
             posting_id=posting_id,
             seen_at=applied_at - timedelta(days=1),
             saved_at=applied_at - timedelta(hours=6),
+        )
+    )
+    session.add(
+        Application(
+            user_id=user.id,
+            posting_id=posting_id,
             applied_at=applied_at,
             applied_via_url=f"https://demo.career.local/postings/{spec.posting_key}/apply",
             stage=spec.stage,
@@ -1747,8 +1760,8 @@ def scope_totals(session: Session) -> dict[str, int]:
         else 0,
         "applications": count(
             select(func.count())
-            .select_from(PostingInteraction)
-            .where(PostingInteraction.user_id.in_(user_ids))
+            .select_from(Application)
+            .where(Application.user_id.in_(user_ids))
         ),
     }
 
@@ -1768,7 +1781,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--database-url",
-        help="target URL (else DATABASE_URL / Settings; explicit URL wins)",
+        help="target URL (else CAREER_DATABASE_URL / Settings; explicit URL wins)",
     )
     parser.add_argument(
         "--demo-dir",
@@ -1790,7 +1803,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def resolve_target(args: argparse.Namespace) -> Target:
     # Explicit --database-url wins; else an explicit --demo-dir selects the
-    # isolated SQLite target inside it (the ambient DATABASE_URL must never
+    # isolated SQLite target inside it (the ambient CAREER_DATABASE_URL must never
     # hijack a declared demo workspace); else the ambient/Settings URL —
     # which the target guard then judges.
     explicit = args.database_url
@@ -1800,11 +1813,11 @@ def resolve_target(args: argparse.Namespace) -> Target:
     elif explicit is not None:
         url = explicit
     else:
-        url = os.environ.get("DATABASE_URL") or None
+        url = os.environ.get("CAREER_DATABASE_URL") or None
         if url is None:
             from app.core.config import Settings
 
-            url = Settings().DATABASE_URL
+            url = Settings().database_url
     return ensure_demo_target(url, demo_dir)
 
 
@@ -1829,10 +1842,10 @@ def _sync_url(url: str) -> str:
 def aim_app_at(url: str) -> str:
     """Point the app's own config at the target (env first — OS env wins)."""
     async_url = _async_url(url)
-    os.environ["DATABASE_URL"] = async_url
+    os.environ["CAREER_DATABASE_URL"] = async_url
     from app.core.config import settings
 
-    settings.DATABASE_URL = async_url
+    settings.database_url = async_url
     return async_url
 
 

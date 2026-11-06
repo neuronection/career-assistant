@@ -10,7 +10,7 @@ tier routing.
 
 from dataclasses import dataclass
 
-from app.models.enums import AICapability, AITaskType, AITaskTier
+from app.models.enums import AICapability, AITaskTier, AITaskType
 
 
 @dataclass(frozen=True)
@@ -55,6 +55,24 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.COMPANY_TRIAGE.value,
+        "Company identity triage for ambiguous employer labels",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.SKILL_RELATION_SUGGEST.value,
+        "Skill relation edge verdicts (batch)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.SMART_SEARCH.value,
+        "Natural-language search query into explore filters (plan 179)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MATCH_SCORE.value,
         "Per-user job match score with rationale + prerequisites",
         AICapability.TEXT.value,
@@ -85,8 +103,20 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.STRONG.value,
     ),
     TaskDef(
+        AITaskType.PATH_DRAFT.value,
+        "Chat career-path draft flow (grounded, review-first)",
+        AICapability.TEXT.value,
+        AITaskTier.STRONG.value,
+    ),
+    TaskDef(
         AITaskType.POSTING_MAP.value,
         "Fast-pass posting-to-catalog mapping",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.JOB_TYPE_PROPOSAL.value,
+        "Catalog-grounded job-type proposal for an unmapped posting",
         AICapability.TEXT.value,
         AITaskTier.FAST.value,
     ),
@@ -95,6 +125,18 @@ TASK_DEFS: list[TaskDef] = [
         "Deep posting extraction (skills, salary, benefits)",
         AICapability.TEXT.value,
         AITaskTier.STRONG.value,
+    ),
+    TaskDef(
+        AITaskType.POSTING_SKILL_RESOLVE.value,
+        "Pass-2 raw skill label resolution over candidate keys (batch)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DETAIL_TRIAGE.value,
+        "Detail-fetch triage (which postings deserve their description page)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
     ),
     TaskDef(
         AITaskType.TARGET_RESOLVE.value,
@@ -165,8 +207,7 @@ TASK_DEFS: list[TaskDef] = [
     ),
     TaskDef(
         AITaskType.CV_SYNTH.value,
-        "Synthesized CV variants: grounded summarize/detail/restyle/"
-        "postings/translations",
+        "Synthesized CV variants: grounded summarize/detail/restyle/postings/translations",
         AICapability.TEXT.value,
         AITaskTier.STRONG.value,
     ),
@@ -197,7 +238,7 @@ TASK_DEFS: list[TaskDef] = [
     TaskDef(
         AITaskType.TRANSCRIBE.value,
         "Dictation audio transcription",
-        AICapability.TEXT.value,
+        AICapability.STT.value,
         AITaskTier.FAST.value,
     ),
     TaskDef(
@@ -225,9 +266,65 @@ TASK_DEFS: list[TaskDef] = [
         AITaskTier.FAST.value,
     ),
     TaskDef(
+        AITaskType.QUERY_CURATOR.value,
+        "Job-radar keyword clustering into rotating role groups",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
         AITaskType.MCP_TOOL_CALL.value,
         "External MCP bridge tool execution",
         AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.SANDBOX_CAPABILITY_CALL.value,
+        "T2 sandbox capability call audit (one row per capability call)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.TOOL_RUN.value,
+        "D20 confirmed destructive tool execution audit (one row per approved call)",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.TRANSLATE.value,
+        "Locale catalog + catalog-label translation batches",
+        AICapability.TEXT.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_TOOL_DISPATCH.value,
+        "Decision model slot: tool dispatch",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_BOOLEAN_GATE.value,
+        "Decision model slot: boolean gate",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_CHOICE.value,
+        "Decision model slot: choice",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    TaskDef(
+        AITaskType.DECISION_SCORE.value,
+        "Decision model slot: score",
+        AICapability.DECISION.value,
+        AITaskTier.FAST.value,
+    ),
+    # ADR-0036: the decision default slot — one model serving all kinds
+    # unless a kind overrides it.
+    TaskDef(
+        AITaskType.DECISION.value,
+        "One decision model serving every decision kind.",
+        AICapability.DECISION.value,
         AITaskTier.FAST.value,
     ),
 ]

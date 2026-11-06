@@ -9,8 +9,8 @@ import asyncio
 import logging
 import os
 import sys
+from collections.abc import MutableMapping
 from pathlib import Path
-from typing import MutableMapping
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +19,15 @@ SKIP_SEED_VAR = "CAREER_SKIP_SEED"
 
 
 def default_data_dir(environ: MutableMapping[str, str] | None = None) -> Path:
-    """Platform-default data directory (matches Settings.data_dir_path)."""
+    """Platform-default data directory (matches Settings.data_dir).
+
+    Self-contained on purpose: the bootstrap must run **before**
+    `app.core.config` is imported (that module instantiates the Settings
+    singleton at import), so this cannot delegate to config's copy.
+    """
     env = os.environ if environ is None else environ
-    if env.get("DATA_DIR"):
-        return Path(env["DATA_DIR"]).expanduser()
+    if env.get("CAREER_DATA_DIR"):
+        return Path(env["CAREER_DATA_DIR"]).expanduser()
     if sys.platform == "win32":
         base = Path(env.get("APPDATA") or Path.home() / "AppData" / "Roaming")
         return base / "CareerAssistant"
@@ -42,21 +47,21 @@ def bootstrap_environment(
     (data_dir / "uploads").mkdir(exist_ok=True)
     (data_dir / "logs").mkdir(exist_ok=True)
 
-    env.setdefault("DATA_DIR", str(data_dir))
+    env.setdefault("CAREER_DATA_DIR", str(data_dir))
     env.setdefault(
-        "DATABASE_URL", f"sqlite+aiosqlite:///{data_dir / 'career-assistant.db'}"
+        "CAREER_DATABASE_URL",
+        f"sqlite+aiosqlite:///{data_dir / 'career-assistant.db'}",
     )
-    env.setdefault("UPLOAD_DIR", str(data_dir / "uploads"))
-    env.setdefault(
-        "CAREER_ENV_FILE", str(data_dir / ENV_FILE)
-    )  # optional user overrides file
+    env.setdefault("CAREER_UPLOAD_DIR", str(data_dir / "uploads"))
+    env.setdefault("CAREER_ENV_FILE", str(data_dir / ENV_FILE))  # optional user overrides file
     # Entrypoint half of the instance-mode matrix (identity-auth §4):
     # `python -m careerassistant` is the desktop entrypoint.
     env.setdefault("CAREER_IDENTITY_MODE", "desktop")
     # Per-instance keys (identity-auth §8) are NOT seeded here: the
     # auth-kit KeyRing persists a generated 0600 auth_keys.json in the
-    # data dir (app.core.keys), and the retired JWT-derived `secret.key`
-    # is read only by migration 0044's legacy ciphertext drain.
+    # config dir (nx_auth.keys.KeyRing.load_for), and the retired
+    # JWT-derived `secret.key` is read only by migration 0044's legacy
+    # ciphertext drain.
     return env
 
 
@@ -75,8 +80,9 @@ def find_alembic_ini() -> Path:
 
 def run_migrations() -> None:
     """Apply pending migrations programmatically at startup."""
-    from alembic import command
     from alembic.config import Config
+
+    from alembic import command
 
     ini = find_alembic_ini()
     config = Config(str(ini))

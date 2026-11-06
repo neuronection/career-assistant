@@ -12,13 +12,12 @@ attached (plan 78) — can list variants and set/unset the per-item
 default (the Context-panel star). Pinning follows plan-102 star
 semantics: a pinned draft is promoted (supersede + active) first."""
 
-from typing import Any, Literal, Optional
+from typing import Any, Literal
 
-from sqlalchemy import select
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 
 from app.ai.tools.base import AITool, ToolContext, ToolScope
-
 from app.models.cv_synth_model import CvSynthItem
 from app.models.enums import CvSynthStatus
 from app.schemas.cv import CvContextRef, CvContextSelection
@@ -35,7 +34,7 @@ CHAT_AUDIENCES = frozenset({"chat"})
 
 
 class CvSynthListInput(BaseModel):
-    cv_id: Optional[str] = Field(
+    cv_id: str | None = Field(
         default=None,
         min_length=8,
         max_length=64,
@@ -45,10 +44,10 @@ class CvSynthListInput(BaseModel):
             "override_conflict / orphaned."
         ),
     )
-    status: Optional[str] = None
-    source_key: Optional[str] = None
-    language: Optional[str] = None
-    stale: Optional[bool] = None
+    status: str | None = None
+    source_key: str | None = None
+    language: str | None = None
+    stale: bool | None = None
 
 
 class CvSynthReadInput(BaseModel):
@@ -59,15 +58,15 @@ class CvSynthGenerateInput(BaseModel):
     cv_id: str = Field(min_length=8, max_length=64)
     refs: list[CvContextRef] = Field(min_length=1, max_length=10)
     action: CvSynthAction = "summarize"
-    target_language: Optional[str] = None
-    translate_of: Optional[str] = None
-    regenerate_of: Optional[str] = None
-    posting_id: Optional[str] = None
-    variant_key: Optional[str] = None
+    target_language: str | None = None
+    translate_of: str | None = None
+    regenerate_of: str | None = None
+    posting_id: str | None = None
+    variant_key: str | None = None
     language: str = "en"
-    tone: Optional[str] = None
-    length: Optional[str] = None
-    instruction: Optional[str] = Field(
+    tone: str | None = None
+    length: str | None = None
+    instruction: str | None = Field(
         default=None,
         max_length=600,
         description="Optional SHORT free-text steering, e.g. 'emphasize "
@@ -79,15 +78,13 @@ class CvSynthGenerateInput(BaseModel):
 
 class CvSynthUpdateInput(BaseModel):
     item_id: str = Field(min_length=8, max_length=64)
-    description: Optional[str] = Field(default=None, min_length=1, max_length=4000)
-    status: Optional[CvSynthStateStatus] = Field(
-        default=None, description="draft | active | archived"
-    )
-    variant_key: Optional[str] = None
+    description: str | None = Field(default=None, min_length=1, max_length=4000)
+    status: CvSynthStateStatus | None = Field(default=None, description="draft | active | archived")
+    variant_key: str | None = None
 
 
 class VariantListInput(BaseModel):
-    cv_id: Optional[str] = Field(
+    cv_id: str | None = Field(
         default=None,
         min_length=8,
         max_length=64,
@@ -97,25 +94,25 @@ class VariantListInput(BaseModel):
             "override_conflict / orphaned / not_pinned."
         ),
     )
-    status: Optional[str] = None
-    source_key: Optional[str] = None
-    language: Optional[str] = None
-    stale: Optional[bool] = None
+    status: str | None = None
+    source_key: str | None = None
+    language: str | None = None
+    stale: bool | None = None
 
 
 class VariantPinInput(BaseModel):
     cv_id: str = Field(min_length=8, max_length=64)
-    variant_id: Optional[str] = Field(
+    variant_id: str | None = Field(
         default=None,
         min_length=8,
         max_length=64,
         description="The variant to make the default for its item(s).",
     )
-    source_key: Optional[str] = Field(
+    source_key: str | None = Field(
         default=None,
         description="With item_id + unpin: clear one item slot's default.",
     )
-    item_id: Optional[str] = Field(
+    item_id: str | None = Field(
         default=None,
         min_length=1,
         max_length=64,
@@ -133,7 +130,7 @@ async def _owned_cv(db, ctx: ToolContext, cv_id: str):
     from uuid import UUID
 
     from app.core.errors import PermissionDeniedError
-    from app.services.cv_service import CvService
+    from app.services.cv.cv_service import CvService
 
     if ctx.user_id is None:
         raise PermissionDeniedError("A signed-in user is required")
@@ -144,7 +141,7 @@ async def _owned_variant(db, ctx: ToolContext, item_id: str):
     from uuid import UUID
 
     from app.core.errors import PermissionDeniedError
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         raise PermissionDeniedError("A signed-in user is required")
@@ -157,7 +154,7 @@ def _applicability_verdict(
     cv,
     applied_ids: dict[str, str],
     override_patch_keys: set[str],
-) -> Optional[str]:
+) -> str | None:
     """Per-CV applicability verdict for one variant row (plan 62.4)."""
     ref_keys = [f"{ref['source_key']}:{ref['item_id']}" for ref in row.source_refs]
     if str(row.id) in applied_ids.values():
@@ -168,25 +165,19 @@ def _applicability_verdict(
         return "stale"
     if row.voice.get("language") != (cv.language or "en"):
         return "wrong_language"
-    if (
-        row.target_posting_id is not None
-        and row.target_posting_id != cv.target_posting_id
-    ):
+    if row.target_posting_id is not None and row.target_posting_id != cv.target_posting_id:
         return "other_posting"
-    if row.status == "active" and any(
-        ref_key in override_patch_keys for ref_key in ref_keys
-    ):
+    if row.status == "active" and any(ref_key in override_patch_keys for ref_key in ref_keys):
         return "override_conflict"
     if row.status == "active" and not any(
-        ((cv.context or {}).get("synth_pins") or {}).get(ref_key)
-        for ref_key in ref_keys
+        ((cv.context or {}).get("synth_pins") or {}).get(ref_key) for ref_key in ref_keys
     ):
         return "not_pinned"
     return None
 
 
 async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -204,16 +195,16 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
     cv = None
     override_patch_keys: set[str] = set()
     if args.cv_id:
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         cv = await _owned_cv(db, ctx, args.cv_id)
         resolution = await CvBuilderService(db).resolution(cv)
         applied_ids = resolution.synth_applied or {}
-        override_patch_keys = set(
+        override_patch_keys = {
             k
             for k, v in (cv.working_content or {}).get("overrides", {}).items()
             if isinstance(v, dict) and v
-        )
+        }
     items = []
     for entry in rows:
         row = entry["row"]
@@ -230,9 +221,7 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
             "source_refs": row.source_refs,
         }
         if cv is not None:
-            verdict = _applicability_verdict(
-                row, entry, cv, applied_ids, override_patch_keys
-            )
+            verdict = _applicability_verdict(row, entry, cv, applied_ids, override_patch_keys)
             if verdict is not None:
                 item["verdict"] = verdict
         items.append(item)
@@ -241,7 +230,7 @@ async def _list_synths(db, ctx: ToolContext, args: CvSynthListInput):
 
 async def _list_variants(db, ctx: ToolContext, args: VariantListInput):
     """Chat-audience variant digest (plan 104): slim rows + verdicts."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -260,15 +249,15 @@ async def _list_variants(db, ctx: ToolContext, args: VariantListInput):
     override_patch_keys: set[str] = set()
     if args.cv_id:
         cv = await _owned_cv(db, ctx, args.cv_id)
-        from app.services.cv_builder_service import CvBuilderService
+        from app.services.cv.cv_builder_service import CvBuilderService
 
         resolution = await CvBuilderService(db).resolution(cv)
         applied_ids = resolution.synth_applied or {}
-        override_patch_keys = set(
+        override_patch_keys = {
             k
             for k, v in (cv.working_content or {}).get("overrides", {}).items()
             if isinstance(v, dict) and v
-        )
+        }
     items = []
     for entry in rows:
         row = entry["row"]
@@ -283,9 +272,7 @@ async def _list_variants(db, ctx: ToolContext, args: VariantListInput):
             "source_refs": row.source_refs,
         }
         if cv is not None:
-            verdict = _applicability_verdict(
-                row, entry, cv, applied_ids, override_patch_keys
-            )
+            verdict = _applicability_verdict(row, entry, cv, applied_ids, override_patch_keys)
             if verdict is not None:
                 item["verdict"] = verdict
         items.append(item)
@@ -302,8 +289,8 @@ async def _pin_variant(db, ctx: ToolContext, args: VariantPinInput):
     preserved."""
     from app.core.errors import ValidationError
     from app.schemas.cv import CvDocumentUpdate
-    from app.services.cv_service import CvService
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_service import CvService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -326,9 +313,7 @@ async def _pin_variant(db, ctx: ToolContext, args: VariantPinInput):
                 pins.pop(ref_key)
                 removed.append(ref_key)
         else:
-            raise ValidationError(
-                "unpin needs variant_id, or source_key+item_id for one slot"
-            )
+            raise ValidationError("unpin needs variant_id, or source_key+item_id for one slot")
         if not removed:
             return {
                 "cv_id": str(cv.id),
@@ -347,9 +332,7 @@ async def _pin_variant(db, ctx: ToolContext, args: VariantPinInput):
             raise ValidationError("Variant has no source refs to pin")
         if variant.status == "draft":
             service = CvSynthService(db)
-            await service.update(
-                variant.id, user_id, CvSynthItemUpdate(status="active")
-            )
+            await service.update(variant.id, user_id, CvSynthItemUpdate(status="active"))
         pinned: dict[str, str] = {}
         for ref in variant.source_refs:
             ref_key = f"{ref['source_key']}:{ref['item_id']}"
@@ -397,9 +380,7 @@ async def _read_synth(db, ctx: ToolContext, args: CvSynthReadInput):
         "payload": row.payload,
         "voice": row.voice,
         "source_refs": row.source_refs,
-        "target_posting_id": (
-            str(row.target_posting_id) if row.target_posting_id else None
-        ),
+        "target_posting_id": (str(row.target_posting_id) if row.target_posting_id else None),
         "last_used_at": (row.last_used_at.isoformat() if row.last_used_at else None),
     }
 
@@ -407,7 +388,7 @@ async def _read_synth(db, ctx: ToolContext, args: CvSynthReadInput):
 async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
     from uuid import UUID
 
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -437,9 +418,7 @@ async def _generate_synths(db, ctx: ToolContext, args: CvSynthGenerateInput):
 
     if rows:
         for row in rows:
-            await service.update(
-                row.id, ctx.user_id, CvSynthItemUpdate(status="active")
-            )
+            await service.update(row.id, ctx.user_id, CvSynthItemUpdate(status="active"))
     return {
         "created": [
             {
@@ -466,7 +445,7 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
 
         raise PermissionDeniedError("A signed-in user is required")
     row = await _owned_variant(db, ctx, args.item_id)
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
     payload_patch = None
@@ -485,9 +464,7 @@ async def _update_synth(db, ctx: ToolContext, args: CvSynthUpdateInput):
     }
 
 
-def _default_bullet_source_keys() -> list[
-    Literal["experience", "projects", "volunteer"]
-]:
+def _default_bullet_source_keys() -> list[Literal["experience", "projects", "volunteer"]]:
     return ["experience", "projects", "volunteer"]
 
 
@@ -503,7 +480,7 @@ class CvReadItemsInput(BaseModel):
 
 async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
     """Plan 107 grounding: read BEFORE proposing bullet rewrites."""
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     if ctx.user_id is None:
         from app.core.errors import PermissionDeniedError
@@ -554,9 +531,7 @@ async def _read_items(db, ctx: ToolContext, args: CvReadItemsInput):
             else:
                 source_entries = row.get("achievements") or []
             bullets = [
-                str(entry.get("text") or "")
-                for entry in source_entries
-                if isinstance(entry, dict)
+                str(entry.get("text") or "") for entry in source_entries if isinstance(entry, dict)
             ]
             items.append(
                 {

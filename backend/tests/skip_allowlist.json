@@ -1,0 +1,133 @@
+{
+  "$comment": "Reviewed intentional skips, per dialect (tests/conftest.py::pytest_sessionfinish enforces this list). A new skip fails the suite until it is added here with a reason; `when: always` entries must actually fire on a full-suite run. Entries are dialect-scoped because the two CI lanes prove different contracts.",
+  "postgres": [
+    {
+      "id": "tests/test_data_integrity.py::test_explore_filters_are_index_backed_on_sqlite",
+      "reason_contains": "SQLite desktop fallback check",
+      "when": "always",
+      "why": "the SQLite EXPLAIN QUERY PLAN plan shape cannot be asserted on Postgres"
+    },
+    {
+      "id": "tests/test_profile_proposals.py::test_cv_synth_card_posting_ref_names_public_ref",
+      "reason_contains": "no posting rows seeded",
+      "when": "conditional",
+      "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    },
+    {
+      "id": "tests/test_explore_benchmark.py::test_explore_hot_path_benchmarks",
+      "reason_contains": "perf benchmark runs on demand",
+      "when": "always",
+      "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
+    },
+    {
+      "id": "tests/test_cv_templates.py::test_refreshed_bank_lints_and_prints_within_budget",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the bank print budget needs a Chromium-class engine; engine-less hosts cover the lint half only"
+    },
+    {
+      "id": "tests/test_cv_pdf_engine.py::test_running_footer_reaches_printed_pdf_page_2",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: margin-box counters can only be read from a real printed PDF"
+    },
+    {
+      "id": "tests/test_cv_export.py::test_export_all_formats",
+      "reason_contains": "optional server PDF engine not installed",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_scope_safety_under_sqlite_over_fetch_truncation*",
+      "reason_contains": "over-fetch expansion is the sqlite-vec path",
+      "when": "always",
+      "why": "sqlite-vec is the only backend that post-filters scope after over-fetch; the Postgres case is covered by the ANN scope test"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_sqlite_rowid_collision_fails_loudly*",
+      "reason_contains": "rowid map is sqlite-vec only",
+      "when": "always",
+      "why": "the rowid map is a sqlite-vec extension object; the Postgres parity/scope tests cover the pgvector adapter"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_sqlite_scoped_exact_scan_matches_the_exact_order*",
+      "reason_contains": "exact-vs-overfetch is the sqlite-vec path",
+      "when": "always",
+      "why": "the over-fetch/exact-threshold behaviour is a sqlite-vec property; the Postgres lane proves its own scoped-exact path in test_scope_safety_holds_under_ann_and_over_fetch"
+    }
+  ],
+  "sqlite": [
+    {
+      "id": "tests/test_data_integrity.py::test_explore_filters_are_index_backed_on_postgres",
+      "reason_contains": "Postgres EXPLAIN plans",
+      "when": "always",
+      "why": "Postgres EXPLAIN plan shape cannot be asserted on SQLite"
+    },
+    {
+      "id": "tests/test_ai_provider_setup_contract.py::test_case_6_invalid_key_persists_nothing",
+      "reason_contains": "AUTOCOMMIT test sessions cannot prove rollback isolation",
+      "when": "always",
+      "why": "documented BYOK rollback case: SQLite test sessions run AUTOCOMMIT, a pre-probe insert is already committed (Postgres pins the contract)"
+    },
+    {
+      "id": "tests/test_chat_turn_graph.py::test_postgres_prune_removes_stale_threads",
+      "reason_contains": "Postgres retention beat",
+      "when": "always",
+      "why": "the langgraph server tables are created by the Postgres saver setup, not migrations"
+    },
+    {
+      "id": "tests/test_checkpointer.py::test_postgres_checkpointer_uses_a_connection_pool",
+      "reason_contains": "pool shape is Postgres-only",
+      "when": "always",
+      "why": "the pooled-saver shape has no SQLite equivalent"
+    },
+    {
+      "id": "tests/test_profile_proposals.py::test_cv_synth_card_posting_ref_names_public_ref",
+      "reason_contains": "no posting rows seeded",
+      "when": "conditional",
+      "why": "data-dependent: the catalog may be empty in a minimal fixture set"
+    },
+    {
+      "id": "tests/test_explore_performance.py::test_explore_keyset_query_is_index_backed_on_postgres",
+      "reason_contains": "Postgres EXPLAIN plans",
+      "when": "always",
+      "why": "the keyset plan shape is asserted with EXPLAIN on Postgres only; SQLite covers behavioral parity"
+    },
+    {
+      "id": "tests/test_explore_benchmark.py::test_explore_hot_path_benchmarks",
+      "reason_contains": "perf benchmark runs on demand",
+      "when": "always",
+      "why": "plan-120 p95 budgets on synthetic 1k/10k fixtures are on-demand only (CAREER_PERF_BENCH=1), never a PR gate"
+    },
+    {
+      "id": "tests/test_cv_templates.py::test_refreshed_bank_lints_and_prints_within_budget",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the bank print budget needs a Chromium-class engine; engine-less hosts cover the lint half only"
+    },
+    {
+      "id": "tests/test_cv_pdf_engine.py::test_running_footer_reaches_printed_pdf_page_2",
+      "reason_contains": "no PDF engine on this host",
+      "when": "conditional",
+      "why": "plan-76 capability detection: margin-box counters can only be read from a real printed PDF"
+    },
+    {
+      "id": "tests/test_cv_export.py::test_export_all_formats",
+      "reason_contains": "optional server PDF engine not installed",
+      "when": "conditional",
+      "why": "plan-76 capability detection: the PDF leg of the format round-trip answers 503 without the engine; the other formats stay asserted"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::test_pg_and_sqlite_exact_topk_parity",
+      "reason_contains": "pgvector is not installed in this environment",
+      "when": "always",
+      "why": "the cross-dialect parity case needs a live pgvector engine; the SQLite lane runs the exact top-k against the contract and the pgvector lane proves the cross-engine identity"
+    },
+    {
+      "id": "tests/test_vector_provisioning.py::test_pg_provisioning_refuses_dimensions_hnsw_cannot_index",
+      "reason_contains": "the pgvector HNSW dimension ceiling is PostgreSQL-only",
+      "when": "always",
+      "why": "the 2000-dimension HNSW guard only applies to the pgvector physical index; SQLite vec0 has no HNSW operator class and the Postgres lane asserts the refusal"
+    }
+  ]
+}

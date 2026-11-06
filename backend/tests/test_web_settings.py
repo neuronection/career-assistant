@@ -1,10 +1,11 @@
-"""Admin /ai/web settings — probe statuses, Fernet token, secret-safety."""
+"""Admin /ai/web settings + the family web-search providers surface
+(plan 28 / ADR-0035) — probe statuses, Fernet token, secret-safety."""
 
 import httpx
 import pytest
 
 from app.core.encryption import decrypt_secret
-from app.services import webfetch
+from app.services.integrations import webfetch
 from tests.conftest import session_headers
 
 
@@ -36,6 +37,10 @@ async def _put(client, headers, payload):
     return await client.put("/api/v1/ai/web", headers=headers, json=payload)
 
 
+async def _providers(client, headers):
+    return await client.get("/api/v1/ai/web/search-providers", headers=headers)
+
+
 @pytest.mark.asyncio
 async def test_requires_admin(client):
     async def _headers(email: str) -> dict:
@@ -56,24 +61,17 @@ async def test_requires_admin(client):
     admin_status = await _get(client, admin)
     assert admin_status.status_code == 200
 
+    anon_providers = await client.get("/api/v1/ai/web/search-providers")
+    assert anon_providers.status_code == 401
+    member_providers = await _providers(client, member)
+    assert member_providers.status_code == 403
+
 
 @pytest.mark.asyncio
-async def test_report_states_before_and_after_config(client, client_admin_headers):
+async def test_web_reports_github_token_state_only(client, client_admin_headers):
     headers = client_admin_headers
-
     empty = (await _get(client, headers)).json()
-    assert empty["searxng_url"] == ""
-    assert empty["searxng_probe"]["status"] == "unconfigured"
-    assert empty["github_token_set"] is False
-
-    unreachable = (
-        await _put(client, headers, {"searxng_url": "https://nope.invalid/sx"})
-    ).json()
-    assert unreachable["searxng_probe"]["status"] == "unreachable"
-
-    cleared = (await _put(client, headers, {"searxng_url": ""})).json()
-    assert cleared["searxng_url"] == ""
-    assert cleared["searxng_probe"]["status"] == "unconfigured"
+    assert empty == {"github_token_set": False}
 
 
 @pytest.mark.asyncio
@@ -88,11 +86,7 @@ async def test_token_is_encrypted_and_cleared(client, db, client_admin_headers):
     assert "gh_pat_value" not in str(sealed)
 
     row = (
-        (
-            await db.execute(
-                select(AppSetting).where(AppSetting.key == "web.github_token")
-            )
-        )
+        (await db.execute(select(AppSetting).where(AppSetting.key == "web.github_token")))
         .scalars()
         .first()
     )
@@ -102,3 +96,156 @@ async def test_token_is_encrypted_and_cleared(client, db, client_admin_headers):
 
     cleared_token = (await _put(client, headers, {"github_token": ""})).json()
     assert cleared_token["github_token_set"] is False
+
+
+@pytest.mark.asyncio
+async def test_search_providers_crud_roundtrip(client, db, client_admin_headers):
+    from sqlalchemy import select
+
+    from app.models.settings_model import AppSetting
+
+    headers = client_admin_headers
+
+    empty = await _providers(client, headers)
+    assert empty.status_code == 200
+    assert empty.json() == {"providers": []}
+
+    created = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={
+            "type": "searxng",
+            "name": "Campus SearXNG",
+            "base_url": "https://searx.example.org/",
+        },
+    )
+    assert created.status_code == 201, created.text
+    provider = created.json()
+    assert provider["id"] == "legacy" or len(provider["id"]) == 8
+    assert provider["base_url"] == "https://searx.example.org"
+    assert provider["enabled"] is True
+    assert provider["key_set"] is False
+
+    # the legacy single-URL value migrates away once providers exist
+    legacy_row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == "web.searxng_url")))
+        .scalars()
+        .first()
+    )
+    assert legacy_row is None or not (legacy_row.value or {}).get("url")
+
+    second = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={
+            "type": "searxng",
+            "name": "Backup SearXNG",
+            "base_url": "https://backup.example.org",
+        },
+    )
+    assert second.status_code == 201, second.text
+    second_id = second.json()["id"]
+
+    moved = await client.post(
+        f"/api/v1/ai/web/search-providers/{second_id}/move",
+        headers=headers,
+        json={"direction": "up"},
+    )
+    assert moved.status_code == 200, moved.text
+    assert [entry["id"] for entry in moved.json()["providers"]] == [second_id, provider["id"]]
+
+    removed = await client.delete(f"/api/v1/ai/web/search-providers/{second_id}", headers=headers)
+    assert removed.status_code == 204
+    remaining = (await _providers(client, headers)).json()["providers"]
+    assert [entry["id"] for entry in remaining] == [provider["id"]]
+
+    catalog = await client.get("/api/v1/ai/web/search-providers/catalog", headers=headers)
+    assert catalog.status_code == 200
+    assert "searxng" in catalog.json()["providers"]
+
+
+@pytest.mark.asyncio
+async def test_search_providers_accept_keyed_types_and_reject_bad_input(
+    client, client_admin_headers
+):
+    headers = client_admin_headers
+    keyed = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "tavily", "api_key": "tvly-secret"},
+    )
+    assert keyed.status_code == 201, keyed.text
+    assert keyed.json()["type"] == "tavily"
+    assert keyed.json()["base_url"] == "https://api.tavily.com"
+    assert keyed.json()["key_set"] is True
+    unknown_type = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "altavista", "base_url": "https://altavista.example"},
+    )
+    assert unknown_type.status_code == 422
+    missing_cx = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "google_pse", "api_key": "AIza-secret"},
+    )
+    assert missing_cx.status_code == 422
+    catalog_type = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={
+            "type": "google-pse",
+            "google_cx": "a1b2c3d4e5f6g7h8j",
+            "api_key": "AIza-secret",
+        },
+    )
+    assert catalog_type.status_code == 201, catalog_type.text
+    assert catalog_type.json()["type"] == "google_pse"
+    assert catalog_type.json()["google_cx"] == "a1b2c3d4e5f6g7h8j"
+    missing_base = await client.post(
+        "/api/v1/ai/web/search-providers", headers=headers, json={"type": "searxng"}
+    )
+    assert missing_base.status_code == 422
+    bad_url = await client.post(
+        "/api/v1/ai/web/search-providers",
+        headers=headers,
+        json={"type": "searxng", "base_url": "searx.example.org"},
+    )
+    assert bad_url.status_code == 422
+    unknown = await client.put(
+        "/api/v1/ai/web/search-providers/nope", headers=headers, json={"name": "x"}
+    )
+    assert unknown.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_legacy_searxng_url_migrates_to_providers(client, db, client_admin_headers):
+    from sqlalchemy import select
+
+    from app.extensions.search_providers import list_providers
+    from app.models.settings_model import AppSetting
+
+    db.add(
+        AppSetting(
+            key="web.searxng_url",
+            value={"url": "https://searx.example"},
+        )
+    )
+    await db.commit()
+
+    providers = await list_providers(db)
+    assert len(providers) == 1
+    assert providers[0]["id"] == "legacy"
+    assert providers[0]["type"] == "searxng"
+    assert providers[0]["base_url"] == "https://searx.example"
+    assert providers[0]["enabled"] is True
+
+    legacy_row = (
+        (await db.execute(select(AppSetting).where(AppSetting.key == "web.searxng_url")))
+        .scalars()
+        .first()
+    )
+    assert legacy_row is None or not (legacy_row.value or {}).get("url")
+
+    via_api = (await _providers(client, client_admin_headers)).json()["providers"]
+    assert [entry["id"] for entry in via_api] == ["legacy"]

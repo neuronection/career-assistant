@@ -38,28 +38,20 @@ async def test_phase_order_subsets_and_custom_context(
     assert {"scenario_mcq", "time_allocation", "ranking"} <= kinds
 
 
-async def test_full_run_e2e_mock_ai(
-    client, db, auth_headers, profile_ready, seeded_catalog
-):
+async def test_full_run_e2e_mock_ai(client, db, auth_headers, profile_ready, seeded_catalog):
     """Full pipeline: phases 1→4, AI scenarios via mock, completion effects."""
     run = (
-        await client.post(
-            "/api/v1/assessments", json={"kind": "full"}, headers=auth_headers
-        )
+        await client.post("/api/v1/assessments", json={"kind": "full"}, headers=auth_headers)
     ).json()
     run_id = run["id"]
     assert run["current_phase"] == 1
     assert run["phase_one_form"] is True  # phase 1 renders the profile form
 
     # advance past the form phase
-    advanced = await client.post(
-        f"/api/v1/assessments/{run_id}/advance", headers=auth_headers
-    )
+    advanced = await client.post(f"/api/v1/assessments/{run_id}/advance", headers=auth_headers)
     assert advanced.json()["current_phase"] == 2
 
-    state = (
-        await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)
-    ).json()
+    state = (await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)).json()
     questions = state["questions"]
     assert 0 < len(questions) <= 15  # anti-fatigue cap
 
@@ -68,9 +60,7 @@ async def test_full_run_e2e_mock_ai(
     for index, question in enumerate(questions):
         if question["kind"] == "scenario_mcq":
             choice = (
-                {"option_id": question["options"][0]["id"]}
-                if index % 4 != 3
-                else None  # skip
+                {"option_id": question["options"][0]["id"]} if index % 4 != 3 else None  # skip
             )
         elif question["kind"] == "time_allocation":
             weights = {o["id"]: 0 for o in question["options"]}
@@ -89,14 +79,10 @@ async def test_full_run_e2e_mock_ai(
     assert saved.status_code == 200, saved.text
 
     # advance into the AI phase (mock provider drafts question set)
-    advanced = await client.post(
-        f"/api/v1/assessments/{run_id}/advance", headers=auth_headers
-    )
+    advanced = await client.post(f"/api/v1/assessments/{run_id}/advance", headers=auth_headers)
     assert advanced.json()["current_phase"] == 3
 
-    state = (
-        await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)
-    ).json()
+    state = (await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)).json()
     ai_questions = state["questions"]
     assert ai_questions
     assert any(q["source"] == "ai" for q in ai_questions)
@@ -110,14 +96,10 @@ async def test_full_run_e2e_mock_ai(
     saved = await _post_answers(client, run_id, payloads, auth_headers)
     assert saved.status_code == 200
 
-    advanced = await client.post(
-        f"/api/v1/assessments/{run_id}/advance", headers=auth_headers
-    )
+    advanced = await client.post(f"/api/v1/assessments/{run_id}/advance", headers=auth_headers)
     assert advanced.json()["current_phase"] == 4
 
-    state = (
-        await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)
-    ).json()
+    state = (await client.get(f"/api/v1/assessments/{run_id}", headers=auth_headers)).json()
     phase4 = state["questions"]
     allocation = next(q for q in phase4 if q["kind"] == "time_allocation")
     sliders = [q for q in phase4 if q["kind"] == "slider"]
@@ -141,9 +123,7 @@ async def test_full_run_e2e_mock_ai(
     assert saved.status_code == 200, saved.text
 
     # final advance completes + applies
-    done = await client.post(
-        f"/api/v1/assessments/{run_id}/advance", headers=auth_headers
-    )
+    done = await client.post(f"/api/v1/assessments/{run_id}/advance", headers=auth_headers)
     assert done.json()["status"] == "completed"
 
     results = (
@@ -173,19 +153,13 @@ async def test_answer_validation_and_question_scope(
     client, auth_headers, profile_ready, seeded_catalog
 ):
     run = (
-        await client.post(
-            "/api/v1/assessments", json={"kind": "full"}, headers=auth_headers
-        )
+        await client.post("/api/v1/assessments", json={"kind": "full"}, headers=auth_headers)
     ).json()
     await client.post(f"/api/v1/assessments/{run['id']}/advance", headers=auth_headers)
-    state = (
-        await client.get(f"/api/v1/assessments/{run['id']}", headers=auth_headers)
-    ).json()
+    state = (await client.get(f"/api/v1/assessments/{run['id']}", headers=auth_headers)).json()
     question = state["questions"][0]
 
-    bad_option = await _answer(
-        client, run["id"], question, {"option_id": "nope"}, auth_headers
-    )
+    bad_option = await _answer(client, run["id"], question, {"option_id": "nope"}, auth_headers)
     assert bad_option.status_code == 400
 
     bad_sum = await _answer(
@@ -211,23 +185,17 @@ async def test_custom_run_from_source_and_cancel(
             headers=auth_headers,
         )
     ).json()
-    canceled = await client.post(
-        f"/api/v1/assessments/{first['id']}/cancel", headers=auth_headers
-    )
+    canceled = await client.post(f"/api/v1/assessments/{first['id']}/cancel", headers=auth_headers)
     assert canceled.json()["status"] == "abandoned"
 
     # starting a new run abandons stale in-progress runs
     second = (
-        await client.post(
-            "/api/v1/assessments", json={"kind": "full"}, headers=auth_headers
-        )
+        await client.post("/api/v1/assessments", json={"kind": "full"}, headers=auth_headers)
     ).json()
     history = (await client.get("/api/v1/assessments", headers=auth_headers)).json()
     first_row = next(h for h in history if h["id"] == first["id"])
     assert first_row["status"] == "abandoned"
-    assert any(
-        h["id"] == second["id"] and h["status"] == "in_progress" for h in history
-    )
+    assert any(h["id"] == second["id"] and h["status"] == "in_progress" for h in history)
 
 
 async def test_bank_question_options_span_families(db, seeded_catalog):
@@ -301,16 +269,12 @@ async def test_skill_conflict_flagged_not_overwritten(
         headers=auth_headers,
     )
     run = (
-        await client.post(
-            "/api/v1/assessments", json={"kind": "full"}, headers=auth_headers
-        )
+        await client.post("/api/v1/assessments", json={"kind": "full"}, headers=auth_headers)
     ).json()
     rid = run["id"]
 
     async def answer_phase():
-        state = (
-            await client.get(f"/api/v1/assessments/{rid}", headers=auth_headers)
-        ).json()
+        state = (await client.get(f"/api/v1/assessments/{rid}", headers=auth_headers)).json()
         answers = []
         for q in state["questions"]:
             if q["kind"] == "scenario_mcq":
@@ -344,9 +308,7 @@ async def test_skill_conflict_flagged_not_overwritten(
 
     for _ in range(6):
         await answer_phase()
-        advanced = await client.post(
-            f"/api/v1/assessments/{rid}/advance", headers=auth_headers
-        )
+        advanced = await client.post(f"/api/v1/assessments/{rid}/advance", headers=auth_headers)
         body = advanced.json()
         if body.get("status") == "completed":
             effects = body.get("effects") or {}

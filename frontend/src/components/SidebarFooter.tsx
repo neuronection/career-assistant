@@ -1,54 +1,36 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowUpRight, Heart } from "lucide-react";
+import { Heart } from "lucide-react";
 import {
-  CareerMark,
-  DesktopMark,
-  HealthMark,
+  FamilyMenu,
   NeuronectionMark,
   NeuronectionWordmark,
   SponsorCard,
-  StudyMark,
 } from "@neuronection/assistant-ui";
-import type { LogoProps } from "@neuronection/assistant-ui";
 import packageJson from "../../package.json";
 
 import { Modal, ModalContent } from "@/components/ui";
+import { UpdateBadge } from "@/components/UpdateBadge";
 import { NEURONECTION_URL, SPONSOR_CHANNELS } from "@/config/funding";
 
 const fundPillClass =
-  "inline-flex h-8 items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-4 text-[13px] font-medium text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 [&_svg]:size-4";
+  "inline-flex h-8 items-center gap-1.5 rounded-full border border-rose-100 bg-rose-50 px-3 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 [&_svg]:size-4";
 const aboutPillClass =
-  "inline-flex h-8 items-center rounded-full px-4 text-[13px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600";
+  "inline-flex h-8 items-center rounded-full px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600";
 const fundPillCompactClass =
-  "inline-flex h-7 items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-3 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 [&_svg]:size-3.5";
+  "inline-flex h-7 items-center gap-1 rounded-full border border-rose-100 bg-rose-50 px-2.5 text-[11px] font-medium text-rose-600 transition-colors hover:bg-rose-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600 [&_svg]:size-3.5";
 const aboutPillCompactClass =
-  "inline-flex h-7 items-center rounded-full px-3 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600";
+  "inline-flex h-7 items-center rounded-full px-2.5 text-[11px] font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600";
 
-/** Family assistants listed in the footer; every row links to its site. */
-const FAMILY_LINKS: {
-  name: string;
-  Mark: React.ComponentType<LogoProps>;
-  href: string;
-  current?: boolean;
-}[] = [
-  { name: "Health", Mark: HealthMark, href: "https://health-assistant.io" },
-  {
-    name: "Career",
-    Mark: CareerMark,
-    href: "https://neuronection.com/en/career/",
-    current: true,
-  },
-  { name: "Study", Mark: StudyMark, href: "https://neuronection.com/en/study/" },
-  { name: "Desktop", Mark: DesktopMark, href: "https://neuronection.com/en/desktop/" },
-];
+const brandLineClass =
+  "flex min-w-0 flex-wrap items-center gap-x-1 gap-y-0.5 text-[11px] text-slate-500 transition-colors hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600";
 
 /**
- * Sidebar footer ad block: family branding, the three family assistants,
- * About and Fund actions plus the version. Collapses to icons in the
- * collapsed rail; `compact` (short viewports) drops the branding +
- * family panel and slims the pills so the nav list keeps the space.
+ * Sidebar footer project block: family branding, the family switcher,
+ * About and Fund actions plus the version. Copy comes from i18n and the
+ * sponsor channels from config (ADR-006 keeps this app-side). `compact`
+ * (short viewports) slims the pills; the collapsed rail renders icons only.
  */
 export function SidebarFooter({
   collapsed,
@@ -83,106 +65,64 @@ export function SidebarFooter({
         >
           <Heart className="size-4" />
         </button>
-        <span className="text-[11px] font-medium text-slate-500">v{packageJson.version}</span>
+        <UpdateBadge version={packageJson.version} className="text-[11px]" />
+        <Modal open={fundOpen} onOpenChange={setFundOpen}>
+          <ModalContent size="sm" aria-describedby={undefined}>
+            <SponsorCard
+              channels={SPONSOR_CHANNELS}
+              title={t("footer.sponsorTitle")}
+              columns={1}
+              className="border-none bg-transparent shadow-none"
+            />
+          </ModalContent>
+        </Modal>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center gap-2.5">
-      {!compact && (
-        <a
-          href={NEURONECTION_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 self-start text-xs text-slate-500 transition-colors hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+    <div className="flex flex-col items-center gap-2">
+      <a
+        href={NEURONECTION_URL}
+        target="_blank"
+        rel="noreferrer"
+        className={`${brandLineClass} self-start`}
+      >
+        <span>{t("footer.partOf")}</span>
+        <NeuronectionMark size={16} />
+        <NeuronectionWordmark height={12} />
+        <span className="text-slate-400">{t("footer.family")}</span>
+      </a>
+      <div className="flex flex-wrap items-center justify-center gap-1.5">
+        <FamilyMenu
+          current="career"
+          label={t("footer.explore")}
+          ariaLabel={t("footer.exploreProjects")}
+          menuLabel={t("footer.neuronectionFamily")}
+          familyLabel={t("footer.family")}
+          countLabel={(count) => t("footer.appCount", { count })}
+          closeLabel={t("common.close")}
+          currentLabel={t("footer.current")}
+          version={`v${packageJson.version}`}
+          className={compact ? "h-7 px-2 text-[11px]" : undefined}
+        />
+        <button
+          type="button"
+          onClick={() => setFundOpen(true)}
+          className={compact ? fundPillCompactClass : fundPillClass}
         >
-          <span>{t("footer.partOf")}</span>
-          <NeuronectionMark size={16} />
-          <NeuronectionWordmark height={14} />
-        </a>
-      )}
-      {!compact && (
-        <div className="w-full rounded-[var(--as-radius)] bg-slate-50 px-2 pb-1.5 pt-2">
-          <p className="px-1.5 pb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            {t("footer.moreFromFamily")}
-          </p>
-          {FAMILY_LINKS.map(({ name, Mark, href, current }) => (
-            <a
-              key={href}
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={`${name} ${t("footer.assistant")}`}
-              className="group flex items-center gap-2 rounded-[var(--as-radius-sm)] px-1.5 py-1 text-sm transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
-            >
-              <Mark size={16} />
-              <span
-                className={`w-12 text-left ${
-                  current ? "font-bold text-slate-900" : "font-medium text-slate-700"
-                }`}
-              >
-                {name}
-              </span>
-              <span className="font-medium text-slate-500">{t("footer.assistant")}</span>
-              <ArrowUpRight
-                aria-hidden
-                className="ml-auto size-3.5 text-slate-300 transition-colors group-hover:text-primary-600"
-              />
-            </a>
-          ))}
-        </div>
-      )}
-      {compact ? (
-        <>
-          <div className="flex w-full items-center justify-between">
-            <a
-              href={NEURONECTION_URL}
-              target="_blank"
-              rel="noreferrer"
-              title="Part of Neuronection"
-              aria-label="Part of Neuronection"
-              className="flex flex-col items-center gap-1 text-slate-400 transition-colors hover:text-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
-            >
-              <NeuronectionMark size={20} />
-              <NeuronectionWordmark height={7} />
-            </a>
-            <span className="text-xs font-medium text-slate-500">
-              v{packageJson.version}
-            </span>
-          </div>
-          <div className="flex items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => setFundOpen(true)}
-              className={fundPillCompactClass}
-            >
-              <Heart />
-              {t("footer.fund")}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/about")}
-              className={aboutPillCompactClass}
-            >
-              {t("footer.about")}
-            </button>
-          </div>
-        </>
-      ) : (
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setFundOpen(true)} className={fundPillClass}>
-            <Heart />
-            {t("footer.fund")}
-          </button>
-          <button type="button" onClick={() => navigate("/about")} className={aboutPillClass}>
-            {t("footer.about")}
-          </button>
-        </div>
-      )}
-      {!compact && (
-        <p className="text-xs font-medium text-slate-500">v{packageJson.version}</p>
-      )}
+          <Heart />
+          {t("footer.fund")}
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate("/about")}
+          className={compact ? aboutPillCompactClass : aboutPillClass}
+        >
+          {t("footer.about")}
+        </button>
+      </div>
+      <UpdateBadge version={packageJson.version} className="text-[10px]" />
 
       <Modal open={fundOpen} onOpenChange={setFundOpen}>
         <ModalContent size="sm" aria-describedby={undefined}>

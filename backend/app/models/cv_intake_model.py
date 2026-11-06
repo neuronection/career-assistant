@@ -26,9 +26,7 @@ class CvParseDraft(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "cv_parse_drafts"
     __table_args__ = (
         UniqueConstraint("document_id", name="uq_cv_parse_drafts_document"),
-        CheckConstraint(
-            "status IN ('pending', 'applied', 'discarded')", name="status_allowed"
-        ),
+        CheckConstraint("status IN ('pending', 'applied', 'discarded')", name="status_allowed"),
     )
 
     document_id: Mapped[uuid.UUID] = mapped_column(
@@ -59,9 +57,7 @@ class CvIntakeApplied(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "cv_intake_applied"
     __table_args__ = (
-        UniqueConstraint(
-            "document_id", "entity_type", "entity_id", name="uq_cv_applied_entity"
-        ),
+        UniqueConstraint("document_id", "entity_type", "entity_id", name="uq_cv_applied_entity"),
         CheckConstraint(
             "entity_type IN ('basics', 'skills', 'experience_items', "
             "'education_items', 'certifications', 'profile_achievements', "

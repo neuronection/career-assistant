@@ -1,22 +1,89 @@
 # Explore the job catalog
 
 The catalog is the app's knowledge core: a job **family tree** plus a typed
-**relation graph**, with rich structured attributes per job. It is
+**relation graph**, with rich structured attributes per job. A catalog **job
+type** is an occupation archetype — level-, employer- and team-agnostic
+("Software Engineer", not "Principal Software Engineer, Product
+Engineering"); live postings attach to it. It is
 first-class data, not UI decoration — every relation carries weight,
 rationale and source, and everything references the taxonomy by stable `key`
 slugs so labels can change without breaking your data.
 
 ## The family tree
 
-Open **Catalog** (`/catalog`). Job families form the left rail
-(`catalog-families`, with job counts); the content pane shows search, recent
-searches, drill chips for the active family's children
-(`catalog-subfamilies`) and a grid of job cards. Selecting a family and
-drilling one level keeps the whole surface usable on narrow screens.
+Open **Catalog** (`/catalog`). The page uses the same three-column template
+as Postings: the **filter rail** on the left, the job results in the middle
+and your **recent searches** on the right. On a narrower window the rail
+collapses into one toolbar row — the search field plus a **Filters** button
+carrying the number of active filters — and the sections open in a filter
+sheet; only the filters you have applied stay on the page, as removable
+chips.
 
-- **Search** across the catalog from the top of the pane.
-- **Recent searches** let you jump back to a previous query.
-- A job card opens the job detail page.
+- **Job families** live in the filter sheet's **Job family** section, with
+  live job counts and a select/clear cycle (families are include-only: the
+  subtree parameter has no exclude). It is the page's one family
+  surface — there is no second family navigation list.
+- **Search** sits in the toolbar (at the top of the rail on wide windows)
+  and never hides inside the sheet.
+- **The filter sheet** opens from **Filters**. Its footer clears every
+  filter or returns to the results (**Show N jobs**); toggles still apply
+  immediately, so the URL stays shareable while the sheet is open.
+- **Drill chips** (`catalog-subfamilies`) appear for the selected family's
+  children, so one level of the tree stays in reach without an expanding
+  tree widget.
+- **Recent searches** sit in the right rail: your four most recent real
+  searches, with rows that only carried filters pruned. Applying one
+  restores both the query and its job family.
+- A job card opens the job detail page at `/jobs/:code`.
+
+## Job cards
+
+Each card in the grid reads like a posting card: the same anatomy, the same
+information density, and only facts the catalog actually has.
+
+- **Metrics** — the number of **open live roles** mapped to the job and the
+  **salary band** (median, falling back to entry or senior). The same values
+  read as a leading rail on a wide card and as one inline strip above the
+  body on a narrow card. Either value is omitted when there is no honest
+  number.
+- **Body** — the title (up to two lines) and job family, a three-line
+  description, meta facts (education, typical experience, contract, travel,
+  schedule cues and work hours) and the work-style/physical summary.
+- **Skills** — required skill chips with their 1–10 levels; click a chip for
+  the skill peek. The job's interest chips follow. Chips never wrap inside
+  their own label; long labels truncate and keep the full text on the chip.
+- **Footer** — the family/source reference and a **"N open roles →"** link
+  to `/postings?job=<code>`, which opens the Postings page already filtered
+  to the live openings mapped to this catalog job.
+
+A narrow container can use the compact card density: it keeps the metric
+values and skill chips and drops the description, spec and interests.
+
+## Filtering the catalog
+
+The catalog filter rail speaks the same language as Postings (`/postings`):
+
+- every multi-value axis is **tri-state** — click a chip to include, click
+  again to exclude, click once more to clear. A selected value carries an
+  **×** that clears it in one click.
+- **skills** have per-skill minimum levels, a global minimum level, any/all
+  mode and a separate exclude picker.
+- **family** is the coarse axis: the rail's **Job family** section writes the
+  same `family` parameter, so search, chips and the URL never fight. The rail
+  continues with interests, education, demand, salary band, contract,
+  schedule, travel, experience, environment and **has open roles**.
+- every value shows its live facet count. A value with zero matching jobs is
+  disabled instead of silently returning an empty list.
+- the filter rail header shows the active-filter count and **Clear all**;
+  the strip above the results shows the result count, the active-filter chips
+  with one-click removal, and the sort: **title**, **demand**, **salary**,
+  **open roles** or **family**. The catalog list is insight-free — fit and
+  match live on `/rankings`, never on this shareable list.
+
+**The URL is the state.** `/catalog?family=technology&skills=programming@6&demand=hot&sort=open_roles`
+is shareable, survives a reload and keeps the **Job family** section and the
+other filter chips in sync. Unknown or malformed values are dropped and the
+URL is canonicalized in place.
 
 ## The relation graph
 
@@ -44,6 +111,21 @@ Every job page shows its structured attributes:
 - **Salary bands and demand outlook.**
 - **Physical demands and environments.**
 - **Typical positives and negatives** — an honest read on the role.
+
+Below the structured attributes sit two read-only match rails:
+
+- **Similar catalog jobs** — published jobs nearest this one by long-text
+  views (summary, requirements, responsibilities, skills). Each card opens a
+  drawer with the overall score and the per-view cosine behind it, and links
+  to the job.
+- **Live postings for this job** — the live openings nearest this job under
+  the feed's visibility rules, with the same score drawer and a link to the
+  posting.
+
+Both answer from the vector store when it is available and fall back to the
+deterministic list (shared skills, or the postings already mapped to this
+job) otherwise — the fallback is labelled with the reason, never hidden or
+faked.
 
 From the detail page you can score the job (see
 [Matching and rankings](matching-and-rankings.md)), practice an interview

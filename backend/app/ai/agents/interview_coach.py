@@ -12,12 +12,15 @@ loses its key and survives only as a labeled prompt.
 
 import time
 import uuid
-from typing import AsyncIterator, Optional, cast
+from collections.abc import AsyncIterator
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
+from app.ai.flow_events import delta_event, flow_started_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import (
     StructuredStream,
     ainvoke_structured,
@@ -62,7 +65,7 @@ async def _user_levels(db: AsyncSession, user_id: uuid.UUID) -> dict[str, int]:
         .join(UserSkill, UserSkill.skill_id == Skill.id)
         .where(UserSkill.user_id == user_id)
     )
-    return {key: level for key, level in rows.all()}
+    return dict(rows.all())
 
 
 async def _experience_digest(db: AsyncSession, user_id: uuid.UUID) -> list[dict]:
@@ -185,7 +188,7 @@ def build_plan_prompt(pack: dict, kind: str) -> str:
         {
             "task": "interview_plan",
             "kind": kind,
-            "quota": {name: count for name, count in quota},
+            "quota": dict(quota),
             "role": pack.get("role", ""),
             "org": pack.get("org", ""),
             "skills": pack.get("skills", []),
@@ -220,11 +223,7 @@ async def generate_interview_plan(
         build_plan_prompt(pack, kind),
         user_id,
     )
-    keys = [
-        item.skill_key
-        for item in plan.items
-        if item.kind == "technical" and item.skill_key
-    ]
+    keys = [item.skill_key for item in plan.items if item.kind == "technical" and item.skill_key]
     resolved = await _resolve_keys(db, keys)
     items = []
     for index, item in enumerate(plan.items[:MAX_PLAN_ITEMS], start=1):
@@ -238,9 +237,7 @@ async def generate_interview_plan(
     return InterviewPlan(items=items, rationale=plan.rationale[:2000])
 
 
-async def _resolve_keys(
-    db: AsyncSession, keys: list[str]
-) -> dict[str, tuple[str, bool]]:
+async def _resolve_keys(db: AsyncSession, keys: list[str]) -> dict[str, tuple[str, bool]]:
     """key → (label, exists). Unknown keys lose the key but keep the
     label — taxonomy discipline without hard-failing a draft."""
     unique = list(dict.fromkeys(keys))
@@ -320,8 +317,7 @@ def _mock_interview_plan(schema: type, user_prompt: str) -> dict:
 
     return {
         "items": items[:12],
-        "rationale": "Grounded in the extracted requirements and the "
-        "candidate's evidence.",
+        "rationale": "Grounded in the extracted requirements and the candidate's evidence.",
     }
 
 
@@ -395,7 +391,7 @@ def build_turn_prompt(ctx: dict) -> str:
 
 
 def render_next_question(
-    next_question: Optional[dict],
+    next_question: dict | None,
     position: int,
     total: int,
 ) -> str:
@@ -422,11 +418,12 @@ async def interview_turn_events(
 ) -> AsyncIterator[tuple[str, dict]]:
     """Run one practice turn, yielding (event, payload) pairs.
 
-    Event vocabulary matches the chat SSE contract plus a terminal
-    `interview_state` (progress + status the UI re-syncs from).
+    Event vocabulary IS the chat SSE contract (ai-features §5 family
+    flow events + `delta`/`meta`); the turn state persists onto the
+    assistant message metadata.
     """
-    from app.services.chat_service import ChatService
-    from app.services.interview_service import InterviewService
+    from app.services.chat.chat_service import ChatService
+    from app.services.chat.interview_service import InterviewService
 
     turn_started = time.monotonic()
     steps = [
@@ -434,7 +431,7 @@ async def interview_turn_events(
         {"id": "feedback", "label": "coaching the answer"},
         {"id": "record", "label": "recording the rubric"},
     ]
-    yield "flow_started", {"flow": "interview", "steps": steps}
+    yield sse_pair(flow_started_event(flow="interview", steps=steps))
 
     yield "node_started", {"id": "ground", "label": steps[0]["label"]}
     plan_items = list(interview.plan or [])
@@ -476,7 +473,7 @@ async def interview_turn_events(
     ):
         partial = partial_answer_text("".join(stream._raw))
         if len(partial) > sent:
-            yield "delta", {"text": partial[sent:]}
+            yield sse_pair(delta_event(partial[sent:]))
             sent = len(partial)
     if stream.reply is None:
         raise DomainError(stream.error or "AI produced no coaching")
@@ -509,9 +506,7 @@ async def interview_turn_events(
         "status": interview.status,
         "answered": len(interview.rubric_scores or []),
         "total": total,
-        "next_question_id": (
-            str(next_question.get("id")) if next_question is not None else None
-        ),
+        "next_question_id": (str(next_question.get("id")) if next_question is not None else None),
         "done": is_done,
     }
     yield (
@@ -535,7 +530,6 @@ async def interview_turn_events(
         },
     )
     yield "meta", {"message_id": str(message_row.id)}
-    yield "interview_state", state
     yield (
         "flow_finished",
         {

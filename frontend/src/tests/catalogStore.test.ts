@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useCatalogStore } from "@/stores/catalogStore";
 import * as jobsApi from "@/api/jobs";
-import type { Job } from "@/types";
+import type { Job } from "@/types/wire";
 
 vi.mock("@/api/jobs");
 
@@ -13,6 +13,7 @@ function makeJob(code: string): Job {
     code,
     title: code,
     family_key: "technology",
+    family_label: "",
     short_description: "desc",
     status: "published",
     source: "seed",
@@ -42,15 +43,23 @@ function makeJob(code: string): Job {
 
 describe("catalogStore", () => {
   beforeEach(() => {
-    useCatalogStore.setState({ families: [], jobs: [], total: 0, loading: false, filters: {} });
+    useCatalogStore.setState({ families: [], jobs: [], total: 0, facets: {}, loading: false, filters: {} });
     vi.clearAllMocks();
   });
 
-  it("loadJobs fetches and merges filters", async () => {
-    mocked.fetchJobs.mockResolvedValue([makeJob("software-developer")]);
+  it("loadJobs replaces the filter set with the URL state", async () => {
+    mocked.fetchJobs.mockResolvedValue({
+      items: [makeJob("software-developer")],
+      total: 1,
+      facets: { demand: { hot: 1 } },
+    });
     await useCatalogStore.getState().loadJobs({ demand: "hot" });
     expect(useCatalogStore.getState().jobs).toHaveLength(1);
+    expect(useCatalogStore.getState().total).toBe(1);
+    expect(useCatalogStore.getState().facets.demand?.hot).toBe(1);
     expect(useCatalogStore.getState().filters.demand).toBe("hot");
+    await useCatalogStore.getState().loadJobs({ family_key: "technology" });
+    expect(useCatalogStore.getState().filters).toEqual({ family_key: "technology" });
     expect(mocked.fetchJobs).toHaveBeenCalledWith(expect.objectContaining({ demand: "hot", page_size: 100 }));
   });
 

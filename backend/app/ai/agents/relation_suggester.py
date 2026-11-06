@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import AITaskType
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.ai.schemas import RelationSuggestion
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.enums import AITaskType
 
 
 class RelationSuggestionSet(BaseModel):

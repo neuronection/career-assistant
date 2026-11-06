@@ -1,5 +1,5 @@
-import { api } from "./client";
-import type { Bootstrap, CareerStage, ScoringWeights } from "@/types";
+import { api } from "@/api/client";
+import type { Bootstrap, CareerStage } from "@/types/wire";
 
 export async function fetchBootstrap(): Promise<Bootstrap> {
   const { data } = await api.get<Bootstrap>("/me/bootstrap");
@@ -13,9 +13,8 @@ export async function setStage(
   return data;
 }
 
-export async function saveScoringWeightsSuggested(
-  weights: ScoringWeights
-): Promise<{ scoring_weights: ScoringWeights; refitted: number }> {
-  const { data } = await api.put("/me/preferences/scoring", weights);
+/** Persist the first-run AI setup skip (plan 118); returns the bootstrap. */
+export async function setAiSetupDismissed(dismissed: boolean): Promise<Bootstrap> {
+  const { data } = await api.put<Bootstrap>("/me/preferences/ai-setup", { dismissed });
   return data;
 }

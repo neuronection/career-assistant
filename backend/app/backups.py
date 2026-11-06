@@ -20,7 +20,7 @@ import re
 import shutil
 import sqlite3
 import zipfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from app.core.config import settings
@@ -40,7 +40,7 @@ def backups_dir(data_dir: Path) -> Path:
 
 def _db_path(data_dir: Path) -> Path:
     """The SQLite file this instance uses (parsed from DATABASE_URL)."""
-    url = settings.DATABASE_URL
+    url = settings.database_url
     prefix = "sqlite+aiosqlite:///"
     if not url.startswith(prefix):
         raise RuntimeError("Local backups require the SQLite database profile")
@@ -62,7 +62,7 @@ def create_backup(data_dir: Path) -> Path:
     if not db_path.is_file():
         raise RuntimeError(f"Database file not found: {db_path}")
 
-    created = datetime.now(timezone.utc)
+    created = datetime.now(UTC)
     out = backups_dir(data_dir) / (f"backup-{created.strftime('%Y%m%d-%H%M%S')}.zip")
     keys_file = data_dir / "auth_keys.json"
     secret = data_dir / "secret.key"
@@ -78,9 +78,7 @@ def create_backup(data_dir: Path) -> Path:
         if uploads.is_dir():
             for file_path in uploads.rglob("*"):
                 if file_path.is_file() and "exports" not in file_path.parts:
-                    bundle.write(
-                        file_path, arcname=str(file_path.relative_to(data_dir))
-                    )
+                    bundle.write(file_path, arcname=str(file_path.relative_to(data_dir)))
         if keys_file.is_file():
             bundle.write(keys_file, arcname="auth_keys.json")
             contents.append("auth_keys.json")
@@ -92,7 +90,7 @@ def create_backup(data_dir: Path) -> Path:
             json.dumps(
                 {
                     "created_at": created.isoformat(),
-                    "app_version": settings.VERSION,
+                    "app_version": settings.version,
                     "contents": contents,
                 },
                 indent=2,
@@ -111,11 +109,7 @@ def _backup_timestamp(path: Path) -> datetime:
 
 def list_backups(data_dir: Path) -> list[Path]:
     return sorted(
-        (
-            p
-            for p in backups_dir(data_dir).glob("backup-*.zip")
-            if BACKUP_PATTERN.match(p.name)
-        ),
+        (p for p in backups_dir(data_dir).glob("backup-*.zip") if BACKUP_PATTERN.match(p.name)),
         key=_backup_timestamp,
     )
 
@@ -126,10 +120,11 @@ def prune_backups(data_dir: Path) -> int:
     if len(candidates) <= KEEP_DAILY + KEEP_WEEKLY:
         return 0
     keep: set[Path] = set(candidates[-KEEP_DAILY:])
-    week_buckets: dict[int, Path] = {}
+    week_buckets: dict[tuple[int, int], Path] = {}
     for path in candidates:
         stamp = _backup_timestamp(path)
-        bucket = stamp.isocalendar()[:2]
+        iso = stamp.isocalendar()
+        bucket = (iso.year, iso.week)
         week_buckets[bucket] = path  # later entries overwrite → newest of week
     for path in week_buckets.values():
         keep.add(path)
@@ -146,16 +141,14 @@ def backup_if_due(data_dir: Path) -> Path | None:
     existing = list_backups(data_dir)
     if existing:
         newest = _backup_timestamp(existing[-1])
-        age_hours = (
-            datetime.now(timezone.utc) - newest.replace(tzinfo=timezone.utc)
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(UTC) - newest.replace(tzinfo=UTC)).total_seconds() / 3600
         if age_hours < 24:
             return None
     try:
         archive = create_backup(data_dir)
         prune_backups(data_dir)
         return archive
-    except Exception:  # noqa: BLE001 — backups must never block startup
+    except Exception:
         logger.exception("Scheduled backup failed")
         return None
 
@@ -182,9 +175,7 @@ def verify_or_repair_database(data_dir: Path) -> str:
     if not db_path.is_file() or _validate_sqlite(db_path):
         return "ok"
 
-    quarantine = db_path.with_name(
-        f"corrupt-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}.db"
-    )
+    quarantine = db_path.with_name(f"corrupt-{datetime.now(UTC).strftime('%Y%m%d-%H%M%S')}.db")
     db_path.replace(quarantine)
     logger.error("Database corrupt; quarantined as %s", quarantine.name)
 
@@ -203,7 +194,12 @@ def verify_or_repair_database(data_dir: Path) -> str:
 
 
 def restore_backup(data_dir: Path, archive: Path) -> dict:
-    """Replace the live db/uploads/keys with an archive's contents."""
+    """Replace the live db/uploads/keys with an archive's contents.
+
+    The swapped-in database is migrated to head before this returns —
+    restore is the declared D6 exception (reference-architecture §4): an
+    ops action that migrates, exactly like study's restore API (audit F12).
+    """
     restored = {"db": False, "uploads": 0, "keys": False, "secret": False}
     with zipfile.ZipFile(archive) as bundle:
         names = bundle.namelist()
@@ -232,4 +228,10 @@ def restore_backup(data_dir: Path, archive: Path) -> dict:
             if name.startswith("uploads/") and not name.endswith("/"):
                 bundle.extract(name, data_dir)
                 restored["uploads"] += 1
+    if restored["db"]:
+        # The one sanctioned runtime migration site (F12) — declared to
+        # the C3 gate; every other migration stays entrypoint/CLI-owned.
+        from app.local import run_migrations  # gate-allow: run_migrations (F12 restore)
+
+        run_migrations()  # gate-allow: run_migrations (F12 restore)
     return restored

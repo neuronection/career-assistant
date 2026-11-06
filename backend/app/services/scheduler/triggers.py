@@ -8,8 +8,9 @@ UTC-normalized). Third parties register via the
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from importlib import metadata
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field, field_validator
@@ -60,7 +61,7 @@ class DailyAtTrigger:
         parsed = cls.Params.model_validate(params)
         try:
             ZoneInfo(parsed.timezone)
-        except Exception as exc:  # noqa: BLE001 — invalid tz names vary
+        except Exception as exc:
             raise ValidationError(f"Unknown timezone: {parsed.timezone}") from exc
         return parsed
 
@@ -73,7 +74,7 @@ class DailyAtTrigger:
         candidate = local.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if candidate <= local:
             candidate += timedelta(days=1)
-        return candidate.astimezone(timezone.utc)
+        return candidate.astimezone(UTC)
 
 
 class WeeklyTrigger:
@@ -91,7 +92,7 @@ class WeeklyTrigger:
         parsed = cls.Params.model_validate(params)
         try:
             ZoneInfo(parsed.timezone)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             raise ValidationError(f"Unknown timezone: {parsed.timezone}") from exc
         return parsed
 
@@ -106,7 +107,7 @@ class WeeklyTrigger:
         candidate += timedelta(days=days_ahead)
         if candidate <= local:
             candidate += timedelta(days=7)
-        return candidate.astimezone(timezone.utc)
+        return candidate.astimezone(UTC)
 
 
 class CronTrigger:
@@ -132,7 +133,7 @@ class CronTrigger:
                 raise ValidationError("cron expr must have 5 fields")
             ranges = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 6)]
             parsed: list[set[int]] = []
-            for field, (low, high) in zip(fields, ranges):
+            for field, (low, high) in zip(fields, ranges, strict=False):
                 values: set[int] = set()
                 for part in field.split(","):
                     step = 1
@@ -213,9 +214,7 @@ class CronTrigger:
                     else None
                 )
                 if next_hour is None:
-                    candidate = (candidate + timedelta(days=1)).replace(
-                        hour=0, minute=0
-                    )
+                    candidate = (candidate + timedelta(days=1)).replace(hour=0, minute=0)
                 else:
                     candidate = candidate.replace(hour=next_hour, minute=0)
                 continue
@@ -230,7 +229,7 @@ class CronTrigger:
                 else:
                     candidate = candidate.replace(minute=next_minute)
                 continue
-            return candidate.astimezone(timezone.utc)
+            return candidate.astimezone(UTC)
         raise ValidationError("cron expr never matches (horizon exceeded)")
 
 
@@ -253,7 +252,7 @@ class BootStaleTrigger:
         return now + timedelta(minutes=parsed.older_than_minutes)
 
 
-TRIGGERS: dict[str, type] = {
+TRIGGERS: dict[str, Any] = {
     IntervalTrigger.key: IntervalTrigger,
     DailyAtTrigger.key: DailyAtTrigger,
     WeeklyTrigger.key: WeeklyTrigger,
@@ -276,7 +275,7 @@ def _load_plugins() -> None:
     for ep in eps:
         try:
             trigger = ep.load()
-        except Exception:  # noqa: BLE001 — one bad plugin never breaks boot
+        except Exception:
             continue
         if hasattr(trigger, "key") and hasattr(trigger, "next_after"):
             TRIGGERS.setdefault(trigger.key, trigger)

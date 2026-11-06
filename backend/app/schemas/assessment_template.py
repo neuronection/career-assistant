@@ -6,7 +6,7 @@ resolve to a taxonomy id at save/import time;
 evidence-only kinds must not carry deltas; scoring deltas are bounded.
 """
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -46,7 +46,7 @@ class OptionScores(BaseModel):
     # metric_dimensions at authoring/import time.
     dimension_levels: dict[str, float] = Field(default_factory=dict)
     interest_keys: list[str] = Field(default_factory=list, max_length=10)
-    constraint_value: Optional[str] = Field(default=None, max_length=80)
+    constraint_value: str | None = Field(default=None, max_length=80)
 
 
 class TemplateOption(BaseModel):
@@ -69,23 +69,23 @@ class TemplateQuestion(BaseModel):
     help: str = Field(default="", max_length=500)
     options: list[TemplateOption] = Field(default_factory=list, max_length=12)
     statements: list[Statement] = Field(default_factory=list, max_length=15)
-    min_select: Optional[int] = Field(default=None, ge=0)
-    max_select: Optional[int] = Field(default=None, ge=1)
-    numeric_min: Optional[float] = None
-    numeric_max: Optional[float] = None
+    min_select: int | None = Field(default=None, ge=0)
+    max_select: int | None = Field(default=None, ge=1)
+    numeric_min: float | None = None
+    numeric_max: float | None = None
     numeric_unit: str = Field(default="", max_length=30)
-    skill_key: Optional[str] = Field(default=None, max_length=80)
-    dimension_key: Optional[str] = Field(default=None, max_length=60)
+    skill_key: str | None = Field(default=None, max_length=80)
+    dimension_key: str | None = Field(default=None, max_length=60)
     per_unit: float = Field(default=1.0, ge=0, le=10)
     cap: float = Field(default=10.0, ge=0, le=10)
-    constraint_key: Optional[str] = Field(default=None, max_length=60)
+    constraint_key: str | None = Field(default=None, max_length=60)
 
     @model_validator(mode="after")
     def _kind_shape(self):
         if self.kind in OPTION_KINDS and len(self.options) < 2:
             raise ValueError(f"{self.kind} needs at least 2 options")
         if self.kind == "forced_choice" and not 2 <= len(self.options) <= 4:
-            raise ValueError("forced_choice needs 2–4 blocks")
+            raise ValueError("forced_choice needs 2-4 blocks")
         if self.kind == "likert_matrix" and len(self.statements) < 2:
             raise ValueError("likert_matrix needs at least 2 statements")
         if self.kind == "multi_select":
@@ -95,9 +95,8 @@ class TemplateQuestion(BaseModel):
                 raise ValueError("min_select cannot exceed max_select")
             if self.max_select > len(self.options):
                 raise ValueError("max_select exceeds the option count")
-        if self.kind in EVIDENCE_ONLY_KINDS:
-            if self.options or self.statements:
-                raise ValueError("evidence-only kinds carry no options/statements")
+        if self.kind in EVIDENCE_ONLY_KINDS and (self.options or self.statements):
+            raise ValueError("evidence-only kinds carry no options/statements")
         self._validate_scores(self.options)
         for statement in self.statements:
             self._validate_scores([statement])
@@ -118,9 +117,7 @@ class TemplateQuestion(BaseModel):
                 if not key or len(key) > 60:
                     raise ValueError(f"invalid dimension key: {key!r}")
                 if abs(value) > DELTA_BOUND:
-                    raise ValueError(
-                        f"dimension delta {value} for {key} exceeds ±{DELTA_BOUND}"
-                    )
+                    raise ValueError(f"dimension delta {value} for {key} exceeds ±{DELTA_BOUND}")
             if scores.constraint_value is not None and (
                 scores.skill_levels or scores.dimension_levels
             ):
@@ -174,7 +171,5 @@ class TemplateContent(BaseModel):
             raise ValueError("a template needs at least one question")
         total = sum(len(p.questions) for p in self.phases)
         if total > MAX_QUESTIONS_PER_TEMPLATE:
-            raise ValueError(
-                f"a template carries at most {MAX_QUESTIONS_PER_TEMPLATE} questions"
-            )
+            raise ValueError(f"a template carries at most {MAX_QUESTIONS_PER_TEMPLATE} questions")
         return self

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { AIConfig } from "@/pages/settings/AIConfig";
 import { useAuthStore } from "@/stores/authStore";
@@ -18,7 +19,7 @@ vi.mock("@/api/ai", async (importOriginal) => {
     fetchExternalModels: vi.fn().mockResolvedValue([]),
     fetchTasks: vi.fn().mockResolvedValue([
       { value: "match_score", label: "match score" },
-      { value: "default", label: "default" },
+      { value: "text", label: "default (text models)", is_slot: true },
     ]),
     fetchProviderPresets: vi.fn().mockResolvedValue({}),
     setAssignment: vi.fn(),
@@ -28,6 +29,7 @@ vi.mock("@/api/ai", async (importOriginal) => {
     testConnection: vi.fn(),
     deleteProvider: vi.fn(),
     createProvider: vi.fn(),
+    setupProviderPreset: vi.fn(),
   };
 });
 
@@ -44,14 +46,62 @@ const provider: AIProvider = {
   is_active: true,
   is_local: false,
   country: "US",
+  preset_key: "openai",
   is_mine: true,
   created_at: "2026-01-01T00:00:00Z",
 };
 
 const presets = {
-  openai: { name: "OpenAI", type: "openai", base_url: "https://api.openai.com/v1", local: false },
-  gemini: { name: "Google Gemini", type: "google", base_url: "https://generativelanguage.googleapis.com", local: false },
-  ollama: { name: "Ollama (local)", type: "openai_compatible", base_url: "http://localhost:11434/v1", local: true },
+  openai: {
+    name: "OpenAI",
+    type: "openai",
+    base_url: "https://api.openai.com/v1",
+    local: false,
+    fixed_base: false,
+    key_url: "https://platform.openai.com/api-keys",
+    steps: ["Create a key", "Paste it below"],
+    curated_models: ["gpt-5.6-terra"],
+    stt_model: null,
+    decision_models: null,
+    decision_default: null,
+    provisional: null,
+  },
+  gemini: {
+    name: "Google Gemini",
+    type: "google",
+    base_url: "https://generativelanguage.googleapis.com",
+    local: false,
+    fixed_base: true,
+  },
+  openrouter: {
+    name: "OpenRouter",
+    type: "openai_compatible",
+    base_url: "https://openrouter.ai/api/v1",
+    local: false,
+    fixed_base: false,
+    key_url: "https://openrouter.ai/settings/keys",
+    steps: ["Create a key", "Paste it below"],
+    curated_models: ["openrouter/auto"],
+    stt_model: null,
+    decision_models: [
+      {
+        id: "openrouter.jev-latest",
+        name: "Jev via OpenRouter (latest)",
+        transport: "systemone",
+        caps: ["tool-dispatch", "boolean-gate", "choice", "score"],
+        provisional: true,
+      },
+    ],
+    decision_default: "openrouter.jev-latest",
+    provisional: null,
+  },
+  ollama: {
+    name: "Ollama (local)",
+    type: "openai_compatible",
+    base_url: "http://localhost:11434/v1",
+    local: true,
+    fixed_base: false,
+  },
 };
 
 const model: AIModel = {
@@ -63,7 +113,7 @@ const model: AIModel = {
   temperature: null,
   max_tokens: null,
   reasoning_effort: null,
-  caps: null,
+  caps: ["text", "vision", "tools"],
 };
 
 function renderPage(initialEntries = ["/settings/ai"]) {
@@ -130,6 +180,8 @@ describe("AIConfig (settings > AI)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
     const dialog = await screen.findByRole("dialog");
+    // step 1 — the LLM kind; the catalog pick infers the chat family
+    fireEvent.click(within(dialog).getByRole("button", { name: "Text" }));
     fireEvent.keyDown(within(dialog).getByRole("combobox", { name: "Model" }), { key: "ArrowDown" });
     fireEvent.click(await screen.findByRole("option", { name: /gpt-4o-mini/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Add model" }));
@@ -140,7 +192,8 @@ describe("AIConfig (settings > AI)", () => {
         temperature: null,
         max_tokens: null,
         reasoning_effort: null,
-        caps: ["text"],
+        caps: ["text", "vision", "tools"],
+        decision_transport: null,
       }),
     );
   });
@@ -165,7 +218,7 @@ describe("AIConfig (settings > AI)", () => {
         expect.objectContaining({
           reasoning_effort: "high",
           max_tokens: 2048,
-          caps: ["text"],
+          caps: ["text", "vision", "tools"],
         }),
       ),
     );
@@ -176,6 +229,7 @@ describe("AIConfig (settings > AI)", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Org OpenAI/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
     const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Text" }));
     fireEvent.click(within(dialog).getByRole("button", { name: /manual/i }));
     const idInput = within(dialog).getByLabelText("Model");
     fireEvent.change(idInput, { target: { value: "custom-model" } });
@@ -219,69 +273,118 @@ describe("AIConfig (settings > AI)", () => {
   });
 
   it("providers tab: tests a connection through the first active model", async () => {
+    const user = userEvent.setup();
     mocked.fetchAllModels.mockResolvedValue([
+      // a decision model must be skipped — pinging it over
+      // chat/completions 400s on mixed providers (e.g. OpenRouter)
+      {
+        ...model,
+        id: "m2",
+        model_name: "typesafe/jev-1.13",
+        name: "Jev 1.13 via OpenRouter (pinned)",
+        caps: ["decision"],
+        decision_transport: "systemone",
+        provider_name: "Org OpenAI",
+        provider_scope: "system",
+        provider_type: "openai",
+      },
       { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
     ]);
     mocked.testConnection.mockResolvedValue({ ok: true, reply: "OK" });
     renderPage();
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText("1 models")).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: "Test" }));
-    await waitFor(() => expect(mocked.testConnection).toHaveBeenCalledWith("p1", "m1"));
+    await waitFor(() =>
+      expect(screen.getByText(/2 models/)).toBeInTheDocument(),
+    );
+    // a configured key is implied — the warning chip only appears when absent
+    expect(screen.queryByTestId("provider-key-p1")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Test" }));
+    await waitFor(() =>
+      expect(mocked.testConnection).toHaveBeenCalledWith("p1", "m1"),
+    );
     expect(await screen.findByText("Connected")).toBeInTheDocument();
   });
 
   it("providers tab: connection test is unavailable without a registered model", async () => {
+    const user = userEvent.setup();
     renderPage();
     await waitFor(() => expect(screen.getByText("Org OpenAI")).toBeInTheDocument());
     expect(screen.getByText(/Register a model first/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Test" })).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    // no testable model → the Test action is omitted entirely
+    expect(await screen.findByRole("menuitem", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Test" })).toBeNull();
   });
 
   it("providers tab: deletes a provider through a confirm dialog", async () => {
+    const user = userEvent.setup();
     renderPage();
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Org OpenAI" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Delete" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Delete Org OpenAI?")).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(mocked.deleteProvider).toHaveBeenCalledWith("p1"));
   });
 
-  it("tasks tab: renders the fallback section and per-task assignment rows", async () => {
+  it("tasks tab: renders defaults-first, the Decision group and task rows", async () => {
     mocked.fetchTasks.mockResolvedValue([
+      { value: "text", label: "default (text models)", is_slot: true },
+      { value: "vision", label: "default (vision models)", is_slot: true },
+      { value: "decision", label: "decision", requires: "decision" },
+      { value: "decision_tool_dispatch", label: "decision tool dispatch", requires: "decision" },
       {
         value: "match_score",
         label: "match score",
         description: "Per-user job match score with rationale + prerequisites",
         requires: "text",
       },
-      { value: "default", label: "default (all tasks)" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
       { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
     ]);
     mocked.fetchAssignments.mockResolvedValue([
-      { id: "a1", task_type: "default", scope: "system", model_id: "m1", is_active: true },
+      { id: "a1", task_type: "text", scope: "system", model_id: "m1", is_active: true },
     ]);
     renderPage(["/settings/ai?tab=tasks"]);
-    await waitFor(() => expect(screen.getByText("Fallback model")).toBeInTheDocument());
-    expect(screen.getByText("All tasks")).toBeInTheDocument();
-    expect(screen.getByText("Fallback")).toBeInTheDocument();
-    expect(await screen.findByRole("combobox", { name: "Fallback — All tasks" })).toHaveTextContent(
-      "GPT 4o Mini"
-    );
+    await waitFor(() => expect(screen.getByText("Default models")).toBeInTheDocument());
+    expect(screen.getByText("Decision kinds")).toBeInTheDocument();
+    expect(screen.getByText("Default decision model")).toBeInTheDocument();
+    expect(screen.getByText("Tool dispatch")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "Text" })).toHaveTextContent("GPT 4o Mini");
     expect(screen.getByText("Job Match Scoring")).toBeInTheDocument();
     expect(
       screen.getByText("Per-user job match score with rationale + prerequisites")
     ).toBeInTheDocument();
-    expect(screen.getByText(/Unassigned — falls back/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Unassigned — inherits/).length).toBeGreaterThan(0);
     expect(mocked.fetchAllModels).toHaveBeenCalled();
+  });
+
+  it("tasks tab: the legacy default pseudo-task can never come back", async () => {
+    mocked.fetchTasks.mockResolvedValue([
+      { value: "text", label: "default (text models)", is_slot: true },
+      { value: "match_score", label: "match score", requires: "text" },
+    ]);
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
+    renderPage(["/settings/ai?tab=tasks"]);
+    await waitFor(() => expect(screen.getByText("Default models")).toBeInTheDocument());
+    expect(screen.queryByText("Fallback model")).not.toBeInTheDocument();
+    expect(screen.queryByText("All tasks")).not.toBeInTheDocument();
   });
 
   it("tasks tab: assigns a model to a task from its picker", async () => {
     mocked.fetchTasks.mockResolvedValue([
+      { value: "text", label: "default (text models)", is_slot: true },
       { value: "match_score", label: "match score" },
-      { value: "default", label: "default (all tasks)" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
       { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
@@ -332,8 +435,8 @@ describe("AIConfig (settings > AI)", () => {
 
   it("tasks tab: clears an assignment with the row button", async () => {
     mocked.fetchTasks.mockResolvedValue([
+      { value: "text", label: "default (text models)", is_slot: true },
       { value: "match_score", label: "match score" },
-      { value: "default", label: "default (all tasks)" },
     ]);
     mocked.fetchAllModels.mockResolvedValue([
       { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
@@ -372,44 +475,241 @@ describe("AIConfig providers: preset catalog + hosting + country", () => {
     mocked.fetchProviderPresets.mockResolvedValue(presets);
   });
 
-  it("add-provider dialog lists presets and autofills name, base URL and hosting", async () => {
+  it("add provider opens the setup tiles (family assembly)", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText("OpenAI")).toBeInTheDocument();
+    expect(within(dialog).getByText("Google Gemini")).toBeInTheDocument();
+    expect(within(dialog).getByText("Ollama (local)")).toBeInTheDocument();
+    expect(within(dialog).getByText("Set up manually")).toBeInTheDocument();
+  });
+
+  it("setup: manual tile hands off to the full provider modal", async () => {
     mocked.createProvider.mockResolvedValue(provider);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
     const dialog = await screen.findByRole("dialog");
-    const presetSelect = await within(dialog).findByLabelText("Provider");
+    fireEvent.click(await within(dialog).findByText("Set up manually"));
+    const manualDialog = await screen.findByRole("dialog");
+    const presetSelect = await within(manualDialog).findByLabelText("Provider");
     fireEvent.change(presetSelect, { target: { value: "ollama" } });
-    expect(within(dialog).getByLabelText("Name")).toHaveValue("Ollama (local)");
-    expect(within(dialog).getByLabelText("API base URL")).toHaveValue("http://localhost:11434/v1");
-    expect(within(dialog).getByRole("button", { name: /Local \/ on-premise/i })).toHaveAttribute(
-      "aria-pressed",
-      "true"
+    expect(within(manualDialog).getByLabelText("Name")).toHaveValue("Ollama (local)");
+    expect(within(manualDialog).getByLabelText("API base URL")).toHaveValue(
+      "http://localhost:11434/v1"
     );
-    fireEvent.click(within(dialog).getByRole("combobox", { name: "Country" }));
-    fireEvent.click(await screen.findByRole("option", { name: /Germany/ }));
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save provider" }));
+    fireEvent.click(within(manualDialog).getByRole("button", { name: "Save provider" }));
     await waitFor(() => expect(mocked.createProvider).toHaveBeenCalledTimes(1));
     expect(mocked.createProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ is_local: true, country: "DE", provider_type: "openai_compatible" })
+      expect.objectContaining({ is_local: true, provider_type: "openai_compatible" })
     );
   });
 
-  it("native gemini preset autofills the google provider type", async () => {
-    mocked.createProvider.mockResolvedValue(provider);
+  it("setup: guided form connects a preset and shows the success defaults", async () => {
+    mocked.setupProviderPreset.mockResolvedValue({
+      ok: true,
+      provider,
+      catalog_count: 3,
+      curated_missed: false,
+      assigned_chat_model: "gpt-5.6-terra",
+      assigned_vision_model: null,
+      assigned_stt_model: null,
+      assigned_decision_slots: null,
+    });
+    mocked.fetchAllModels.mockResolvedValue([
+      { ...model, provider_name: "Org OpenAI", provider_scope: "system", provider_type: "openai" },
+    ]);
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
     const dialog = await screen.findByRole("dialog");
-    const presetSelect = await within(dialog).findByLabelText("Provider");
-    fireEvent.change(presetSelect, { target: { value: "gemini" } });
-    expect(within(dialog).getByLabelText("Name")).toHaveValue("Google Gemini");
-    expect(within(dialog).getByLabelText("API base URL")).toHaveValue(
-      "https://generativelanguage.googleapis.com"
+    fireEvent.click(await within(dialog).findByText("OpenAI"));
+    const keyInput = await within(dialog).findByLabelText(/API key/i);
+    fireEvent.change(keyInput, { target: { value: "sk-live-key" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Set up automatically/i }));
+    // connect is bind-less — the review step decides what registers/binds
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenCalledWith("openai", {
+        api_key: "sk-live-key",
+        name: null,
+        scope: "user",
+        options: { bind_chat: false, bind_vision: false, bind_stt: false, bind_decision: false },
+      })
     );
-    expect(within(dialog).getByRole("button", { name: "Save provider" })).toBeEnabled();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save provider" }));
-    await waitFor(() => expect(mocked.createProvider).toHaveBeenCalledTimes(1));
-    expect(mocked.createProvider).toHaveBeenCalledWith(
-      expect.objectContaining({ provider_type: "google", is_local: false })
+    // step 2 is explicit: the wizard header names it, and the assignment
+    // rows carry now/fills context per task type
+    expect(await within(dialog).findByText("Choose defaults")).toBeInTheDocument();
+    expect(await within(dialog).findByText("Default assignments")).toBeInTheDocument();
+    // terra serves both chat and vision — both rows name it
+    expect(
+      await within(dialog).findAllByText(/fills: gpt-5.6-terra/)
+    ).toHaveLength(2);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenCalledWith(
+        "openai",
+        expect.objectContaining({
+          api_key: "sk-live-key",
+          options: expect.objectContaining({ bind_chat: true, bind_decision: false }),
+        })
+      )
+    );
+    expect(await within(dialog).findByText(/is ready/)).toBeInTheDocument();
+  });
+
+  it("setup: review offers the decision default for decision-capable presets", async () => {
+    mocked.setupProviderPreset.mockResolvedValue({
+      ok: true,
+      provider: { ...provider, preset_key: "openrouter" },
+      catalog_count: 4,
+      curated_missed: false,
+      assigned_chat_model: null,
+      assigned_vision_model: null,
+      assigned_stt_model: null,
+      assigned_decision_slots: null,
+    });
+    // decision specs ride the preset (openrouter) and register at connect —
+    // they must surface in the done panel's default-decision picker
+    mocked.fetchAllModels.mockResolvedValue([
+      {
+        ...model,
+        model_name: "openrouter/auto",
+        name: "Auto (best match)",
+        provider_name: "OpenRouter",
+        provider_scope: "system",
+        provider_type: "openai_compatible",
+      },
+      {
+        ...model,
+        id: "m2",
+        model_name: "typesafe/jev-1.13",
+        name: "Jev 1.13 via OpenRouter (pinned)",
+        caps: ["decision"],
+        decision_transport: "systemone",
+        provider_name: "OpenRouter",
+        provider_scope: "system",
+        provider_type: "openai_compatible",
+      },
+    ]);
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByText("OpenRouter"));
+    const keyInput = await within(dialog).findByLabelText(/API key/i);
+    fireEvent.change(keyInput, { target: { value: "sk-or-v1-key" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Set up automatically/i }));
+    // review: the decision default row names the model it would bind
+    // (openrouter declares decision models; the Jev card never rides the
+    // curated list, so the sub-line is where it must surface)
+    expect(await within(dialog).findByText("Default decision model")).toBeInTheDocument();
+    expect(
+      (await within(dialog).findAllByText(/fills: Jev via OpenRouter \(latest\)/)).length
+    ).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenLastCalledWith(
+        "openrouter",
+        expect.objectContaining({
+          options: expect.objectContaining({ bind_decision: true }),
+        })
+      )
+    );
+    // done: the registered decision model feeds the default-decision picker
+    expect(await within(dialog).findByText("Default decision model")).toBeInTheDocument();
+  });
+
+  it("setup: classified failure renders the vendor hint, not a stack trace", async () => {
+    mocked.setupProviderPreset.mockRejectedValue({
+      response: {
+        data: {
+          detail: {
+            code: "invalid_key",
+            suspected_vendor: "openrouter",
+            detail: "401 Incorrect API key",
+          },
+        },
+      },
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /Add provider/i }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(await within(dialog).findByText("OpenAI"));
+    const keyInput = await within(dialog).findByLabelText(/API key/i);
+    fireEvent.change(keyInput, { target: { value: "sk-or-v1-wrong" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /Set up automatically/i }));
+    expect(
+      await screen.findByText(/looks like a[n]? openrouter key/i)
+    ).toBeInTheDocument();
+  });
+
+  it("setup: re-run dialog emits the five-bind body (append semantics)", async () => {
+    mocked.setupProviderPreset.mockResolvedValue({
+      ok: true,
+      provider: { ...provider, preset_key: "openrouter" },
+      catalog_count: 2,
+      curated_missed: false,
+      assigned_chat_model: null,
+      assigned_vision_model: null,
+      assigned_stt_model: null,
+      assigned_decision_slots: null,
+    });
+    mocked.fetchProviderPresets.mockResolvedValue(presets);
+    mocked.fetchProviders.mockResolvedValue([{ ...provider, preset_key: "openrouter" }]);
+    renderPage();
+    const user = userEvent.setup();
+    await user.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set up automatically" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/stored key/i)).toBeInTheDocument();
+    expect(within(dialog).getByText("Set the default decision model")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenCalledWith(
+        "openrouter",
+        expect.objectContaining({
+          api_key: null,
+          scope: "system",
+          options: expect.objectContaining({
+            bind_chat: true,
+            bind_vision: true,
+            bind_stt: true,
+            bind_decision: true,
+          }),
+        })
+      )
+    );
+  });
+
+  it("setup: presets without decision models still send the five-bind body", async () => {
+    mocked.setupProviderPreset.mockResolvedValue({
+      ok: true,
+      provider,
+      catalog_count: 2,
+      curated_missed: false,
+      assigned_chat_model: null,
+      assigned_vision_model: null,
+      assigned_stt_model: null,
+      assigned_decision_slots: null,
+    });
+    mocked.fetchProviderPresets.mockResolvedValue(presets);
+    renderPage();
+    const secondUser = userEvent.setup();
+    await secondUser.click(
+      await screen.findByRole("button", { name: "Actions for Org OpenAI" }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Set up automatically" }));
+    const dialog = await screen.findByRole("dialog");
+    await waitFor(() => within(dialog).getByRole("button", { name: "Apply setup" }));
+    expect(within(dialog).queryByText("Set the default decision model")).not.toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Apply setup" }));
+    await waitFor(() =>
+      expect(mocked.setupProviderPreset).toHaveBeenCalledWith(
+        "openai",
+        expect.objectContaining({
+          options: expect.objectContaining({ bind_decision: false }),
+        })
+      )
     );
   });
 
@@ -448,6 +748,9 @@ describe("AIConfig models: native Gemini catalog", () => {
     renderPage(["/settings/ai?tab=models"]);
     fireEvent.click(await screen.findByRole("button", { name: /Native Gemini/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Add model" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Text" })
+    );
     await waitFor(() =>
       expect(mocked.fetchExternalModels).toHaveBeenCalledWith("p-g")
     );

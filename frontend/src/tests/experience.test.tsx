@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
-import { Experience } from "@/pages/Experience";
+import { Experience } from "@/features/profile/pages/Experience";
 import {
   fetchExperience,
   fetchDerivation,
@@ -526,6 +526,7 @@ describe("Experience workspace — selection, bulk and filters", () => {
   it("selects items, bulk-sets statuses and uses select-all", async () => {
     renderPage();
     const first = await screen.findByTestId("experience-item-e1");
+    fireEvent.click(screen.getByTestId("experience-select"));
     fireEvent.click(within(first).getByRole("checkbox"));
     const second = screen.getByTestId("experience-item-e2");
     fireEvent.click(within(second).getByRole("checkbox"));
@@ -545,13 +546,16 @@ describe("Experience workspace — selection, bulk and filters", () => {
     expect(
       screen.getByTestId("experience-item-e1")
     ).toHaveTextContent("draft");
-    expect(screen.queryByTestId("bulk-bar")).not.toBeInTheDocument();
+    expect(screen.getByTestId("experience-bulk-mode")).toHaveTextContent(
+      "Selection mode"
+    );
   });
 
   it("bulk-deletes with confirmation and restores all through undo", async () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByTestId("experience-item-e1");
+    fireEvent.click(screen.getByTestId("experience-select"));
     fireEvent.click(within(screen.getByTestId("experience-item-e1")).getByRole("checkbox"));
     fireEvent.click(within(screen.getByTestId("experience-item-e2")).getByRole("checkbox"));
     fireEvent.click(await screen.findByTestId("bulk-delete"));

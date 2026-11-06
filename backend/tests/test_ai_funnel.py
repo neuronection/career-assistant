@@ -56,6 +56,7 @@ class _FakeStreamModel:
 
 async def _assign_real_model(db, provider_type="openai_compatible", **overrides):
     from nx_auth.passwords import hash_password
+
     from app.core.encryption import encrypt_secret
     from app.models.ai_provider_model import AIModel, AIProvider, AITaskAssignment
     from app.models.user_model import User
@@ -63,14 +64,14 @@ async def _assign_real_model(db, provider_type="openai_compatible", **overrides)
     user = User(email="funnel@example.com", password_hash=hash_password("pw123456"))
     db.add(user)
     await db.flush()
-    defaults = dict(
-        name="prov",
-        scope="user",
-        user_id=user.id,
-        provider_type=provider_type,
-        api_base="https://api.example.com/v1",
-        api_key_encrypted=encrypt_secret("sk-secret-123"),
-    )
+    defaults = {
+        "name": "prov",
+        "scope": "user",
+        "user_id": user.id,
+        "provider_type": provider_type,
+        "api_base": "https://api.example.com/v1",
+        "api_key_encrypted": encrypt_secret("sk-secret-123"),
+    }
     defaults.update(overrides)
     prov = AIProvider(**defaults)
     db.add(prov)
@@ -107,11 +108,7 @@ async def test_invoke_records_usage_and_provider(db, monkeypatch):
     assert result.answer == "hello"
 
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "assist")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "assist")))
         .scalars()
         .all()
     )
@@ -128,9 +125,7 @@ async def test_invoke_retries_after_failure(db, monkeypatch):
     fake = _FakeChatModel([RuntimeError("boom"), '{"answer": "recovered"}'])
     monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
 
-    result = await ainvoke_structured(
-        db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-    )
+    result = await ainvoke_structured(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     assert result.answer == "recovered"
     assert len(fake.calls) == 2
 
@@ -144,11 +139,7 @@ async def test_invoke_fails_after_three_attempts(db, monkeypatch):
         await ainvoke_structured(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     assert len(fake.calls) == 3
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "assist")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "assist")))
         .scalars()
         .all()
     )
@@ -186,20 +177,14 @@ async def test_stream_yields_pieces_and_audits_once(db, monkeypatch):
     stream = StructuredStream()
     pieces = [
         piece
-        async for piece in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        )
+        async for piece in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     ]
     assert pieces == ['{"answer": "Hel', 'lo there"}']
     assert stream.reply is not None
     assert stream.reply.answer == "Hello there"
 
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "assist")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "assist")))
         .scalars()
         .all()
     )
@@ -251,9 +236,7 @@ async def test_stream_whitespace_chunks_fall_back_to_invoke(db, monkeypatch):
     stream = StructuredStream()
     pieces = [
         piece
-        async for piece in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        )
+        async for piece in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     ]
     assert stream.reply is not None
     assert stream.reply.answer == "recovered"
@@ -271,9 +254,7 @@ async def test_stream_prose_reply_rescued_by_invoke(db, monkeypatch):
     stream = StructuredStream()
     pieces = [
         piece
-        async for piece in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        )
+        async for piece in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id)
     ]
     assert stream.reply is not None
     assert stream.reply.answer == "rescued"
@@ -283,24 +264,16 @@ async def test_stream_prose_reply_rescued_by_invoke(db, monkeypatch):
 
 async def test_stream_rescue_failure_audits_raw_snippet(db, monkeypatch):
     user = await _assign_real_model(db)
-    fake = _FakeRecoveryModel(
-        ["Plain prose, still no braces."], ["Still prose on the retry."]
-    )
+    fake = _FakeRecoveryModel(["Plain prose, still no braces."], ["Still prose on the retry."])
     monkeypatch.setattr(provider_module, "build_chat_model", lambda resolved: fake)
 
     stream = StructuredStream()
     with pytest.raises(StructuredAIError, match="not usable structured output"):
-        async for _ in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        ):
+        async for _ in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id):
             pass
     assert fake.invoke_calls == 1
     rows = (
-        (
-            await db.execute(
-                select(AIGeneration).where(AIGeneration.task_type == "assist")
-            )
-        )
+        (await db.execute(select(AIGeneration).where(AIGeneration.task_type == "assist")))
         .scalars()
         .all()
     )
@@ -317,9 +290,7 @@ async def test_stream_no_rescue_after_answer_text_streamed(db, monkeypatch):
 
     stream = StructuredStream()
     with pytest.raises(StructuredAIError, match="not usable structured output"):
-        async for _ in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        ):
+        async for _ in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id):
             pass
     assert fake.invoke_calls == 0
 
@@ -335,9 +306,7 @@ async def test_stream_failure_names_token_cap(db, monkeypatch):
 
     stream = StructuredStream()
     with pytest.raises(StructuredAIError, match="token cap"):
-        async for _ in stream.chunks(
-            db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id
-        ):
+        async for _ in stream.chunks(db, AITaskType.ASSIST, _Out, "s", "u", user_id=user.id):
             pass
 
 
@@ -367,9 +336,7 @@ async def test_stream_carries_image_parts(db, monkeypatch):
     user_message = fake.calls[0][1]
     assert user_message.content[0] == {"type": "text", "text": "look"}
     assert user_message.content[1]["type"] == "image_url"
-    assert user_message.content[1]["image_url"]["url"].startswith(
-        "data:image/png;base64,"
-    )
+    assert user_message.content[1]["image_url"]["url"].startswith("data:image/png;base64,")
 
 
 async def test_invoke_and_stream_share_user_content_encoding():

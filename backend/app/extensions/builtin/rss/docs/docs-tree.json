@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the RSS / Atom feed connector reads, how identity works, and when a feed is the right source.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "usage",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Usage",
+          "description": "Adding the source and the watermark behavior — why unchanged feeds cost one 304.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "troubleshooting",
+      "items": [
+        {
+          "id": "troubleshooting",
+          "file": "troubleshooting.md",
+          "title": "Troubleshooting",
+          "description": "Symptom → cause → fix for parse errors, identity-less feeds and the 304 path.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}

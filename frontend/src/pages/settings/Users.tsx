@@ -4,15 +4,23 @@ import { useTranslation } from "react-i18next";
 import {
   fetchUsers,
   forceLogout,
+  updateInstanceMode,
   patchUser,
   resetUserPassword,
   type AdminUser,
 } from "@/api/admin";
+import { getInstanceConfig } from "@/api/instance";
 import {
   AdminUserTable,
   type AdminUserTableLabels,
 } from "@/components/ui/admin-user-table";
+import {
+  InstanceModeControl,
+  type InstanceModeControlLabels,
+} from "@/components/ui/instance-mode-control";
 import { useAuthStore } from "@/stores/authStore";
+import { Users as UsersIcon } from "lucide-react";
+import { SettingsPage } from "@/components/settings/SettingsPage";
 
 /** Admin user management (identity-auth §12): the shared
  * `AdminUserTable` (`@neuronection/assistant-ui`) fed by the kit's
@@ -27,6 +35,11 @@ export function Users() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState<unknown>(null);
+  const [authMode, setAuthMode] = useState<string>("authenticated");
+  // §4.5 (S14): a server entrypoint can never go open — the control
+  // needs the entrypoint mode to block "Remove login" up front.
+  const [serverIdentity, setServerIdentity] = useState(false);
+  const [instanceError, setInstanceError] = useState<unknown>(null);
 
   const load = useCallback(async () => {
     try {
@@ -36,6 +49,14 @@ export function Users() {
       setListError(error);
     } finally {
       setLoading(false);
+    }
+    try {
+      const config = await getInstanceConfig();
+      setAuthMode(config.auth_mode);
+      setServerIdentity(config.identity_mode === "server");
+      setInstanceError(null);
+    } catch (error) {
+      setInstanceError(error);
     }
   }, []);
 
@@ -75,8 +96,57 @@ export function Users() {
     errorLastAdmin: t("users.errorLastAdmin"),
   };
 
+  const instanceLabels: InstanceModeControlLabels = {
+    title: t("instance.title"),
+    modeOpen: t("instance.modeOpen"),
+    modeAuthenticated: t("instance.modeAuthenticated"),
+    modeOpenHint: t("instance.modeOpenHint"),
+    modeAuthenticatedHint: t("instance.modeAuthenticatedHint"),
+    enableLogin: t("instance.enableLogin"),
+    enableLoginNote: (minLength: number) => t("instance.enableLoginNote", { minLength }),
+    disableLogin: t("instance.disableLogin"),
+    disableLoginNote: t("instance.disableLoginNote"),
+    password: t("instance.password"),
+    confirmPassword: t("instance.confirmPassword"),
+    passwordMismatch: t("instance.passwordMismatch"),
+    passwordTooShort: (minLength: number) => t("instance.passwordTooShort", { minLength }),
+    submitEnable: t("instance.submitEnable"),
+    submitDisable: t("instance.submitDisable"),
+    confirmAck: t("instance.confirmAck"),
+    blockedServer: t("instance.blockedServer"),
+    blockedUsers: (count: number) => t("instance.blockedUsers", { count }),
+    auditNote: t("instance.auditNote"),
+    errorGeneric: t("instance.errorGeneric"),
+    errorForbidden: t("instance.errorForbidden"),
+  };
+
   return (
-    <div data-testid="settings-users">
+    <SettingsPage
+      icon={UsersIcon}
+      title={t("settingsNav.users.label")}
+      description={t("settingsNav.users.description")}
+      sections={[
+        { id: "s-mode", label: t("instance.modeAuthenticated") },
+        { id: "s-users", label: t("users.title", { defaultValue: "Users" }) },
+      ]}
+    >
+      <section id="s-mode" className="scroll-mt-4" data-testid="settings-users">
+      <InstanceModeControl
+        mode={authMode === "open" ? "open" : "authenticated"}
+        serverIdentity={serverIdentity}
+        otherUserCount={Math.max(0, users.length - 1)}
+        loading={loading}
+        error={instanceError === null ? null : t("instance.errorGeneric")}
+        onSetAuthenticated={async (password: string) => {
+          await updateInstanceMode("authenticated", password);
+          await load();
+        }}
+        onSetOpen={async (password: string) => {
+          await updateInstanceMode("open", password);
+          await load();
+        }}
+        labels={instanceLabels}
+      />
       <AdminUserTable
         users={users}
         currentUserId={me?.id ?? ""}
@@ -96,6 +166,7 @@ export function Users() {
         }}
         labels={labels}
       />
-    </div>
+      </section>
+    </SettingsPage>
   );
 }

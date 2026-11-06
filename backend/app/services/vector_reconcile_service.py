@@ -1,0 +1,1039 @@
+"""Resumable, budget-capped vector backfill and reconciliation (plan 50 §5.7,
+§11, P1d).
+
+One pass per kind classifies source rows against the active space by
+composing them (pure, no provider call) and comparing the composed hash to the
+stored document's ``source_hash``:
+
+* no document → **missing**;
+* a different hash (or ``force``) → **stale**;
+* an equal hash → **current**, costing zero embedding calls.
+
+The scan is a **bounded keyset batch**, never the whole corpus: each kind is
+read through :func:`~app.services.vector_index_service.list_sources` with an
+exclusive ``(updated_at, id)`` cursor and at most ``scan_limit`` rows. Sources
+are composed and indexed one at a time; no all-dirty ``work`` list of
+``LoadedSource`` objects is held. A run's spend is still capped twice
+(``limit`` documents, ``budget`` embed units); when a cap is hit mid-batch the
+run stops *before* the next source and returns the cursor of the last fully
+processed source, so a continuation resumes without skipping or re-indexing
+work.
+
+The ``VECTOR_RECONCILE`` handler chains partial results: it enqueues one
+follow-up job with the returned ``after``/``carry``/``completed_kinds`` state
+(unless ``auto_continue`` is false). The cursor lives in the job payload and
+result, so there is no new table or ledger. A continuation job for the same
+``(space, kind, cursor)`` is never duplicated.
+
+Every kind writes one ``retrieval_coverage_snapshots`` row only when its scan
+is **complete for the chain** — a partial batch never publishes a misleading
+full-coverage point. Counters carried across the chain make a resumed
+completion report the whole kind, not just its tail.
+
+**Budget attribution.** The reconcile is system work: the handler passes no
+``user_id`` to the gateway, so the embed calls land on the system path
+(no per-user limiter, no arbitrary admin budget). An admin-triggered run is a
+``background_jobs`` row like any other; the requester is recorded on the job,
+never charged.
+
+**No request-time work.** This module is only reached from the
+``VECTOR_RECONCILE`` handler (and the CLI that enqueues it).
+"""
+
+from __future__ import annotations
+
+import logging
+import uuid
+from collections.abc import Awaitable, Callable, Mapping, Sequence
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.errors import AIBudgetExceededError
+from app.models.vector_model import RetrievalCoverageSnapshot
+from app.services.progress import MAX_PROGRESS_COUNTER, ProgressCb
+from app.services.vector_index_service import (
+    CONTENT_SPACE,
+    IndexOutcome,
+    PreparedDocument,
+    SourceRow,
+    VectorIndexService,
+    count_sources,
+    list_sources,
+    load_source,
+)
+from app.storage.retrieval_ops import FAILED_IDS_LIMIT
+from app.storage.vector_backends import VectorBackendError, VectorSpaceNotFound
+from app.storage.vector_store import VectorStoreService
+
+logger = logging.getLogger(__name__)
+
+RECONCILE_KINDS = ("posting", "job", "profile", "skill")
+DEFAULT_LIMIT = 200
+DEFAULT_BUDGET = 2000
+DEFAULT_BATCH_SIZE = 10
+DEFAULT_WINDOW_DOCUMENTS = 128
+MAX_WINDOW_DOCUMENTS = 512
+DEFAULT_SCAN_LIMIT = 500
+FAILED_IDS_CAP = 25
+CARRY_FIELDS = ("seen", "missing", "stale", "failed", "embedded")
+#: The live-counter subset that rides a reconcile continuation verbatim, so
+#: the successor's bar resumes instead of resetting. No ids or text.
+DETAIL_COUNTER_FIELDS = (
+    "processed_documents",
+    "total_documents",
+    "processed_chunks",
+    "embedded_chunks",
+    "skipped_chunks",
+    "failed_chunks",
+    "embedded_documents",
+    "skipped_documents",
+    "failed_documents",
+    "embed_calls",
+)
+
+CancelledCb = Callable[[], Awaitable[bool]]
+Cursor = tuple[datetime, str]
+
+
+@dataclass(frozen=True)
+class KindCoverage:
+    """One kind's coverage at the moment the pass finished it."""
+
+    kind: str
+    total: int = 0
+    missing: int = 0
+    stale: int = 0
+    failed: int = 0
+    embedded: int = 0
+    as_of: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "total": self.total,
+            "missing": self.missing,
+            "stale": self.stale,
+            "failed": self.failed,
+            "embedded": self.embedded,
+            "as_of": self.as_of.isoformat(),
+        }
+
+
+@dataclass(frozen=True)
+class ReconcileResult:
+    """The ``background_jobs.result`` payload of one reconcile run."""
+
+    space: str
+    space_id: str | None = None
+    kinds: tuple[KindCoverage, ...] = ()
+    scanned: int = 0
+    embedded: int = 0
+    skipped: int = 0
+    written: int = 0
+    pruned: int = 0
+    failed: int = 0
+    failed_ids: tuple[str, ...] = ()
+    failed_ids_truncated: bool = False
+    deferred: int = 0
+    orphans_removed: int = 0
+    cancelled: bool = False
+    budget_exhausted: bool = False
+    degraded: str | None = None
+    next_after: dict[str, dict[str, str] | None] = field(default_factory=dict)
+    carry: dict[str, dict[str, int]] = field(default_factory=dict)
+    completed_kinds: tuple[str, ...] = ()
+    done: bool = True
+    remaining: int = 0
+    #: Live counters for the next chained run (empty when the chain is done).
+    progress: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "space": self.space,
+            "space_id": self.space_id,
+            "kinds": [coverage.as_dict() for coverage in self.kinds],
+            "scanned": self.scanned,
+            "embedded": self.embedded,
+            "skipped": self.skipped,
+            "written": self.written,
+            "pruned": self.pruned,
+            "failed": self.failed,
+            "failed_ids": list(self.failed_ids),
+            "failed_ids_truncated": self.failed_ids_truncated,
+            "deferred": self.deferred,
+            "orphans_removed": self.orphans_removed,
+            "cancelled": self.cancelled,
+            "budget_exhausted": self.budget_exhausted,
+            "degraded": self.degraded,
+            "next_after": {
+                kind: (dict(cursor) if cursor is not None else None)
+                for kind, cursor in self.next_after.items()
+            },
+            "carry": {kind: dict(stats) for kind, stats in self.carry.items()},
+            "completed_kinds": list(self.completed_kinds),
+            "done": self.done,
+            "remaining": self.remaining,
+            "progress_carry": dict(self.progress),
+        }
+
+
+class VectorReconcileService:
+    """Classify every document against its source and index what drifted."""
+
+    def __init__(
+        self,
+        db: AsyncSession,
+        *,
+        store: VectorStoreService | None = None,
+        space_name: str = CONTENT_SPACE,
+        space_id: str | uuid.UUID | None = None,
+        kinds: Sequence[str] | None = None,
+        limit: int = DEFAULT_LIMIT,
+        budget: int = DEFAULT_BUDGET,
+        batch_size: int = DEFAULT_BATCH_SIZE,
+        window_documents: int = DEFAULT_WINDOW_DOCUMENTS,
+        scan_limit: int = DEFAULT_SCAN_LIMIT,
+        after: Mapping[str, Any] | None = None,
+        carry: Mapping[str, Any] | None = None,
+        progress_carry: Mapping[str, Any] | None = None,
+        completed_kinds: Sequence[str] | None = None,
+        since: datetime | None = None,
+        force: bool = False,
+        only: Mapping[str, Sequence[str]] | None = None,
+        provision_backend: str | None = None,
+        embedder: Any = None,
+        run: Any = None,
+    ) -> None:
+        if store is None:
+            from app.core.database import sync_engine
+
+            store = VectorStoreService(sync_engine)
+        selected = tuple(kinds) if kinds else RECONCILE_KINDS
+        unknown = [kind for kind in selected if kind not in RECONCILE_KINDS]
+        if unknown:
+            raise ValueError(f"unknown reconcile kind(s): {unknown}")
+        self.db = db
+        self.store = store
+        self.space_name = space_name
+        self.space_id = str(space_id) if space_id is not None else None
+        self.kinds = selected
+        # A focused retry scans exactly these source ids per kind (the
+        # maintenance "retry-failed" path); it never writes a full coverage
+        # snapshot and never chains a continuation.
+        self._only = parse_only(only)
+        self.limit = max(int(limit), 1)
+        self.budget = max(int(budget), 0)
+        self.batch_size = max(int(batch_size), 1)
+        self.window_documents = min(max(int(window_documents), 1), MAX_WINDOW_DOCUMENTS)
+        self.scan_limit = max(int(scan_limit), 1)
+        self.since = since
+        self.force = force
+        self._run = run
+        self._after = parse_after(after)
+        self._carry = parse_carry(carry)
+        self._progress_carry = parse_progress_carry(progress_carry)
+        self._completed = set(parse_completed_kinds(completed_kinds))
+        self._indexer = VectorIndexService(
+            db,
+            store=store,
+            space_name=space_name,
+            space_id=space_id,
+            embedder=embedder,
+            provision_backend=provision_backend,
+            run=run,
+        )
+        self._units = 0
+
+    async def run(
+        self,
+        *,
+        progress: ProgressCb | None = None,
+        cancelled: CancelledCb | None = None,
+    ) -> ReconcileResult:
+        """Classify + index one bounded batch; never raises for a document failure."""
+        scanned = embedded = skipped = written = pruned = 0
+        failed = deferred = orphans = 0
+        failed_ids: list[str] = []
+        truncated = withdrew = budget_exhausted = False
+        coverages: list[KindCoverage] = []
+        degraded: str | None = None
+        next_after: dict[str, dict[str, str] | None] = {}
+        next_carry: dict[str, dict[str, int]] = {}
+        completed = set(self._completed)
+        remaining = 0
+
+        only = self._only
+        population_by_kind = {
+            kind: (
+                len(only[kind])
+                if only is not None and kind in only
+                else await count_sources(self.db, kind, since=self.since)
+            )
+            for kind in self.kinds
+        }
+        population = sum(population_by_kind.values())
+        done_global = sum(
+            population_by_kind.get(kind, 0) for kind in self._completed if kind in self.kinds
+        ) + sum(
+            self._carry.get(kind, {}).get("seen", 0)
+            for kind in self.kinds
+            if kind not in self._completed
+        )
+
+        # Live counters (plan 52 T4). ``total_documents`` is exact at scan
+        # start and carried across the chain; chunk totals are cumulative or
+        # estimated because no full corpus pre-scan exists.
+        carried = self._progress_carry
+        total_documents = int(carried.get("total_documents") or population)
+        processed_documents = int(carried.get("processed_documents") or 0)
+        processed_chunks = int(carried.get("processed_chunks") or 0)
+        embedded_chunks = int(carried.get("embedded_chunks") or 0)
+        skipped_chunks = int(carried.get("skipped_chunks") or 0)
+        failed_chunks = int(carried.get("failed_chunks") or 0)
+        embedded_documents = int(carried.get("embedded_documents") or 0)
+        skipped_documents = int(carried.get("skipped_documents") or 0)
+        failed_documents = int(carried.get("failed_documents") or 0)
+        tokens: int | None = carried.get("tokens")
+        tokens_exact = bool(carried.get("tokens_exact"))
+        embed_calls = int(carried.get("embed_calls") or 0)
+
+        def live(phase: str, *, done: bool = False) -> dict[str, Any]:
+            """The bounded detail for one progress write (counts only)."""
+            pending_documents = max(total_documents - processed_documents, 0)
+            if processed_documents > 0 and pending_documents > 0:
+                average = processed_chunks / processed_documents
+                pending_chunks = max(round(average * pending_documents), 0)
+            else:
+                pending_chunks = 0
+            return {
+                "phase": phase,
+                "processed_documents": processed_documents,
+                "total_documents": total_documents,
+                "processed_chunks": processed_chunks,
+                "pending_chunks": pending_chunks,
+                "total_chunks": processed_chunks + pending_chunks,
+                "chunks_estimated": True,
+                "embedded_chunks": embedded_chunks,
+                "skipped_chunks": skipped_chunks,
+                "failed_chunks": failed_chunks,
+                "embedded_documents": embedded_documents,
+                "skipped_documents": skipped_documents,
+                "failed_documents": failed_documents,
+                "tokens": tokens,
+                "tokens_estimated": tokens is not None and not tokens_exact,
+                "embed_calls": embed_calls,
+                "exact_tokenizer": tokens_exact,
+                "done": done,
+            }
+
+        await self._report(
+            progress,
+            self._percent(done_global, population),
+            "scanning",
+            live("scanning"),
+        )
+
+        for kind in self.kinds:
+            if kind in completed:
+                continue
+            state = _empty_carry()
+            state.update(self._carry.get(kind, {}))
+            cursor = self._after.get(kind)
+            focused = only is not None and kind in only
+            if focused:
+                assert only is not None
+                sources = [SourceRow(source_id=str(source_id)) for source_id in only[kind]]
+            else:
+                sources = await list_sources(
+                    self.db,
+                    kind,
+                    since=self.since,
+                    after=cursor,
+                    limit=self.scan_limit,
+                )
+            hashes = self._stored_hashes(kind, [row.source_id for row in sources])
+            kind_total = population_by_kind.get(kind, 0)
+            last_processed: SourceRow | None = None
+            kind_complete = True
+
+            pending: list[PreparedDocument] = []
+            pending_rows: list[SourceRow] = []
+            pending_dirty: list[str] = []
+            pending_record_counts: list[int] = []
+            planned_units = 0
+
+            def absorb(
+                outcome: IndexOutcome,
+                *,
+                row: SourceRow,
+                record_count: int,
+                dirty: str,
+                state: dict[str, Any],
+                kind: str,
+                from_window: bool,
+            ) -> None:
+                """Apply one document's outcome to the run counters.
+
+                Window documents carry no per-document ``embed_calls``/
+                ``tokens``: the flush adds the window's request count and its
+                **deduped** token total once, so shared batches are never
+                counted per document (plan 201 S5).
+                """
+                nonlocal embedded, skipped, written, pruned, failed, deferred
+                nonlocal truncated, failed_ids, degraded, tokens, tokens_exact
+                nonlocal embed_calls
+                nonlocal processed_chunks, embedded_chunks, skipped_chunks
+                nonlocal failed_chunks
+                nonlocal failed_documents, skipped_documents, embedded_documents
+                nonlocal last_processed
+                if outcome.degraded is not None:
+                    degraded = outcome.degraded
+                    if outcome.degraded == "provider_unassigned":
+                        deferred += 1
+                        state[dirty] += 1
+                        skipped_documents += 1
+                    else:
+                        failed += 1
+                        state["failed"] += 1
+                        state[dirty] += 1
+                        truncated = (
+                            self._record_failure(failed_ids, kind, row.source_id) or truncated
+                        )
+                        processed_chunks += record_count
+                        failed_chunks += record_count
+                        failed_documents += 1
+                    state["seen"] += 1
+                    last_processed = row
+                    return
+                if outcome.failed:
+                    # A typed write failure (``input_too_long`` / a missing
+                    # tokenizer asset) is recorded once for this document and
+                    # the run moves on — never retried in a loop and never
+                    # silently truncated. A later reconcile may retry it.
+                    failed += 1
+                    state["failed"] += 1
+                    state[dirty] += 1
+                    truncated = self._record_failure(failed_ids, kind, row.source_id) or truncated
+                    failed_count = max(outcome.scanned, record_count)
+                    processed_chunks += failed_count
+                    failed_chunks += failed_count
+                    failed_documents += 1
+                    state["seen"] += 1
+                    last_processed = row
+                    return
+                state["embedded"] += 1
+                state["seen"] += 1
+                embedded += 1
+                written += outcome.written
+                pruned += outcome.pruned
+                self._units += outcome.embedded
+                processed_chunks += outcome.scanned
+                embedded_chunks += outcome.embedded
+                skipped_chunks += outcome.skipped
+                embedded_documents += 1
+                if not from_window:
+                    embed_calls += outcome.embed_calls
+                    if outcome.tokens is not None:
+                        tokens = (tokens or 0) + outcome.tokens
+                        tokens_exact = tokens_exact and outcome.tokens_exact
+                    elif outcome.embedded:
+                        tokens_exact = False
+                last_processed = row
+
+            async def flush_window(
+                *,
+                state: dict[str, Any],
+                kind: str,
+                pending: list[PreparedDocument],
+                pending_rows: list[SourceRow],
+                pending_dirty: list[str],
+                pending_record_counts: list[int],
+            ) -> bool:
+                """Embed + write one prepared window, then clear it (S5).
+
+                A budget that runs out mid-window stops the kind (the caller
+                counts the rest as deferred); nothing is marked failed.
+                """
+                nonlocal embed_calls, tokens, tokens_exact, budget_exhausted
+                nonlocal planned_units
+                try:
+                    flush = await self._indexer.embed_prepared(pending, progress=progress)
+                except AIBudgetExceededError:
+                    budget_exhausted = True
+                    return False
+                for doc_index, prepared in enumerate(pending):
+                    row = pending_rows[doc_index]
+                    dirty = pending_dirty[doc_index]
+                    record_count = pending_record_counts[doc_index]
+                    if doc_index in flush.degraded:
+                        outcome = self._indexer._degraded(
+                            prepared.kind, prepared.source_id, prepared.composed
+                        )
+                    elif doc_index in flush.failed:
+                        outcome = self._indexer._failed(
+                            prepared.kind,
+                            prepared.source_id,
+                            prepared.composed,
+                            RuntimeError(flush.failed[doc_index]),
+                            reason="embed_failed",
+                        )
+                    else:
+                        outcome = await self._indexer.write(
+                            prepared,
+                            flush.vectors.get(doc_index, []),
+                            tokens=prepared.changed_token_total,
+                            tokens_exact=prepared.changed_exact,
+                            progress=progress,
+                        )
+                    absorb(
+                        outcome,
+                        row=row,
+                        record_count=record_count,
+                        dirty=dirty,
+                        state=state,
+                        kind=kind,
+                        from_window=True,
+                    )
+                embed_calls += flush.embed_calls + sum(doc.space_creation_calls for doc in pending)
+                if flush.tokens is not None:
+                    tokens = (tokens or 0) + flush.tokens
+                    tokens_exact = tokens_exact and flush.tokens_exact
+                elif flush.vectors:
+                    tokens_exact = False
+                pending.clear()
+                pending_rows.clear()
+                pending_dirty.clear()
+                pending_record_counts.clear()
+                planned_units = 0
+                return True
+
+            for row in sources:
+                if cancelled is not None and await cancelled():
+                    withdrew = True
+                    kind_complete = False
+                    break
+                if embedded + len(pending) >= self.limit or (
+                    self._units + planned_units >= self.budget
+                ):
+                    # The window reproduces today's start-of-document cap: a
+                    # document is admitted while the remaining limit and budget
+                    # still have room, so the overshoot bound stays one
+                    # document (a `budget=1` run still embeds its first).
+                    budget_exhausted = budget_exhausted or (
+                        self._units + planned_units >= self.budget
+                    )
+                    kind_complete = False
+                    break
+                done_global += 1
+                await self._report(
+                    progress,
+                    self._percent(done_global, population),
+                    f"scanning {kind}",
+                    live("scanning"),
+                )
+                processed_documents += 1
+                loaded = await load_source(self.db, kind, row.source_id)
+                if loaded is None:
+                    orphans += await self._drop_orphan(kind, row.source_id)
+                    scanned += 1
+                    state["seen"] += 1
+                    skipped_documents += 1
+                    last_processed = row
+                    continue
+                scanned += 1
+                record_count = len(loaded.composed.records)
+                if loaded.composed.is_empty:
+                    state["embedded"] += 1
+                    state["seen"] += 1
+                    skipped_documents += 1
+                    last_processed = row
+                    continue
+                stored = hashes.get(row.source_id)
+                if stored == loaded.composed.source_hash and not self.force:
+                    state["embedded"] += 1
+                    skipped += 1
+                    state["seen"] += 1
+                    processed_chunks += record_count
+                    skipped_chunks += record_count
+                    skipped_documents += 1
+                    last_processed = row
+                    continue
+                dirty = "missing" if stored is None else "stale"
+                if cancelled is not None and await cancelled():
+                    withdrew = True
+                    kind_complete = False
+                    break
+                try:
+                    staged = await self._indexer.prepare(
+                        loaded, kind=kind, source_id=row.source_id, force=self.force
+                    )
+                except AIBudgetExceededError:
+                    # The first document's space creation embeds too; a budget
+                    # that trips there is the same deferral (plan 201 S1).
+                    budget_exhausted = True
+                    kind_complete = False
+                    break
+                if isinstance(staged, IndexOutcome):
+                    # A terminal prepare outcome (no space, index missing,
+                    # input too long, a missing tokenizer asset, or a
+                    # first-document space creation that already embedded).
+                    await flush_window(
+                        state=state,
+                        kind=kind,
+                        pending=pending,
+                        pending_rows=pending_rows,
+                        pending_dirty=pending_dirty,
+                        pending_record_counts=pending_record_counts,
+                    )
+                    absorb(
+                        staged,
+                        row=row,
+                        record_count=record_count,
+                        dirty=dirty,
+                        state=state,
+                        kind=kind,
+                        from_window=False,
+                    )
+                    continue
+                pending.append(staged)
+                pending_rows.append(row)
+                pending_dirty.append(dirty)
+                pending_record_counts.append(record_count)
+                planned_units += len(staged.changed)
+                if len(pending) >= self.window_documents and not await flush_window(
+                    state=state,
+                    kind=kind,
+                    pending=pending,
+                    pending_rows=pending_rows,
+                    pending_dirty=pending_dirty,
+                    pending_record_counts=pending_record_counts,
+                ):
+                    kind_complete = False
+
+            if pending:
+                await flush_window(
+                    state=state,
+                    kind=kind,
+                    pending=pending,
+                    pending_rows=pending_rows,
+                    pending_dirty=pending_dirty,
+                    pending_record_counts=pending_record_counts,
+                )
+
+            if kind_complete and not focused and len(sources) >= self.scan_limit:
+                kind_complete = False
+
+            if kind_complete:
+                coverage = KindCoverage(
+                    kind=kind,
+                    total=kind_total,
+                    missing=state["missing"],
+                    stale=state["stale"],
+                    failed=state["failed"],
+                    embedded=state["embedded"],
+                    as_of=datetime.now(UTC),
+                )
+                if not focused:
+                    await self._write_snapshot(coverage)
+                coverages.append(coverage)
+                completed.add(kind)
+                next_after[kind] = None
+                continue
+
+            next_cursor = (
+                self._cursor_from_row(last_processed) if last_processed is not None else cursor
+            )
+            if focused:
+                kind_remaining = 0
+            else:
+                kind_remaining = (
+                    await count_sources(self.db, kind, since=self.since, after=next_cursor)
+                    if next_cursor is not None
+                    else kind_total
+                )
+            remaining += kind_remaining
+            deferred += kind_remaining
+            next_after[kind] = self._cursor_dict(next_cursor)
+            next_carry[kind] = state
+            coverages.append(
+                KindCoverage(
+                    kind=kind,
+                    total=kind_total,
+                    missing=state["missing"] + kind_remaining,
+                    stale=state["stale"],
+                    failed=state["failed"],
+                    embedded=state["embedded"],
+                    as_of=datetime.now(UTC),
+                )
+            )
+            if withdrew:
+                break
+
+        done = all(kind in completed for kind in self.kinds)
+        if done and self.since is None and self._only is None:
+            for kind in self.kinds:
+                orphans += await self._sweep_orphans(kind)
+        await self._report(
+            progress,
+            100,
+            "reconciled" if done else "batch reconciled",
+            live("done" if done else "scanning", done=done),
+        )
+        progress_carry: dict[str, Any] = {}
+        if not done:
+            progress_carry = {
+                "processed_documents": processed_documents,
+                "total_documents": total_documents,
+                "processed_chunks": processed_chunks,
+                "embedded_chunks": embedded_chunks,
+                "skipped_chunks": skipped_chunks,
+                "failed_chunks": failed_chunks,
+                "embedded_documents": embedded_documents,
+                "skipped_documents": skipped_documents,
+                "failed_documents": failed_documents,
+                "tokens": tokens,
+                "tokens_exact": tokens_exact,
+                "embed_calls": embed_calls,
+            }
+        return ReconcileResult(
+            space=self.space_name,
+            space_id=self.space_id,
+            kinds=tuple(coverages),
+            scanned=scanned,
+            embedded=embedded,
+            skipped=skipped,
+            written=written,
+            pruned=pruned,
+            failed=failed,
+            failed_ids=tuple(failed_ids),
+            failed_ids_truncated=truncated,
+            deferred=deferred,
+            orphans_removed=orphans,
+            cancelled=withdrew,
+            budget_exhausted=budget_exhausted,
+            degraded=degraded,
+            next_after=next_after,
+            carry=next_carry,
+            completed_kinds=tuple(kind for kind in self.kinds if kind in completed),
+            done=done,
+            remaining=remaining,
+            progress=progress_carry,
+        )
+
+    # ----------------------------------------------------------- internals
+
+    def _space(self):
+        try:
+            if self.space_id is not None:
+                return self.store.resolve_space(self.space_id)
+            return self.store.active_space(self.space_name)
+        except (VectorSpaceNotFound, VectorBackendError):
+            return None
+
+    def _stored_hashes(self, kind: str, source_ids: Sequence[str]) -> dict[str, str]:
+        space = self._space()
+        if space is None:
+            return {}
+        return self.store.document_hashes(space, kind=kind, source_ids=source_ids)
+
+    @staticmethod
+    def _cursor_from_row(row: SourceRow | None) -> Cursor | None:
+        if row is None or row.updated_at is None:
+            return None
+        return (row.updated_at, row.source_id)
+
+    @staticmethod
+    def _cursor_dict(cursor: Cursor | None) -> dict[str, str] | None:
+        if cursor is None:
+            return None
+        updated, source_id = cursor
+        value = (
+            updated.astimezone(UTC).isoformat() if isinstance(updated, datetime) else str(updated)
+        )
+        return {"updated_at": value, "id": str(source_id)}
+
+    async def _sweep_orphans(self, kind: str) -> int:
+        """Delete documents whose source no longer resolves, page by page.
+
+        The polymorphic document has no FK to its source, so this is the
+        safety net after a hard delete. It only runs after a full pass (never
+        on a partial batch), and each page holds at most ``scan_limit``
+        documents; the ``after_id`` cursor walks every page so an orphan past
+        the first page is still reached. A windowed (``since``) pass never
+        sweeps: its source list is not the population.
+        """
+        space = self._space()
+        if space is None:
+            return 0
+        removed = 0
+        after_id: str | None = None
+        while True:
+            page = list(
+                self.store.lookup_documents(
+                    space,
+                    kind=kind,
+                    after_id=after_id,
+                    limit=self.scan_limit,
+                ).values()
+            )
+            if not page:
+                break
+            for info in page:
+                if await load_source(self.db, kind, info.source_id) is not None:
+                    continue
+                removed += 1 if self.store.delete_document(space, info.document_id) else 0
+            after_id = page[-1].document_id
+            if len(page) < self.scan_limit:
+                break
+        return removed
+
+    async def _drop_orphan(self, kind: str, source_id: str) -> int:
+        """Delete the document of a source row that no longer resolves."""
+        space = self._space()
+        if space is None:
+            return 0
+        document_id = self.store.find_document(space, kind=kind, source_id=source_id)
+        if document_id is None:
+            return 0
+        return 1 if self.store.delete_document(space, document_id) else 0
+
+    async def _write_snapshot(self, coverage: KindCoverage) -> None:
+        """Commit the coverage point through the store's own session.
+
+        A coverage snapshot is a store fact: writing it beside the documents
+        keeps it visible to the sync-engine status reads immediately, and
+        never ties it to the caller's request transaction. The chain's
+        ``embedded`` counter accumulates across batches while ``total`` is a
+        point-in-time population count, so postings leaving the population
+        mid-chain can push embedded past the contract's bound — clamp to the
+        partition the snapshot itself claims before it becomes a stored fact.
+        """
+        space = self._space()
+        if space is None or space.space_id is None:
+            return
+        embedded = min(
+            coverage.embedded,
+            max(coverage.total - coverage.missing - coverage.stale - coverage.failed, 0),
+        )
+        with self.store.session_factory() as session:
+            session.add(
+                RetrievalCoverageSnapshot(
+                    id=uuid.uuid4(),
+                    space_id=uuid.UUID(str(space.space_id)),
+                    kind=coverage.kind,
+                    as_of=coverage.as_of,
+                    total=coverage.total,
+                    missing=coverage.missing,
+                    stale=coverage.stale,
+                    failed=coverage.failed,
+                    embedded=embedded,
+                )
+            )
+            session.commit()
+
+    @staticmethod
+    def _record_failure(failed_ids: list[str], kind: str, source_id: str) -> bool:
+        """Append a bounded failure id; True when the list overflowed."""
+        if len(failed_ids) < FAILED_IDS_CAP:
+            failed_ids.append(f"{kind}:{source_id}")
+            return False
+        return True
+
+    @staticmethod
+    def _percent(done: int, total: int) -> int:
+        if total <= 0:
+            return 5
+        return min(95, max(5, int(95 * done / total)))
+
+    @staticmethod
+    async def _report(
+        progress: ProgressCb | None,
+        value: int,
+        stage: str,
+        detail: Mapping[str, Any] | None = None,
+    ) -> None:
+        if progress is not None:
+            await progress(value, stage, dict(detail) if detail is not None else None)
+
+
+def _empty_carry() -> dict[str, int]:
+    return dict.fromkeys(CARRY_FIELDS, 0)
+
+
+def parse_kinds(value: Any) -> tuple[str, ...] | None:
+    """Payload ``kinds`` → a validated tuple (``None`` = all supported kinds)."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        value = [part.strip() for part in value.split(",") if part.strip()]
+    if not isinstance(value, (list, tuple)) or not value:
+        raise ValueError("kinds must be a non-empty list")
+    selected = tuple(str(kind) for kind in value)
+    unknown = [kind for kind in selected if kind not in RECONCILE_KINDS]
+    if unknown:
+        raise ValueError(f"unknown reconcile kind(s): {unknown}")
+    return selected
+
+
+def parse_since(value: Any) -> datetime | None:
+    """Payload ``since`` → an aware UTC datetime (``None`` = the whole corpus)."""
+    if value in (None, ""):
+        return None
+    if isinstance(value, datetime):
+        parsed = value
+    else:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def parse_after(value: Any) -> dict[str, Cursor]:
+    """Payload ``after`` → per-kind exclusive ``(updated_at, id)`` cursors.
+
+    The JSON shape is ``{"<kind>": {"updated_at": ISO, "id": UUID}}``. An
+    empty/missing map starts every kind at the beginning.
+    """
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("after must be an object keyed by kind")
+    cursors: dict[str, Cursor] = {}
+    for kind, entry in value.items():
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown reconcile kind in after: {kind}")
+        if entry is None:
+            continue
+        if isinstance(entry, tuple) and len(entry) == 2:
+            # Already-parsed cursors: the service's ``__init__`` re-parses the
+            # map the handler just parsed, so a chained payload arrives here
+            # twice — once as payload JSON (dicts) and once as ``(updated_at,
+            # id)`` tuples. Both shapes are accepted (the double parse turned
+            # every chained reconcile into ``after[kind] must be an object``).
+            updated, source_id = entry
+            cursors[str(kind)] = (updated, str(source_id))
+            continue
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"after[{kind}] must be an object")
+        updated = parse_since(entry.get("updated_at"))
+        source_id = entry.get("id")
+        if updated is None or source_id in (None, ""):
+            raise ValueError(f"after[{kind}] requires updated_at and id")
+        cursors[str(kind)] = (updated, str(source_id))
+    return cursors
+
+
+def parse_carry(value: Any) -> dict[str, dict[str, int]]:
+    """Payload ``carry`` → cumulative per-kind counters for a chained scan."""
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("carry must be an object keyed by kind")
+    carried: dict[str, dict[str, int]] = {}
+    for kind, entry in value.items():
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown reconcile kind in carry: {kind}")
+        if not isinstance(entry, Mapping):
+            raise ValueError(f"carry[{kind}] must be an object")
+        carried[str(kind)] = {name: max(int(entry.get(name) or 0), 0) for name in CARRY_FIELDS}
+    return carried
+
+
+def parse_progress_carry(value: Any) -> dict[str, Any]:
+    """Payload ``progress_carry`` → bounded cumulative live counters.
+
+    This is the reconcile chain's detail carry: it lets a continuation resume
+    the bar with the parent's processed/total documents and chunk/token
+    counters. Unknown keys are ignored; every counter is clamped and optional
+    values stay optional (``tokens`` is ``None`` until measured).
+    """
+    if value in (None, "", {}):
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("progress_carry must be an object")
+    carried: dict[str, Any] = {}
+    for name in DETAIL_COUNTER_FIELDS:
+        carried[name] = max(0, min(int(value.get(name) or 0), MAX_PROGRESS_COUNTER))
+    tokens = value.get("tokens")
+    carried["tokens"] = (
+        min(int(tokens), MAX_PROGRESS_COUNTER)
+        if isinstance(tokens, int) and not isinstance(tokens, bool) and tokens >= 0
+        else None
+    )
+    carried["tokens_exact"] = bool(value.get("tokens_exact"))
+    return carried
+
+
+def parse_completed_kinds(value: Any) -> tuple[str, ...]:
+    """Payload ``completed_kinds`` → kinds already complete in this chain."""
+    if value in (None, "", []):
+        return ()
+    if isinstance(value, str):
+        value = [part.strip() for part in value.split(",") if part.strip()]
+    if not isinstance(value, (list, tuple)):
+        raise ValueError("completed_kinds must be a list")
+    completed = tuple(str(kind) for kind in value)
+    unknown = [kind for kind in completed if kind not in RECONCILE_KINDS]
+    if unknown:
+        raise ValueError(f"unknown completed kind(s): {unknown}")
+    return completed
+
+
+def parse_only(value: Any) -> dict[str, tuple[str, ...]] | None:
+    """A focused retry list (``kind:source_id``) → ``{kind: (source_id, ...)}``.
+
+    This is the bounded "retry failed documents" scope: only the ids named
+    here are loaded, never a fresh corpus scan. The list is capped by the
+    contract's failed-id bound so one request can never become a backfill.
+    """
+    if value in (None, "", [], {}):
+        return None
+    if isinstance(value, Mapping):
+        rows = [
+            f"{kind}:{source_id}"
+            for kind, source_ids in value.items()
+            for source_id in (source_ids or ())
+        ]
+    elif isinstance(value, str):
+        rows = [part.strip() for part in value.split(",") if part.strip()]
+    elif isinstance(value, (list, tuple)):
+        rows = [str(item) for item in value]
+    else:
+        raise ValueError("only must be a list of kind:source_id entries")
+    grouped: dict[str, list[str]] = {}
+    for row in rows:
+        kind, _, source_id = str(row).partition(":")
+        if not kind or not source_id:
+            raise ValueError(f"invalid retry entry {row!r}; expected kind:source_id")
+        if kind not in RECONCILE_KINDS:
+            raise ValueError(f"unknown retry kind {kind!r}")
+        grouped.setdefault(kind, []).append(source_id)
+    total = sum(len(ids) for ids in grouped.values())
+    if total > FAILED_IDS_LIMIT:
+        raise ValueError(f"at most {FAILED_IDS_LIMIT} source ids may be retried at once")
+    return {kind: tuple(dict.fromkeys(ids)) for kind, ids in grouped.items()}
+
+
+__all__ = [
+    "CARRY_FIELDS",
+    "DEFAULT_BATCH_SIZE",
+    "DEFAULT_BUDGET",
+    "DEFAULT_LIMIT",
+    "DEFAULT_SCAN_LIMIT",
+    "FAILED_IDS_CAP",
+    "FAILED_IDS_LIMIT",
+    "RECONCILE_KINDS",
+    "KindCoverage",
+    "ReconcileResult",
+    "VectorReconcileService",
+    "parse_after",
+    "parse_carry",
+    "parse_completed_kinds",
+    "parse_kinds",
+    "parse_only",
+    "parse_progress_carry",
+    "parse_since",
+]

@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import NotFoundError
 from app.models.metric_model import UserMetricProfile
+from app.services.catalog.metric_service import MetricService
 from app.services.deps import get_current_user
-from app.services.metric_service import MetricService
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
 
@@ -126,9 +126,7 @@ async def skill_transferability(
     `share` = fraction of job families (with published jobs) whose jobs
     ask for the skill — "your SQL transfers to 12 of 20 families".
     """
-    return await MetricService(db).transferability_rows(
-        skill_key=skill_key, limit=limit
-    )
+    return await MetricService(db).transferability_rows(skill_key=skill_key, limit=limit)
 
 
 @router.post("/transferability/recompute", response_model=dict)

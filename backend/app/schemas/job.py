@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Literal
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -25,9 +25,9 @@ MoneyRange = tuple[int, int]
 
 class SalaryInfo(BaseModel):
     currency: str = "USD"
-    entry: Optional[MoneyRange] = None
-    median: Optional[MoneyRange] = None
-    senior: Optional[MoneyRange] = None
+    entry: MoneyRange | None = None
+    median: MoneyRange | None = None
+    senior: MoneyRange | None = None
 
 
 class DemandInfo(BaseModel):
@@ -70,13 +70,13 @@ BENEFIT_KINDS = Literal[
 
 class CatalogWorkHours(BaseModel):
     pattern: Literal["full_time", "part_time"]
-    hours_per_week_min: Optional[int] = Field(default=None, ge=1, le=80)
-    hours_per_week_max: Optional[int] = Field(default=None, ge=1, le=80)
+    hours_per_week_min: int | None = Field(default=None, ge=1, le=80)
+    hours_per_week_max: int | None = Field(default=None, ge=1, le=80)
 
 
 class CatalogTravel(BaseModel):
     level: Literal["none", "occasional", "frequent"]
-    days_per_month: Optional[int] = Field(default=None, ge=0, le=31)
+    days_per_month: int | None = Field(default=None, ge=0, le=31)
 
 
 class WorkStyle(BaseModel):
@@ -107,7 +107,7 @@ class JobAttributes(BaseModel):
     subjects: list[str] = Field(default_factory=list, max_length=10)
     # Typical years of experience band (min, max) — feeds the fit engine's
     # experience dimension (Phase 22). Absent ⇒ neutral "no signal".
-    experience_typical_years: Optional[tuple[float, float]] = None
+    experience_typical_years: tuple[float, float] | None = None
     work_style: WorkStyle = Field(default_factory=WorkStyle)
     education: EducationRequirement = Field(default_factory=EducationRequirement)
     physical: PhysicalRequirement = Field(default_factory=PhysicalRequirement)
@@ -116,10 +116,10 @@ class JobAttributes(BaseModel):
     environments: list[Environment] = Field(default_factory=list, max_length=6)
     typical_positives: list[Aspect] = Field(default_factory=list, max_length=8)
     typical_negatives: list[Aspect] = Field(default_factory=list, max_length=8)
-    contract_type: Optional[CONTRACT_TYPES] = None
-    work_hours: Optional[CatalogWorkHours] = None
+    contract_type: CONTRACT_TYPES | None = None
+    work_hours: CatalogWorkHours | None = None
     schedule_cues: list[SCHEDULE_CUES] = Field(default_factory=list, max_length=5)
-    travel_required: Optional[CatalogTravel] = None
+    travel_required: CatalogTravel | None = None
     benefits_kinds: list[BENEFIT_KINDS] = Field(default_factory=list, max_length=9)
 
 
@@ -168,7 +168,7 @@ class JobFamilyOut(BaseModel):
     id: UUID
     key: str
     label: str
-    parent_id: Optional[UUID]
+    parent_id: UUID | None
     path: str
     level: int
     description: str
@@ -190,14 +190,19 @@ class JobCreate(BaseModel):
 
 
 class JobUpdate(BaseModel):
-    title: Optional[str] = Field(default=None, min_length=2, max_length=160)
-    short_description: Optional[str] = Field(default=None, max_length=2000)
-    family_key: Optional[str] = None
-    attributes: Optional[JobAttributes] = None
-    interest_keys: Optional[list[str]] = Field(default=None, max_length=12)
-    skills: Optional[list[JobSkillIn]] = Field(default=None, max_length=15)
-    links: Optional[list[JobLink]] = Field(default=None, max_length=10)
-    status: Optional[JobStatus] = None
+    title: str | None = Field(default=None, min_length=2, max_length=160)
+    short_description: str | None = Field(default=None, max_length=2000)
+    family_key: str | None = None
+    attributes: JobAttributes | None = None
+    interest_keys: list[str] | None = Field(default=None, max_length=12)
+    skills: list[JobSkillIn] | None = Field(default=None, max_length=15)
+    links: list[JobLink] | None = Field(default=None, max_length=10)
+    status: Literal["draft", "published"] | None = None
+
+
+class JobRetiredIntoOut(BaseModel):
+    code: str
+    title: str = ""
 
 
 class JobOut(BaseModel):
@@ -205,6 +210,7 @@ class JobOut(BaseModel):
     code: str
     title: str
     family_key: str = ""
+    family_label: str = ""
     short_description: str
     status: JobStatus
     source: JobSource
@@ -213,30 +219,47 @@ class JobOut(BaseModel):
     skills: list[JobSkillOut] = Field(default_factory=list)
     links: list[JobLink] = Field(default_factory=list)
     created_at: datetime
+    open_roles: int | None = None
+    retired_into: JobRetiredIntoOut | None = None
 
     model_config = {"from_attributes": True}
 
     @classmethod
-    def from_model(cls, job: "Job") -> "JobOut":  # noqa: F821
-        """Build an API representation from the ORM model."""
+    def from_model(
+        cls,
+        job: "Job",
+        overlay: dict[str, str] | None = None,
+        skill_labels: dict | None = None,
+        family_label: str | None = None,
+    ) -> "JobOut":
+        """Build an API representation from the ORM model.
+
+        ``overlay`` carries approved localized field values (``label`` ->
+        title, ``short_description`` -> summary) and ``skill_labels`` maps
+        skill ids to approved localized labels. Base values are untouched.
+        """
+        localized = overlay or {}
+        skill_map = skill_labels or {}
         return cls(
             id=job.id,
             code=job.code,
-            title=job.title,
+            title=localized.get("label") or job.title,
             family_key=job.family.key if job.family else "",
-            short_description=job.short_description,
+            family_label=family_label
+            if family_label is not None
+            else (job.family.label if job.family else ""),
+            short_description=localized.get("short_description") or job.short_description,
             status=JobStatus(job.status),
             source=JobSource(job.source),
             attributes=JobAttributes.model_validate(job.attributes or {}),
             interests=[
-                InterestRefOut(key=link.tag.key, label=link.tag.label)
-                for link in job.tag_links
+                InterestRefOut(key=link.tag.key, label=link.tag.label) for link in job.tag_links
             ],
             skills=[
                 JobSkillOut(
                     skill_id=link.skill_id,
                     key=link.skill.key,
-                    label=link.skill.label,
+                    label=skill_map.get(link.skill_id) or link.skill.label,
                     required_level=link.required_level,
                     importance=JobSkillImportance(link.importance),
                     rationale=link.rationale,
@@ -245,7 +268,21 @@ class JobOut(BaseModel):
             ],
             links=[JobLink.model_validate(link) for link in job.links or []],
             created_at=job.created_at,
+            retired_into=JobRetiredIntoOut(
+                code=str((job.ai_metadata or {}).get("retired_into")),
+                title=str((job.ai_metadata or {}).get("retired_into_title") or ""),
+            )
+            if (job.ai_metadata or {}).get("retired_into")
+            else None,
         )
+
+
+class JobsPageOut(BaseModel):
+    """A catalog page with the self-excluding facet counts the rail renders."""
+
+    items: list[JobOut] = Field(default_factory=list)
+    total: int = 0
+    facets: dict[str, dict[str, int]] = Field(default_factory=dict)
 
 
 class RelationOut(BaseModel):
@@ -265,7 +302,7 @@ class GraphNode(BaseModel):
     code: str
     title: str
     family_key: str
-    demand: Optional[str] = None
+    demand: str | None = None
 
 
 class GraphEdge(BaseModel):
@@ -278,3 +315,51 @@ class GraphEdge(BaseModel):
 class JobGraph(BaseModel):
     nodes: list[GraphNode]
     edges: list[GraphEdge]
+
+
+class SimilarJobOut(BaseModel):
+    """One similar catalog job from the job↔job match (plan 50 §7.3)."""
+
+    code: str
+    title: str
+    family_key: str | None = None
+    family_label: str | None = None
+    score: float = 0.0
+    #: Per-view cosines behind the score (semantic hits only).
+    per_view: dict[str, float] = Field(default_factory=dict)
+    #: ``semantic`` (vector match) or ``skill_overlap`` (lexical fallback).
+    source: Literal["semantic", "skill_overlap"] = "skill_overlap"
+
+
+class SimilarJobsOut(BaseModel):
+    """A page of similar jobs plus the honest degradation reason, if any."""
+
+    items: list[SimilarJobOut] = Field(default_factory=list)
+    source: Literal["semantic", "skill_overlap"] = "skill_overlap"
+    degraded: str | None = None
+    space_key: str | None = None
+
+
+class JobPostingMatchOut(BaseModel):
+    """One live posting ranked against a catalog job (plan 50 §7.3)."""
+
+    id: UUID
+    ref: str
+    title: str
+    org: str = ""
+    posted_at: datetime | None = None
+    status: str
+    catalog_job_id: UUID | None = None
+    score: float = 0.0
+    #: Per-view cosines behind the score (semantic hits only).
+    per_view: dict[str, float] = Field(default_factory=dict)
+    #: ``semantic`` (vector match) or ``catalog`` (the mapped postings).
+    source: Literal["semantic", "catalog"] = "catalog"
+
+
+class JobPostingsOut(BaseModel):
+    """A page of live postings for a job plus the degradation reason."""
+
+    items: list[JobPostingMatchOut] = Field(default_factory=list)
+    source: Literal["semantic", "catalog"] = "catalog"
+    degraded: str | None = None

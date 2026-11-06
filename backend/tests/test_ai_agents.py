@@ -1,3 +1,5 @@
+from sqlalchemy import select
+
 from app.ai.agents.job_generator import generate_jobs
 from app.ai.agents.match_scorer import score_match
 from app.ai.agents.profile_analyst import analyze_profile
@@ -8,15 +10,15 @@ from app.ai.schemas import ChatReply, ProfileInsight
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.seeds.run import seed_taxonomy
-from sqlalchemy import select
 
 
 async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
     from app.models.taxonomy_model import InterestTag
 
-    i, s = await seed_taxonomy(db)
-    from app.models.user_model import Profile, User, UserInterest
+    _i, _s = await seed_taxonomy(db)
     from nx_auth.passwords import hash_password
+
+    from app.models.user_model import Profile, User, UserInterest
 
     user = User(email="a@example.com", password_hash=hash_password("password123"))
     db.add(user)
@@ -25,11 +27,7 @@ async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
     db.add(profile)
     await db.flush()
     tag = (
-        (
-            await db.execute(
-                select(InterestTag).where(InterestTag.key == "technology-software")
-            )
-        )
+        (await db.execute(select(InterestTag).where(InterestTag.key == "technology-software")))
         .scalars()
         .first()
     )
@@ -42,12 +40,10 @@ async def test_profile_analyst_returns_structured_insight(db, seeded_catalog):
     assert "technology-software" not in insight.suggested_interest_keys
 
 
-async def test_job_generator_valid_and_deduped(
-    db, client, auth_headers, seeded_catalog
-):
-    from app.seeds.run import seed_taxonomy
+async def test_job_generator_valid_and_deduped(db, client, auth_headers, seeded_catalog):
+    from app.models.job_model import Job, JobFamily
     from app.models.taxonomy_model import InterestTag, Skill
-    from app.models.job_model import JobFamily, Job
+    from app.seeds.run import seed_taxonomy
 
     await seed_taxonomy(db)
     families = (await db.execute(select(JobFamily))).scalars().all()
@@ -75,13 +71,12 @@ async def test_job_generator_valid_and_deduped(
         assert rel.from_code in codes and rel.to_code in codes
 
 
-async def test_match_scorer_bounds_and_prereqs(
-    db, client, auth_headers, seeded_catalog
-):
+async def test_match_scorer_bounds_and_prereqs(db, client, auth_headers, seeded_catalog):
     from nx_auth.passwords import hash_password
-    from app.models.user_model import Profile, User, UserInterest
+
     from app.models.taxonomy_model import InterestTag
-    from app.services.job_service import JobService
+    from app.models.user_model import Profile, User, UserInterest
+    from app.services.catalog.job_service import JobService
 
     user = User(email="scorer@example.com", password_hash=hash_password("password123"))
     db.add(user)
@@ -90,11 +85,7 @@ async def test_match_scorer_bounds_and_prereqs(
     db.add(profile)
     await db.flush()
     tag = (
-        (
-            await db.execute(
-                select(InterestTag).where(InterestTag.key == "technology-software")
-            )
-        )
+        (await db.execute(select(InterestTag).where(InterestTag.key == "technology-software")))
         .scalars()
         .first()
     )
@@ -115,10 +106,10 @@ async def test_match_scorer_bounds_and_prereqs(
 
 
 async def test_relation_suggester_valid_codes(db, client, auth_headers, seeded_catalog):
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     service = JobService(db)
-    jobs, _ = await service.list_jobs(family_key="technology", page_size=5)
+    jobs, _, _ = await service.list_jobs(family_key="technology", page_size=5)
     snapshots = [service.job_snapshot(j) for j in jobs]
     suggestions = await suggest_relations(db, None, snapshots, max_suggestions=5)
     codes = {j["code"] for j in snapshots}
@@ -142,8 +133,9 @@ async def test_university_parser_extracts_structure(db, client, auth_headers):
 
 async def test_ai_generations_audited(db, client, auth_headers, seeded_catalog):
     from nx_auth.passwords import hash_password
+
     from app.models.user_model import Profile, User
-    from app.services.job_service import JobService
+    from app.services.catalog.job_service import JobService
 
     user = User(email="audit@example.com", password_hash=hash_password("password123"))
     db.add(user)
@@ -157,9 +149,7 @@ async def test_ai_generations_audited(db, client, auth_headers, seeded_catalog):
     rows = (
         (
             await db.execute(
-                select(AIGeneration).where(
-                    AIGeneration.task_type == AITaskType.MATCH_SCORE.value
-                )
+                select(AIGeneration).where(AIGeneration.task_type == AITaskType.MATCH_SCORE.value)
             )
         )
         .scalars()
@@ -212,9 +202,7 @@ async def test_run_linkage_records_on_audit_rows(db, client, auth_headers):
 async def test_run_absent_keeps_run_columns_null(db, client, auth_headers):
     """Byte-compat default: no `run` ⇒ the run columns stay NULL, exactly
     as every existing sync/single-call path."""
-    await ainvoke_structured(
-        db, AITaskType.ASSIST, ChatReply, system="s", user="CONTEXT_JSON: {}"
-    )
+    await ainvoke_structured(db, AITaskType.ASSIST, ChatReply, system="s", user="CONTEXT_JSON: {}")
     row = (
         (
             await db.execute(
@@ -265,7 +253,7 @@ async def test_structured_error_recorded(db, client, auth_headers, monkeypatch):
     provider_module.register_mock_fixture(AITaskType.CHAT, bad_builder)
     try:
         await ainvoke_structured(db, AITaskType.CHAT, ChatReply, system="s", user="x")
-        assert False, "expected StructuredAIError"
+        raise AssertionError("expected StructuredAIError")
     except StructuredAIError:
         pass
     finally:

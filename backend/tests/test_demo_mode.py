@@ -80,17 +80,14 @@ def db_counts(database: Path) -> dict[str, int]:
             "cv_documents",
             "job_postings",
             "posting_interactions",
+            "applications",
             "skills",
         ):
-            counts[table] = connection.execute(
-                f"SELECT COUNT(*) FROM {table}"
-            ).fetchone()[0]
+            counts[table] = connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
         demo_flag = connection.execute(
             "SELECT value FROM instance_settings WHERE key = 'demo_mode'"
         ).fetchone()
-        counts["demo_mode"] = (
-            1 if demo_flag is not None and demo_flag[0] == "true" else 0
-        )
+        counts["demo_mode"] = 1 if demo_flag is not None and demo_flag[0] == "true" else 0
         return counts
     finally:
         connection.close()
@@ -109,7 +106,7 @@ def named_counts(counts: dict[str, int]) -> dict[str, int]:
         "honors": counts["profile_achievements"],
         "cvs": counts["cv_documents"],
         "postings": counts["job_postings"],
-        "applications": counts["posting_interactions"],
+        "applications": counts["applications"],
         "demo_mode": counts["demo_mode"],
     }
 
@@ -166,9 +163,7 @@ def test_seeder_refuses_non_demo_instance(tmp_path: Path) -> None:
     database = demo_db(demo_dir)
     connection = sqlite3.connect(database)
     try:
-        connection.execute(
-            "UPDATE instance_settings SET value = 'false' WHERE key = 'demo_mode'"
-        )
+        connection.execute("UPDATE instance_settings SET value = 'false' WHERE key = 'demo_mode'")
         connection.commit()
     finally:
         connection.close()
@@ -263,6 +258,9 @@ async def test_instance_config_is_public_and_profile_exempt(client) -> None:
         "demo_mode": False,
         "auth_mode": "authenticated",
         "registration_enabled": auth_kit().config.registration_enabled,
+        # §4 entrypoint mode is public fact — the §4.5 control blocks
+        # "Remove login" on server instances (S14).
+        "identity_mode": "server",
     }
 
 
@@ -271,7 +269,7 @@ async def test_instance_config_reports_demo_mode(
 ) -> None:
     from app.main import create_app
 
-    monkeypatch.setattr(settings, "DEMO_MODE", True)
+    monkeypatch.setattr(settings, "demo_mode", True)
     application = create_app()
     async with CleanJarClient(
         transport=ASGITransport(app=application), base_url="http://test"
@@ -301,7 +299,7 @@ async def test_demo_principal_only_on_demo_instances(
 
     from app.main import create_app
 
-    monkeypatch.setattr(settings, "DEMO_MODE", True)
+    monkeypatch.setattr(settings, "demo_mode", True)
     application = create_app()
     async with CleanJarClient(
         transport=ASGITransport(app=application), base_url="http://test"
@@ -328,7 +326,5 @@ async def test_demo_token_rejected_on_non_demo_instance(client) -> None:
         auth_mode=AuthMode.DEMO,
     )
     access_name = cookie_names(kit.config).access
-    response = await client.get(
-        "/api/v1/auth/me", headers={"Cookie": f"{access_name}={token}"}
-    )
+    response = await client.get("/api/v1/auth/me", headers={"Cookie": f"{access_name}={token}"})
     assert response.status_code == 401

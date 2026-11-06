@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Growth } from "@/pages/Growth";
+import { Growth } from "@/features/growth/pages/Growth";
 import {
   fetchCheckinStatus,
   fetchGrowthPlans,
@@ -10,7 +10,7 @@ import {
   patchGrowthStep,
   skipCheckin,
 } from "@/api/growth";
-import type { GrowthPlanItem, RadarEntry } from "@/types";
+import type { GrowthPlanItem, RadarEntry } from "@/types/wire";
 
 vi.mock("@/api/growth", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/growth")>();

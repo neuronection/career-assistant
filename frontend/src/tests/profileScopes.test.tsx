@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { ProfileEdit } from "@/pages/ProfileEdit";
+import { ProfileEdit } from "@/features/profile/pages/ProfileEdit";
 import { useProfileStore } from "@/stores/profileStore";
 import { fetchProfile } from "@/api/profile";
 import { fetchMySkills } from "@/api/skills";

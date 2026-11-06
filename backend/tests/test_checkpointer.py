@@ -63,7 +63,7 @@ async def test_postgres_checkpointer_uses_a_connection_pool(db, auth_headers):
     from app.ai.checkpointer import aclose_checkpointer, get_checkpointer
     from app.core.config import settings
 
-    if settings.DATABASE_URL.startswith("sqlite"):
+    if settings.database_url.startswith("sqlite"):
         pytest.skip("pool shape is Postgres-only")
     await aclose_checkpointer()
     try:
@@ -79,10 +79,8 @@ async def test_postgres_checkpointer_uses_a_connection_pool(db, auth_headers):
         async_gen = saver.alist(config, limit=1).__aiter__()
         task = asyncio.create_task(async_gen.__anext__())
         task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await task
-        except asyncio.CancelledError:
-            pass
         with contextlib.suppress(StopAsyncIteration):
             await async_gen.aclose()
         rows = [entry async for entry in saver.alist(config, limit=10)]

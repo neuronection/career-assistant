@@ -7,7 +7,7 @@ flagged in the reviewer, never auto-applied.
 """
 
 import uuid
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -24,8 +24,8 @@ class CvEvidenceRef(BaseModel):
 class CvProposal(BaseModel):
     """One draft proposal (never auto-applied)."""
 
-    ref: Optional[CvEvidenceRef] = None
-    field: Optional[str] = Field(default=None, max_length=60)
+    ref: CvEvidenceRef | None = None
+    field: str | None = Field(default=None, max_length=60)
     text: str = Field(min_length=1, max_length=2000)
     # Plan 106: bullet actions carry 1-2 replacement bullets; the card
     # shows `text`, Apply lands them as editor chips (never auto-applied).
@@ -54,7 +54,7 @@ class CoverageEntry(BaseModel):
     skill_key: str
     label: str = ""
     priority: str = ""
-    user_level: Optional[int] = None
+    user_level: int | None = None
 
 
 class TailorCoverage(BaseModel):
@@ -79,12 +79,12 @@ class CompactionItem(BaseModel):
 class CvActionRequest(BaseModel):
     """Action payload; only the fields an action needs are read."""
 
-    posting_id: Optional[uuid.UUID] = None
-    ref: Optional[BulletTarget] = None
+    posting_id: uuid.UUID | None = None
+    ref: BulletTarget | None = None
     items: list[CompactionItem] = Field(default_factory=list, max_length=25)
-    tone: Optional[Literal["professional", "warm", "concise", "confident"]] = None
-    length: Optional[Literal["short", "medium", "long"]] = None
-    target_language: Optional[str] = Field(default=None, min_length=2, max_length=10)
+    tone: Literal["professional", "warm", "concise", "confident"] | None = None
+    length: Literal["short", "medium", "long"] | None = None
+    target_language: str | None = Field(default=None, min_length=2, max_length=10)
 
 
 class VerifiedProposal(BaseModel):
@@ -103,6 +103,6 @@ class CvSuggestionOut(BaseModel):
     action: str
     notes: str = ""
     proposals: list[VerifiedProposal] = Field(default_factory=list)
-    coverage: Optional[TailorCoverage] = None
+    coverage: TailorCoverage | None = None
     gaps: list[SectionGap] = Field(default_factory=list)
-    target_language: Optional[str] = None
+    target_language: str | None = None

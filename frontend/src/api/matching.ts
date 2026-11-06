@@ -1,19 +1,12 @@
-import { api } from "./client";
-import type {
-  Candidate,
-  Job,
-  JobMatchDetail,
-  MatchInsight,
-  MatchStatus,
-  RankedJob,
-} from "@/types";
+import { api } from "@/api/client";
+import type { Candidate, Job, MatchInsight, MatchStatus, RankedJob } from "@/types/wire";
+import type { JobMatchDetail } from "@/types";
 
 export async function fetchCandidates(params: Record<string, unknown> = {}): Promise<Candidate[]> {
   const { data } = await api.get<Candidate[]>("/match/candidates", { params });
   return data;
 }
-
-export async function scoreJobs(body: {
+async function scoreJobs(body: {
   job_id?: string;
   family_key?: string;
   all_candidates?: boolean;
@@ -24,11 +17,6 @@ export async function scoreJobs(body: {
     "/match/score",
     body,
   );
-  return data;
-}
-
-export async function fetchInsights(status?: MatchStatus): Promise<MatchInsight[]> {
-  const { data } = await api.get<MatchInsight[]>("/match/insights", { params: { status } });
   return data;
 }
 
@@ -72,14 +60,5 @@ export async function saveScoringWeights(weights: {
   interests: number;
 }): Promise<{ scoring_weights: typeof weights; refitted: number }> {
   const { data } = await api.put("/me/preferences/scoring", weights);
-  return data;
-}
-
-export async function refitFit(body: { job_id?: string; all?: boolean }): Promise<{
-  job_id?: string;
-  fit_score?: number;
-  breakdown?: unknown;
-}> {
-  const { data } = await api.post("/match/fit", body);
   return data;
 }

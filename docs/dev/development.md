@@ -31,17 +31,22 @@ Useful flags:
 
 | Task | Command |
 |---|---|
-| Backend tests | `./scripts/run-tests.sh` (or `cd backend && ./venv/bin/pytest tests -q -n auto`) |
-| Backend lint | `cd backend && ./venv/bin/ruff check app tests && ./venv/bin/ruff format --check app tests` |
+| Backend tests | `./scripts/run-tests.sh` (or `cd backend && uv run pytest tests -q -n auto`) |
+| Backend lint | `cd backend && uv run ruff check . && uv run ruff format --check .` |
+| Types + ratchet | `cd backend && uv run mypy && uv run python ../scripts/check-mypy-ratchet.py` |
 | Frontend build | `cd frontend && npm run build` |
-| Frontend tests | `cd frontend && npm run test -- --run` |
+| Frontend tests | `cd frontend && npm run test -- --run --coverage` |
 | Frontend lint | `cd frontend && npm run lint` |
 | E2E smoke | `./scripts/run-e2e.sh` |
+| assistant-ui drift | `node scripts/audit-assistant-ui-usage.mjs ./frontend/src` |
+| Dependency audit | `python scripts/check-dependency-audit.py` |
 | Seed catalog | `./scripts/seed.sh` |
 | Changelog gate | `./scripts/check-changelog.sh` |
 
-Everything above must pass locally before a PR — CI runs the same steps.
-Never commit untested code.
+Everything above must pass locally before a PR — CI runs the same steps and
+all of them block (no advisory/`continue-on-error` steps). Floors, type pegs
+and dependency exceptions are up-only; the process is documented in
+[testing.md](testing.md#quality-gates-ci).
 
 ## Conventions that matter
 
@@ -57,6 +62,14 @@ Never commit untested code.
   get Google-style docstrings.
 - **Migrations**: schema changes require an Alembic revision, reviewed by hand
   (see [migrations.md](migrations.md)).
+- **No compatibility shims.** A read fallback for an old shape, a dual-write,
+  a deprecated alias or a "legacy key tolerated" branch is rejected in
+  review. When a shape changes, the old shape dies in the same commit (a
+  migration folds the data if it matters at all).
+- **An API client function ships with its first consumer.** `frontend/src/
+  api/*` exports are surface, not inventory — `src/tests/apiSurface.test.ts`
+  fails an export nothing imports; shared code between a client's own calls
+  stays module-private.
 - **Changelog**: user-visible changes add an entry under `## [Unreleased]` in
   `CHANGELOG.md` (CI-enforced).
 
@@ -80,9 +93,9 @@ database. Merges are fast-forward only, so rebase/merge `main` before
 
 ## AI and scheduler in dev
 
-- **Mock AI** is opt-in (`MOCK_AI=1`, or `./scripts/run-dev.sh --mock-ai`).
+- **Mock AI** is opt-in (`CAREER_MOCK_AI=1`, or `./scripts/run-dev.sh --mock-ai`).
   With it off, dev AI stays unconfigured and AI endpoints answer `503`.
-- **`.env.test` sets `SCHEDULER_ENABLED=false`** — the live loop never runs in
+- **`.env.test` sets `CAREER_SCHEDULER_ENABLED=false`** — the live loop never runs in
   tests. Drive it directly with `SchedulerService(db).tick()`.
 - The gateway self-registers deterministic mock fixtures whenever a mock
   provider resolves (`ensure_mock_registry` in `app/ai/gateway.py`).

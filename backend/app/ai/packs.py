@@ -6,7 +6,6 @@ packs ride 37's import machinery later.
 """
 
 import uuid
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,8 +14,8 @@ from app.models.skill_pack_model import AISkillPack
 
 
 async def resolve_pack(
-    db: AsyncSession, task_value: str, *, user_id: Optional[uuid.UUID] = None
-) -> Optional[AISkillPack]:
+    db: AsyncSession, task_value: str, *, user_id: uuid.UUID | None = None
+) -> AISkillPack | None:
     """The governing pack for a task: latest published version, bank
     scope (user-authored packs join in a later slice via 37's import)."""
     rows = await db.execute(
@@ -32,11 +31,9 @@ async def resolve_pack(
     return rows.scalars().first()
 
 
-def compose_system(system: str, pack: Optional[AISkillPack]) -> str:
+def compose_system(system: str, pack: AISkillPack | None) -> str:
     """Pack instructions appended — the code prompt stays authoritative
     for schema/validation framing; the pack steers tone and structure."""
     if pack is None:
         return system
-    return (
-        f"{system}\n\nSKILL PACK — {pack.title} (v{pack.version}):\n{pack.instructions}"
-    )
+    return f"{system}\n\nSKILL PACK — {pack.title} (v{pack.version}):\n{pack.instructions}"

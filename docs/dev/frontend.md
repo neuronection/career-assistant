@@ -35,7 +35,7 @@ frontend/src/
 | `/onboarding`, `/onboarding/express` | Wizard + express start |
 | `/catalog`, `/catalog/graph`, `/catalog/generate`, `/jobs/:code` | Catalog, graph, AI generation, job detail |
 | `/rankings`, `/compare` | Rankings + compare tray |
-| `/postings`, `/postings/search` | Postings feed + Explore |
+| `/postings` (→ `/postings/search`), `/postings/feed`, `/postings/search` | Postings shell — search default + feed |
 | `/autopilot`, `/interviews`, `/growth` | Autopilot, interview prep, growth |
 | `/profile`, `/profile/experience`, `/profile/education`, `/profile/import`, `/profile/assessment` | Profile + workspaces |
 | `/catalog/universities`, `/catalog/universities/:id` | University intake |
@@ -59,7 +59,13 @@ Zustand stores in `stores/`:
 | `cvBuilderLinkStore` | Cross-surface CV live-sync (plan 104) |
 | `profileStore`, `profileProposalsStore` | Profile + pending proposal cards |
 | `templatePreviewsStore` | Template gallery previews |
-| `toastStore`, `devModeStore` | Notices, dev toggles |
+| `toastStore` | Notices |
+
+Page visibility lives outside the stores: `config/features.json` is the
+feature-state table (`on`/`beta`/`hidden`) that the sidebar, the beta
+banner, the demo tour and the docs-claims test all read. There is no dev
+mode and no hidden unlock — see
+[UI conventions → feature state](ui-conventions.md#2d-feature-state-beta-affordance).
 
 ## API client
 
@@ -75,7 +81,7 @@ Zustand stores in `stores/`:
 
 `components/ui/*` are **re-export shims** of `@neuronection/assistant-ui` — the
 app is fully adopted. Never reintroduce a local implementation; extend the
-library instead (see the `ca-assistant-ui` and `family-ui` skills). Styling
+library instead (see the assistant-ui docs and this repo's UI conventions). Styling
 goes through `--as-*` tokens and `data-as-*` attributes; app identity
 overrides live in `theme.css`.
 
@@ -89,9 +95,28 @@ Never reorder. Motion lives only in `styles/motion.css`.
 
 ## Internationalization
 
-`lib/i18n.ts` initializes i18next; resources live in `locales/`. User-facing
-strings should go through the i18n layer rather than being hard-coded. The
-`i18n-audit.test.ts` guards coverage.
+`lib/i18n.ts` initializes i18next with the three shipped locales (`en`
+source, `de`, `el`); resources live in `locales/`. The active locale comes
+from the caller's `users.locale` (via `/me/bootstrap`), falls back to the
+instance default (`app_settings` `i18n.default_locale`), then `en`, and
+sets `<html lang>`; changes apply without a reload. Number, date and
+currency formatting goes through `lib/format.ts` so `Intl` follows the same
+locale.
+
+Two gates keep coverage measurable:
+
+- **reverse lint** (`reverse-lint.test.ts`) — raw user-facing English in
+  `src/pages` and `src/components` fails the suite. The allowlist is
+  brands and technical tokens only; CV block `props` defaults are document
+  content and therefore exempt.
+- **catalog audit** (`i18n-audit.test.ts`) — every static `t()` key must
+  exist in `en.json`, and every catalog key must be referenced from app
+  source (dynamic `t(\`ns.${value}\`)` prefixes count).
+
+`scripts/translations/check_translations.py` (no flags) is the CI
+completeness gate for `de`/`el`; it fails on missing or extra keys.
+Catalog entity labels are **not** translated in JSX: they use review-first
+`label_overrides` rows resolved server-side (approved → base → key).
 
 ## Conventions
 

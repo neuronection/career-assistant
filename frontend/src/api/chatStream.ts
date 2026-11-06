@@ -47,7 +47,7 @@ function parseBlocks(buffer: string): SseBlock[] {
  * the axios client (§10 CSRF echo, §11 shell gate, §15 profile) — the
  * backend's double-submit CSRF gate 403s any cookie-bearing POST
  * without the `X-CSRF-Token` echo. */
-export async function streamChatRequest(
+async function streamChatRequest(
   path: string,
   body: unknown,
   callbacks: ChatStreamCallbacks,

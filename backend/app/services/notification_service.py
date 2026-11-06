@@ -11,7 +11,6 @@ reaches the inbox at all.
 
 import logging
 from datetime import timedelta
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy import select
@@ -24,12 +23,14 @@ from app.models.engagement_model import (
     NotificationKindPref,
     NotificationPreference,
     NotificationRecipient,
+    UserChannelConfig,
 )
 from app.models.enums import (
     DeliveryStatus,
     NotificationSeverity,
     NotificationStatus,
 )
+from app.models.followup_model import FollowupRule
 from app.services import notification_stream
 from app.services.notification_channels import (
     DeliveryContext,
@@ -45,13 +46,14 @@ DEDUP_TTL_DAYS = 7
 THREAD_KEYS = ("posting_ref", "job_id", "run_id", "goal_id", "family_key")
 
 TOASTY_CHANNELS = {"desktop", "browser"}
+DEFERRED_PREFIX = "deferred:"
 
 
 def _start_of_day():
     return utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def thread_key(source_ref: Optional[dict]) -> Optional[str]:
+def thread_key(source_ref: dict | None) -> str | None:
     """Stable thread signature for a typed source_ref (inbox threading)."""
     if not source_ref:
         return None
@@ -76,19 +78,25 @@ class NotificationService:
         *,
         title: str,
         body: str = "",
-        payload: Optional[dict] = None,
-        source_ref: Optional[dict] = None,
-        dedup_key: Optional[str] = None,
-        dedup_ttl_days: Optional[int] = None,
-        max_per_day: Optional[int] = None,
-        severity: Optional[str] = None,
-    ) -> Optional[Notification]:
+        payload: dict | None = None,
+        source_ref: dict | None = None,
+        dedup_key: str | None = None,
+        dedup_ttl_days: int | None = None,
+        max_per_day: int | None = None,
+        severity: str | None = None,
+    ) -> Notification | None:
         """Single funnel: event + inbox rows, then per-channel dispatch.
 
         Returns the event, or None when suppressed (dedup, every recipient
         muted the kind, empty recipient list) or the kind is unregistered
         (fail soft — fresh databases before seeding).
         """
+        if severity is not None:
+            try:
+                severity = NotificationSeverity(severity).value
+            except ValueError:
+                logger.warning("unknown notification severity %r — falling back to info", severity)
+                severity = NotificationSeverity.INFO.value
         recipients = list(dict.fromkeys(recipients))
         if not recipients:
             return None
@@ -125,9 +133,7 @@ class NotificationService:
             source_ref=source_ref,
             dedup_key=dedup_key,
             dedup_expires_at=(
-                utcnow() + timedelta(days=dedup_ttl_days or DEDUP_TTL_DAYS)
-                if dedup_key
-                else None
+                utcnow() + timedelta(days=dedup_ttl_days or DEDUP_TTL_DAYS) if dedup_key else None
             ),
         )
         self.db.add(notification)
@@ -162,43 +168,94 @@ class NotificationService:
         notification: Notification,
         kind_row: NotificationKind,
         recipients: list[UUID],
-        max_per_day: Optional[int],
+        max_per_day: int | None,
     ) -> None:
         """Per-recipient guardrails, then per-channel transport + log."""
         channels = available_channels()
         prefs = await self._pref_rows(recipients)
         kind_prefs = await self._kind_pref_rows(recipients, kind_row.id)
+        channel_configs = await self._channel_config_rows(recipients)
+        rules = await self._followup_rule_rows(recipients)
         for user_id in recipients:
-            wanted = list(kind_row.default_channels or ["in_app"])
-            kind_pref = kind_prefs.get(user_id)
-            if kind_pref is not None and kind_pref.channels:
-                wanted = list(kind_pref.channels)
+            wanted = self._wanted_channels(
+                kind_row.key, kind_row, kind_prefs.get(user_id), rules.get(user_id), notification
+            )
             global_pref = prefs.get(user_id) or {}
+            quiet = global_pref.get("quiet_hours")
+            quiet_now = bool(quiet and within_quiet_hours(quiet))
             for channel_key in dict.fromkeys(["in_app", *wanted]):
                 channel = get_channel(channel_key)
                 if channel is None or not channel.available():
                     continue
                 if channel_key not in channels:
                     continue
+                config = channel_configs.get((user_id, channel_key))
+                if channel_key in ("email", "webhook") and (config is None or not config.enabled):
+                    continue
                 if channel_key in TOASTY_CHANNELS:
-                    if global_pref.get("quiet_hours") and within_quiet_hours(
-                        global_pref.get("quiet_hours")
-                    ):
+                    if quiet_now:
                         continue
                     if (
                         channel_key == "desktop"
                         and global_pref.get("desktop_channel_enabled", True) is False
                     ):
                         continue
-                    if max_per_day is not None and await self._channel_capped(
-                        user_id, kind_row.id, channel_key, max_per_day
-                    ):
+                if channel_key == "email":
+                    digest_mode = (
+                        bool((config.config or {}).get("digest_mode")) if config else False
+                    )
+                    if quiet_now and kind_row.key != "digest_ready":
+                        await self._defer(notification, user_id, kind_row.key, "quiet_hours")
                         continue
+                    if digest_mode and kind_row.key != "digest_ready":
+                        await self._defer(notification, user_id, kind_row.key, "digest_mode")
+                        continue
+                capped = max_per_day is not None and channel_key != "in_app"
+                if capped and await self._channel_capped(
+                    user_id, kind_row.id, channel_key, max_per_day or 0
+                ):
+                    continue
                 await self._deliver(notification, user_id, kind_row.key, channel)
 
-    async def _channel_capped(
-        self, user_id: UUID, kind_id: UUID, channel: str, cap: int
-    ) -> bool:
+    def _wanted_channels(
+        self,
+        kind_key: str,
+        kind_row: NotificationKind,
+        kind_pref: NotificationKindPref | None,
+        rule: FollowupRule | None,
+        notification: Notification,
+    ) -> list[str]:
+        """Kind preference, then the follow-up rule override for follow-up kinds."""
+        if kind_key == "followup_due" and rule is not None and rule.channels:
+            step = str((notification.payload or {}).get("step") or "")
+            route = "followup_due"
+            if step == "stage:interview":
+                route = "interview_checkin"
+            elif step == "stage:offer":
+                route = "offer_checkin"
+            override = rule.channels.get(route) or rule.channels.get("default")
+            if override:
+                return list(override)
+        if kind_pref is not None and kind_pref.channels:
+            return list(kind_pref.channels)
+        return list(kind_row.default_channels or ["in_app"])
+
+    async def _defer(
+        self, notification: Notification, user_id: UUID, kind_key: str, reason: str
+    ) -> None:
+        """Record a pending email delivery the digest run flushes later."""
+        self.db.add(
+            NotificationDelivery(
+                notification_id=notification.id,
+                user_id=user_id,
+                channel="email",
+                status=DeliveryStatus.PENDING.value,
+                error=f"{DEFERRED_PREFIX}{reason}"[:1000],
+            )
+        )
+        await self.db.flush()
+
+    async def _channel_capped(self, user_id: UUID, kind_id: UUID, channel: str, cap: int) -> bool:
         rows = await self.db.execute(
             select(NotificationDelivery.id)
             .join(Notification, Notification.id == NotificationDelivery.notification_id)
@@ -229,6 +286,7 @@ class NotificationService:
             status=DeliveryStatus.PENDING.value,
         )
         self.db.add(delivery)
+        await self.db.flush()
         try:
             status, error = await channel.send(
                 DeliveryContext(
@@ -239,13 +297,72 @@ class NotificationService:
                     body=notification.body,
                     payload=notification.payload or {},
                     severity=notification.severity,
+                    delivery_id=delivery.id,
+                    db=self.db,
                 )
             )
-        except Exception as exc:  # noqa: BLE001 — a broken channel never breaks emit
+        except Exception as exc:
             logger.warning("Channel %s dispatch failed", channel.key, exc_info=True)
             status, error = DeliveryStatus.FAILED.value, str(exc)[:1000]
         delivery.status = status
         delivery.error = error
+
+    async def test_channel(self, user_id: UUID, channel_key: str) -> dict:
+        """Send one test delivery and record its `channel_test` delivery row."""
+        from app.core.errors import NotFoundError, ValidationError
+
+        if channel_key not in ("email", "webhook"):
+            raise ValidationError("Only email and webhook support test deliveries")
+        kind_row = await self._kind_row("channel_test")
+        if kind_row is None:
+            raise NotFoundError("Unknown notification kind")
+        notification = Notification(
+            kind_id=kind_row.id,
+            severity=kind_row.severity,
+            title="Channel test",
+            body="This is a test message from your notification settings.",
+            payload={"test": True},
+        )
+        self.db.add(notification)
+        await self.db.flush()
+        delivery = NotificationDelivery(
+            notification_id=notification.id,
+            user_id=user_id,
+            channel=channel_key,
+            status=DeliveryStatus.PENDING.value,
+        )
+        self.db.add(delivery)
+        await self.db.flush()
+        ctx = DeliveryContext(
+            event_id=notification.id,
+            user_id=user_id,
+            kind="channel_test",
+            title=notification.title,
+            body=notification.body,
+            payload={"test": True},
+            severity=notification.severity,
+            delivery_id=delivery.id,
+            db=self.db,
+        )
+        if channel_key == "webhook":
+            from app.services.notification_webhook import send_test
+
+            status, error = await send_test(ctx)
+        else:
+            channel = get_channel(channel_key)
+            if channel is None or not channel.available():
+                status, error = DeliveryStatus.FAILED.value, "channel unavailable"
+            else:
+                status, error = await channel.send(ctx)
+        delivery.status = status
+        delivery.error = error
+        await self.db.flush()
+        return {
+            "channel": channel_key,
+            "delivery_id": str(delivery.id),
+            "status": status,
+            "error": error,
+        }
 
     # ------------------------------------------------------------- inbox
 
@@ -254,8 +371,8 @@ class NotificationService:
         user_id: UUID,
         *,
         unread_only: bool = False,
-        kind: Optional[str] = None,
-        status: Optional[str] = None,
+        kind: str | None = None,
+        status: str | None = None,
         limit: int = 50,
     ) -> dict:
         """Inbox rows joined to their events, newest first, + unread count."""
@@ -298,11 +415,44 @@ class NotificationService:
         ]
         return {"items": items, "unread_count": unread}
 
+    async def recent_deliveries(
+        self,
+        user_id: UUID,
+        *,
+        channel: str | None = None,
+        limit: int = 20,
+    ) -> dict:
+        """Recent channel dispatch rows (newest first) — the per-channel
+        health strip answers "is email actually arriving?"."""
+        query = (
+            select(NotificationDelivery, NotificationKind.key)
+            .join(Notification, Notification.id == NotificationDelivery.notification_id)
+            .join(NotificationKind, NotificationKind.id == Notification.kind_id)
+            .where(NotificationDelivery.user_id == user_id)
+            .order_by(NotificationDelivery.created_at.desc())
+            .limit(min(limit, 100))
+        )
+        if channel:
+            query = query.where(NotificationDelivery.channel == channel)
+        rows = (await self.db.execute(query)).all()
+        items = [
+            {
+                "id": delivery.id,
+                "channel": delivery.channel,
+                "status": delivery.status,
+                "error": delivery.error,
+                "kind": kind_key,
+                "created_at": delivery.created_at,
+            }
+            for delivery, kind_key in rows
+        ]
+        return {"items": items}
+
     async def inbox_threads(
         self,
         user_id: UUID,
         *,
-        group: Optional[str] = None,
+        group: str | None = None,
         limit: int = 100,
     ) -> dict:
         """Items threaded by `source_ref` — one career item, one row.
@@ -353,9 +503,7 @@ class NotificationService:
     async def dismiss(self, user_id: UUID, ids: list[UUID]) -> int:
         return await self._mark(user_id, ids, NotificationStatus.DISMISSED)
 
-    async def _mark(
-        self, user_id: UUID, ids: list[UUID], status: NotificationStatus
-    ) -> int:
+    async def _mark(self, user_id: UUID, ids: list[UUID], status: NotificationStatus) -> int:
         allowed = [NotificationStatus.UNREAD.value]
         if status is NotificationStatus.DISMISSED:
             allowed.append(NotificationStatus.READ.value)
@@ -388,9 +536,7 @@ class NotificationService:
             pref.kind_id: pref
             for pref in (
                 await self.db.execute(
-                    select(NotificationKindPref).where(
-                        NotificationKindPref.user_id == user_id
-                    )
+                    select(NotificationKindPref).where(NotificationKindPref.user_id == user_id)
                 )
             )
             .scalars()
@@ -418,12 +564,11 @@ class NotificationService:
                     "default_channels": list(kind.default_channels or ["in_app"]),
                     "enabled": (
                         kind_prefs[kind.id].enabled
-                        if kind.id in kind_prefs
-                        and kind_prefs[kind.id].enabled is not None
+                        if kind.id in kind_prefs and kind_prefs[kind.id].enabled is not None
                         else kind.default_enabled
                     ),
                     "channels": (
-                        list(kind_prefs[kind.id].channels)
+                        list(kind_prefs[kind.id].channels or [])
                         if kind.id in kind_prefs and kind_prefs[kind.id].channels
                         else list(kind.default_channels or ["in_app"])
                     ),
@@ -438,8 +583,8 @@ class NotificationService:
         user_id: UUID,
         kind_key: str,
         *,
-        enabled: Optional[bool] = None,
-        channels: Optional[list[str]] = None,
+        enabled: bool | None = None,
+        channels: list[str] | None = None,
     ) -> dict:
         """Upsert one kind preference; None fields fall back to defaults."""
         kind_row = await self._kind_row(kind_key)
@@ -470,16 +615,35 @@ class NotificationService:
             "channels": channels or list(kind_row.default_channels or ["in_app"]),
         }
 
+    async def delete_kind_pref(self, user_id: UUID, kind_key: str) -> None:
+        """Drop the caller's override row — the kind falls back to its
+        seeded defaults (`overridden` clears)."""
+        kind_row = await self._kind_row(kind_key)
+        if kind_row is None:
+            from app.core.errors import NotFoundError
+
+            raise NotFoundError("Unknown notification kind")
+        if not kind_row.mutable:
+            from app.core.errors import ValidationError
+
+            raise ValidationError("This notification kind cannot be muted")
+        rows = await self.db.execute(
+            select(NotificationKindPref).where(
+                NotificationKindPref.user_id == user_id,
+                NotificationKindPref.kind_id == kind_row.id,
+            )
+        )
+        pref = rows.scalars().first()
+        if pref is not None:
+            await self.db.delete(pref)
+            await self.db.flush()
+
     async def global_prefs(self, user_id: UUID) -> dict:
         """Global channel preferences only (desktop toggle + quiet hours)."""
         row = await self._global_pref_row(user_id)
         return {
-            "desktop_channel_enabled": (
-                row.desktop_channel_enabled if row is not None else True
-            ),
-            "quiet_hours": (
-                dict(row.quiet_hours) if row is not None and row.quiet_hours else None
-            ),
+            "desktop_channel_enabled": (row.desktop_channel_enabled if row is not None else True),
+            "quiet_hours": (dict(row.quiet_hours) if row is not None and row.quiet_hours else None),
         }
 
     async def set_global_prefs(
@@ -487,7 +651,7 @@ class NotificationService:
         user_id: UUID,
         *,
         desktop_channel_enabled: bool = True,
-        quiet_hours: Optional[dict] = None,
+        quiet_hours: dict | None = None,
     ) -> dict:
         """Full-replace upsert of the global row (PUT semantics)."""
         from sqlalchemy.orm.attributes import flag_modified
@@ -510,27 +674,140 @@ class NotificationService:
             "quiet_hours": dict(row.quiet_hours) if row.quiet_hours else None,
         }
 
-    async def _global_pref_row(self, user_id: UUID) -> Optional[NotificationPreference]:
+    async def _global_pref_row(self, user_id: UUID) -> NotificationPreference | None:
         rows = await self.db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id == user_id
-            )
+            select(NotificationPreference).where(NotificationPreference.user_id == user_id)
         )
         return rows.scalars().first()
 
+    async def _channel_config_rows(
+        self, user_ids: list[UUID]
+    ) -> dict[tuple[UUID, str], UserChannelConfig]:
+        rows = await self.db.execute(
+            select(UserChannelConfig).where(UserChannelConfig.user_id.in_(user_ids))
+        )
+        return {(row.user_id, row.channel): row for row in rows.scalars().all()}
+
+    async def _followup_rule_rows(self, user_ids: list[UUID]) -> dict[UUID, FollowupRule]:
+        rows = await self.db.execute(select(FollowupRule).where(FollowupRule.user_id.in_(user_ids)))
+        return {row.user_id: row for row in rows.scalars().all()}
+
+    async def flush_deferred_email(self, user_id: UUID) -> int:
+        """Send email deliveries deferred by quiet hours or digest mode.
+
+        The digest run calls this first, then emits the digest itself — the
+        digest email still renders the digest service's body verbatim.
+        """
+        from app.services import notification_email
+
+        rows = await self.db.execute(
+            select(NotificationDelivery).where(
+                NotificationDelivery.user_id == user_id,
+                NotificationDelivery.channel == "email",
+                NotificationDelivery.status == DeliveryStatus.PENDING.value,
+                NotificationDelivery.error.like(f"{DEFERRED_PREFIX}%"),
+            )
+        )
+        sent = 0
+        for delivery in rows.scalars().all():
+            notification = await self.db.get(Notification, delivery.notification_id)
+            kind_row = (
+                await self.db.get(NotificationKind, notification.kind_id)
+                if notification is not None
+                else None
+            )
+            if notification is None or kind_row is None:
+                delivery.status = DeliveryStatus.FAILED.value
+                delivery.error = "notification missing"
+                continue
+            ctx = DeliveryContext(
+                event_id=notification.id,
+                user_id=user_id,
+                kind=kind_row.key,
+                title=notification.title,
+                body=notification.body,
+                payload=notification.payload or {},
+                severity=notification.severity,
+                delivery_id=delivery.id,
+                db=self.db,
+            )
+            status, error = await notification_email.deliver(ctx)
+            delivery.status = status
+            delivery.error = error
+            if status == DeliveryStatus.DELIVERED.value:
+                sent += 1
+        await self.db.flush()
+        return sent
+
+    # -------------------------------------------------- channel configs
+
+    async def email_config(self, user) -> dict:
+        """The user's email channel config (never a secret)."""
+        from app.services import notification_email
+
+        row = await notification_email.channel_row(self.db, user.id)
+        config = dict(row.config or {}) if row is not None else {}
+        address = notification_email.address_for(user, row)
+        return {
+            "enabled": bool(row.enabled) if row is not None else False,
+            "address": address,
+            "pending_address": str(config.get("pending_address") or ""),
+            "digest_mode": bool(config.get("digest_mode")),
+            "verified": row.verified_at is not None if row is not None else False,
+            "verified_at": row.verified_at if row is not None else None,
+        }
+
+    async def set_email_config(
+        self,
+        user,
+        *,
+        enabled: bool,
+        address: str | None,
+        digest_mode: bool,
+    ) -> tuple[dict, bool]:
+        """Upsert the email channel; an address change drops verification.
+
+        Returns the public config plus whether a fresh verification message
+        is needed.
+        """
+        from sqlalchemy.orm.attributes import flag_modified as _flag
+
+        from app.services import notification_email
+
+        row = await notification_email.channel_row(self.db, user.id)
+        if row is None:
+            row = UserChannelConfig(user_id=user.id, channel="email", config={}, secrets={})
+            self.db.add(row)
+        previous = notification_email.address_for(user, row)
+        config = dict(row.config or {})
+        if address is not None:
+            config["address"] = address.strip()
+        config["digest_mode"] = digest_mode
+        row.enabled = enabled
+        row.config = config
+        _flag(row, "config")
+        current = notification_email.address_for(user, row)
+        changed = current != previous
+        if changed:
+            row.verified_at = None
+            row.config = {
+                key: value
+                for key, value in config.items()
+                if key not in ("verification_hash", "verification_expires_at", "pending_address")
+            }
+            _flag(row, "config")
+        await self.db.flush()
+        return await self.email_config(user), row.verified_at is None
+
     # ------------------------------------------------------------ lookup
 
-    async def _kind_row(self, key: str) -> Optional[NotificationKind]:
-        rows = await self.db.execute(
-            select(NotificationKind).where(NotificationKind.key == key)
-        )
+    async def _kind_row(self, key: str) -> NotificationKind | None:
+        rows = await self.db.execute(select(NotificationKind).where(NotificationKind.key == key))
         return rows.scalars().first()
 
     async def _pref_rows(self, user_ids: list[UUID]) -> dict[UUID, dict]:
         rows = await self.db.execute(
-            select(NotificationPreference).where(
-                NotificationPreference.user_id.in_(user_ids)
-            )
+            select(NotificationPreference).where(NotificationPreference.user_id.in_(user_ids))
         )
         return {
             row.user_id: {

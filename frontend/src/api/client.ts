@@ -202,7 +202,23 @@ api.interceptors.response.use(
 
 export function apiDetail(error: unknown): string {
   if (axios.isAxiosError(error)) {
-    return (error.response?.data?.detail as string) ?? error.message;
+    const detail: unknown = error.response?.data?.detail;
+    if (typeof detail === "string" && detail) return detail;
+    // FastAPI 422s carry a pydantic error ARRAY ({type, loc, msg, …}) —
+    // render it as readable text, never as an object (React child crash).
+    if (Array.isArray(detail)) {
+      return detail
+        .map((item) => {
+          const entry = item as { loc?: unknown[]; msg?: string };
+          const loc = Array.isArray(entry.loc) ? entry.loc.join(".") : "";
+          return loc ? `${loc}: ${entry.msg ?? ""}` : (entry.msg ?? "");
+        })
+        .filter(Boolean)
+        .join("; ");
+    }
+    if (detail && typeof detail === "object") return JSON.stringify(detail);
+    if (typeof detail === "string" && detail) return detail;
+    return error.message;
   }
   return String(error);
 }

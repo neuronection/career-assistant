@@ -16,11 +16,8 @@ import { hasChannel } from "@/lib/desktop";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useNotificationStream } from "@/hooks/useNotificationStream";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui";
-import type {
-  AlertRule,
-  NotificationItem,
-  NotificationPreferences,
-} from "@/types";
+import type { AlertRule, NotificationPreferences } from "@/types/wire";
+import type { NotificationItem } from "@/types/wire";
 
 export function NotificationBell() {
   const { t } = useTranslation();

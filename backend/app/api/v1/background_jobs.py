@@ -92,10 +92,7 @@ async def download_export(
 ) -> FileResponse:
     """Download a finished data-export archive (owner only, attachment)."""
     job = await _get_owned(db, job_id, user.id)
-    if (
-        job.job_type != "data_export"
-        or job.status != BackgroundJobStatus.SUCCEEDED.value
-    ):
+    if job.job_type != "data_export" or job.status != BackgroundJobStatus.SUCCEEDED.value:
         raise DomainError("No downloadable result for this job")
     export_path = Path(str((job.result or {}).get("export_path", "")))
     if not export_path.is_file():

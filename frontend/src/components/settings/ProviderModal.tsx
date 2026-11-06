@@ -12,7 +12,7 @@ interface ProviderModalProps {
   canUseSystemScope: boolean;
   mockAllowed: boolean;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved?: AIProvider) => void;
 }
 
 const CUSTOM = CUSTOM_PRESET_KEY;
@@ -62,8 +62,9 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
     setError("");
     const trimmedKey = apiKey.trim();
     try {
+      let saved: AIProvider;
       if (provider) {
-        await aiApi.updateProvider(provider.id, {
+        saved = await aiApi.updateProvider(provider.id, {
           name,
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
@@ -73,7 +74,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
           ...(trimmedKey ? { api_key: trimmedKey } : {}),
         });
       } else {
-        await aiApi.createProvider({
+        saved = await aiApi.createProvider({
           name,
           provider_type: providerType as AIProvider["provider_type"],
           api_base: apiBase,
@@ -83,7 +84,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
           country: country.trim() || null,
         });
       }
-      onSaved();
+      onSaved(saved);
     } catch (err) {
       setError(apiDetail(err));
     } finally {
@@ -99,7 +100,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
             {provider ? t("aiSettings.providerModal.editTitle") : t("aiSettings.providerModal.addTitle")}
           </ModalTitle>
         </ModalHeader>
-        <div className="space-y-4 px-6 pb-6">
+        <div className="space-y-4">
           <ProviderForm
             presets={presetOptions}
             presetKey={presetKey}
@@ -144,7 +145,7 @@ export function ProviderModal({ provider, canUseSystemScope, mockAllowed, onClos
                   { value: "google", label: "Google Gemini", description: "generativelanguage.googleapis.com" },
                   { value: "openai_compatible", label: "OpenAI-compatible", description: "OpenRouter / Ollama / LM Studio" },
                   ...(mockAllowed
-                    ? [{ value: "mock", label: "Mock", description: t("aiSettings.providerModal.mockDescription") }]
+                    ? [{ value: "mock", label: t("aiSettings.providerModal.mockLabel"), description: t("aiSettings.providerModal.mockDescription") }]
                     : []),
                 ]}
                 value={providerType}

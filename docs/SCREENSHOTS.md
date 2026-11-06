@@ -16,7 +16,7 @@ Welcome to the visual tour of Career Assistant. These reproducible screenshots s
 
 _Sign-in screen — cookie-session auth with CSRF double-submit._
 
-![login desktop](images/login-desktop.png)
+![login — Sign-in screen — cookie-session auth with CSRF double-submit.](images/login-desktop.png)
 
 ## Overview
 
@@ -24,13 +24,13 @@ _Sign-in screen — cookie-session auth with CSRF double-submit._
 
 _Dashboard — career state at a glance with the docked chat._
 
-![dashboard desktop](images/dashboard-desktop.png)
+![dashboard — Dashboard — career state at a glance with the docked chat.](images/dashboard-desktop.png)
 
 ### onboarding
 
 _Onboarding wizard — guided or express start paths._
 
-![onboarding desktop](images/onboarding-desktop.png)
+![onboarding — Onboarding wizard — guided or express start paths.](images/onboarding-desktop.png)
 
 ## Career exploration
 
@@ -38,39 +38,87 @@ _Onboarding wizard — guided or express start paths._
 
 _Job family catalog — the taxonomy tree with AI generation._
 
-![catalog desktop](images/catalog-desktop.png)
+![catalog — Job family catalog — the taxonomy tree with AI generation.](images/catalog-desktop.png)
 
 ### rankings
 
 _Matched rankings — fit scores with the compare tray._
 
-![rankings desktop](images/rankings-desktop.png)
+![rankings — Matched rankings — fit scores with the compare tray.](images/rankings-desktop.png)
 
 ### job-detail
 
 _Job insights — fit score, AI explanations, skill gaps and university paths for Data Scientist._
 
-![job-detail desktop](images/job-detail-desktop.png)
+![job-detail — Job insights — fit score, AI explanations, skill gaps and university paths for Data Scientist.](images/job-detail-desktop.png)
+
+### postings
+
+_Search live postings from connected sources — filters over the hiring those companies prove._
+
+![postings — Search live postings from connected sources — filters over the hiring those companies prove.](images/postings-desktop.png)
+
+### posting-detail
+
+_Posting detail — extracted skills, provenance and fit for a seeded demo posting._
+
+![posting-detail — Posting detail — extracted skills, provenance and fit for a seeded demo posting.](images/posting-detail-desktop.png)
 
 ### universities
 
 _Universities and pathways — funding, deadlines and degree-to-job routes._
 
-![universities desktop](images/universities-desktop.png)
+![universities — Universities and pathways — funding, deadlines and degree-to-job routes.](images/universities-desktop.png)
+
+### companies
+
+_Companies hiring now — reviewed facts, sourced financials, every open posting._
+
+![companies — Companies hiring now — reviewed facts, sourced financials, every open posting.](images/companies-desktop.png)
+
+### market-stats
+
+_Market intelligence — demand, skills and pay across the whole market._
+
+![market-stats — Market intelligence — demand, skills and pay across the whole market.](images/market-stats-desktop.png)
 
 ## Working life
+
+### autopilot
+
+_Career Autopilot — goal-driven agent searches with budgets._
+
+![autopilot — Career Autopilot — goal-driven agent searches with budgets.](images/autopilot-desktop.png)
+
+### interviews
+
+_Interview prep — posting-grounded mock interviews._
+
+![interviews — Interview prep — posting-grounded mock interviews.](images/interviews-desktop.png)
+
+### growth
+
+_Growth toolkit — roadmaps, radar and check-ins._
+
+![growth — Growth toolkit — roadmaps, radar and check-ins.](images/growth-desktop.png)
+
+### career-paths
+
+_Career paths — every route to a target job as graph, tree or list._
+
+![career-paths — Career paths — every route to a target job as graph, tree or list.](images/career-paths-desktop.png)
 
 ### cv-studio
 
 _CV Studio — three routes to a CV, versions and exports, with rendered page thumbnails._
 
-![cv-studio desktop](images/cv-studio-desktop.png)
+![cv-studio — CV Studio — three routes to a CV, versions and exports, with rendered page thumbnails.](images/cv-studio-desktop.png)
 
 ### cv-builder
 
 _CV builder — live preview of a modern sidebar CV (profile, skills and languages in the sidepanel) with version history._
 
-![cv-builder desktop](images/cv-builder-desktop.png)
+![cv-builder — CV builder — live preview of a modern sidebar CV (profile, skills and languages in the sidepanel) with version history.](images/cv-builder-desktop.png)
 
 ## Your profile
 
@@ -78,7 +126,7 @@ _CV builder — live preview of a modern sidebar CV (profile, skills and languag
 
 _Experience timeline — quantified achievements from the seeded demo persona._
 
-![profile-experience desktop](images/profile-experience-desktop.png)
+![profile-experience — Experience timeline — quantified achievements from the seeded demo persona.](images/profile-experience-desktop.png)
 
 ## AI assistant
 
@@ -86,13 +134,13 @@ _Experience timeline — quantified achievements from the seeded demo persona._
 
 _Assistant chat — role-fit answer with job reference chips (mock AI on the demo instance)._
 
-![chat desktop](images/chat-desktop.png)
+![chat — Assistant chat — role-fit answer with job reference chips (mock AI on the demo instance).](images/chat-desktop.png)
 
 ### chat-proposals
 
 _HITL proposals — the assistant drafts profile edits as review cards with before/after previews._
 
-![chat-proposals desktop](images/chat-proposals-desktop.png)
+![chat-proposals — HITL proposals — the assistant drafts profile edits as review cards with before/after previews.](images/chat-proposals-desktop.png)
 
 ## Settings
 
@@ -100,4 +148,10 @@ _HITL proposals — the assistant drafts profile edits as review cards with befo
 
 _Settings — account pane of the settings shell._
 
-![settings-account desktop](images/settings-account-desktop.png)
+![settings-account — Settings — account pane of the settings shell.](images/settings-account-desktop.png)
+
+### settings-job-radar
+
+_Settings — the job radar: configure your search once, preview matches._
+
+![settings-job-radar — Settings — the job radar: configure your search once, preview matches.](images/settings-job-radar-desktop.png)

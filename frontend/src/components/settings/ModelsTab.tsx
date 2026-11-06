@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AudioLines, Database, Eye, FileText, Wrench } from "lucide-react";
+import { AudioLines, Crosshair, Database, Eye, FileText, Wrench } from "lucide-react";
 import * as aiApi from "@/api/ai";
 import type { AIProvider } from "@/api/ai";
 import { apiDetail } from "@/api/client";
@@ -30,7 +30,9 @@ const CAP_ICONS = {
   vision: Eye,
   tools: Wrench,
   embeddings: Database,
-  audio: AudioLines,
+  stt: AudioLines,
+  tts: AudioLines,
+  decision: Crosshair,
 } as const;
 
 const ADD_BATCH = 10;
@@ -110,6 +112,7 @@ export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabPr
         max_tokens: draft.maxTokens ?? null,
         reasoning_effort: draft.reasoningEffort || null,
         caps: draft.caps,
+        decision_transport: draft.decisionTransport ?? null,
       });
       await loadModels();
       onChanged();
@@ -154,6 +157,9 @@ export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabPr
         ...(patch.temperature !== undefined ? { temperature: patch.temperature ?? null } : {}),
         ...(patch.maxTokens !== undefined ? { max_tokens: patch.maxTokens ?? null } : {}),
         ...(patch.caps !== undefined ? { caps: patch.caps } : {}),
+        ...(patch.decisionTransport !== undefined
+          ? { decision_transport: patch.decisionTransport || null }
+          : {}),
       });
       await loadModels();
       onChanged();
@@ -202,6 +208,7 @@ export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabPr
         temperature: model.temperature,
         maxTokens: model.max_tokens,
         reasoningEffort: model.reasoning_effort ?? undefined,
+        decisionTransport: model.decision_transport ?? undefined,
       })),
     [models],
   );
@@ -223,6 +230,17 @@ export function ModelsTab({ providers, canManageGlobal, onChanged }: ModelsTabPr
         providers={registryProviders}
         models={registryModels}
         caps={capDescriptors}
+        standaloneCaps={["embeddings", "stt", "tts", "decision"]}
+        standaloneLabel={t("aiSettings.models.standaloneLabel")}
+        capImplications={{ vision: ["text"], tools: ["text"] }}
+        defaultCaps={(provider) =>
+          provider.type === "decision" ? ["decision"] : ["text", "vision", "tools"]
+        }
+        modifiersLabel={t("aiSettings.models.modifiersLabel")}
+        decisionTransport="systemone"
+        decisionTransportLabel={t("aiSettings.models.transportLabel")}
+        useCatalogLabel={t("aiSettings.models.useCatalogLabel")}
+        providerContextLabel={t("aiSettings.models.providerContextLabel")}
         expandedProviderId={expandedProviderId}
         onExpandedProviderChange={setExpandedProviderId}
         remoteModels={remote.models}

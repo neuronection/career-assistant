@@ -3,29 +3,77 @@
 User management (`/admin/users`, reset-password, force-logout) is the
 auth-kit's §12 surface now — see `nx_auth.user_admin` (plan 16 P3a)."""
 
+import json
+import logging
 import uuid
-from datetime import datetime
-from typing import Optional
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.core.errors import DomainError, ValidationError
+from app.core.errors import DomainError, ValidationError, sanitize_error_detail
 from app.models.enums import BackgroundJobType
-from app.models.ai_model import AIGeneration
+from app.models.job_model import Job
 from app.models.user_model import User
-from app.schemas.job import JobOut
-from app.services.deps import get_current_user, require_admin
-from app.services.job_service import JobService
-from app.services.taxonomy_service import TaxonomyService
-
-router = APIRouter(
-    prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)]
+from app.schemas.bulk import (
+    BulkActionOut,
+    BulkFailureOut,
+    EnrichmentBulkIn,
+    OverlayBulkIn,
 )
+from app.schemas.common import CursorPage
+from app.schemas.company import CompanyDetailOut, CompanyProfileIn
+from app.schemas.i18n import (
+    LocaleIn,
+    LocaleStateOut,
+    OverlayDraftIn,
+    OverlayDraftResultOut,
+    OverlayOut,
+    OverlayPatchIn,
+    OverlayStatusOut,
+    TranslateKeysIn,
+)
+from app.schemas.job import JobOut
+from app.schemas.queues import (
+    EnrichmentQueueItem,
+    JobProposalCatalogCandidateOut,
+    JobProposalDuplicateOut,
+    JobProposalExistingJob,
+    JobProposalQueueItem,
+)
+from app.schemas.scheduler import (
+    ScheduleItemOut,
+    ScheduleRunNowOut,
+    ScheduleToggleOut,
+)
+from app.schemas.sources_catalog import MAX_CATALOG_BYTES, CatalogUpsertIn
+from app.schemas.taxonomy import (
+    ResolutionStatsOut,
+    ResolutionThresholdsIn,
+    ResolutionThresholdsOut,
+    SkillBulkIn,
+    SkillBulkOut,
+    TaxonomyStatsOut,
+)
+from app.services.catalog.job_service import JobService
+from app.services.catalog.taxonomy_service import TaxonomyService
+from app.services.catalog.taxonomy_stats import collect_taxonomy_stats
+from app.services.deps import get_current_user, require_admin
+from app.services.postings.extract_service import (
+    ResolveThresholds,
+    load_thresholds,
+    save_thresholds,
+)
+from app.services.postings.resolution_stats import resolution_stats
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
 class BulkJobActionIn(BaseModel):
@@ -41,8 +89,8 @@ async def moderation_queue(
     db: AsyncSession = Depends(get_db),
 ) -> list[JobOut]:
     """All users' catalog drafts (default), newest last, for moderation."""
-    jobs, _ = await JobService(db).list_jobs(
-        status=job_status, source=source, page_size=limit
+    jobs, _, _ = await JobService(db).list_jobs(
+        status=job_status, source=[source] if source else None, page_size=limit
     )
     return [JobOut.from_model(j) for j in jobs]
 
@@ -61,6 +109,10 @@ async def bulk_job_action(
         job = await service.get_by_code_or_id(job_id)
         if job is None:
             continue
+        if job.status == "retired" or (job.ai_metadata or {}).get("retired_into"):
+            # A merged duplicate is the retained record of a catalog merge;
+            # neither publishing nor deleting it may undo that.
+            continue
         if body.action == "publish":
             job.status = "published"
             published += 1
@@ -73,62 +125,45 @@ async def bulk_job_action(
     return {"published": published, "rejected": rejected}
 
 
-class AIGenerationOut(BaseModel):
-    id: uuid.UUID
-    task_type: str
-    provider: str
-    model: str
-    prompt: str
-    output: Optional[dict]
-    tokens_in: Optional[int]
-    tokens_out: Optional[int]
-    latency_ms: Optional[float]
-    status: str
-    error: str
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
-@router.get("/ai/generations")
-async def audit_generations(
-    task: str | None = Query(default=None),
-    model: str | None = Query(default=None),
-    generation_status: str | None = Query(default=None, alias="status"),
-    limit: int = Query(default=50, le=200),
-    offset: int = Query(default=0, ge=0),
+@router.get("/jobs/duplicate-types")
+async def duplicate_job_types(
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
 ) -> dict:
-    """Paginated AI audit trail with filters."""
-    conditions = []
-    if task:
-        conditions.append(AIGeneration.task_type == task)
-    if model:
-        conditions.append(AIGeneration.model == model)
-    if generation_status:
-        conditions.append(AIGeneration.status == generation_status)
+    """Published catalog types that share a normalized title."""
+    from app.services.catalog.job_type_merge_service import JobTypeMergeService
 
-    base = select(AIGeneration)
-    count_query = select(func.count(AIGeneration.id))
-    if conditions:
-        base = base.where(*conditions)
-        count_query = count_query.where(*conditions)
-    total = (await db.execute(count_query)).scalar() or 0
-    rows = (
-        (
-            await db.execute(
-                base.order_by(AIGeneration.created_at.desc())
-                .offset(offset)
-                .limit(limit)
-            )
-        )
-        .scalars()
-        .all()
+    groups = await JobTypeMergeService(db).duplicate_groups()
+    return {"groups": groups}
+
+
+class JobTypeMergeIn(BaseModel):
+    target_id: uuid.UUID
+
+
+@router.post("/jobs/{duplicate_id}/merge", response_model=None)
+async def merge_job_types(
+    duplicate_id: uuid.UUID,
+    payload: JobTypeMergeIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict | JSONResponse:
+    """Retire a duplicate job type into a survivor, repointing dependents."""
+    from app.services.catalog.job_type_merge_service import (
+        JobTypeMergeError,
+        JobTypeMergeService,
     )
-    return {
-        "total": total,
-        "items": [AIGenerationOut.model_validate(r) for r in rows],
-    }
+    from app.services.postings.job_proposal_service import JobProposalError
+
+    try:
+        report = await JobTypeMergeService(db).merge(duplicate_id, payload.target_id, actor=user)
+    except LookupError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except JobProposalError as exc:
+        return _job_proposal_error(exc)
+    except JobTypeMergeError as exc:
+        return JSONResponse(status_code=exc.status_code, content={"code": exc.code})
+    return report
 
 
 @router.get("/skills/proposals")
@@ -145,22 +180,72 @@ async def skill_proposals(
 @router.post("/skills/{skill_id}/promote")
 async def promote_skill(
     skill_id: uuid.UUID,
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """proposed → active; the vocabulary stays clean via admin review."""
     from app.schemas.taxonomy import SkillOut
 
     try:
-        skill = await TaxonomyService(db).promote(skill_id)
+        skill = await TaxonomyService(db).promote(skill_id, actor_ref={"user_id": str(admin.id)})
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
+
+
+@router.get("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def get_resolution_thresholds(
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Effective resolution thresholds (constant fallbacks included)."""
+    thresholds = await load_thresholds(db)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.put("/taxonomy/resolution/thresholds", response_model=ResolutionThresholdsOut)
+async def put_resolution_thresholds(
+    data: ResolutionThresholdsIn,
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionThresholdsOut:
+    """Admin overrides for the resolve pipeline (clamped server-side;
+    effective on the next run)."""
+    thresholds = ResolveThresholds(**data.model_dump())
+    await save_thresholds(db, thresholds)
+    return ResolutionThresholdsOut(
+        candidate_trigram_floor=thresholds.candidate_trigram_floor,
+        candidate_cosine_floor=thresholds.candidate_cosine_floor,
+        candidate_top_k=thresholds.candidate_top_k,
+        dedup_trigram_bar=thresholds.dedup_trigram_bar,
+        dedup_cosine_bar=thresholds.dedup_cosine_bar,
+        corroboration_min_postings=thresholds.corroboration_min_postings,
+        corroboration_cap=thresholds.corroboration_cap,
+    )
+
+
+@router.get("/taxonomy/resolution/stats", response_model=ResolutionStatsOut)
+async def get_resolution_stats(
+    window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
+    db: AsyncSession = Depends(get_db),
+) -> ResolutionStatsOut:
+    """Last-run summary + rolling resolution rates from the
+    POSTING_EXTRACT job results (plan 153 slice 4)."""
+    stats = await resolution_stats(db, window=window)
+    return ResolutionStatsOut.model_validate(stats)
 
 
 @router.post("/skills/{skill_id}/merge")
 async def merge_skill(
     skill_id: uuid.UUID,
     body: dict,
+    admin=Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Merge a duplicate into `target_id` (aliases redirect, joins rewritten)."""
@@ -170,14 +255,40 @@ async def merge_skill(
     if not target_id:
         raise ValidationError("target_id is required")
     try:
-        skill = await TaxonomyService(db).merge(skill_id, uuid.UUID(str(target_id)))
+        skill = await TaxonomyService(db).merge(
+            skill_id,
+            uuid.UUID(str(target_id)),
+            actor_ref={"user_id": str(admin.id)},
+        )
     except ValueError as exc:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST, "target_id must be a UUID"
-        ) from exc
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "target_id must be a UUID") from exc
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return SkillOut.model_validate(skill).model_dump(mode="json")
+
+
+@router.post("/skills/bulk", response_model=SkillBulkOut)
+async def bulk_skill_action(
+    body: SkillBulkIn,
+    admin=Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> SkillBulkOut:
+    """One lifecycle action over many skills (promote/deprecate/restore/
+    delete, or many-to-one merge into `target_id`).
+
+    Best-effort with a per-item report: ids the seams refuse (wrong status,
+    still referenced, unknown) come back as failure rows, never a 4xx.
+    """
+    result = await TaxonomyService(db).bulk_skills(
+        body.ids, body.action, body.target_id, actor_ref={"user_id": str(admin.id)}
+    )
+    return SkillBulkOut.model_validate(result)
+
+
+@router.get("/taxonomy/stats", response_model=TaxonomyStatsOut)
+async def taxonomy_queue_stats(db: AsyncSession = Depends(get_db)) -> TaxonomyStatsOut:
+    """Backlog counts behind the taxonomy work-queue bar (plan 161)."""
+    return TaxonomyStatsOut.model_validate(await collect_taxonomy_stats(db))
 
 
 @router.get("/paths")
@@ -187,7 +298,7 @@ async def path_moderation_queue(
 ) -> list[dict]:
     """All paths by status (default: AI drafts awaiting review)."""
     from app.models.career_path_model import CareerPath
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     rows = (
         (
@@ -217,7 +328,7 @@ async def publish_path(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Publish a drafted path."""
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     try:
         path = await PathService(db).publish(path_id)
@@ -232,7 +343,7 @@ async def reject_path(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Delete a draft (published paths are withdrawn to draft instead)."""
-    from app.services.paths_service import PathService
+    from app.services.catalog.paths_service import PathService
 
     try:
         await PathService(db).reject(path_id)
@@ -244,9 +355,62 @@ async def reject_path(
 @router.get("/postings/connectors", response_model=list[dict])
 async def posting_connectors(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """Registered connector engines (built-ins + allowlisted plugins)."""
-    from app.connectors.registry import list_connectors
+    from app.extensions.registry import list_connectors
 
     return list_connectors()
+
+
+@router.get("/postings/connectors/{key}/documentation", response_model=dict)
+async def posting_connector_documentation(
+    key: str,
+    file: str | None = None,
+    locale: str | None = None,
+) -> dict:
+    """The per-extension documentation surface (plan 34 wave 8 — the
+    extensionDocsTree form): tree + markdown, opening on the landing
+    page (§10.4). Only registry-known connectors serve; the requested
+    file must be a docs-tree-listed page (basename-checked, resolved
+    inside the bundle's docs/ dir); raw HTML is neutralized fence-aware
+    (§10.7). The optional ``locale`` rides the §10.9 page-locale
+    convention: a noted ``<page>.<locale>.md`` sibling is served when
+    it exists, else the default page — ``served_file``/``served_locale``
+    state what was actually served (honest fallback). Connectors
+    without a tree answer with an honest absence page — the catalog's
+    manifest pointer drives the affordance."""
+    import os
+
+    from app.extensions import docs as ext_docs
+    from app.extensions.registry import get_connector
+    from app.extensions.sdk import manifest_path
+
+    try:
+        connector = get_connector(key)
+    except ValidationError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "connector not found") from None
+
+    docs_dir = manifest_path(connector).parent / "docs"
+    tree = ext_docs.load_tree(docs_dir)
+    if tree is None:
+        return {
+            "markdown": (f"# {connector.title}\n\nNo documentation provided for this connector."),
+            "tree": None,
+        }
+
+    served_file, served_locale = ext_docs.resolve_page(docs_dir, tree, file, locale)
+    markdown_content = ""
+    if served_file:
+        target_file = os.path.basename(served_file)
+        target_file_path = docs_dir / target_file
+        if target_file_path.is_file():
+            markdown_content = ext_docs.strip_raw_html(target_file_path.read_text(encoding="utf-8"))
+        else:
+            markdown_content = f"# Error\n\nCould not find file {target_file} in docs folder."
+    return {
+        "markdown": markdown_content,
+        "tree": tree,
+        "served_file": served_file,
+        "served_locale": served_locale,
+    }
 
 
 @router.get("/postings/feature-map", response_model=dict)
@@ -278,17 +442,15 @@ async def admin_organizations(
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Organizations with live posting counts (matcher review surface)."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     return await OrganizationService(db).list_orgs(status=status, q=q)
 
 
 @router.post("/organizations/{org_id}/promote", response_model=dict)
-async def promote_organization(
-    org_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def promote_organization(org_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """proposed → active (the only promotion path, like skills)."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
         org = await OrganizationService(db).promote(org_id)
@@ -304,15 +466,113 @@ async def add_organization_alias(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Register another label that resolves to this organization."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
-        org = await OrganizationService(db).add_alias(
-            org_id, str(payload.get("alias") or "")
+        service = OrganizationService(db)
+        org = await service.add_alias(org_id, str(payload.get("alias") or ""))
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(org.id), "aliases": await service.org_aliases(org_id)}
+
+
+@router.get("/organizations/{org_id}/aliases", response_model=list[dict])
+async def list_organization_aliases(
+    org_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> list[dict]:
+    """Alias rows with provenance and state (the rules surface)."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).alias_rows(org_id)
+
+
+@router.delete("/organizations/{org_id}/aliases/{alias_id}", response_model=dict)
+async def delete_organization_alias(
+    org_id: uuid.UUID, alias_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        await OrganizationService(db).remove_alias(org_id, alias_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"deleted": str(alias_id)}
+
+
+@router.post("/organizations/{org_id}/aliases/{alias_id}/state", response_model=dict)
+async def set_organization_alias_state(
+    org_id: uuid.UUID,
+    alias_id: uuid.UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Activate or exclude one alias (excluded rows are kept as history)."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        row = await OrganizationService(db).set_alias_state(
+            org_id, alias_id, str(payload.get("state") or "")
         )
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    return {"id": str(org.id), "aliases": org.aliases or []}
+    return {"id": str(row.id), "state": row.state}
+
+
+@router.get("/organizations/exclusions", response_model=list[dict])
+async def list_organization_exclusions(
+    kind: str | None = Query(default=None, pattern="^(global|pair)$"),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Global not-a-company labels and per-org never-link pairs."""
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).list_exclusions(kind=kind)
+
+
+@router.post("/organizations/exclusions", response_model=dict)
+async def create_organization_exclusion(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    org_id = payload.get("org_id")
+    try:
+        return await OrganizationService(db).create_exclusion(
+            str(payload.get("label") or ""),
+            org_id=uuid.UUID(str(org_id)) if org_id else None,
+            reason=str(payload.get("reason") or ""),
+            created_by=str(payload.get("created_by") or "admin")[:120],
+        )
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+@router.delete("/organizations/exclusions/{exclusion_id}", response_model=dict)
+async def delete_organization_exclusion(
+    exclusion_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        await OrganizationService(db).delete_exclusion(exclusion_id)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"deleted": str(exclusion_id)}
+
+
+@router.get("/organizations/thresholds", response_model=dict)
+async def get_organization_thresholds(db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    return await OrganizationService(db).get_thresholds()
+
+
+@router.put("/organizations/thresholds", response_model=dict)
+async def set_organization_thresholds(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    from app.services.catalog.organization_service import OrganizationService
+
+    try:
+        return await OrganizationService(db).set_thresholds(payload)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
 @router.post("/organizations/{org_id}/merge", response_model=dict)
@@ -320,55 +580,156 @@ async def merge_organization(
     org_id: uuid.UUID,
     payload: dict,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
 ) -> dict:
     """Re-point all references to the target; the duplicate is deprecated."""
-    from app.services.organization_service import OrganizationService
+    from app.services.catalog.organization_service import OrganizationService
 
     try:
+        service = OrganizationService(db)
         target_id = uuid.UUID(str(payload.get("target_id")))
-        org = await OrganizationService(db).merge(org_id, target_id)
+        org = await service.merge(org_id, target_id, actor_user_id=user.id)
     except (ValueError, DomainError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     return {
         "id": str(org.id),
         "status": org.status,
-        "aliases": org.aliases or [],
+        "aliases": await service.org_aliases(org.id),
     }
 
 
 @router.post("/organizations/backfill", response_model=dict)
 async def backfill_organizations(db: AsyncSession = Depends(get_db)) -> dict:
-    """Run the matcher over postings ingested before it existed."""
-    from app.services.organization_service import OrganizationService
+    """Run the current matcher over unjudged postings + experience items."""
+    from app.services.catalog.company_triage_service import enqueue_company_triage
+    from app.services.catalog.organization_service import OrganizationService
 
-    return await OrganizationService(db).backfill_postings()
+    service = OrganizationService(db)
+    postings = await service.backfill_postings()
+    experience = await service.backfill_experience_items()
+    triage_queued = await enqueue_company_triage(db)
+    return {
+        "postings": postings,
+        "experience": experience,
+        "company_triage_queued": int(triage_queued),
+    }
 
 
-@router.get("/jobs/enrichment", response_model=list[dict])
-async def enrichment_queue(db: AsyncSession = Depends(get_db)) -> list[dict]:
-    """Catalog v2-enrichment proposals awaiting moderation."""
-    from app.services.catalog_enrich_service import CatalogEnrichService
+@router.get("/organizations/pairs", response_model=list[dict])
+async def list_organization_pairs(
+    status: str | None = "pending",
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Gray-band queue (the arbiter's pending pairs, matcher review)."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
 
-    return [
-        {
-            "id": str(job.id),
-            "code": job.code,
-            "title": job.title,
-            "proposal": (job.ai_metadata or {}).get("enrichment_proposal"),
-            "proposed_at": (job.ai_metadata or {}).get("enrichment_proposed_at"),
-        }
-        for job in await CatalogEnrichService(db).pending()
-    ]
+    return await CompanyTriageService(db).list_pairs(status=status)
+
+
+@router.get("/organizations/suggestions", response_model=list[dict])
+async def list_organization_suggestions(
+    status: str | None = "open",
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Merge suggestions with their evidence (accept merges, dismiss excludes)."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    return await CompanyTriageService(db).list_suggestions(status=status)
+
+
+@router.post("/organizations/suggestions/{suggestion_id}/accept", response_model=dict)
+async def accept_organization_suggestion(
+    suggestion_id: uuid.UUID,
+    payload: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Accept a suggestion: merge the label's org into the established one."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    decided_by = str((payload or {}).get("decided_by") or "admin")[:120]
+    try:
+        org = await CompanyTriageService(db).accept_suggestion(suggestion_id, decided_by=decided_by)
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(org.id), "status": org.status}
+
+
+@router.post("/organizations/suggestions/{suggestion_id}/dismiss", response_model=dict)
+async def dismiss_organization_suggestion(
+    suggestion_id: uuid.UUID,
+    payload: dict | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Dismiss a suggestion: different employers; the pair exclusion is written."""
+    from app.services.catalog.company_triage_service import CompanyTriageService
+
+    decided_by = str((payload or {}).get("decided_by") or "admin")[:120]
+    try:
+        suggestion = await CompanyTriageService(db).dismiss_suggestion(
+            suggestion_id, decided_by=decided_by
+        )
+    except (ValueError, DomainError) as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"id": str(suggestion.id), "status": suggestion.status}
+
+
+@router.put("/companies/{key}", response_model=CompanyDetailOut)
+async def upsert_company_profile(
+    key: str,
+    data: CompanyProfileIn,
+    db: AsyncSession = Depends(get_db),
+) -> CompanyDetailOut:
+    """Write the reviewed company facts (omit a field = clear to unknown)."""
+    from app.services.catalog.company_service import CompanyService
+
+    try:
+        return await CompanyService(db).upsert_profile(key, data)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.get("/jobs/enrichment", response_model=CursorPage[EnrichmentQueueItem])
+async def enrichment_queue(
+    cursor: str | None = Query(default=None, max_length=400),
+    limit: int = Query(default=25, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> CursorPage[EnrichmentQueueItem]:
+    """Catalog v2-enrichment proposals awaiting moderation, keyset-paged
+    (plan 206): the queue is walked oldest-first and only the requested
+    window is loaded; `total` rides the first page."""
+    from app.core.keyset import decode_cursor, encode_cursor
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
+
+    service = CatalogEnrichService(db)
+    rows = await service.pending(
+        cursor=decode_cursor(cursor, types=(datetime, uuid.UUID)) if cursor else None,
+        limit=limit,
+    )
+    page = rows[:limit]
+    return CursorPage[EnrichmentQueueItem](
+        items=[
+            EnrichmentQueueItem(
+                id=str(job.id),
+                code=job.code,
+                title=job.title,
+                proposal=(job.ai_metadata or {}).get("enrichment_proposal"),
+                proposed_at=(job.ai_metadata or {}).get("enrichment_proposed_at"),
+            )
+            for job in page
+        ],
+        next_cursor=(
+            encode_cursor((page[-1].created_at, page[-1].id)) if len(rows) > limit else None
+        ),
+        total=await service.count_pending() if cursor is None else None,
+    )
 
 
 @router.post("/jobs/{job_id}/enrichment/apply", response_model=dict)
-async def apply_enrichment(
-    job_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def apply_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Merge the proposal's v2 fields into the curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     service = CatalogEnrichService(db)
     job = (await db.execute(select(Job).where(Job.id == job_id))).scalars().first()
@@ -382,13 +743,11 @@ async def apply_enrichment(
 
 
 @router.post("/jobs/{job_id}/enrichment/reject", response_model=dict)
-async def reject_enrichment(
-    job_id: uuid.UUID, db: AsyncSession = Depends(get_db)
-) -> dict:
+async def reject_enrichment(job_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
     """Discard the proposal without touching curated attributes."""
     from app.core.errors import NotFoundError
     from app.models.job_model import Job
-    from app.services.catalog_enrich_service import CatalogEnrichService
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
 
     service = CatalogEnrichService(db)
     job = (await db.execute(select(Job).where(Job.id == job_id))).scalars().first()
@@ -401,59 +760,238 @@ async def reject_enrichment(
     return {"id": str(job.id), "applied": False}
 
 
+@router.post("/jobs/enrichment/bulk", response_model=BulkActionOut)
+async def bulk_enrichment(
+    body: EnrichmentBulkIn, db: AsyncSession = Depends(get_db)
+) -> BulkActionOut:
+    """Apply or reject a batch of enrichment proposals (plan 200).
+
+    Rows commit one by one; the fit refit and the transferability rebuild run
+    once for the batch and degrade to a warning after the commits."""
+    from app.services.catalog.catalog_enrich_service import CatalogEnrichService
+
+    report = await CatalogEnrichService(db).bulk(body.ids, body.action)
+    return BulkActionOut(
+        affected=report.affected,
+        failed=[BulkFailureOut(id=job_id, reason=reason) for job_id, reason in report.failed],
+        warning=report.warning,
+    )
+
+
+def _query_info(source) -> dict:
+    """The merged radar query the next syncs rotate through (plan 130
+    transparency: nothing hidden — keywords, location, rotation position,
+    provenance). Radar data only; no secrets."""
+    cache = source.query_cache or {}
+    groups = cache.get("groups") or []
+    index = int(cache.get("rotation_index") or 0)
+    current = groups[index % len(groups)] if groups else {}
+    return {
+        "keywords": str((current or {}).get("keywords") or ""),
+        "location": str(cache.get("location") or ""),
+        "rotation": f"{(index % len(groups)) + 1}/{len(groups)}" if groups else "",
+        "rotation_index": index,
+        "groups": [
+            {
+                "terms": list(group.get("terms") or []),
+                "keywords": str(group.get("keywords") or ""),
+            }
+            for group in groups
+        ],
+        "provenance": dict(cache.get("provenance") or {}),
+        "group_terms": list((current or {}).get("terms") or []),
+        "curated": bool(cache.get("curated")),
+        "radar_ids": list(cache.get("radar_ids") or []),
+        "computed_at": cache.get("computed_at"),
+    }
+
+
+def _managed_bundle_schema(source) -> tuple[bool, dict | None]:
+    """Plan 131 managed-bundle surface: when the source's stdio command
+    spawns a digest-pinned bundle entry, return the bundle manifest's
+    ``configSchema`` — the form the bundle declares (manifest shape only,
+    never values). Non-managed sources return ``(False, None)``."""
+    from pathlib import Path
+    from shlex import split as shlex_split
+
+    from app.core.config import settings
+
+    try:
+        parts = shlex_split(str((source.config or {}).get("command") or ""))
+    except ValueError:
+        return False, None
+    if not parts:
+        return False, None
+    entry = Path(parts[-1])
+    if entry.name != "server.py":
+        return False, None
+    content_dir = entry.parent
+    content_root = (Path(settings.data_dir) / "extensions").resolve()
+    try:
+        content_dir.resolve().relative_to(content_root)
+    except ValueError:
+        return False, None
+    manifest_path = content_dir / "manifest.json"
+    if not manifest_path.is_file():
+        return False, None
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False, None
+    schema = manifest.get("configSchema")
+    return True, schema if isinstance(schema, dict) else None
+
+
+async def _source_view(db: AsyncSession, source) -> dict:
+    """Secret-safe source view: config WITHOUT any x-secret field values
+    (they cannot be stored there — belt and braces for legacy rows), plus
+    slot presence and key hints. Never the sealed values, never plaintext."""
+    from app.core.encryption import decrypt_secret
+    from app.extensions.registry import resolve_connector
+
+    managed, tool_config_schema = _managed_bundle_schema(source)
+    config = dict(source.config or {})
+
+    from app.models.posting_model import JobPosting
+
+    posting_count = (
+        await db.execute(
+            select(func.count()).select_from(JobPosting).where(JobPosting.source_id == source.id)
+        )
+    ).scalar_one()
+    secret_hints: dict[str, dict] = {}
+    if source.kind == "market":
+        slots = {}
+    else:
+        try:
+            connector = await resolve_connector(db, source.connector_key)
+            slots = connector.secret_slots()
+        except Exception:
+            slots = {}
+    for slot in slots:
+        sealed = (source.secrets or {}).get(slot)
+        value = decrypt_secret(sealed) if isinstance(sealed, str) else None
+        config.pop(slot, None)
+        secret_hints[slot] = {
+            "set": bool(value),
+            "hint": (f"…{value[-4:]}" if value and len(value) >= 8 else ("set" if value else None)),
+        }
+    return {
+        "id": str(source.id),
+        "key": source.key,
+        "title": source.title,
+        "connector_key": source.connector_key,
+        "kind": source.kind,
+        "schedule_kind": source.schedule_kind,
+        "config": config,
+        "query_mode": source.query_mode,
+        "query_batch_size": source.query_batch_size,
+        "query_info": _query_info(source),
+        "posting_count": posting_count,
+        "managed": managed,
+        "tool_config_schema": tool_config_schema,
+        "secret_hints": secret_hints,
+        "enabled": source.enabled,
+        "paused_at": source.paused_at.isoformat() if source.paused_at else None,
+        "last_status": source.last_status,
+        "last_run_at": source.last_run_at.isoformat() if source.last_run_at else None,
+        "sync_state": source.sync_state,
+        "error": source.error,
+    }
+
+
+def _seal_source_secrets(source, secrets_payload: dict) -> None:
+    """Merge a secrets payload into the sealed slot map: plaintext values
+    are sealed at write; the ``***`` mask marker preserves the stored
+    value; an empty string clears it (INV-4 — plaintext never lands in
+    storage)."""
+    from app.core.encryption import MASK_MARKER, encrypt_secret
+
+    sealed = dict(source.secrets or {})
+    for slot, value in (secrets_payload or {}).items():
+        if value == MASK_MARKER:
+            continue
+        if value:
+            sealed[slot] = encrypt_secret(str(value))
+        else:
+            sealed.pop(slot, None)
+    source.secrets = sealed
+
+
 @router.get("/postings/sources", response_model=list[dict])
 async def posting_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
-    """Enabled posting sources with their sync health."""
+    """Posting sources with their sync health (secret-safe views)."""
     from app.models.posting_model import JobSource
 
     rows = (
-        (await db.execute(select(JobSource).order_by(JobSource.created_at.desc())))
-        .scalars()
-        .all()
+        (await db.execute(select(JobSource).order_by(JobSource.created_at.desc()))).scalars().all()
     )
-    return [
-        {
-            "id": str(s.id),
-            "key": s.key,
-            "connector_key": s.connector_key,
-            "config": s.config,
-            "enabled": s.enabled,
-            "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
-            "sync_state": s.sync_state,
-            "error": s.error,
-        }
-        for s in rows
-    ]
+    return [await _source_view(db, s) for s in rows]
 
 
 @router.post("/postings/sources", status_code=201)
-async def create_posting_source(
-    payload: dict, db: AsyncSession = Depends(get_db)
-) -> dict:
-    """Enable a source: connector key + config validated against the engine."""
-    from app.connectors.registry import get_connector
+async def create_posting_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Enable a source: connector key + config validated against the engine.
+
+    Secret values ride the ``secrets`` payload and are sealed at write —
+    a plaintext secret inside ``config`` is a 400 (the x-secret law)."""
+    from app.core.encryption import encrypt_secret
+    from app.extensions.registry import get_connector
     from app.models.posting_model import JobSource
 
     key = str(payload.get("key") or "").strip()
     connector_key = str(payload.get("connector_key") or "").strip()
+    title = str(payload.get("title") or "").strip()[:80] or None
+    kind = str(payload.get("kind") or "posting").strip()
+    query_mode = str(payload.get("query_mode") or "radar").strip()
+    if query_mode not in {"static", "radar"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {query_mode}")
+    query_batch_size = int(payload.get("query_batch_size") or 2)
+    if query_batch_size not in (1, 2, 3, 4, 5, 6):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 6")
+    if kind not in ("posting", "market"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported source kind: {kind}")
     config = payload.get("config") or {}
-    try:
-        connector = get_connector(connector_key)
-        validated = connector.validate_config(config)
-    except DomainError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if kind == "market":
+        from app.services.postings.demand_import_service import validate_market_config
+
+        connector_key = connector_key or "demand_data"
+        validated = validate_market_config(config)
+    else:
+        relax = ("keywords", "location") if query_mode == "radar" else ()
+        try:
+            connector = get_connector(connector_key)
+            validated = connector.validate_config(config, relax_keys=relax)
+        except DomainError as exc:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
     source = JobSource(
         key=key,
         connector_key=connector_key,
+        title=title,
+        kind=kind,
         config=validated,
+        query_mode=query_mode,
+        query_batch_size=query_batch_size,
+        secrets={
+            slot: encrypt_secret(str(value))
+            for slot, value in (payload.get("secrets") or {}).items()
+            if value
+        },
         enabled=bool(payload.get("enabled", True)),
     )
+    if connector_key == "mcp":
+        managed, schema = _managed_bundle_schema(source)
+        if managed and schema:
+            from app.extensions.builtin.mcp import ensure_source_tool_options
+
+            ensure_source_tool_options(source, schema)
     db.add(source)
     await db.commit()
     await db.refresh(source)
     return {
         "id": str(source.id),
         "key": source.key,
+        "title": source.title,
         "connector_key": source.connector_key,
     }
 
@@ -462,27 +1000,88 @@ async def create_posting_source(
 async def update_posting_source(
     source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Edit config/enable state (config re-validated against the connector)."""
-    from app.connectors.registry import get_connector
+    """Edit config/secrets/enable state (config re-validated against the
+    connector; ``***`` preserves a stored secret, empty string clears it)."""
     from app.models.posting_model import JobSource
 
     source = (
-        (await db.execute(select(JobSource).where(JobSource.id == source_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
     )
     if source is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    was_enabled = source.enabled
     if "config" in payload and payload["config"] is not None:
+        effective_mode = str(payload.get("query_mode") or source.query_mode or "radar").strip()
+        relax = ("keywords", "location") if effective_mode == "radar" else ()
         try:
-            connector = get_connector(source.connector_key)
-            source.config = connector.validate_config(payload["config"])
+            if source.kind == "market":
+                from app.services.postings.demand_import_service import validate_market_config
+
+                source.config = validate_market_config(payload["config"])
+            else:
+                from app.extensions.registry import resolve_connector
+
+                connector = await resolve_connector(db, source.connector_key)
+                source.config = connector.validate_config(payload["config"], relax_keys=relax)
         except DomainError as exc:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    if "secrets" in payload and payload["secrets"] is not None:
+        _seal_source_secrets(source, payload["secrets"])
+    if "query_mode" in payload and payload["query_mode"] is not None:
+        mode = str(payload["query_mode"]).strip()
+        if mode not in {"static", "radar"}:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"unsupported query_mode: {mode}")
+        if mode != source.query_mode:
+            source.query_mode = mode
+            source.query_cache = None
+    if "query_batch_size" in payload and payload["query_batch_size"] is not None:
+        batch = int(payload["query_batch_size"])
+        if batch not in (1, 2, 3, 4, 5, 6):
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "query_batch_size must be between 1 and 6"
+            )
+        source.query_batch_size = batch
     if "enabled" in payload and payload["enabled"] is not None:
         source.enabled = bool(payload["enabled"])
+    if "paused" in payload and payload["paused"] is not None:
+        source.paused_at = datetime.now(UTC) if payload["paused"] else None
+    if source.connector_key == "mcp" and (
+        "config" in payload
+        or "query_mode" in payload
+        or (bool(payload.get("enabled")) and not was_enabled)
+    ):
+        managed, schema = _managed_bundle_schema(source)
+        if managed and schema:
+            from app.extensions.builtin.mcp import ensure_source_tool_options
+
+            ensure_source_tool_options(source, schema)
     await db.commit()
-    return {"id": str(source.id), "enabled": source.enabled}
+    return await _source_view(db, source)
+
+
+@router.delete("/postings/sources/{source_id}")
+async def delete_posting_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a job source and its ingested data (plan 133): the schema's
+    cascade is deliberate — postings, applications and autopilot rows go
+    with their source — so this is a DESTRUCTIVE act the UI confirms
+    explicitly with counts before calling."""
+
+    from app.models.posting_model import JobPosting, JobSource
+
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    posting_count = (
+        await db.execute(
+            select(func.count()).select_from(JobPosting).where(JobPosting.source_id == source.id)
+        )
+    ).scalar_one()
+    key = source.key
+    await db.delete(source)
+    await db.commit()
+    return {"id": str(source_id), "key": key, "deleted": True, "postings_removed": posting_count}
 
 
 @router.post("/postings/sources/{source_id}/sync")
@@ -492,45 +1091,509 @@ async def sync_posting_source(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Manual refresh — queued via."""
+    from app.models.posting_model import JobSource
     from app.services.job_worker import enqueue
 
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    if source.kind != "posting":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "this source is not a posting source")
     job = await enqueue(
         db,
         BackgroundJobType.POSTING_SYNC.value,
-        {"source_id": str(source_id)},
+        {"source_id": str(source_id), "trigger": "manual"},
         user_id=user.id,
     )
     return {"job_id": str(job.id), "status": job.status}
 
 
-@router.post("/postings/{posting_id}/map")
-async def manual_map_posting(
-    posting_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+# ------------------------------------------------------- ATS catalogs
+# Plan 187: the preset gallery's data becomes layered — bundled presets +
+# imported catalogs (operator/community URLs, user files). The backend
+# validates + stores; it NEVER fetches (the browser fetches — no SSRF).
+
+
+@router.get("/postings/sources/catalogs", response_model=list[dict])
+async def list_sources_catalogs(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """The stored ATS catalogs (instance-wide, admin-managed)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).list_catalogs()
+
+
+@router.put("/postings/sources/catalogs/{catalog_id}")
+async def upsert_sources_catalog(
+    catalog_id: str,
+    payload: CatalogUpsertIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
+    """Upsert one validated catalog document (envelope + import metadata).
+
+    A known id replaces in place (any tier); a new id counts against the
+    max-catalogs cap. Documents over the byte cap are rejected before
+    parsing (413)."""
+    content_length = request.headers.get("content-length")
+    if content_length and content_length.isdigit() and int(content_length) > MAX_CATALOG_BYTES:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            f"catalog document exceeds the {MAX_CATALOG_BYTES}-byte cap",
+        )
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    return await SourcesCatalogService(db).upsert(catalog_id, payload)
+
+
+@router.delete("/postings/sources/catalogs/{catalog_id}")
+async def delete_sources_catalog(catalog_id: str, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a stored catalog (imported presets leave the gallery;
+    sources already added are kept)."""
+    from app.services.sources_catalog_service import SourcesCatalogService
+
+    deleted = await SourcesCatalogService(db).delete(catalog_id)
+    if not deleted:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "catalog not found")
+    return {"id": catalog_id, "deleted": True}
+
+
+@router.get("/postings/sources/{source_id}/runs", response_model=list[dict])
+async def list_source_runs(
+    source_id: uuid.UUID,
+    limit: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """The run ledger (plan 134): newest first — when it ran, trigger,
+    duration, status, items synced and the bounded error.
+
+    Ghost healing on read: a crash can leave a ``running`` row behind and
+    the page would claim "Running now" for hours (the next sync only
+    closes it later). Rows past the same staleness cutoff the next run
+    uses close as interrupted here, so the banner tells the truth."""
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.posting_model import SourceRun
+    from app.services.postings.postings_service import STALE_RUN_MINUTES
+
+    now = datetime.now(UTC)
+    stale = (
+        (
+            await db.execute(
+                select(SourceRun).where(
+                    SourceRun.source_id == source_id,
+                    SourceRun.status == "running",
+                    SourceRun.started_at < now - timedelta(minutes=STALE_RUN_MINUTES),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    for row in stale:
+        row.status = "failed"
+        row.error = "interrupted — the run never finished"
+        row.finished_at = now
+    if stale:
+        await db.commit()
+
+    rows = (
+        (
+            await db.execute(
+                select(SourceRun)
+                .where(SourceRun.source_id == source_id)
+                .order_by(SourceRun.started_at.desc())
+                .limit(limit)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "trigger": row.trigger,
+            "status": row.status,
+            "started_at": row.started_at.isoformat() if row.started_at else None,
+            "finished_at": row.finished_at.isoformat() if row.finished_at else None,
+            "duration_ms": row.duration_ms,
+            "items_synced": row.items_synced,
+            "error": row.error,
+            "report": row.report,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/postings/sources/{source_id}/probe")
+async def probe_posting_source(
+    source_id: uuid.UUID,
+    user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """One live guarded fetch through the polite runtime — the source
+    management UI's Test button. Typed outcome, never a raw error string;
+    needs-secret reports the missing slot instead of fetching."""
+    import time as _time
+
+    from app.extensions.polite_http import PoliteHttpError
+    from app.extensions.registry import get_connector
+    from app.extensions.runtime.http import build_transport
+    from app.extensions.sdk import ConnectorError
+    from app.models.posting_model import JobSource
+    from app.services.postings.postings_service import resolve_source_secrets
+
+    source = (
+        (await db.execute(select(JobSource).where(JobSource.id == source_id))).scalars().first()
+    )
+    if source is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Source not found")
+    if source.kind != "posting":
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "this source is not a posting source")
+    connector = get_connector(source.connector_key)
+    secrets = resolve_source_secrets(source)
+    missing = [
+        slot
+        for slot in connector.secret_slots()
+        if connector.capabilities.requires_credentials and not secrets.get(slot)
+    ]
+    if missing:
+        error = ConnectorError.needs_secret(f"missing secret slot(s): {', '.join(sorted(missing))}")
+        return {"ok": False, "error": error.model_dump(mode="json")}
+    started = _time.monotonic()
+    audit = None
+    if getattr(connector, "audits_effects", False):
+        from app.extensions.runtime.mcp import mcp_effect_auditor
+
+        audit = mcp_effect_auditor(db, source.key)
+    try:
+        result = await connector.fetch(
+            source.config,
+            {},
+            transport=build_transport(
+                domains=frozenset(connector.capabilities.network_scopes or []),
+                requests_per_minute=connector.capabilities.max_requests_per_minute,
+            ),
+            secrets=secrets,
+            audit=audit,
+        )
+    except PoliteHttpError as exc:
+        error = ConnectorError.from_polite(exc)
+        return {
+            "ok": False,
+            "error": error.model_dump(mode="json"),
+            "latency_ms": int((_time.monotonic() - started) * 1000),
+        }
+    except Exception as exc:
+        logger.warning("provider connection test failed", exc_info=True)
+        error = ConnectorError(
+            code="provider", detail=sanitize_error_detail(str(exc), limit=500), retryable="yes"
+        )
+        return {
+            "ok": False,
+            "error": error.model_dump(mode="json"),
+            "latency_ms": int((_time.monotonic() - started) * 1000),
+        }
+    if audit is not None:
+        # Effect-auditing connectors wrote audit rows on the request
+        # session — commit them or they vanish at session close (the
+        # sync path commits with the source run; the probe must too).
+        await db.commit()
+    ok = not result.partial_errors
+    first_error = (
+        result.partial_errors[0].model_dump(mode="json") if result.partial_errors else None
+    )
+    return {
+        "ok": ok,
+        "items": len(result.items),
+        "error": first_error,
+        "latency_ms": int((_time.monotonic() - started) * 1000),
+    }
+
+
+# ---------------------------------------------------- extension sources
+# The import layer (plan 32 Phase 3 / ADR-0040 D13+D22): git sources,
+# consent-gated installs, digest pins and GitOps desired state.
+
+
+def _lifecycle_error(exc) -> HTTPException:
+    status_code = (
+        status.HTTP_404_NOT_FOUND if exc.code == "not-found" else status.HTTP_400_BAD_REQUEST
+    )
+    return HTTPException(status_code, f"{exc.code}: {exc.detail}")
+
+
+@router.get("/extensions/sources", response_model=list[dict])
+async def extension_sources(db: AsyncSession = Depends(get_db)) -> list[dict]:
+    """Sources with their discovered candidates and installs (secret-safe:
+    sealed credential slots surface as presence only)."""
+    from app.extensions.lifecycle import list_sources
+
+    return await list_sources(db)
+
+
+@router.post("/extensions/sources", status_code=201)
+async def add_extension_source(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Add a git source (https production descriptor, or the dev/test
+    `local` variant — gated off in production boots, confined to
+    allowlisted roots). Private-repo credentials ride the ``secrets``
+    payload as sealed slot values, never inline in the descriptor."""
+    from app.extensions.lifecycle import LifecycleError, add_source
+
+    try:
+        return await add_source(db, payload.get("descriptor") or {}, secrets=payload.get("secrets"))
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.patch("/extensions/sources/{source_id}")
+async def update_extension_source(
+    source_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Replace a source's descriptor (the edit flow) — validated exactly
+    like an add; the next sync re-resolves and reports drift normally."""
+    from app.extensions.lifecycle import LifecycleError, update_source
+
+    try:
+        return await update_source(
+            db,
+            source_id,
+            payload.get("descriptor") or {},
+            secrets=payload.get("secrets"),
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/upload", status_code=201)
+async def upload_extension_source(
+    file: UploadFile = File(...), db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Zip bundle import (plan 132): a FEEDER for the sources pipeline —
+    the zip is staged as a local source tree (host-owned staging dir, one
+    synthetic commit), then the normal add + sync run unchanged (consent
+    and digest-pinned install are still the admin's acts). Dev/test only."""
+    from app.extensions.lifecycle import LifecycleError, import_zip_bundle
+
+    data = await file.read()
+    try:
+        view = await import_zip_bundle(db, data)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+    return {"id": view["id"], "kind": view["kind"], "sync": view.get("sync")}
+
+
+@router.delete("/extensions/sources/{source_id}")
+async def remove_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Remove a source: installs park (disabled, data intact, tombstone-
+    able) — removal never deletes data."""
+    from app.extensions.lifecycle import LifecycleError, remove_source
+
+    try:
+        return await remove_source(db, source_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/{source_id}/sync")
+async def sync_extension_source(source_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Fetch + discover + validate + update-check. A failed fetch leaves
+    pins untouched and marks the source failing (typed error body)."""
+    from app.extensions.lifecycle import LifecycleError, sync_source
+
+    try:
+        return await sync_source(db, source_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.get("/extensions/sources/{source_id}/preview/{extension_id}")
+async def preview_extension_install(
+    source_id: uuid.UUID, extension_id: str, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The host-derived install preview (plan 37 Phase 3.1): re-fetch +
+    re-discover + register + digest, returning the consent payload and the
+    exact echo ``{digest, capabilities, version}`` the install call must
+    hand back. The UI never fabricates a digest."""
+    from app.extensions.lifecycle import LifecycleError, preview_install
+
+    try:
+        return await preview_install(db, source_id, extension_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.get("/extensions/installs/{install_id}/preview")
+async def preview_extension_update(
+    install_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The host-derived update preview: the exact echo an explicit
+    re-consent (apply) hands back."""
+    from app.extensions.lifecycle import LifecycleError, preview_update
+
+    try:
+        return await preview_update(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/sources/{source_id}/install", status_code=201)
+async def install_from_source(
+    source_id: uuid.UUID,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Consent-gated install (D7): ``{"extension_id": ..., "consent":
+    {digest, capabilities, version}}`` — the echo from the preview endpoint
+    (capabilities, tier, provenance, digest and the T3 perimeter disclosure
+    were shown BEFORE this call). The host re-derives the values and
+    refuses drift typed. Installs are DISABLED; enabling is a separate
+    explicit act."""
+    from app.extensions.lifecycle import LifecycleError, install_extension
+
+    if not payload.get("extension_id"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "extension_id is required")
+    consent = payload.get("consent")
+    if not isinstance(consent, dict):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "consent must be the host-derived echo object"
+        )
+    try:
+        return await install_extension(
+            db,
+            source_id,
+            str(payload["extension_id"]),
+            consent=consent,
+            actor_id=user.id,
+        )
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/apply")
+async def apply_extension_update(
+    install_id: uuid.UUID,
+    payload: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """The only apply path: an explicit re-consent to a recorded available
+    update, as the host-derived echo from ``GET .../installs/{id}/preview``
+    (no signing service exists — there is no auto-apply at all)."""
+    from app.extensions.lifecycle import LifecycleError, apply_update
+
+    consent = payload.get("consent")
+    if not isinstance(consent, dict):
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, "consent must be the host-derived echo object"
+        )
+    try:
+        return await apply_update(db, install_id, consent=consent, actor_id=user.id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/enabled")
+async def set_extension_enabled(
+    install_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """The ONLY enable path — an explicit admin act. Installs, updates and
+    reconcile never auto-enable (D22)."""
+    from app.extensions.lifecycle import LifecycleError, set_install_enabled
+
+    try:
+        return await set_install_enabled(db, install_id, bool(payload.get("enabled")))
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/park")
+async def park_extension_install(install_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Park: disabled + flagged, data intact, tombstone-able."""
+    from app.extensions.lifecycle import LifecycleError, park_install
+
+    try:
+        return await park_install(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/installs/{install_id}/tombstone")
+async def tombstone_extension_install(
+    install_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Tombstone (lifecycle `removed`): instance disabled, install + consent
+    records retained — re-import surfaces history, never silent re-enable."""
+    from app.extensions.lifecycle import LifecycleError, tombstone_install
+
+    try:
+        return await tombstone_install(db, install_id)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.get("/extensions/desired-state", response_model=dict)
+async def get_extension_desired_state(db: AsyncSession = Depends(get_db)) -> dict:
+    """The GitOps desired-state document (admin-owned; the model never
+    authors it — ADR-0011 §7)."""
+    from app.extensions.lifecycle import get_desired_state
+
+    return await get_desired_state(db)
+
+
+@router.put("/extensions/desired-state")
+async def put_extension_desired_state(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Set the desired-state document (validated against the vendored
+    desiredStateDocument schema — deletion is structurally inexpressible)."""
+    from app.extensions.lifecycle import LifecycleError, put_desired_state
+
+    try:
+        return await put_desired_state(db, payload)
+    except LifecycleError as exc:
+        raise _lifecycle_error(exc) from exc
+
+
+@router.post("/extensions/reconcile")
+async def reconcile_extensions(db: AsyncSession = Depends(get_db)) -> dict:
+    """Run the GitOps reconcile now (the scheduler runs it hourly; boot
+    runs it once at startup). Installs and moves pins only — never
+    enables, never deletes data; the report is the drift surface."""
+    from app.extensions.lifecycle import reconcile
+
+    return await reconcile(db)
+
+
+@router.post("/postings/{posting_id}/map", response_model=None)
+async def manual_map_posting(
+    posting_id: uuid.UUID,
+    payload: dict,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict | JSONResponse:
     """Moderation fallback: human mapping wins (method=manual, never re-mapped)."""
-    from app.models.enums import MappingMethod
     from app.models.posting_model import JobPosting
+    from app.services.postings.job_proposal_service import (
+        JobProposalError,
+        JobProposalService,
+    )
 
     posting = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
     job_id = payload.get("catalog_job_id")
     if not job_id:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "catalog_job_id is required")
+    service = JobProposalService(db)
     try:
-        job = await JobService(db).require_job(uuid.UUID(str(job_id)))
+        job = await service.manual_map(posting, job_id=uuid.UUID(str(job_id)), user=user)
     except DomainError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    posting.catalog_job_id = job.id
-    posting.mapping_method = MappingMethod.MANUAL.value
-    posting.mapping_confidence = 1.0
-    posting.mapping_reason = "manually mapped by a moderator"
-    posting.status = "mapped"
-    await db.commit()
+    except JobProposalError as exc:
+        return _job_proposal_error(exc)
     return {
         "id": str(posting.id),
         "status": posting.status,
@@ -539,64 +1602,475 @@ async def manual_map_posting(
     }
 
 
-@router.get("/postings")
-async def admin_list_postings(
-    needs_review: bool | None = None,
-    status: str | None = None,
+class JobProposalApplyIn(BaseModel):
+    family_key: str | None = None
+    code: str | None = None
+    title: str | None = None
+    short_description: str | None = None
+    allow_duplicate: bool = False
+    allow_invalid_title: bool = False
+
+
+class JobProposalMapIn(BaseModel):
+    job_code: str = Field(min_length=1, max_length=100)
+
+
+class JobProposalExistingOut(BaseModel):
+    code: str
+    title: str
+
+
+class JobProposalConflictOut(BaseModel):
+    code: str
+    existing: list[JobProposalExistingOut] = Field(default_factory=list)
+
+
+class JobProposalErrorOut(BaseModel):
+    code: str
+    reason: str | None = None
+
+
+class JobProposalQueuePage(CursorPage[JobProposalQueueItem]):
+    """Keyset window plus the legacy-v1 banner count (plans 202/206)."""
+
+    legacy_count: int = 0
+
+
+def _job_proposal_error(exc) -> JSONResponse:
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"code": exc.code, **exc.payload},
+    )
+
+
+@router.get("/postings/job-proposals", response_model=JobProposalQueuePage)
+async def job_proposal_queue(
+    cursor: str | None = Query(default=None, max_length=400),
     limit: int = Query(default=50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
-    """Moderation surface: review-flagged / unmapped postings."""
-    from app.models.enums import PostingStatus
-    from app.models.posting_model import JobPosting
+    user: User = Depends(require_admin),
+) -> JobProposalQueuePage:
+    """Postings whose catalog join ended unmapped with a rich extract —
+    the HITL "create the job type" queue (plan 202), keyset-paged since
+    plan 206 (the old silent 50-row cap hid every later proposal):
+    provenance, the proposed type, actionable candidates and the
+    legacy-v1 banner count."""
+    from app.core.keyset import decode_cursor, encode_cursor
+    from app.services.postings.job_proposal_service import JobProposalService
+    from app.services.postings.job_type_candidates import job_type_candidates
 
-    query = select(JobPosting).order_by(JobPosting.created_at.desc()).limit(limit)
-    if needs_review is not None:
-        query = query.where(JobPosting.needs_review.is_(needs_review))
-    if status:
-        PostingStatus(status)  # validate against the enum
-        query = query.where(JobPosting.status == status)
-    rows = (await db.execute(query)).scalars().all()
-    return [
-        {
-            "id": str(p.id),
-            "title": p.title,
-            "org": p.org,
-            "status": p.status,
-            "needs_review": p.needs_review,
-            "extract_version": p.extract_version,
-            "mapping_method": p.mapping_method,
-            "mapping_confidence": p.mapping_confidence,
-            "mapping_reason": p.mapping_reason,
-            "catalog_job_id": str(p.catalog_job_id) if p.catalog_job_id else None,
-            "suppressed_fields": (p.extract or {}).get("_suppressed_fields", []),
-        }
-        for p in rows
-    ]
+    del user
+    service = JobProposalService(db)
+    rows = await service.pending(
+        cursor=decode_cursor(cursor, types=(datetime, uuid.UUID)) if cursor else None,
+        limit=limit,
+    )
+    page = rows[:limit]
+    suggestions = await service.family_suggestions(page)
+    items: list[JobProposalQueueItem] = []
+    for p in page:
+        proposal = (p.posting_facts or {}).get("job_proposal")
+        candidates, _exact = await job_type_candidates(db, p, p.extract or {})
+        existing_job = None
+        if isinstance(proposal, dict) and proposal.get("existing_job_code"):
+            job = (
+                (await db.execute(select(Job).where(Job.code == proposal["existing_job_code"])))
+                .scalars()
+                .first()
+            )
+            if job is not None:
+                existing_job = JobProposalExistingJob(
+                    code=job.code,
+                    title=job.title,
+                    status=job.status,
+                    family_key=job.family.key if job.family else "",
+                    short_description=job.short_description or "",
+                )
+        items.append(
+            JobProposalQueueItem(
+                id=str(p.id),
+                ref=p.ref,
+                title=p.title,
+                org=p.org,
+                url=p.url,
+                proposal=proposal,
+                proposed_at=proposal.get("proposed_at") if isinstance(proposal, dict) else None,
+                suggested_family_key=suggestions.get(p.id),
+                mapping_signals=(p.posting_facts or {}).get("mapping_signals"),
+                extract_version=p.extract_version,
+                existing_job=existing_job,
+                catalog_candidates=[
+                    JobProposalCatalogCandidateOut(
+                        code=candidate.code,
+                        title=candidate.title,
+                        family_key=candidate.family_key,
+                        family_label=candidate.family_label,
+                        short_description=candidate.short_description[:200],
+                        score=round(candidate.score, 3),
+                        source=candidate.source,
+                    )
+                    for candidate in candidates
+                ],
+                duplicate_candidates=[
+                    JobProposalDuplicateOut(**entry)
+                    for entry in await service.duplicate_candidates(p)
+                ],
+            )
+        )
+    return JobProposalQueuePage(
+        items=items,
+        next_cursor=(
+            encode_cursor((page[-1].created_at, page[-1].id)) if len(rows) > limit else None
+        ),
+        total=await service.count_pending() if cursor is None else None,
+        legacy_count=await service.legacy_count(),
+    )
+
+
+class JobProposalRegenerateIn(BaseModel):
+    limit: int = Field(default=50, ge=1, le=200)
+    posting_ids: list[uuid.UUID] | None = Field(default=None, max_length=200)
+
+
+@router.post("/postings/job-proposals/regenerate")
+async def regenerate_job_proposals(
+    payload: JobProposalRegenerateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Enqueue the bounded v1 → v2 backfill (one queued/running run)."""
+    from app.services.postings.job_proposal_backfill import enqueue_job_proposal_backfill
+
+    job, created = await enqueue_job_proposal_backfill(
+        db, limit=payload.limit, posting_ids=payload.posting_ids
+    )
+    return {"queued": True, "job_id": str(job.id), "created": created}
+
+
+@router.post(
+    "/postings/{posting_id}/job-proposal/apply",
+    response_model=None,
+    responses={
+        409: {"model": JobProposalConflictOut},
+        422: {"model": JobProposalErrorOut},
+    },
+)
+async def apply_job_proposal(
+    posting_id: uuid.UUID,
+    payload: JobProposalApplyIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict | JSONResponse:
+    """Create the proposed catalog job type, map the posting MANUAL, clear
+    the proposal and embed the new job — one transaction (a mid-apply
+    failure leaves no job row). Exact duplicates are a structured 409; an
+    invalid title a structured 422, both overridable explicitly."""
+    from app.services.postings.job_proposal_service import (
+        JobProposalError,
+        JobProposalService,
+    )
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        near_duplicates = await service.duplicate_candidates(posting)
+        job = await service.apply_create(
+            posting,
+            family_key=payload.family_key,
+            code=payload.code,
+            title=payload.title,
+            short_description=payload.short_description,
+            allow_duplicate=payload.allow_duplicate,
+            allow_invalid_title=payload.allow_invalid_title,
+            user=user,
+        )
+    except JobProposalError as exc:
+        return _job_proposal_error(exc)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {
+        "id": str(posting.id),
+        "job_id": str(job.id),
+        "job_code": job.code,
+        "mapping_method": posting.mapping_method,
+        "status": posting.status,
+        "near_duplicates": near_duplicates,
+    }
+
+
+@router.post(
+    "/postings/{posting_id}/job-proposal/map",
+    response_model=None,
+    responses={409: {"model": JobProposalErrorOut}},
+)
+async def map_job_proposal(
+    posting_id: uuid.UUID,
+    payload: JobProposalMapIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict | JSONResponse:
+    """Map the posting onto an existing published catalog job type."""
+    from app.services.postings.job_proposal_service import (
+        JobProposalError,
+        JobProposalService,
+    )
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        job = await service.apply_map(posting, job_code=payload.job_code, user=user)
+    except JobProposalError as exc:
+        return _job_proposal_error(exc)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {
+        "id": str(posting.id),
+        "job_id": str(job.id),
+        "job_code": job.code,
+        "mapping_method": posting.mapping_method,
+        "status": posting.status,
+    }
+
+
+@router.post("/postings/{posting_id}/job-proposal/dismiss")
+async def dismiss_job_proposal(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Discard the proposal: explicit JSON null + the audit timestamp."""
+    from app.services.postings.job_proposal_service import JobProposalService
+
+    service = JobProposalService(db)
+    try:
+        posting = await service.require_pending_posting(posting_id)
+        await service.dismiss(posting, user=user)
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(posting.id), "dismissed": True}
+
+
+@router.post("/postings/{posting_id}/remap")
+async def remap_posting(
+    posting_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """Queue a single-posting re-decision (the card's Re-decide).
+
+    The background job runs ``decide_catalog(defer_semantic=False)`` and then
+    the proposer; the request path adds no model call. A queued/running row
+    for the same posting has its payload refreshed so ``refresh_proposal``
+    is not swallowed by the dedupe.
+    """
+    from app.models.enums import MappingMethod
+    from app.models.posting_model import JobPosting
+    from app.services.postings.mapping_remap import (
+        TERMINAL_POSTING_STATUSES,
+        enqueue_refresh_redecision,
+    )
+
+    posting = (
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
+    )
+    if posting is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    if posting.mapping_method == MappingMethod.MANUAL.value:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This posting was mapped manually — use the manual map endpoint to override",
+        )
+    if posting.status in TERMINAL_POSTING_STATUSES:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "This posting is expired or hidden — terminal postings are not re-decided",
+        )
+    job = await enqueue_refresh_redecision(db, posting.id)
+    return {"queued": True, "job_id": str(job.id)}
+
+
+@router.get("/catalog-mapping/settings")
+async def catalog_mapping_settings(
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    """The mapping run controls (plan 185 S6.3, plan 50 P2c.2): the
+    job-proposal, semantic-rescue and semantic-rerank switches, read per
+    decision — effective on the next decision, no restart. The rerank
+    switch defaults OFF and is independent of the rescue."""
+    from app.services.postings.catalog_settings import (
+        job_proposals_enabled,
+        semantic_rerank_enabled,
+        semantic_rescue_enabled,
+    )
+
+    return {
+        "job_proposals": await job_proposals_enabled(db),
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "semantic_rerank": await semantic_rerank_enabled(db),
+    }
+
+
+class CatalogMappingSettingsIn(BaseModel):
+    job_proposals: bool | None = None
+    semantic_rescue: bool | None = None
+    semantic_rerank: bool | None = None
+
+
+@router.put("/catalog-mapping/settings")
+async def put_catalog_mapping_settings(
+    payload: CatalogMappingSettingsIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+) -> dict:
+    from app.services.postings.catalog_settings import (
+        JOB_PROPOSALS_KEY,
+        SEMANTIC_RERANK_KEY,
+        SEMANTIC_RESCUE_KEY,
+        job_proposals_enabled,
+        semantic_rerank_enabled,
+        semantic_rescue_enabled,
+        set_switch,
+    )
+
+    if payload.job_proposals is not None:
+        await set_switch(db, JOB_PROPOSALS_KEY, payload.job_proposals)
+    if payload.semantic_rescue is not None:
+        await set_switch(db, SEMANTIC_RESCUE_KEY, payload.semantic_rescue)
+    if payload.semantic_rerank is not None:
+        await set_switch(db, SEMANTIC_RERANK_KEY, payload.semantic_rerank)
+    return {
+        "job_proposals": await job_proposals_enabled(db),
+        "semantic_rescue": await semantic_rescue_enabled(db),
+        "semantic_rerank": await semantic_rerank_enabled(db),
+    }
+
+
+@router.post("/postings/reextract")
+async def reextract_postings_by_ids(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Re-run deep extraction for the given postings (admin, bulk — the
+    /postings multi-select). Same rules as the per-source bulk: only
+    postings WITH a description queue; already-queued ones are skipped;
+    unknown ids are reported as missing."""
+    ids = [str(item) for item in (payload.get("posting_ids") or [])][:200]
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "posting_ids is required")
+    from app.models.posting_model import JobPosting
+    from app.services.postings.extract_service import queue_posting_extract
+
+    queued = skipped = 0
+    missing: list[str] = []
+    for raw_id in ids:
+        try:
+            lookup_id = uuid.UUID(str(raw_id))
+        except ValueError:
+            missing.append(raw_id)
+            continue
+        posting = (
+            (await db.execute(select(JobPosting).where(JobPosting.id == lookup_id)))
+            .scalars()
+            .first()
+        )
+        if posting is None or posting.status not in ("new", "mapped"):
+            missing.append(raw_id)
+            continue
+        if not str((posting.raw or {}).get("description") or "").strip():
+            skipped += 1
+            continue
+        if await queue_posting_extract(db, posting):
+            queued += 1
+        else:
+            skipped += 1
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "missing": missing[:50],
+        "requested": len(ids),
+    }
+
+
+@router.post("/postings/replay")
+async def replay_postings_by_ids(payload: dict, db: AsyncSession = Depends(get_db)) -> dict:
+    """Bulk replay wave (plan 153 slice 4 — the /postings multi-select):
+    enqueue `mode: "resolve"` jobs for the given postings — candidate
+    match + pass 2 over the stored raw labels, no pass-1 spend. Only
+    postings on the current extract version queue (older rows carry no
+    replayable labels — they re-extract on demand); already-queued ones
+    are skipped; unknown ids are reported as missing."""
+    ids = [str(item) for item in (payload.get("posting_ids") or [])][:200]
+    if not ids:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "posting_ids is required")
+    from app.models.posting_model import JobPosting
+    from app.services.postings.extract_service import (
+        EXTRACT_VERSION,
+        queue_posting_replay,
+    )
+
+    queued = skipped = 0
+    missing: list[str] = []
+    for raw_id in ids:
+        try:
+            lookup_id = uuid.UUID(str(raw_id))
+        except ValueError:
+            missing.append(raw_id)
+            continue
+        posting = (
+            (await db.execute(select(JobPosting).where(JobPosting.id == lookup_id)))
+            .scalars()
+            .first()
+        )
+        if posting is None or posting.status not in ("new", "mapped"):
+            missing.append(raw_id)
+            continue
+        if posting.extract_version != EXTRACT_VERSION:
+            skipped += 1
+            continue
+        if await queue_posting_replay(db, posting):
+            queued += 1
+        else:
+            skipped += 1
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped": skipped,
+        "missing": missing[:50],
+        "requested": len(ids),
+    }
 
 
 @router.post("/postings/{posting_id}/extract")
 async def reextract_posting(
-    posting_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+    posting_id: uuid.UUID, payload: dict | None = None, db: AsyncSession = Depends(get_db)
 ) -> dict:
-    """Re-run the deep extraction for one posting now (admin)."""
+    """Re-run the deep extraction for one posting now (admin).
+
+    ``{"mode": "resolve"}`` is the plan-153 replay variant: the stored
+    raw labels re-run through candidate matching + the pass-2 resolver
+    only — no pass-1 spend. Without a mode the full extraction runs."""
     from app.models.posting_model import JobPosting
-    from app.services.extract_service import extract_posting_now
+    from app.services.postings.extract_service import (
+        extract_posting_now,
+        replay_posting_resolution,
+    )
 
     posting = (
-        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id)))
-        .scalars()
-        .first()
+        (await db.execute(select(JobPosting).where(JobPosting.id == posting_id))).scalars().first()
     )
     if posting is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Posting not found")
+    mode = (payload or {}).get("mode")
+    if mode not in (None, "resolve"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "mode must be 'resolve'")
     try:
+        if mode == "resolve":
+            return await replay_posting_resolution(db, posting)
         return await extract_posting_now(db, posting)
     except DomainError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
 
 
-@router.get("/scheduler/schedules", response_model=list[dict])
+@router.get("/scheduler/schedules", response_model=list[ScheduleItemOut])
 async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
     """System schedules (owner null): next run, last status, failures."""
     from app.services.scheduler.runner import SchedulerService
@@ -610,6 +2084,7 @@ async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
             "kind": s.kind,
             "task": s.task,
             "trigger": s.trigger,
+            "payload": s.payload,
             "enabled": s.enabled,
             "next_run_at": s.next_run_at.isoformat() if s.next_run_at else None,
             "last_run_at": s.last_run_at.isoformat() if s.last_run_at else None,
@@ -622,7 +2097,7 @@ async def admin_schedules(db: AsyncSession = Depends(get_db)) -> list[dict]:
     ]
 
 
-@router.put("/scheduler/schedules/{schedule_id}")
+@router.put("/scheduler/schedules/{schedule_id}", response_model=ScheduleToggleOut)
 async def admin_update_schedule(
     schedule_id: uuid.UUID, payload: dict, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -636,7 +2111,7 @@ async def admin_update_schedule(
     return {"id": str(schedule.id), "enabled": schedule.enabled}
 
 
-@router.post("/scheduler/schedules/{schedule_id}/run-now")
+@router.post("/scheduler/schedules/{schedule_id}/run-now", response_model=ScheduleRunNowOut)
 async def admin_run_schedule_now(
     schedule_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> dict:
@@ -644,4 +2119,198 @@ async def admin_run_schedule_now(
     from app.services.scheduler.runner import SchedulerService
 
     schedule = await SchedulerService(db).run_now(schedule_id)
-    return {"id": str(schedule.id), "next_run_at": schedule.next_run_at.isoformat()}
+    return {
+        "id": str(schedule.id),
+        "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None,
+    }
+
+
+async def _overlay_base_value(db: AsyncSession, overlay) -> str:
+    """The catalog entity's current source-locale display value."""
+    from app.models.enums import LabelEntityKind
+    from app.models.job_model import Job, JobFamily
+    from app.models.taxonomy_model import Skill
+
+    kind = LabelEntityKind(overlay.entity_kind)
+    if kind == LabelEntityKind.JOB:
+        job = (await db.execute(select(Job).where(Job.id == overlay.entity_id))).scalars().first()
+        if job is None:
+            return ""
+        return job.title if overlay.field == "label" else job.short_description
+    if kind == LabelEntityKind.SKILL:
+        skill = (
+            (await db.execute(select(Skill).where(Skill.id == overlay.entity_id))).scalars().first()
+        )
+        if skill is None:
+            return ""
+        return skill.label if overlay.field == "label" else skill.description
+    if kind == LabelEntityKind.FAMILY:
+        family = (
+            (await db.execute(select(JobFamily).where(JobFamily.id == overlay.entity_id)))
+            .scalars()
+            .first()
+        )
+        if family is None:
+            return ""
+        return family.label if overlay.field == "label" else family.description
+    return ""
+
+
+@router.get("/i18n/locale", response_model=LocaleStateOut)
+async def get_instance_locale(db: AsyncSession = Depends(get_db)) -> dict:
+    """Instance default UI locale plus the supported registry."""
+    from app.services.locale_service import (
+        SUPPORTED_LOCALES,
+        instance_default_locale,
+    )
+
+    return {
+        "locale": await instance_default_locale(db),
+        "supported": list(SUPPORTED_LOCALES),
+    }
+
+
+@router.put("/i18n/locale", response_model=LocaleStateOut)
+async def put_instance_locale(body: LocaleIn, db: AsyncSession = Depends(get_db)) -> dict:
+    """Set the instance default UI locale (users keep their own choice)."""
+    from app.services.locale_service import SUPPORTED_LOCALES, set_instance_default_locale
+
+    locale = await set_instance_default_locale(db, body.locale)
+    return {"locale": locale, "supported": list(SUPPORTED_LOCALES)}
+
+
+@router.post("/i18n/translate", response_model=dict)
+async def translate_keys(
+    body: TranslateKeysIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Audited UI-catalog translation batch (maintainer tooling)."""
+    from app.services.translation_service import TranslationService
+
+    translations = await TranslationService(db).translate_keys(
+        body.locale, body.entries, user_id=user.id
+    )
+    return {"locale": body.locale, "translations": translations}
+
+
+@router.get("/i18n/overlays", response_model=list[OverlayOut])
+async def overlay_queue(
+    locale: str | None = Query(default=None),
+    overlay_status: str | None = Query(default="draft", alias="status"),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Catalog-label overlays awaiting (or having completed) review."""
+    from app.services.catalog.label_overlay_service import LabelOverlayService
+
+    rows = await LabelOverlayService(db).queue(
+        locale=locale, row_status=overlay_status, limit=limit
+    )
+    out = []
+    for row in rows:
+        out.append(
+            {
+                "id": str(row.id),
+                "entity_kind": row.entity_kind,
+                "entity_id": str(row.entity_id),
+                "locale": row.locale,
+                "field": row.field,
+                "value": row.value,
+                "base_value": await _overlay_base_value(db, row),
+                "source": row.source,
+                "status": row.status,
+                "created_at": row.created_at,
+                "updated_at": row.updated_at,
+            }
+        )
+    return out
+
+
+@router.post("/i18n/overlays/draft", response_model=OverlayDraftResultOut)
+async def draft_overlays(
+    body: OverlayDraftIn,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """AI-draft overlays for taxonomy rows (draft status; never renders)."""
+    from app.core.errors import AINotConfiguredError, DomainError
+    from app.services.translation_service import TranslationService
+
+    try:
+        drafted = await TranslationService(db).draft_catalog_labels(
+            body.locale, body.entity_kinds, body.limit, user_id=user.id
+        )
+    except AINotConfiguredError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except DomainError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    return {"locale": body.locale, "drafted": drafted}
+
+
+@router.patch("/i18n/overlays/{overlay_id}", response_model=OverlayStatusOut)
+async def edit_overlay(
+    overlay_id: uuid.UUID, body: OverlayPatchIn, db: AsyncSession = Depends(get_db)
+) -> dict:
+    """Reviewer edit of a drafted overlay value (approval stays separate)."""
+    from app.core.errors import NotFoundError
+    from app.services.catalog.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).edit_value(overlay_id, body.value)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "value": row.value, "status": row.status}
+
+
+@router.post("/i18n/overlays/{overlay_id}/approve", response_model=OverlayStatusOut)
+async def approve_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Approve one overlay — the only route to rendering."""
+    from app.core.errors import NotFoundError
+    from app.models.enums import LabelStatus
+    from app.services.catalog.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.APPROVED)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "status": row.status}
+
+
+@router.post("/i18n/overlays/{overlay_id}/reject", response_model=OverlayStatusOut)
+async def reject_overlay(overlay_id: uuid.UUID, db: AsyncSession = Depends(get_db)) -> dict:
+    """Reject one overlay (it never renders)."""
+    from app.core.errors import NotFoundError
+    from app.models.enums import LabelStatus
+    from app.services.catalog.label_overlay_service import LabelOverlayService
+
+    try:
+        row = await LabelOverlayService(db).set_status(overlay_id, LabelStatus.REJECTED)
+    except NotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return {"id": str(row.id), "status": row.status}
+
+
+@router.post("/i18n/overlays/bulk", response_model=BulkActionOut)
+async def bulk_overlay_action(
+    body: OverlayBulkIn, db: AsyncSession = Depends(get_db)
+) -> BulkActionOut:
+    """Approve or reject a batch of overlays with per-item outcomes (plan 200).
+
+    A missing row fails alone; every other id in the batch still lands."""
+    from app.core.errors import NotFoundError
+    from app.models.enums import LabelStatus
+    from app.services.catalog.label_overlay_service import LabelOverlayService
+
+    target = LabelStatus.APPROVED if body.action == "approve" else LabelStatus.REJECTED
+    service = LabelOverlayService(db)
+    affected: list[uuid.UUID] = []
+    failed: list[BulkFailureOut] = []
+    for overlay_id in body.ids:
+        try:
+            row = await service.set_status(overlay_id, target)
+        except NotFoundError as exc:
+            failed.append(BulkFailureOut(id=overlay_id, reason=str(exc)))
+            continue
+        affected.append(row.id)
+    return BulkActionOut(affected=affected, failed=failed)

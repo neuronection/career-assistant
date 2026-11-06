@@ -7,7 +7,7 @@ resolved, generated and measured. The user-facing view is
 
 ## Block kinds
 
-`app/services/cv_blocks.py` — `register_block_kind` binds a kind to a props
+`app/services/cv/cv_blocks.py` — `register_block_kind` binds a kind to a props
 schema and renderer behaviour. Blocks carry an **area** mark (`main` /
 `sidebar`; legacy `column` accepted) that sidebar layouts honor when grouping
 columns. A `header` block may live in either column and the sidebar column
@@ -19,13 +19,13 @@ Design tokens include per-area paddings (`main_padding_mm` /
 `show_heading_icons` + per-block `icon`, `photo_shape: "arch"`,
 `name_style: "accent_surname"`, `main_columns` / `sidebar_columns` newspaper
 flow, and `font_stack: "embedded-sans" / "embedded-serif"` (vendored OFL WOFF2
-subsets inlined by `app/services/cv_fonts.py`; missing files fall back to the
+subsets inlined by `app/services/cv/cv_fonts.py`; missing files fall back to the
 system stack — capability-detected). The template bank seeds live in
 `app/seeds/cv_templates.py`.
 
 ## Context and sources
 
-`app/services/cv_context_service.py` — `register_context_source` binds a
+`app/services/cv/cv_context_service.py` — `register_context_source` binds a
 profile entity to a typed resolver. Selection resolves **deterministically**
 into the renderer snapshot with per-item traceability; ineligible profile data
 is never registered, so it cannot reach a CV. The experience table splits into
@@ -36,7 +36,7 @@ machinery's `section kind == source_key` invariant.
 ## Variants
 
 Synthesized variants live in the user-level `cv_synth_items` library
-(`app/services/cv_synth_service.py`), not in the profile. Each variant cites
+(`app/services/cv/cv_synth_service.py`), not in the profile. Each variant cites
 typed source refs + source content hashes (staleness/orphan detection) and
 applies through the per-CV `context.synth_mode` overlay **before** editor
 overrides. Precedence is always **override > synth > source**, and every
@@ -58,14 +58,14 @@ application is traced via `synth_applied` in the version's
 
 ## The builder service and ops
 
-`app/services/cv_builder_service.py` owns the builder document, resolution and
+`app/services/cv/cv_builder_service.py` owns the builder document, resolution and
 the `BuilderOp` vocabulary. Both the UI (`POST /cv/{id}/ops`) and the copilot
 converge on `cv_builder_chat.apply_operation` — one audited code path. Bank
 templates auto-customize to a private copy on first edit.
 
 ## Generation and the polish loop
 
-`app/services/cv_generate_service.py` runs the `cv_generate` background job,
+`app/services/cv/cv_generate_service.py` runs the `cv_generate` background job,
 which drives the `cv_draft` LangGraph (`app/ai/graphs/cv_draft.py`):
 plan → enrich (fetch a few of your own linked pages) → synthesize → assemble.
 After the assemble node, the **polish loop** (plan 64) runs the
@@ -83,7 +83,7 @@ run-linked `ai_generations` rows; the UI renders them with the family
 
 ## Pagination: estimated, then measured
 
-`app/services/cv_renderer.py` computes `estimated_pages` from per-column wrap
+`app/services/cv/cv_renderer.py` computes `estimated_pages` from per-column wrap
 math and honors them per column (two-column layouts fill
 `max(main, sidebar)` pages). **The printed PDF is the truth:**
 `cv_pdf_service.measure_pages` prints the document once through a persistent
@@ -96,14 +96,14 @@ avoid` on semantic units, `break-after: avoid` on headings).
 
 ## Language and icon registries
 
-- `app/services/cv_languages.py` — ISO code → human name (with title-cased
+- `app/services/cv/cv_languages.py` — ISO code → human name (with title-cased
   fallback), profile level → CEFR band, and the proficiency-exam vocabulary
   that lets the `languages` block claim the latest matching certification.
-- `app/services/cv_icons.py` — `SECTION_KIND_ICONS` glyph vocabulary.
+- `app/services/cv/cv_icons.py` — `SECTION_KIND_ICONS` glyph vocabulary.
 
 ## Exports
 
-`app/services/cv_export_service.py` branches on block kind via `_visible_blocks`
+`app/services/cv/cv_export_service.py` branches on block kind via `_visible_blocks`
 for Markdown/ATS/DOCX exports, keeping every format consistent with the
 preview. PDF goes through the print engine.
 

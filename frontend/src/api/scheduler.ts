@@ -1,8 +1,27 @@
-import { api } from "./client";
-import type { ScheduleItem } from "@/types";
+import { api } from "@/api/client";
+import type { ScheduleItem } from "@/types/wire";
 
 export async function fetchMySchedules(): Promise<ScheduleItem[]> {
   const { data } = await api.get<ScheduleItem[]>("/me/schedules");
+  return data;
+}
+
+export async function setMyScheduleEnabled(
+  scheduleId: string,
+  enabled: boolean
+): Promise<ScheduleItem> {
+  const { data } = await api.put<ScheduleItem>(`/me/schedules/${scheduleId}`, {
+    enabled,
+  });
+  return data;
+}
+
+export async function runMyScheduleNow(
+  scheduleId: string
+): Promise<{ id: string; next_run_at: string | null }> {
+  const { data } = await api.post<{ id: string; next_run_at: string | null }>(
+    `/me/schedules/${scheduleId}/run-now`
+  );
   return data;
 }
 

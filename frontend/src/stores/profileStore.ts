@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import * as profileApi from "@/api/profile";
-import type { Profile, TaxonomyTag } from "@/types";
+import type { TaxonomyTag } from "@/types";
+import type { Profile } from "@/types";
 
 interface ProfileState {
   profile: Profile | null;

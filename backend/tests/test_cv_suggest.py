@@ -4,11 +4,10 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid, session_headers
-
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
+from tests.conftest import _make_posting, _uid, session_headers
 
 
 async def _experience(client, headers, **overrides) -> dict:
@@ -55,50 +54,33 @@ async def _make_cv(client, headers, **overrides) -> dict:
 
 async def _context_refs(client, headers, cv_id) -> set[tuple[str, str]]:
     context = (await client.get(f"/api/v1/cv/{cv_id}/context", headers=headers)).json()
-    return {
-        (key, item_id)
-        for key, ids in context["snapshot_index"].items()
-        for item_id in ids
-    }
+    return {(key, item_id) for key, ids in context["snapshot_index"].items() for item_id in ids}
 
 
-async def test_summary_grounds_and_verifies(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_summary_grounds_and_verifies(client, auth_headers, profile_ready, seeded_catalog):
     await _experience(client, auth_headers)
     cv = await _make_cv(client, auth_headers)
-    response = await client.post(
-        f"/api/v1/cv/{cv['id']}/ai/summary", json={}, headers=auth_headers
-    )
+    response = await client.post(f"/api/v1/cv/{cv['id']}/ai/summary", json={}, headers=auth_headers)
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["action"] == "summary" and body["proposals"]
     known = await _context_refs(client, auth_headers, cv["id"])
     for entry in body["proposals"]:
-        refs = {
-            (ref["source_key"], ref["item_id"])
-            for ref in entry["proposal"]["evidence_refs"]
-        }
+        refs = {(ref["source_key"], ref["item_id"]) for ref in entry["proposal"]["evidence_refs"]}
         assert refs, "proposals must cite evidence"
         assert refs <= known, "citations must resolve to CV context items"
         assert entry["verified"] is True
 
 
-async def test_bullet_requires_target_ref(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_bullet_requires_target_ref(client, auth_headers, profile_ready, seeded_catalog):
     await _experience(client, auth_headers)
     cv = await _make_cv(client, auth_headers)
-    response = await client.post(
-        f"/api/v1/cv/{cv['id']}/ai/bullet", json={}, headers=auth_headers
-    )
+    response = await client.post(f"/api/v1/cv/{cv['id']}/ai/bullet", json={}, headers=auth_headers)
     assert response.status_code == 400
     assert "ref" in response.json()["detail"]
 
 
-async def test_bullet_proposes_metric_rewrite(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_bullet_proposes_metric_rewrite(client, auth_headers, profile_ready, seeded_catalog):
     item = await _experience(client, auth_headers)
     cv = await _make_cv(client, auth_headers)
     response = await client.post(
@@ -146,9 +128,7 @@ async def test_compaction_auto_targets_long_text(
     assert all(entry["verified"] for entry in body["proposals"])
 
 
-async def test_gaps_is_deterministic(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_gaps_is_deterministic(client, auth_headers, profile_ready, seeded_catalog):
     await _experience(client, auth_headers)
     await _education(client, auth_headers)
     cv = await _make_cv(client, auth_headers)
@@ -162,9 +142,7 @@ async def test_gaps_is_deterministic(
         },
         headers=auth_headers,
     )
-    response = await client.post(
-        f"/api/v1/cv/{cv['id']}/ai/gaps", json={}, headers=auth_headers
-    )
+    response = await client.post(f"/api/v1/cv/{cv['id']}/ai/gaps", json={}, headers=auth_headers)
     assert response.status_code == 200, response.text
     gaps = response.json()["gaps"]
     assert {"experience", "education"} <= {gap["source_key"] for gap in gaps}
@@ -182,31 +160,37 @@ async def test_tailor_coverage_and_flagged_proposals(
     cv = await _make_cv(client, auth_headers)
 
     posting = await _make_posting(db, source, external_id="tailor-1")
-    posting.extract = PostingExtract(
-        title_norm="Junior DevOps Engineer",
-        skills=[
-            ExtractSkill(
-                skill_key=skill_row.key,
-                required_level=4,
-                priority="must_have",
-                evidence_quote="must know the thing",
-                confidence=0.9,
-            ),
-            ExtractSkill(
-                skill_key="kubernetes",
-                required_level=3,
-                priority="must_have",
-                evidence_quote="kubernetes required",
-                confidence=0.9,
-            ),
-        ],
-    ).model_dump(mode="json")
+    db.add(Skill(key="kubernetes", label="Kubernetes", category="test", status="active"))
+    await db.flush()
+    from app.services.postings.extract_service import apply_extract
+
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            title_norm="Junior DevOps Engineer",
+            skills=[
+                ExtractSkill(
+                    raw_label=skill_row.label,
+                    required_level=4,
+                    priority="must_have",
+                    evidence_quote="must know the thing",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    raw_label="kubernetes",
+                    required_level=3,
+                    priority="must_have",
+                    evidence_quote="kubernetes required",
+                    confidence=0.9,
+                ),
+            ],
+        ),
+    )
     db.add(posting)
     await db.commit()
 
-    no_target = await client.post(
-        f"/api/v1/cv/{cv['id']}/ai/tailor", json={}, headers=auth_headers
-    )
+    no_target = await client.post(f"/api/v1/cv/{cv['id']}/ai/tailor", json={}, headers=auth_headers)
     assert no_target.status_code == 400
 
     response = await client.post(
@@ -229,9 +213,7 @@ async def test_tailor_coverage_and_flagged_proposals(
     assert body["proposals"]
 
 
-async def test_isolated_cv_cannot_run_actions(
-    client, auth_headers, profile_ready, seeded_catalog
-):
+async def test_isolated_cv_cannot_run_actions(client, auth_headers, profile_ready, seeded_catalog):
     cv = await _make_cv(client, auth_headers)
     other = await client.post(
         "/api/v1/auth/register",
@@ -242,9 +224,7 @@ async def test_isolated_cv_cannot_run_actions(
         },
     )
     headers = session_headers(other)
-    response = await client.post(
-        f"/api/v1/cv/{cv['id']}/ai/summary", json={}, headers=headers
-    )
+    response = await client.post(f"/api/v1/cv/{cv['id']}/ai/summary", json={}, headers=headers)
     assert response.status_code == 404
 
 
@@ -271,10 +251,7 @@ async def test_translate_action_targets_cv_language(
     assert body["target_language"] == "de"
     assert body["proposals"], "mock translate proposes per evidence item"
     for entry in body["proposals"]:
-        refs = {
-            (ref["source_key"], ref["item_id"])
-            for ref in entry["proposal"]["evidence_refs"]
-        }
+        refs = {(ref["source_key"], ref["item_id"]) for ref in entry["proposal"]["evidence_refs"]}
         assert refs <= await _context_refs(client, auth_headers, cv["id"])
         assert entry["verified"] is True
         assert "[DE]" in entry["proposal"]["text"]

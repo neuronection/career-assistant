@@ -1,6 +1,6 @@
 """Builder on-demand handoff (plan 78.2): attachment + build intent runs
 the copilot loop for that turn in a NORMAL session; question intent
-stays a CHAT turn; legacy bound sessions keep routing."""
+stays a CHAT turn. There is no session-level CV binding."""
 
 import uuid
 
@@ -10,9 +10,8 @@ from sqlalchemy import select
 from app.models.chat_model import ChatMessage
 from app.models.user_model import User
 from app.schemas.cv import CvDocumentCreate
-from app.services.cv_service import CvService
 from app.seeds.cv_templates import seed_cv_template_bank
-
+from app.services.cv.cv_service import CvService
 from tests.test_chat_streaming import _parse_sse
 
 
@@ -41,9 +40,7 @@ async def _cv(db, user, title="Handoff CV"):
 
 async def _session(client, headers, title="handoff"):
     return (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": title}, headers=headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": title}, headers=headers)
     ).json()
 
 
@@ -149,25 +146,6 @@ async def test_build_intent_without_attachment_stays_chat(client, db, auth_heade
     assert "builder_state" not in [name for name, _ in events]
 
 
-async def test_legacy_bound_session_still_routes(client, db, auth_headers, builder_env):
-    """AD1 compat: existing cv_builder-bound sessions keep the copilot."""
-    user = await _auth_user(db)
-    cv = await _cv(db, user)
-    session = (
-        await client.post(
-            "/api/v1/chat/sessions",
-            json={
-                "title": "legacy bound",
-                "context": {"surface": "cv_builder", "cv_id": str(cv.id)},
-            },
-            headers=auth_headers,
-        )
-    ).json()
-
-    events = await _send(client, session["id"], auth_headers, "rewrite the summary")
-    assert "builder_state" in [name for name, _ in events]
-
-
 async def test_sync_path_hands_off_too(client, db, auth_headers, builder_env):
     user = await _auth_user(db)
     cv = await _cv(db, user)
@@ -194,10 +172,10 @@ async def test_preview_intent_persists_and_emits(
 ):
     """Plan 83C/D: a template-look turn renders previews, emits `preview`
     events + a trace card, and persists template_previews metadata."""
-    from app.ai.gateway import register_mock_fixture
     from app.ai.agents.cv_builder_chat import _mock_builder_turn
+    from app.ai.gateway import register_mock_fixture
     from app.models.enums import AITaskType
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     async def fake_first_page_png(self, template):
         return b"fake-png"
@@ -249,10 +227,8 @@ async def test_preview_intent_persists_and_emits(
     assert [e["template_id"] for e in persisted] == [e["template_id"] for e in previews]
 
 
-async def test_no_preview_intent_skips_previews(
-    client, db, auth_headers, builder_env, monkeypatch
-):
-    from app.services.cv_template_service import CvTemplateService
+async def test_no_preview_intent_skips_previews(client, db, auth_headers, builder_env, monkeypatch):
+    from app.services.cv.cv_template_service import CvTemplateService
 
     calls = {"n": 0}
 

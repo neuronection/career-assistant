@@ -1,3 +1,4 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Deterministic chat mock for MOCK_AI dev/test runs (ADR-0016 plan 98).
 
 Extracted from the production chatbot module: these builders only serve
@@ -6,6 +7,7 @@ module registers the CHAT structured-reply fixture with the gateway.
 """
 
 import json
+import re
 from typing import Any
 
 from app.ai.agents.context import parse_context
@@ -77,8 +79,7 @@ def _section_was_read(tools: dict, section: str) -> bool:
     if tools.get("_read_all"):
         return True
     return any(
-        row.get("section") == section
-        for row in _read_observations(tools, "read_profile_section")
+        row.get("section") == section for row in _read_observations(tools, "read_profile_section")
     )
 
 
@@ -120,9 +121,7 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
     education = tools.get("my_education") or {}
     certs = education.get("certifications") or []
     read_items = _read_observations(tools, "read_profile_item")
-    if items and not any(
-        str(row.get("entity_id")) == str(items[0]["id"]) for row in read_items
-    ):
+    if items and not any(str(row.get("entity_id")) == str(items[0]["id"]) for row in read_items):
         return [
             {
                 "name": "read_profile_item",
@@ -133,9 +132,7 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
         not items
         and certs
         and words & {"delete", "remove"}
-        and not any(
-            str(row.get("entity_id")) == str(certs[0]["id"]) for row in read_items
-        )
+        and not any(str(row.get("entity_id")) == str(certs[0]["id"]) for row in read_items)
     ):
         return [
             {
@@ -143,11 +140,12 @@ def mock_read_calls(tools: dict, message: str) -> list[dict]:
                 "args": {"kind": "certification", "entity_id": certs[0]["id"]},
             }
         ]
-    if (tools.get("my_profile_digest") or {}) and (
-        words & set(_LANGUAGE_CODES) or "language" in words
+    if (
+        (tools.get("my_profile_digest") or {})
+        and (words & set(_LANGUAGE_CODES) or "language" in words)
+        and not _section_was_read(tools, "academics")
     ):
-        if not _section_was_read(tools, "academics"):
-            return [{"name": "read_profile_section", "args": {"section": "academics"}}]
+        return [{"name": "read_profile_section", "args": {"section": "academics"}}]
     return []
 
 
@@ -197,9 +195,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "payload": {
                     "refs": [
                         {
-                            "source_key": source_by_kind.get(
-                                item.get("kind"), "experience"
-                            ),
+                            "source_key": source_by_kind.get(item.get("kind"), "experience"),
                             "item_id": item["id"],
                         }
                         for item in items[:3]
@@ -265,11 +261,7 @@ def mock_profile_ops(tools: dict, message: str) -> list[dict]:
                 "entity_id": items[0]["id"],
             }
         ]
-    if (
-        certs
-        and words & {"delete", "remove"}
-        and _was_read(tools, "certification", certs[0]["id"])
-    ):
+    if certs and words & {"delete", "remove"} and _was_read(tools, "certification", certs[0]["id"]):
         return [
             {
                 "kind": "certification",
@@ -419,8 +411,7 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
         if profile_ops:
             return {
                 "answer": (
-                    "I've drafted a bullet rewrite for "
-                    f"{title} — review the card and approve it."
+                    f"I've drafted a bullet rewrite for {title} — review the card and approve it."
                 ),
                 "profile_ops": profile_ops,
                 "referenced_job_codes": [],
@@ -468,8 +459,7 @@ def mock_chat_reply(schema: type, user_prompt: str) -> dict:
 
     if posting_cards:
         cited = ", ".join(
-            f"{card['ref']} {card['title']} via {card['source']}"
-            for card in posting_cards[:3]
+            f"{card['ref']} {card['title']} via {card['source']}" for card in posting_cards[:3]
         )
         answer = (
             f"Open roles matching “{message[:60]}”: {cited}. "
@@ -529,9 +519,7 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
     # marker) — parse defensively so the CV-bullet grounding works.
     ctx: dict[str, Any] = {}
     try:
-        ctx, _ = json.JSONDecoder().raw_decode(
-            user_text[user_text.index("{") :].lstrip()
-        )
+        ctx, _ = json.JSONDecoder().raw_decode(user_text[user_text.index("{") :].lstrip())
     except (ValueError, json.JSONDecodeError):
         ctx = parse_context(user_text) or {}
     tools = ctx.get("tool_results") or {}
@@ -548,6 +536,23 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
         for name, keywords in plan
         if name not in tools and any(keyword in lowered for keyword in keywords)
     ]
+    if "create_career_path" not in tools and _re.search(
+        r"\bcareer path\b|\bpath to\b|\broute to\b|\bbecome a\b|\bi want to be\b", lowered
+    ):
+        return {
+            "content": "",
+            "tool_calls": [
+                {
+                    "name": "create_career_path",
+                    "args": {"request": message[:300]},
+                    "id": "call-path-0",
+                }
+            ],
+        }
+    if "my_applications" not in tools and _re.search(
+        r"\bapplications?\b|\btracker\b|\bpipeline\b|\bdeadlines?\b", lowered
+    ):
+        wanted.append("my_applications")
     if (
         "read_cv_items" not in tools
         and ctx.get("cv_references")
@@ -562,6 +567,35 @@ def mock_chat_agent_round(user_text: str, _tools: list[str]) -> dict:
             if refs:
                 args["cv_id"] = refs[0].get("cv_id") or ""
         calls.append({"name": name, "args": args, "id": f"call-{index}"})
+    if not calls:
+        applications = (tools.get("my_applications") or {}).get("applications") or []
+        already_proposed = "set_application_stage" in tools or "add_application_note" in tools
+        if applications and not already_proposed:
+            application_id = applications[0].get("application_id")
+            if _re.search(r"\binterviews?\b", lowered):
+                calls = [
+                    {
+                        "name": "set_application_stage",
+                        "args": {"application_id": application_id, "stage": "interview"},
+                        "id": "call-0",
+                    }
+                ]
+            elif _re.search(r"\boffers?\b", lowered):
+                calls = [
+                    {
+                        "name": "set_application_stage",
+                        "args": {"application_id": application_id, "stage": "offer"},
+                        "id": "call-0",
+                    }
+                ]
+            elif _re.search(r"\bnotes?\b", lowered):
+                calls = [
+                    {
+                        "name": "add_application_note",
+                        "args": {"application_id": application_id, "text": message[:200]},
+                        "id": "call-0",
+                    }
+                ]
     if not calls:
         calls = [
             {
@@ -601,3 +635,159 @@ def mock_ops_draft(schema, user_prompt) -> dict:
 
 
 register_mock_fixture(AITaskType.CHAT_OPS, mock_ops_draft)
+
+
+def mock_translate_batch(schema, user_prompt: str) -> dict:
+    """Deterministic TRANSLATE fixture (plan 121): prefixes every value with
+    the target locale so tests can assert the batch path without a provider."""
+    import re as _re
+
+    locale_match = _re.search(r"Locale:\s*([a-z]{2})", user_prompt)
+    locale = locale_match.group(1) if locale_match else "xx"
+    name = getattr(schema, "__name__", "")
+    if name == "TranslationBatch":
+        translations = []
+        for line in user_prompt.splitlines():
+            match = _re.match(r"^([a-zA-Z0-9_.\-]+):\s*(.+)$", line)
+            if match:
+                translations.append(
+                    {"key": match.group(1), "value": f"[{locale}] {match.group(2)}"}
+                )
+        return {"translations": translations}
+    kind_match = _re.search(r"entity_kind=([a-z_]+)", user_prompt)
+    kind = kind_match.group(1) if kind_match else "job"
+    items = []
+    for line in user_prompt.splitlines():
+        if not line.startswith("- id="):
+            continue
+        fields = dict(part.split("=", 1) for part in line[2:].split(" | ") if "=" in part)
+        entity_id = fields.get("id", "").strip()
+        if not entity_id:
+            continue
+        for source_field, overlay_field in (
+            ("title", "label"),
+            ("label", "label"),
+            ("short_description", "short_description"),
+            ("description", "description"),
+        ):
+            value = fields.get(source_field, "").strip()
+            if value:
+                items.append(
+                    {
+                        "entity_kind": kind,
+                        "entity_id": entity_id,
+                        "field": overlay_field,
+                        "value": f"[{locale}] {value}",
+                    }
+                )
+    return {"items": items}
+
+
+_SENIORITY_TOKENS = ("intern", "junior", "mid", "senior", "lead", "principal")
+_REMOTE_TOKENS = ("onsite", "hybrid", "remote")
+_RECENT_PATTERNS = (
+    ("today", "24h"),
+    ("last 24", "24h"),
+    ("this week", "7d"),
+    ("last week", "7d"),
+    ("this month", "30d"),
+    ("last month", "30d"),
+    ("recently", "30d"),
+)
+_STOP_TOKENS = {
+    "a",
+    "an",
+    "and",
+    "any",
+    "at",
+    "for",
+    "from",
+    "in",
+    "jobs",
+    "job",
+    "me",
+    "near",
+    "of",
+    "over",
+    "role",
+    "roles",
+    "position",
+    "positions",
+    "paying",
+    "show",
+    "find",
+    "salary",
+    "the",
+    "with",
+    "work",
+}
+
+
+def mock_smart_search_spec(schema, user: str) -> dict:
+    """Deterministic NL-query mapping for the mock provider (plan 179).
+
+    A token scan over the query — the same mapping shape the real task
+    is asked for, fixed so tests and E2E never need a provider."""
+    context = parse_context(user)
+    query = str(context.get("query") or "")
+    lowered = query.lower()
+    seniority = [token for token in _SENIORITY_TOKENS if re.search(rf"\b{token}\b", lowered)]
+    remote_policy = [token for token in _REMOTE_TOKENS if re.search(rf"\b{token}\b", lowered)]
+    posted_within = next((value for pattern, value in _RECENT_PATTERNS if pattern in lowered), None)
+    salary_min = None
+    salary_match = re.search(
+        r"(?:over|above|from|at least)\s*(?:€?\$?)?(\d[\d.,]*)\s*(k)?", lowered
+    )
+    if salary_match:
+        amount = float(salary_match.group(1).replace(",", "").rstrip("."))
+        if salary_match.group(2):
+            amount *= 1000
+        salary_min = amount
+    city = None
+    place = re.search(r"\bin\s+([A-Z][\w-]*(?:\s+[A-Z][\w-]*)?)", query)
+    if place:
+        city = place.group(1)
+    labels: list[str] = []
+    recent_patterns = {pattern for pattern, _value in _RECENT_PATTERNS}
+    for token in re.findall(r"[A-Za-z][A-Za-z+-]{1,}", query):
+        probe = token.lower()
+        if probe in _STOP_TOKENS or probe in _SENIORITY_TOKENS or probe in _REMOTE_TOKENS:
+            continue
+        if probe in recent_patterns:
+            continue
+        if place and token in place.group(1):
+            continue
+        if probe not in labels and len(labels) < 6:
+            labels.append(probe)
+    parts = []
+    if remote_policy:
+        parts.append("/".join(remote_policy))
+    if seniority:
+        parts.append("/".join(seniority))
+    if city:
+        parts.append(f"in {city}")
+    if salary_min is not None:
+        parts.append(f"salary ≥ {salary_min:g}")
+    if posted_within:
+        parts.append(f"posted {posted_within}")
+    if labels:
+        parts.append("skills: " + ", ".join(labels))
+    interpreted = ("Filtered on " + "; ".join(parts)) if parts else "No filters recognized."
+    return {
+        "seniority": seniority,
+        "remote_policy": remote_policy,
+        "posted_within": posted_within,
+        "city": city,
+        "country": None,
+        "employment_type": [],
+        "salary_min": salary_min,
+        "mapped_family": [],
+        "skill_labels": labels,
+        "interpreted": interpreted[:300],
+    }
+
+
+register_mock_fixture(AITaskType.SMART_SEARCH, mock_smart_search_spec)
+
+
+register_mock_fixture(AITaskType.TRANSLATE, mock_translate_batch)

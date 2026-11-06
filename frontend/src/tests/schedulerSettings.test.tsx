@@ -1,17 +1,19 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
 import {
   fetchMySchedules,
   fetchSavedSearches,
   fetchSystemSchedules,
+  runMyScheduleNow,
   runScheduleNow,
+  setMyScheduleEnabled,
   setSavedSearchSchedule,
   setSystemScheduleEnabled,
 } from "@/api/scheduler";
 import { useAuthStore } from "@/stores/authStore";
-import type { ScheduleItem } from "@/types";
+import type { ScheduleItem } from "@/types/wire";
 
 vi.mock("@/api/scheduler", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/scheduler")>();
@@ -23,6 +25,8 @@ vi.mock("@/api/scheduler", async (importOriginal) => {
     setSavedSearchSchedule: vi.fn().mockResolvedValue({}),
     setSystemScheduleEnabled: vi.fn().mockResolvedValue(undefined),
     runScheduleNow: vi.fn().mockResolvedValue(undefined),
+    setMyScheduleEnabled: vi.fn(),
+    runMyScheduleNow: vi.fn(),
   };
 });
 
@@ -32,7 +36,6 @@ const mySchedules: ScheduleItem[] = [
     kind: "user_checkin",
     task: null,
     trigger: { type: "interval", params: { every_minutes: 129600 } },
-    payload: {},
     enabled: true,
     next_run_at: "2026-11-29T00:00:00Z",
     last_status: "ok",
@@ -64,8 +67,7 @@ describe("Scheduler settings", () => {
         kind: "system_source_sync",
         task: "posting_sync",
         trigger: { type: "interval", params: { every_minutes: 360, jitter_minutes: 30 } },
-        payload: {},
-        enabled: true,
+          enabled: true,
         next_run_at: "2026-08-31T12:00:00Z",
         last_status: "ok",
         consecutive_failures: 0,
@@ -75,7 +77,7 @@ describe("Scheduler settings", () => {
 
   it("renders saved-search schedules and system schedules for admins", async () => {
     render(<SchedulerSettings />);
-    expect(await screen.findByTestId("scheduler-settings")).toBeInTheDocument();
+    expect(await screen.findByTestId("settings-page")).toBeInTheDocument();
     expect(screen.getByTestId("saved-search-schedule")).toHaveTextContent(
       /every 360 min/
     );
@@ -103,5 +105,38 @@ describe("Scheduler settings", () => {
     await waitFor(() => expect(setSystemScheduleEnabled).toHaveBeenCalledWith("sys1", false));
     fireEvent.click(screen.getByText("run now"));
     await waitFor(() => expect(runScheduleNow).toHaveBeenCalledWith("sys1"));
+  });
+
+  it("pauses and re-runs a user rhythm row over the B2 endpoints", async () => {
+    const radarSchedule: ScheduleItem = {
+      id: "sch-radar",
+      kind: "user_radar_digest",
+      task: "radar_digest",
+      trigger: { type: "daily_at", params: { time: "08:00", timezone: "UTC" } },
+      enabled: true,
+      next_run_at: "2026-10-30T08:00:00Z",
+      last_run_at: "2026-10-29T08:00:00Z",
+      last_status: "failed",
+      error: "connector timeout",
+      consecutive_failures: 2,
+    };
+    vi.mocked(fetchMySchedules).mockResolvedValue([...mySchedules, radarSchedule]);
+    vi.mocked(setMyScheduleEnabled).mockResolvedValue({
+      ...radarSchedule,
+      enabled: false,
+    });
+    const { userEvent } = await import("@testing-library/user-event");
+    render(<SchedulerSettings />);
+
+    const row = await screen.findByTestId("rhythm-user_radar_digest");
+    expect(row).toHaveTextContent("failed");
+    expect(row).toHaveTextContent("connector timeout");
+
+    await userEvent.click(within(row).getByTestId(`rhythm-enabled-user_radar_digest`));
+    await waitFor(() =>
+      expect(setMyScheduleEnabled).toHaveBeenCalledWith("sch-radar", false)
+    );
+    await userEvent.click(within(row).getByTestId("rhythm-run-user_radar_digest"));
+    await waitFor(() => expect(runMyScheduleNow).toHaveBeenCalledWith("sch-radar"));
   });
 });

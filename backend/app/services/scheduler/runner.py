@@ -1,27 +1,34 @@
+# ruff: noqa: E501 -- long immutable template/message strings; reflow when touched
 """Scheduler runner (Phase 29): claims due schedules, enqueues
 jobs, advances next_run_at. The scheduler decides WHEN; the queue decides
 WHAT/HOW — a tick never runs business logic itself."""
 
+import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import ValidationError
+from app.core.errors import ConflictError, ValidationError
 from app.models.background_job_model import BackgroundJob
-from app.models.enums import BackgroundJobStatus
 from app.models.enums import (
+    BackgroundJobStatus,
     BackgroundJobType,
     MisfirePolicy,
     ScheduleKind,
     ScheduleStatus,
 )
 from app.models.schedule_model import Schedule
-from app.services.engagement_service import canonical_hash
+from app.services.postings.engagement_service import canonical_hash
 from app.services.scheduler import triggers as trigger_registry
+from app.services.vector_reconcile_service import (
+    DEFAULT_BUDGET,
+    DEFAULT_LIMIT,
+    RECONCILE_KINDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +39,27 @@ FAILURE_ALERT_THRESHOLD = 3
 KIND_TASKS = {
     ScheduleKind.SYSTEM_SOURCE_SYNC.value: BackgroundJobType.POSTING_SYNC.value,
     ScheduleKind.SYSTEM_DIGEST.value: BackgroundJobType.DIGEST.value,
+    ScheduleKind.SYSTEM_DEMAND_IMPORT.value: BackgroundJobType.DEMAND_IMPORT.value,
     ScheduleKind.SYSTEM_REFIT_SWEEP.value: BackgroundJobType.FIT_REFIT.value,
     ScheduleKind.SYSTEM_CATALOG_ENRICH.value: BackgroundJobType.CATALOG_ENRICH.value,
     ScheduleKind.SYSTEM_FOLLOWUPS.value: BackgroundJobType.FOLLOWUP_SWEEP.value,
-    ScheduleKind.SYSTEM_MARKET_HISTORY.value: (
-        BackgroundJobType.MARKET_HISTORY_CAPTURE.value
-    ),
+    ScheduleKind.SYSTEM_MARKET_HISTORY.value: (BackgroundJobType.MARKET_HISTORY_CAPTURE.value),
+    ScheduleKind.SYSTEM_EXTENSION_RECONCILE.value: BackgroundJobType.EXTENSION_RECONCILE.value,
+    ScheduleKind.SYSTEM_SKILL_RELATION_LEARN.value: (BackgroundJobType.SKILL_RELATION_LEARN.value),
+    ScheduleKind.SYSTEM_VECTOR_RECONCILE.value: BackgroundJobType.VECTOR_RECONCILE.value,
+    ScheduleKind.SYSTEM_RETRIEVAL_ALERTS.value: (BackgroundJobType.RETRIEVAL_ALERT_SWEEP.value),
+    ScheduleKind.SYSTEM_MAPPING_COVERAGE.value: (BackgroundJobType.MAPPING_COVERAGE_CAPTURE.value),
+    ScheduleKind.SYSTEM_MAPPING_ALERTS.value: (BackgroundJobType.MAPPING_ALERT_SWEEP.value),
     ScheduleKind.USER_SAVED_SEARCH.value: BackgroundJobType.SAVED_SEARCH_RUN.value,
+    ScheduleKind.USER_RADAR_DIGEST.value: BackgroundJobType.RADAR_DIGEST.value,
+    ScheduleKind.USER_SMART_DIGEST.value: BackgroundJobType.SMART_DIGEST.value,
     ScheduleKind.USER_AUTOPILOT.value: BackgroundJobType.AUTOPILOT_RUN.value,
     ScheduleKind.USER_CHECKIN.value: None,
 }
 
 
 def _utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def payload_hash(payload: dict) -> str:
@@ -61,7 +75,7 @@ class SchedulerService:
     async def ensure_system_schedules(self) -> None:
         """Idempotent boot provisioning for the system schedule slots."""
         now = _utcnow()
-        defaults = [
+        defaults: list[tuple[ScheduleKind, str, dict, dict, str]] = [
             (
                 ScheduleKind.SYSTEM_SOURCE_SYNC,
                 BackgroundJobType.POSTING_SYNC.value,
@@ -107,6 +121,16 @@ class SchedulerService:
                 MisfirePolicy.SKIP.value,
             ),
             (
+                ScheduleKind.SYSTEM_DEMAND_IMPORT,
+                BackgroundJobType.DEMAND_IMPORT.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60 * 24, "jitter_minutes": 60},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
                 ScheduleKind.SYSTEM_PROPOSAL_SWEEP,
                 BackgroundJobType.PROPOSAL_SWEEP.value,
                 {
@@ -126,6 +150,66 @@ class SchedulerService:
                 {},
                 MisfirePolicy.SKIP.value,
             ),
+            (
+                ScheduleKind.SYSTEM_EXTENSION_RECONCILE,
+                BackgroundJobType.EXTENSION_RECONCILE.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 60, "jitter_minutes": 10},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_SKILL_RELATION_LEARN,
+                BackgroundJobType.SKILL_RELATION_LEARN.value,
+                {
+                    "type": "daily_at",
+                    "params": {"time": "03:30", "timezone": "UTC"},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_VECTOR_RECONCILE,
+                BackgroundJobType.VECTOR_RECONCILE.value,
+                {
+                    "type": "daily_at",
+                    "params": {"time": "04:15", "timezone": "UTC"},
+                },
+                {"kinds": list(RECONCILE_KINDS), "limit": DEFAULT_LIMIT, "budget": DEFAULT_BUDGET},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_RETRIEVAL_ALERTS,
+                BackgroundJobType.RETRIEVAL_ALERT_SWEEP.value,
+                {
+                    "type": "interval",
+                    "params": {"every_minutes": 5, "jitter_minutes": 1},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_MAPPING_COVERAGE,
+                BackgroundJobType.MAPPING_COVERAGE_CAPTURE.value,
+                {
+                    "type": "daily_at",
+                    "params": {"time": "02:45", "timezone": "UTC"},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
+            (
+                ScheduleKind.SYSTEM_MAPPING_ALERTS,
+                BackgroundJobType.MAPPING_ALERT_SWEEP.value,
+                {
+                    "type": "daily_at",
+                    "params": {"time": "02:50", "timezone": "UTC"},
+                },
+                {},
+                MisfirePolicy.SKIP.value,
+            ),
         ]
         for kind, task, trigger, payload, misfire in defaults:
             await self.ensure_schedule(
@@ -140,9 +224,7 @@ class SchedulerService:
             )
         await self.db.commit()
 
-    async def ensure_user_schedules(
-        self, user_id: UUID, now: Optional[datetime] = None
-    ) -> None:
+    async def ensure_user_schedules(self, user_id: UUID, now: datetime | None = None) -> None:
         """Lazily provision per-user schedules (check-in + weekly digest)."""
         now = now or _utcnow()
         await self.ensure_schedule(
@@ -174,13 +256,13 @@ class SchedulerService:
         self,
         *,
         kind: str,
-        owner_user_id: Optional[UUID],
-        task: Optional[str],
+        owner_user_id: UUID | None,
+        task: str | None,
         trigger: dict,
         payload: dict,
         misfire_policy: str,
         default_interval_minutes: int,
-        now: Optional[datetime] = None,
+        now: datetime | None = None,
     ) -> Schedule:
         """Create-or-return the unique (kind, owner, payload_hash) schedule."""
         now = now or _utcnow()
@@ -213,9 +295,46 @@ class SchedulerService:
 
     # ---------------------------------------------------------------- CRUD
 
+    async def set_radar_schedule(
+        self, user_id: UUID, radar_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
+        """Attach/remove the radar-digest schedule for one job radar.
+
+        Cadence → trigger mapping is the caller's (the radar service's);
+        `trigger=None` removes the schedule (radar off or disabled).
+        """
+        existing = await self.db.execute(
+            select(Schedule).where(
+                Schedule.kind == ScheduleKind.USER_RADAR_DIGEST.value,
+                Schedule.owner_user_id == user_id,
+            )
+        )
+        for schedule in existing.scalars().all():
+            if schedule.payload.get("radar_id") == str(radar_id):
+                await self.db.delete(schedule)
+        await self.db.flush()
+        if trigger is None:
+            await self.db.commit()
+            return None
+        trigger_registry.resolve_trigger(trigger)
+        schedule = await self.ensure_schedule(
+            kind=ScheduleKind.USER_RADAR_DIGEST.value,
+            owner_user_id=user_id,
+            task=BackgroundJobType.RADAR_DIGEST.value,
+            trigger=trigger,
+            payload={"radar_id": str(radar_id)},
+            misfire_policy=MisfirePolicy.NEXT_SLOT.value,
+            default_interval_minutes=15,
+        )
+        schedule.enabled = True
+        schedule.next_run_at = trigger_registry.next_after(trigger, _utcnow())
+        await self.db.commit()
+        await self.db.refresh(schedule)
+        return schedule
+
     async def set_saved_search_schedule(
-        self, user_id: UUID, search_id: UUID, trigger: Optional[dict]
-    ) -> Optional[Schedule]:
+        self, user_id: UUID, search_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
         """Attach/remove a schedule to a saved search."""
         from app.models.engagement_model import SearchHistory
 
@@ -259,8 +378,8 @@ class SchedulerService:
         return schedule
 
     async def set_autopilot_schedule(
-        self, user_id: UUID, goal_id: UUID, trigger: Optional[dict]
-    ) -> Optional[Schedule]:
+        self, user_id: UUID, goal_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
         """Attach/remove the cadence schedule of an autopilot goal."""
         from app.models.autopilot_model import AutopilotGoal
 
@@ -305,12 +424,42 @@ class SchedulerService:
         await self.db.refresh(schedule)
         return schedule
 
-    async def list_schedules(
-        self, owner_user_id: Optional[UUID] = None
-    ) -> list[Schedule]:
-        query = select(Schedule).order_by(
-            Schedule.next_run_at.is_not(None), Schedule.next_run_at
+    async def set_smart_digest_schedule(
+        self, user_id: UUID, trigger: dict | None
+    ) -> Schedule | None:
+        """Attach/remove the daily smart-digest schedule for one user
+        (plan 179). The radar-digest wiring with an empty payload — the
+        toggle IS the schedule's existence."""
+        existing = await self.db.execute(
+            select(Schedule).where(
+                Schedule.kind == ScheduleKind.USER_SMART_DIGEST.value,
+                Schedule.owner_user_id == user_id,
+            )
         )
+        for schedule in existing.scalars().all():
+            await self.db.delete(schedule)
+        await self.db.flush()
+        if trigger is None:
+            await self.db.commit()
+            return None
+        trigger_registry.resolve_trigger(trigger)
+        schedule = await self.ensure_schedule(
+            kind=ScheduleKind.USER_SMART_DIGEST.value,
+            owner_user_id=user_id,
+            task=BackgroundJobType.SMART_DIGEST.value,
+            trigger=trigger,
+            payload={},
+            misfire_policy=MisfirePolicy.NEXT_SLOT.value,
+            default_interval_minutes=24 * 60,
+        )
+        schedule.enabled = True
+        schedule.next_run_at = trigger_registry.next_after(trigger, _utcnow())
+        await self.db.commit()
+        await self.db.refresh(schedule)
+        return schedule
+
+    async def list_schedules(self, owner_user_id: UUID | None = None) -> list[Schedule]:
+        query = select(Schedule).order_by(Schedule.next_run_at.is_not(None), Schedule.next_run_at)
         if owner_user_id is None:
             query = query.where(Schedule.owner_user_id.is_(None))
         else:
@@ -321,14 +470,12 @@ class SchedulerService:
         schedule = await self._get(schedule_id)
         schedule.enabled = enabled
         if enabled and schedule.next_run_at is None:
-            schedule.next_run_at = trigger_registry.next_after(
-                schedule.trigger, _utcnow()
-            )
+            schedule.next_run_at = trigger_registry.next_after(schedule.trigger, _utcnow())
         await self.db.commit()
         await self.db.refresh(schedule)
         return schedule
 
-    async def run_now(self, schedule_id: UUID) -> BackgroundJob:
+    async def run_now(self, schedule_id: UUID) -> Schedule:
         """Admin run-now: due immediately on the next tick."""
         schedule = await self._get(schedule_id)
         if schedule.task is None:
@@ -347,7 +494,7 @@ class SchedulerService:
 
     # ---------------------------------------------------------------- tick
 
-    async def tick(self, now: Optional[datetime] = None) -> int:
+    async def tick(self, now: datetime | None = None) -> int:
         """One scheduler pass: claim due schedules and enqueue their tasks.
 
         Claim = conditional UPDATE (dialect-portable, like): the row
@@ -373,14 +520,14 @@ class SchedulerService:
             # concurrent tick would re-claim, the loop never overlaps itself.
             claimed = (
                 await self.db.execute(
-                    Schedule.__table__.update()
+                    Schedule.__table__.update()  # type: ignore[attr-defined]
                     .where(
                         Schedule.id == schedule_id,
                         Schedule.next_run_at <= now,
                     )
                     .values(last_status=ScheduleStatus.CLAIMED.value)
                 )
-            ).rowcount
+            ).rowcount  # type: ignore[attr-defined]
             if not claimed:
                 continue
             await self.db.commit()
@@ -398,14 +545,11 @@ class SchedulerService:
         if schedule.misfire_policy in (
             MisfirePolicy.SKIP.value,
             MisfirePolicy.NEXT_SLOT.value,
-        ):
-            if lateness > max(period * 2, 2 * 3600):
-                schedule.last_status = ScheduleStatus.SKIPPED_MISFIRE.value
-                schedule.next_run_at = trigger_registry.next_after(
-                    schedule.trigger, now
-                )
-                await self.db.commit()
-                return False
+        ) and lateness > max(period * 2, 2 * 3600):
+            schedule.last_status = ScheduleStatus.SKIPPED_MISFIRE.value
+            schedule.next_run_at = trigger_registry.next_after(schedule.trigger, now)
+            await self.db.commit()
+            return False
 
         # Banner-only kinds (user_checkin): due = the banner; no job.
         if schedule.task is None:
@@ -441,15 +585,21 @@ class SchedulerService:
                 BACKOFF_MAX_SECONDS,
                 BACKOFF_BASE_SECONDS * (2 ** min(schedule.consecutive_failures, 10)),
             )
-            if schedule.last_run_at and now - schedule.last_run_at < timedelta(
-                seconds=delay
-            ):
+            if schedule.last_run_at and now - schedule.last_run_at < timedelta(seconds=delay):
                 schedule.last_status = ScheduleStatus.BACKOFF.value
                 schedule.next_run_at = schedule.last_run_at + timedelta(seconds=delay)
                 await self.db.commit()
                 return False
 
-        job = await self._enqueue(schedule, now)
+        try:
+            job = await self._enqueue(schedule, now)
+        except ConflictError:
+            # A bulk vector run already holds the space lock. Skipping is the
+            # honest overlap outcome; the next slot retries.
+            schedule.last_status = ScheduleStatus.SKIPPED_OVERLAP.value
+            schedule.next_run_at = now + timedelta(minutes=5)
+            await self.db.commit()
+            return False
         schedule.last_job_id = job.id
         schedule.last_run_at = now
         schedule.last_status = job.status
@@ -461,9 +611,7 @@ class SchedulerService:
     def _estimate_period(schedule: Schedule) -> float:
         try:
             nxt = trigger_registry.next_after(schedule.trigger, _utcnow())
-            base = trigger_registry.next_after(
-                schedule.trigger, _utcnow() - timedelta(minutes=1)
-            )
+            base = trigger_registry.next_after(schedule.trigger, _utcnow() - timedelta(minutes=1))
             return max(60.0, (nxt - base).total_seconds())
         except ValidationError:
             return 3600.0
@@ -474,12 +622,50 @@ class SchedulerService:
         payload = {**(schedule.payload or {})}
         if schedule.owner_user_id is not None:
             payload.setdefault("user_id", str(schedule.owner_user_id))
+        if schedule.task == BackgroundJobType.VECTOR_RECONCILE.value:
+            return await self._enqueue_vector_reconcile(schedule, payload)
         job = await enqueue(
             self.db,
-            schedule.task,
+            cast(str, schedule.task),
             payload,
             user_id=schedule.owner_user_id,
             max_attempts=2,
+        )
+        return job
+
+    async def _enqueue_vector_reconcile(self, schedule: Schedule, payload: dict) -> BackgroundJob:
+        """The scheduled reconcile rides the same lock/audit seam as HTTP."""
+        import uuid
+
+        from app.core.errors import NotFoundError
+        from app.services import retrieval_jobs
+        from app.services import retrieval_ops_reads as reads
+        from app.services.audit import emitter
+
+        space: Any
+        target = payload.get("space_id") or payload.get("space") or "content"
+        try:
+            space = await reads.resolve_space(self.db, target)
+        except NotFoundError:
+            space = None
+        actor = str(schedule.owner_user_id) if schedule.owner_user_id else "system"
+        audit = emitter.audit_event(
+            actor=actor,
+            action="vector.reindex.started",
+            resource_ref=emitter.resource(
+                f"space:{space.id}" if space is not None else "space:content",
+                trigger="scheduled",
+            ),
+        )
+        job, _deduplicated = await retrieval_jobs.enqueue_retrieval_job(
+            self.db,
+            job_type=BackgroundJobType.VECTOR_RECONCILE.value,
+            payload=payload,
+            idempotency_key=f"sched:{schedule.id}:{uuid.uuid4().hex}",
+            user_id=schedule.owner_user_id,
+            space_id=space.id if space is not None else None,
+            lock=space is not None,
+            audit=audit,
         )
         return job
 
@@ -492,7 +678,7 @@ class SchedulerService:
         payload = {
             "schedule_id": str(schedule.id),
             "kind": schedule.kind,
-            "link": "/settings/scheduler",
+            "link": "/settings/automations",
         }
         if schedule.owner_user_id is None:
             from app.models.user_model import User
@@ -517,13 +703,13 @@ class SchedulerService:
             )
 
 
-async def start_scheduler() -> Optional[object]:
+async def start_scheduler() -> asyncio.Task | None:
     """Background loop for the app lifespan (single-process, like)."""
     import asyncio
 
     from app.core.config import settings
 
-    if not settings.SCHEDULER_ENABLED:
+    if not settings.scheduler_enabled:
         return None
 
     async def _loop():
@@ -535,8 +721,8 @@ async def start_scheduler() -> Optional[object]:
                     service = SchedulerService(db)
                     await service.ensure_system_schedules()
                     await service.tick()
-            except Exception as exc:  # noqa: BLE001 — the loop must survive
+            except Exception as exc:
                 logger.warning("Scheduler tick failed: %s", exc)
-            await asyncio.sleep(settings.SCHEDULER_INTERVAL_SECONDS)
+            await asyncio.sleep(settings.scheduler_interval_seconds)
 
     return asyncio.create_task(_loop())

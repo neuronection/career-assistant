@@ -5,39 +5,51 @@ import { SettingsShell } from "@/components/SettingsShell";
 import { About } from "@/pages/About";
 import { Account } from "@/pages/settings/Account";
 import { AIConfig } from "@/pages/settings/AIConfig";
-import { AIAudit } from "@/pages/settings/AIAudit";
+import { JobRadarSettings } from "@/pages/settings/JobRadar";
+import { Audit } from "@/pages/settings/Audit";
 import { Taxonomy } from "@/pages/settings/Taxonomy";
+import { CompanyRules } from "@/pages/settings/CompanyRules";
+import { ToolsConfig } from "@/pages/settings/ToolsConfig";
 import { Users } from "@/pages/settings/Users";
 import { SchedulerSettings } from "@/pages/settings/SchedulerSettings";
 import { Notifications } from "@/pages/settings/Notifications";
-import { Experience } from "@/pages/Experience";
-import { Education } from "@/pages/Education";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvSynthLibrary } from "@/pages/CvSynthLibrary";
-import { CvBuilder } from "@/pages/CvBuilder";
-import { CvTemplateEditor } from "@/pages/CvTemplateEditor";
-import { Catalog } from "@/pages/Catalog";
-import { CatalogGraph } from "@/components/catalog/CatalogGraph";
-import { CatalogTree } from "@/components/catalog/CatalogTree";
-import { Dashboard } from "@/pages/Dashboard";
-import { ChatPage } from "@/pages/ChatPage";
-import { Generate } from "@/pages/Generate";
-import { JobDetail } from "@/pages/JobDetail";
-import { Onboarding } from "@/pages/Onboarding";
-import { ExpressOnboarding } from "@/pages/ExpressOnboarding";
-import { Growth } from "@/pages/Growth";
-import { Interviews } from "@/pages/Interviews";
-import { ProfileEdit } from "@/pages/ProfileEdit";
-import { ProfileImport } from "@/pages/ProfileImport";
-import { Rankings } from "@/pages/Rankings";
-import { Compare } from "@/pages/Compare";
-import { Postings } from "@/pages/Postings";
-import { PostingsFeed } from "@/components/postings/PostingsFeed";
-import { Explore } from "@/pages/Explore";
-import { Autopilot } from "@/pages/Autopilot";
-import { Assessment } from "@/pages/Assessment";
-import { Universities } from "@/pages/Universities";
-import { UniversityDetail } from "@/pages/UniversityDetail";
+import { Experience } from "@/features/profile/pages/Experience";
+import { Education } from "@/features/profile/pages/Education";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvSynthLibrary } from "@/features/cv/pages/CvSynthLibrary";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
+import { CvTemplateEditor } from "@/features/cv/pages/CvTemplateEditor";
+import { Catalog } from "@/features/catalog/pages/Catalog";
+import { CatalogGraph } from "@/features/catalog/components/catalog/CatalogGraph";
+import { CatalogTree } from "@/features/catalog/components/catalog/CatalogTree";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
+import { Applications } from "@/features/postings/pages/Applications";
+import { ChatPage } from "@/features/chat/pages/ChatPage";
+import { Generate } from "@/features/catalog/pages/Generate";
+import { JobDetail } from "@/features/catalog/pages/JobDetail";
+import { Onboarding } from "@/features/profile/pages/Onboarding";
+import { OnboardingSetup } from "@/pages/OnboardingSetup";
+import { ExpressOnboarding } from "@/features/profile/pages/ExpressOnboarding";
+import { ExtensionSurfacePage } from "@/features/integrations/pages/ExtensionSurface";
+import { SourceDetailPage } from "@/features/integrations/pages/SourceDetail";
+import { Growth } from "@/features/growth/pages/Growth";
+import { Interviews } from "@/features/interviews/pages/Interviews";
+import { PathExplorer } from "@/features/paths/pages/PathExplorer";
+import { ProfileEdit } from "@/features/profile/pages/ProfileEdit";
+import { ProfileImport } from "@/features/profile/pages/ProfileImport";
+import { Rankings } from "@/features/catalog/pages/Rankings";
+import { Compare } from "@/features/catalog/pages/Compare";
+import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
+import { Explore } from "@/features/catalog/pages/Explore";
+import { Autopilot } from "@/features/growth/pages/Autopilot";
+import { AutopilotRunPage } from "@/features/growth/pages/AutopilotRunPage";
+import { Assessment } from "@/features/assessment/pages/Assessment";
+import { Universities } from "@/features/university/pages/Universities";
+import { UniversityDetail } from "@/features/university/pages/UniversityDetail";
+import { Companies } from "@/features/companies/pages/Companies";
+import { MarketIntelligence } from "@/features/postings/pages/market-intelligence";
+import { CompanyDetail } from "@/features/companies/pages/CompanyDetail";
+import { SkillPage } from "@/features/skills/pages/SkillPage";
 
 function UniversityRedirect() {
   const { id } = useParams();
@@ -58,6 +70,7 @@ export function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/chat" element={<ChatPage />} />
           <Route path="/onboarding" element={<Onboarding />} />
+          <Route path="/onboarding/setup" element={<OnboardingSetup />} />
           <Route path="/onboarding/express" element={<ExpressOnboarding />} />
           <Route path="/catalog" element={<Catalog />}>
             <Route index element={<CatalogTree />} />
@@ -68,14 +81,21 @@ export function App() {
           <Route path="/generate" element={<Navigate to="/catalog/generate" replace />} />
           <Route path="/rankings" element={<Rankings />} />
           <Route path="/compare" element={<Compare />} />
-          <Route path="/postings" element={<Postings />}>
-            <Route index element={<PostingsFeed />} />
-            <Route path="search" element={<Explore />} />
-          </Route>
-          <Route path="/explore" element={<Navigate to="/postings/search" replace />} />
+          <Route path="/postings" element={<Explore />} />
+          <Route path="/postings/search" element={<Navigate to="/postings" replace />} />
+          <Route path="/postings/feed" element={<Navigate to="/postings" replace />} />
+          <Route path="/postings/stats" element={<MarketIntelligence />} />
+          <Route path="/postings/:ref" element={<PostingDetailPage />} />
+          <Route path="/applications" element={<Applications />} />
+          <Route path="/explore" element={<Navigate to="/postings" replace />} />
+          <Route path="/radar" element={<JobRadarSettings />} />
           <Route path="/autopilot" element={<Autopilot />} />
+          <Route path="/autopilot/runs/:runId" element={<AutopilotRunPage />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/growth" element={<Growth />} />
+          <Route path="/paths" element={<PathExplorer />} />
+          <Route path="/extensions/:extensionId" element={<ExtensionSurfacePage />} />
+          <Route path="/sources/:sourceId" element={<SourceDetailPage />} />
           <Route path="/profile" element={<ProfileEdit />} />
           <Route path="/profile/import" element={<ProfileImport />} />
           <Route path="/profile/import/:documentId" element={<ProfileImport />} />
@@ -83,6 +103,9 @@ export function App() {
           <Route path="/profile/education" element={<Education />} />
           <Route path="/profile/assessment" element={<Assessment />} />
           <Route path="/assessment" element={<Navigate to="/profile/assessment" replace />} />
+          <Route path="/companies" element={<Companies />} />
+          <Route path="/companies/:key" element={<CompanyDetail />} />
+          <Route path="/skills/:key" element={<SkillPage />} />
           <Route path="/catalog/universities" element={<Universities />} />
           <Route path="/catalog/universities/:id" element={<UniversityDetail />} />
           <Route path="/universities" element={<Navigate to="/catalog/universities" replace />} />
@@ -95,12 +118,17 @@ export function App() {
           <Route path="/settings" element={<SettingsShell />}>
             <Route index element={<Navigate to="/settings/account" replace />} />
             <Route path="account" element={<Account />} />
+            <Route path="radar" element={<Navigate to="/radar" replace />} />
             <Route path="ai" element={<AIConfig />} />
+            <Route path="tools" element={<ToolsConfig />} />
             <Route path="taxonomy" element={<Taxonomy />} />
+            <Route path="companies" element={<CompanyRules />} />
             <Route path="users" element={<Users />} />
-            <Route path="scheduler" element={<SchedulerSettings />} />
+            <Route path="automations" element={<SchedulerSettings />} />
+            {/* Legacy deep links (ADR-0033 INV-6): scheduler → automations */}
+            <Route path="scheduler" element={<Navigate to="/settings/automations" replace />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="audit" element={<AIAudit />} />
+            <Route path="audit" element={<Audit />} />
           </Route>
         </Route>
       </Routes>

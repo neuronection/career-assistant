@@ -7,9 +7,7 @@ from datetime import date
 from app.models.experience_model import ExperienceAchievement, ExperienceItem
 
 
-async def _make_item(
-    db, uid: str, description: str = "Built QA tooling"
-) -> ExperienceItem:
+async def _make_item(db, uid: str, description: str = "Built QA tooling") -> ExperienceItem:
     item = ExperienceItem(
         user_id=uuid.UUID(uid),
         kind="internship",
@@ -56,9 +54,7 @@ def _uid_of(headers) -> str:
     return str(json.loads(base64.urlsafe_b64decode(token.split(".")[1] + "=="))["sub"])
 
 
-async def _cv_with_pins(
-    client, auth_headers, db, *, item_id: str = "", synth_id: str = ""
-) -> dict:
+async def _cv_with_pins(client, auth_headers, db, *, item_id: str = "", synth_id: str = "") -> dict:
     cv = (
         await client.post(
             "/api/v1/cv",
@@ -76,9 +72,7 @@ async def _cv_with_pins(
 
 
 async def _resolution(client, auth_headers, cv: dict) -> dict:
-    return (
-        await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)
-    ).json()
+    return (await client.get(f"/api/v1/cv/{cv['id']}/context", headers=auth_headers)).json()
 
 
 async def test_no_pins_render_verbatim(client, db, auth_headers):
@@ -91,9 +85,7 @@ async def test_no_pins_render_verbatim(client, db, auth_headers):
 
 async def test_starred_variant_swaps_in(client, db, auth_headers):
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"])
     resolution = await _resolution(client, auth_headers, cv)
     description = resolution["snapshot"]["experience"][0]["description"]
     assert description == variant["payload"]["description"], (
@@ -128,17 +120,15 @@ async def test_pin_swap_bullets_replace(client, db, auth_headers):
         },
         headers=auth_headers,
     )
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant_id
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant_id)
     resolution = await _resolution(client, auth_headers, cv)
     entries = resolution["snapshot"]["experience"][0]["achievements"]
     assert [entry["text"] for entry in entries] == ["Variant bullet one"], (
         "a variant that sets achievements replaces the profile list"
     )
-    assert all(
-        isinstance(entry, dict) and set(entry) == {"text"} for entry in entries
-    ), "canonical bullet shape everywhere"
+    assert all(isinstance(entry, dict) and set(entry) == {"text"} for entry in entries), (
+        "canonical bullet shape everywhere"
+    )
 
 
 async def _make_bullets_variant(client, auth_headers, item, texts):
@@ -183,9 +173,7 @@ async def test_bullets_variant_pin_composes_with_text_variant(client, db, auth_h
     with_guidance = await _cv_with_pin_map(
         client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
     )
-    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"][
-        "experience"
-    ]
+    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"]["experience"]
     assert rows[0]["description"] == text_variant["payload"]["description"], (
         "the pinned text variant owns the description"
     )
@@ -208,9 +196,7 @@ async def test_bullets_variant_pin_composes_with_text_variant(client, db, auth_h
         },
     )
     assert compose["status"] == "active"
-    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"][
-        "experience"
-    ]
+    rows = (await _resolution(client, auth_headers, with_guidance))["snapshot"]["experience"]
     assert rows[0]["description"] == text_variant["payload"]["description"], (
         "one row, one star: the same single slot"
     )
@@ -241,9 +227,7 @@ async def test_bullets_variants_coexist_with_text_slot(client, db, auth_headers)
     text_row = (
         await client.get(f"/api/v1/cv/synth/{text_variant['id']}", headers=auth_headers)
     ).json()
-    first_row = (
-        await client.get(f"/api/v1/cv/synth/{first['id']}", headers=auth_headers)
-    ).json()
+    first_row = (await client.get(f"/api/v1/cv/synth/{first['id']}", headers=auth_headers)).json()
     assert text_row["status"] == "active"
     assert first_row["status"] == "active"
     assert second["status"] == "active"
@@ -298,16 +282,12 @@ async def test_pin_beats_override_overrides_return_on_unpin(client, db, auth_hea
     unpinned = await client.post(
         "/api/v1/cv/" + cv["id"] + "/preview", json={}, headers=auth_headers
     )
-    assert "Manual final text" in unpinned.json()["html"], (
-        "unpinning restores the manual patch"
-    )
+    assert "Manual final text" in unpinned.json()["html"], "unpinning restores the manual patch"
 
 
 async def test_compile_records_synth_trace(client, db, auth_headers):
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"])
     compiled = await client.post(f"/api/v1/cv/{cv['id']}/compile", headers=auth_headers)
     assert compiled.status_code == 201, compiled.text
     trace = await db.execute(
@@ -324,9 +304,7 @@ async def test_compile_records_synth_trace(client, db, auth_headers):
 async def test_lint_flags_synth_available(client, db, auth_headers):
     await _item_and_active_variant(client, db, auth_headers)
     cv = await _cv_with_pins(client, auth_headers, db)
-    lint = (
-        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
-    ).json()
+    lint = (await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)).json()
     checks = {c["id"]: c for c in lint["checks"]}
     assert "synth_available" in checks
     assert checks["synth_available"]["level"] == "info"
@@ -334,9 +312,7 @@ async def test_lint_flags_synth_available(client, db, auth_headers):
 
 async def test_lint_reports_synth_share_when_starred(client, db, auth_headers):
     item, variant = await _item_and_active_variant(client, db, auth_headers)
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=variant["id"])
     lint = (
         await client.get(
             f"/api/v1/cv/{cv['id']}/lint",
@@ -387,12 +363,8 @@ async def test_lint_warns_when_pin_points_at_draft(client, db, auth_headers):
             headers=auth_headers,
         )
     ).json()["items"][0]
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=row["id"]
-    )
-    lint = (
-        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
-    ).json()
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=row["id"])
+    lint = (await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)).json()
     checks = {c["id"]: c for c in lint["checks"]}
     assert "synth_pin_inactive" in checks
     assert checks["synth_pin_inactive"]["level"] == "warn"
@@ -424,17 +396,13 @@ async def test_lint_silent_while_pin_variant_stays_active(client, db, auth_heade
             headers=auth_headers,
         )
     ).json()["items"][0]
-    cv = await _cv_with_pins(
-        client, auth_headers, db, item_id=str(item.id), synth_id=first["id"]
-    )
+    cv = await _cv_with_pins(client, auth_headers, db, item_id=str(item.id), synth_id=first["id"])
     await client.patch(
         f"/api/v1/cv/synth/{second['id']}",
         json={"status": "active"},
         headers=auth_headers,
     )
-    lint = (
-        await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)
-    ).json()
+    lint = (await client.get(f"/api/v1/cv/{cv['id']}/lint", headers=auth_headers)).json()
     checks = {c["id"]: c for c in lint["checks"]}
     assert "synth_pin_inactive" not in checks
 
@@ -453,9 +421,7 @@ async def test_omit_bullets_flag_clears_the_list_explicitly(client, db, auth_hea
         client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
     )
     rows = (await _resolution(client, auth_headers, cv))["snapshot"]["experience"]
-    assert [entry["text"] for entry in rows[0]["achievements"]] == [
-        "Profile bullet 1"
-    ], (
+    assert [entry["text"] for entry in rows[0]["achievements"]] == ["Profile bullet 1"], (
         "a text-only pinned row keeps the profile bullets (empty list is the row's "
         "default serialization, never an omission deal)"
     )
@@ -475,9 +441,7 @@ async def test_omit_bullets_flag_clears_the_list_explicitly(client, db, auth_hea
     cv_omitting = await _cv_with_pin_map(
         client, auth_headers, {"experience:" + str(item.id): text_variant["id"]}
     )
-    rows = (await _resolution(client, auth_headers, cv_omitting))["snapshot"][
-        "experience"
-    ]
+    rows = (await _resolution(client, auth_headers, cv_omitting))["snapshot"]["experience"]
     assert rows[0]["achievements"] == [], (
         "the omit_bullets deal clears the pinned item's bullet list"
     )

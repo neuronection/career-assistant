@@ -1,0 +1,1145 @@
+{
+  "schema_version": 1,
+  "generated": "2026-11-03",
+  "fixture": {
+    "path": "backend/tests/fixtures/posting_mapping_golden.json",
+    "cases": 164,
+    "jobs": 123,
+    "families": 13,
+    "skills": 135
+  },
+  "matrix": {
+    "tau_job": [
+      0.34,
+      0.4,
+      0.45
+    ],
+    "delta": [
+      0.05,
+      0.08,
+      0.1
+    ],
+    "blend": [
+      [
+        0.75,
+        0.25
+      ],
+      [
+        0.7,
+        0.3
+      ],
+      [
+        0.8,
+        0.2
+      ]
+    ],
+    "k": 25,
+    "points": 27
+  },
+  "held_fixed": {
+    "k": 25,
+    "published_only_rerank": true,
+    "shared_skill_gate": true,
+    "rescue": "off (isolates the rerank policy)",
+    "manual_rules": "manual rows are never overwritten",
+    "terminal_rules": "terminal rows stay outside the remap domain"
+  },
+  "results": [
+    {
+      "tau_job": 0.34,
+      "delta": 0.05,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.05,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.05,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.1183,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 82,
+      "correct": 82,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "margin": [
+          "margin-operations",
+          "margin-sales",
+          "margin-cybersecurity",
+          "margin-education",
+          "margin-legal",
+          "margin-research",
+          "margin-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.08,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 1.0,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 75,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {}
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.08,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.08,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.1,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.1,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 1.0,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 75,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {}
+    },
+    {
+      "tau_job": 0.34,
+      "delta": 0.1,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 0.9067,
+      "family_recall@1": 1.0,
+      "abstention": 0.1935,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.9247,
+      "family_fallback_rate": 0.0,
+      "decided": 75,
+      "correct": 68,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.05,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8172,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 58,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.05,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3011,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8925,
+      "family_fallback_rate": 0.0,
+      "decided": 65,
+      "correct": 65,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.05,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8172,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 58,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.08,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8172,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 58,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.08,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3011,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8925,
+      "family_fallback_rate": 0.0,
+      "decided": 65,
+      "correct": 65,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.08,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 0.8793,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.1,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 0.8793,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.1,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.3011,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.8925,
+      "family_fallback_rate": 0.0,
+      "decided": 65,
+      "correct": 65,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.4,
+      "delta": 0.1,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 0.8793,
+      "family_recall@1": 1.0,
+      "abstention": 0.3763,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 58,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.05,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.4516,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 51,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.05,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.4516,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 51,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.05,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.5591,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.6344,
+      "family_fallback_rate": 0.0,
+      "decided": 41,
+      "correct": 41,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ],
+        "wrong": [
+          "wrong-1",
+          "wrong-2",
+          "wrong-3",
+          "wrong-operations",
+          "wrong-sales",
+          "wrong-cybersecurity",
+          "wrong-education",
+          "wrong-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.08,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.4516,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 51,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.08,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.4516,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 51,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.08,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.6344,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.5591,
+      "family_fallback_rate": 0.0,
+      "decided": 34,
+      "correct": 34,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ],
+        "wrong": [
+          "wrong-1",
+          "wrong-2",
+          "wrong-3",
+          "wrong-operations",
+          "wrong-sales",
+          "wrong-cybersecurity",
+          "wrong-education",
+          "wrong-legal"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.1,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.5269,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.6667,
+      "family_fallback_rate": 0.0,
+      "decided": 44,
+      "correct": 44,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.1,
+      "blend_deterministic": 0.7,
+      "blend_semantic": 0.3,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.4516,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.7419,
+      "family_fallback_rate": 0.0,
+      "decided": 51,
+      "correct": 51,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ]
+      }
+    },
+    {
+      "tau_job": 0.45,
+      "delta": 0.1,
+      "blend_deterministic": 0.8,
+      "blend_semantic": 0.2,
+      "precision@1": 1.0,
+      "family_recall@1": 1.0,
+      "abstention": 0.6344,
+      "candidate_recall@25": 1.0,
+      "candidate_recall@200": 1.0,
+      "intent_accuracy": 0.5591,
+      "family_fallback_rate": 0.0,
+      "decided": 34,
+      "correct": 34,
+      "labelled": 93,
+      "spurious_maps": 0,
+      "family_only_cases": 21,
+      "failures": {
+        "delta": [
+          "delta-operations",
+          "delta-sales",
+          "delta-cybersecurity",
+          "delta-education",
+          "delta-legal",
+          "delta-research",
+          "delta-hospitality"
+        ],
+        "draft": [
+          "draft-operations",
+          "draft-sales",
+          "draft-cybersecurity",
+          "draft-education",
+          "draft-legal",
+          "draft-research",
+          "draft-hospitality"
+        ],
+        "lift": [
+          "lift-1",
+          "lift-2",
+          "lift-3",
+          "lift-operations",
+          "lift-sales",
+          "lift-cybersecurity",
+          "lift-education",
+          "lift-legal"
+        ],
+        "misleading": [
+          "misleading-operations",
+          "misleading-sales",
+          "misleading-cybersecurity",
+          "misleading-education",
+          "misleading-legal",
+          "misleading-research",
+          "misleading-hospitality"
+        ],
+        "wrong": [
+          "wrong-1",
+          "wrong-2",
+          "wrong-3",
+          "wrong-operations",
+          "wrong-sales",
+          "wrong-cybersecurity",
+          "wrong-education",
+          "wrong-legal"
+        ]
+      }
+    }
+  ],
+  "recommendation": {
+    "tau_job": 0.34,
+    "delta": 0.08,
+    "blend_deterministic": 0.75,
+    "blend_semantic": 0.25,
+    "k": 25,
+    "matches_production": true,
+    "production_policy": {
+      "tau_job": 0.34,
+      "delta": 0.08,
+      "blend_deterministic": 0.75,
+      "blend_semantic": 0.25
+    },
+    "rationale": "Highest intent accuracy, then precision@1, then the lowest abstention, among policies that keep candidate_recall@25 at or above the 0.99 floor; exact ties prefer the shipped tau/delta/blend point. The owner ratifies or rejects this recommendation; the live constants are unchanged in this slice."
+  }
+}

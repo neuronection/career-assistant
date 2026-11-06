@@ -14,8 +14,6 @@ content editors.
 
 from __future__ import annotations
 
-from typing import Optional
-
 from app.ai.tools.registry import list_tools
 
 #: Tool families owned by other chat surfaces — never bound in main chat.
@@ -59,15 +57,20 @@ def main_chat_tool_keys() -> list[str]:
     ]
 
 
-def tool_spec(key: str) -> Optional[dict]:
-    """One registry tool as an OpenAI function-format spec, or None."""
+def tool_spec(key: str) -> dict | None:
+    """One registry tool as an OpenAI function-format spec, or None.
+
+    Extension contributions carry the charter-namespaced registry key
+    ``<extensionId>:<id>``; OpenAI function names take no colons, so the
+    bind name projects ``:`` → ``__`` (bijective — kebab-case ids cannot
+    contain underscores; the registry resolves the alias back)."""
     for entry in list_tools():
         if entry["key"] != key or entry.get("kind") != "tool":
             continue
         return {
             "type": "function",
             "function": {
-                "name": entry["key"],
+                "name": key.replace(":", "__"),
                 "description": entry["description"],
                 "parameters": entry["input_schema"],
             },
@@ -75,7 +78,7 @@ def tool_spec(key: str) -> Optional[dict]:
     return None
 
 
-def chat_tool_specs(keys: Optional[list[str]] = None) -> list[dict]:
+def chat_tool_specs(keys: list[str] | None = None) -> list[dict]:
     """Bind specs for the given keys (default: the main-chat set)."""
     wanted = keys if keys is not None else main_chat_tool_keys()
     return [spec for key in wanted if (spec := tool_spec(key)) is not None]

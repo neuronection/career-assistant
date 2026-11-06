@@ -3,9 +3,9 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@neuronection/assistant-ui";
-import { CvStudio } from "@/pages/CvStudio";
-import { CvBuilder } from "@/pages/CvBuilder";
-import { PostingDetail } from "@/components/PostingDetail";
+import { CvStudio } from "@/features/cv/pages/CvStudio";
+import { CvBuilder } from "@/features/cv/pages/CvBuilder";
+import { PostingDetailPage } from "@/features/postings/pages/PostingDetailPage";
 import type { CvDocumentOut } from "@/types/cv";
 
 const fetchCvs = vi.fn();
@@ -24,6 +24,15 @@ const fetchTemplates = vi.fn();
 const fetchPhotoGallery = vi.fn();
 const fetchPostings = vi.fn();
 const fetchPostingDetail = vi.fn();
+const trackApplication = vi.fn();
+
+vi.mock("@/api/applications", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/api/applications")>();
+  return {
+    ...mod,
+    trackApplication: (...args: unknown[]) => trackApplication(...args),
+  };
+});
 
 vi.mock("@/api/mePhoto", async (importOriginal) => {
   const mod = await importOriginal<typeof import("@/api/mePhoto")>();
@@ -59,6 +68,7 @@ vi.mock("@/api/cv", async (importOriginal) => {
     patchCv: (...args: unknown[]) => patchCv(...args),
     fetchCoverLetterBrief: (...args: unknown[]) => fetchCoverLetterBrief(...args),
     draftCoverLetter: (...args: unknown[]) => draftCoverLetter(...args),
+    fetchSynthItems: vi.fn().mockResolvedValue([]),
   };
 });
 
@@ -248,17 +258,37 @@ beforeEach(() => {
 });
 
 describe("CvStudio cover letters", () => {
-  it("badges cover letters in the list and keeps the creation entry disabled", async () => {
+  it("badges cover letters and creates one from the new-letter modal", async () => {
     fetchCvs.mockResolvedValue([resumeCv, letterCv]);
+    fetchPostings.mockResolvedValue({
+      items: [{ id: "post-1", title: "Junior DevOps", org: "Acme" }],
+      total: 1,
+      unseen: 0,
+    });
     createCoverLetter.mockResolvedValue(letterCv);
     mockBuilderLoad("cover_letter");
     fetchCoverLetterBrief.mockResolvedValue(brief);
     draftCoverLetter.mockResolvedValue(suggestion);
+    const user = userEvent.setup();
     renderApp();
     expect(await screen.findByTestId("cv-studio")).toBeInTheDocument();
     expect(screen.getByTestId("cv-kind")).toHaveTextContent("Cover letter");
 
-    expect(screen.getByTestId("new-letter")).toBeDisabled();
+    const newLetter = screen.getByTestId("new-letter");
+    expect(newLetter).toBeEnabled();
+    await user.click(newLetter);
+
+    const select = await screen.findByTestId("letter-posting-select");
+    await waitFor(() =>
+      expect(within(select).getByText(/Junior DevOps/)).toBeInTheDocument()
+    );
+    await user.selectOptions(select, "post-1");
+    await user.click(screen.getByTestId("create-letter"));
+
+    await waitFor(() =>
+      expect(createCoverLetter).toHaveBeenCalledWith({ posting_id: "post-1" })
+    );
+    expect(await screen.findByTestId("letter-brief")).toBeInTheDocument();
   });
 });
 
@@ -342,7 +372,7 @@ describe("CvBuilder cover-letter mode", () => {
 });
 
 describe("PostingDetail cover-letter entry point", () => {
-  it("keeps the cover-letter CTA disabled until the feature ships", async () => {
+  it("creates a cover letter and opens the letter builder", async () => {
     fetchPostingDetail.mockResolvedValue({
       id: "post-1",
       ref: "abc",
@@ -354,17 +384,125 @@ describe("PostingDetail cover-letter entry point", () => {
     createCoverLetter.mockResolvedValue(letterCv);
     render(
       <TooltipProvider>
-        <MemoryRouter initialEntries={["/postings"]}>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
           <Routes>
-            <Route
-              path="/postings"
-              element={<PostingDetail postingId="post-1" onClose={() => undefined} />}
-            />
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
+            <Route path="/cv/:id" element={<div data-testid="letter-opened" />} />
           </Routes>
         </MemoryRouter>
       </TooltipProvider>
     );
-    expect(await screen.findByTestId("draft-cover-letter")).toBeDisabled();
-    expect(createCoverLetter).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    const button = await screen.findByTestId("draft-cover-letter");
+    expect(button).toBeEnabled();
+    await user.click(button);
+
+    await waitFor(() =>
+      expect(createCoverLetter).toHaveBeenCalledWith({ posting_id: "post-1" })
+    );
+    expect(await screen.findByTestId("letter-opened")).toBeInTheDocument();
+  });
+
+  it("surfaces a failed letter creation without leaving the posting", async () => {
+    fetchPostingDetail.mockResolvedValue({
+      id: "post-1",
+      ref: "abc",
+      title: "Junior DevOps",
+      org: "Acme",
+      location: {},
+      url: "",
+    });
+    createCoverLetter.mockRejectedValue(
+      Object.assign(new Error("Posting not found"), {
+        isAxiosError: true,
+        response: { data: { detail: "Posting not found" } },
+      })
+    );
+    render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
+          <Routes>
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
+            <Route path="/cv/:id" element={<div data-testid="letter-opened" />} />
+          </Routes>
+        </MemoryRouter>
+      </TooltipProvider>
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("draft-cover-letter"));
+
+    expect(await screen.findByTestId("letter-error")).toHaveTextContent(
+      "Posting not found"
+    );
+    expect(screen.queryByTestId("letter-opened")).not.toBeInTheDocument();
+  });
+});
+
+describe("PostingDetail track-application entry point", () => {
+  it("tracks the posting and opens its tracker drawer", async () => {
+    fetchPostingDetail.mockResolvedValue({
+      id: "post-1",
+      ref: "abc",
+      title: "Junior DevOps",
+      org: "Acme",
+      location: {},
+      url: "https://jobs.example/1",
+    });
+    trackApplication.mockResolvedValue({
+      id: "app-9",
+      posting_id: "post-1",
+      posting_title: "Junior DevOps",
+      posting_org: "Acme",
+      stage: "applied",
+    });
+    render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
+          <Routes>
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
+            <Route path="/applications" element={<div data-testid="tracker-opened" />} />
+          </Routes>
+        </MemoryRouter>
+      </TooltipProvider>
+    );
+    const user = userEvent.setup();
+    await user.click(await screen.findByTestId("track-application"));
+
+    await waitFor(() =>
+      expect(trackApplication).toHaveBeenCalledWith({
+        posting_id: "post-1",
+        applied_via: "url",
+        applied_via_url: "https://jobs.example/1",
+      })
+    );
+    expect(await screen.findByTestId("tracker-opened")).toBeInTheDocument();
+  });
+
+  it("links to the existing application instead of re-tracking", async () => {
+    fetchPostingDetail.mockResolvedValue({
+      id: "post-1",
+      ref: "abc",
+      title: "Junior DevOps",
+      org: "Acme",
+      location: {},
+      url: "https://jobs.example/1",
+      application_id: "app-5",
+      stage: "interview",
+    });
+    render(
+      <TooltipProvider>
+        <MemoryRouter initialEntries={["/postings/post-1"]}>
+          <Routes>
+            <Route path="/postings/:ref" element={<PostingDetailPage />} />
+            <Route path="/applications" element={<div data-testid="tracker-opened" />} />
+          </Routes>
+        </MemoryRouter>
+      </TooltipProvider>
+    );
+    const user = userEvent.setup();
+    expect(await screen.findByTestId("open-application")).toBeInTheDocument();
+    expect(screen.queryByTestId("track-application")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("open-application"));
+    expect(await screen.findByTestId("tracker-opened")).toBeInTheDocument();
   });
 });

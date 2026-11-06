@@ -6,9 +6,9 @@ validated into JSONB; technical questions reference taxonomy skill keys
 (`skill_key`) — the service resolves labels, never trusting model text.
 """
 
-from datetime import datetime
-from typing import Literal, Optional
 import uuid
+from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,11 +23,11 @@ class InterviewQuestion(BaseModel):
     id: str = Field(min_length=1, max_length=40)
     kind: QuestionKind = "technical"
     # Taxonomy key when kind == "technical" (resolved, never model-invented).
-    skill_key: Optional[str] = None
+    skill_key: str | None = None
     skill_label: str = Field(default="", max_length=120)
     # Calibration: the level this question probes (1-10), aimed at the
     # user's current level for the skill — not the posting requirement.
-    target_level: Optional[int] = Field(default=None, ge=1, le=10)
+    target_level: int | None = Field(default=None, ge=1, le=10)
     question: str = Field(min_length=1, max_length=600)
     focus: str = Field(default="", max_length=400)
 
@@ -48,8 +48,8 @@ class InterviewPlanPatch(BaseModel):
 class InterviewSessionCreate(BaseModel):
     """Setup: a posting (ref or id) or a catalog archetype (job code)."""
 
-    posting_ref: Optional[str] = Field(default=None, max_length=64)
-    job_code: Optional[str] = Field(default=None, max_length=120)
+    posting_ref: str | None = Field(default=None, max_length=64)
+    job_code: str | None = Field(default=None, max_length=120)
     kind: Literal["technical", "behavioral", "mixed", "research"] = "mixed"
 
 
@@ -83,14 +83,14 @@ class InterviewTurn(BaseModel):
     answer: str = Field(min_length=1, max_length=4000)
     feedback: TurnFeedback
     rubric: RubricScores
-    next_question_id: Optional[str] = None
+    next_question_id: str | None = None
     done: bool = False
 
 
 class DebriefResource(BaseModel):
     """A learning resource linked from a weak skill."""
 
-    skill_key: Optional[str] = None
+    skill_key: str | None = None
     title: str = Field(min_length=1, max_length=300)
     provider: str = Field(default="", max_length=120)
     url: str = Field(default="", max_length=1000)
@@ -112,11 +112,11 @@ class InterviewSessionOut(BaseModel):
     kind: str
     status: str
     role_label: str
-    posting_ref: Optional[str] = None
-    chat_session_id: Optional[uuid.UUID] = None
+    posting_ref: str | None = None
+    chat_session_id: uuid.UUID | None = None
     plan: list[dict]
     rubric_scores: list[dict]
-    debrief: Optional[dict] = None
+    debrief: dict | None = None
     created_at: datetime
     updated_at: datetime
 

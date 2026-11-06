@@ -1,20 +1,14 @@
-import { api } from "./client";
-import type {
-  CheckinStatus,
-  GrowthPlanItem,
-  MarketSnapshot,
-  RadarEntry,
-} from "@/types";
+import { api } from "@/api/client";
+import type { CheckinStatus, GrowthPlanItem, MarketSnapshot, RadarEntry } from "@/types/wire";
+export async function fetchGrowthPlans(): Promise<GrowthPlanItem[]> {
+  const { data } = await api.get<GrowthPlanItem[]>("/growth/plans");
+  return data;
+}
 
 export async function createGrowthPlan(targetJobId: string): Promise<GrowthPlanItem> {
   const { data } = await api.post<GrowthPlanItem>("/growth/plans", {
     target_job_id: targetJobId,
   });
-  return data;
-}
-
-export async function fetchGrowthPlans(): Promise<GrowthPlanItem[]> {
-  const { data } = await api.get<GrowthPlanItem[]>("/growth/plans");
   return data;
 }
 

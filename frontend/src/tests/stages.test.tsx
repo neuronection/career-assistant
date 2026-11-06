@@ -2,12 +2,12 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { Dashboard } from "@/pages/Dashboard";
+import { Dashboard } from "@/features/profile/pages/Dashboard";
 import { useProfileStore } from "@/stores/profileStore";
 import { useCatalogStore } from "@/stores/catalogStore";
 import { useBootstrapStore, } from "@/stores/bootstrapStore";
 import { fetchFeed } from "@/api/engagement";
-import type { Bootstrap } from "@/types";
+import type { Bootstrap } from "@/types/wire";
 
 vi.mock("@/api/matching", () => ({
   fetchRankings: vi.fn().mockResolvedValue({ items: [], total: 0 }),
@@ -25,7 +25,7 @@ vi.mock("@/api/engagement", async (importOriginal) => {
 
 vi.mock("@/api/jobs", () => ({
   fetchFamilyTree: vi.fn().mockResolvedValue([]),
-  fetchJobs: vi.fn().mockResolvedValue([]),
+  fetchJobs: vi.fn().mockResolvedValue({ items: [], total: 0, facets: {} }),
 }));
 
 function bootstrapFor(stage: Bootstrap["career_stage"]): Bootstrap {
@@ -54,6 +54,8 @@ function bootstrapFor(stage: Bootstrap["career_stage"]): Bootstrap {
       values: 4,
     },
     weights_overridden: false,
+    fit_stale: false,
+    target_mode: false,
   };
 }
 

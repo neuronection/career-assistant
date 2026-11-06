@@ -8,5 +8,6 @@ export {
   ModalHeader,
   ModalTitle,
   ModalDescription,
+  ModalBody,
   ModalFooter,
 } from "@neuronection/assistant-ui";

@@ -1,260 +1,34 @@
 import asyncio
-from contextlib import asynccontextmanager
-from dataclasses import replace
-import json
+import contextlib
 import logging
-import os
-from pathlib import Path
 import sys
-from urllib.parse import parse_qs
+from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.staticfiles import StaticFiles
-from starlette.datastructures import MutableHeaders
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.v1 import api_router
+from app.auth.install import install_identity
 from app.core.boot import configure_logging, validate_boot_config
-from app.core.config import IdentityMode, settings
-from app.core.profile_context import (
-    reset_active_profile,
-    reset_active_user,
-    set_active_profile,
-    set_active_user,
-)
+from app.core.config import Settings, settings
 from app.core.errors import (
-    AINotConfiguredError,
     AccountLockedError,
+    AIBudgetExceededError,
+    AINotConfiguredError,
     ConflictError,
     DomainError,
     NotFoundError,
     PermissionDeniedError,
 )
+from app.middleware import (
+    ProfileBindingMiddleware,
+    SpaStaticFiles,
+    mount_rate_limiting,
+)
 
 logger = logging.getLogger(__name__)
-
-_X_CONTENT_TYPE = ("x-content-type-options", "nosniff")
-_X_FRAME = ("x-frame-options", "DENY")
-_REFERRER = ("referrer-policy", "strict-origin-when-cross-origin")
-_CSP_BODY = (
-    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline';"
-    " script-src {script}; connect-src 'self'; font-src 'self' data:; object-src 'none';"
-    " frame-ancestors 'none'; base-uri 'self'"
-)
-# Web deployment: no eval, no inline scripts.
-WEB_CSP = _CSP_BODY.format(script="'self'")
-# Desktop shell only: pywebview's evaluate_js (the bridge push and
-# the toast-activation focus) runs through the page JS context, and
-# WebKitGTK/WebView2 apply the page CSP to it. Gated per request by the
-# per-boot shell token (app.desktop.shell_token) — browsers never see it.
-DESKTOP_CSP = _CSP_BODY.format(script="'self' 'unsafe-eval'")
-
-
-class SecurityHeadersMiddleware:
-    """Attach hardened response headers to every HTTP response."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        from app.desktop.shell_token import QUERY_PARAM, matches
-
-        desktop_request = matches(
-            parse_qs(scope.get("query_string", b"").decode("latin-1")).get(
-                QUERY_PARAM, [None]
-            )[0]
-        )
-        csp = DESKTOP_CSP if desktop_request else WEB_CSP
-        headers = (
-            _X_CONTENT_TYPE,
-            _X_FRAME,
-            _REFERRER,
-            ("content-security-policy", csp),
-        )
-
-        async def send_with_headers(message):
-            if message["type"] == "http.response.start":
-                response_headers = MutableHeaders(scope=message)
-                for name, value in headers:
-                    response_headers.append(name, value)
-            await send(message)
-
-        await self.app(scope, receive, send_with_headers)
-
-
-class RateLimitMiddleware:
-    """Per-IP sliding-window limits on the API (see app.core.ratelimit)."""
-
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or not settings.RATE_LIMIT_ENABLED:
-            await self.app(scope, receive, send)
-            return
-        path = scope.get("path", "")
-        if not path.startswith("/api/"):
-            await self.app(scope, receive, send)
-            return
-        from app.core.ratelimit import client_identity, limiter
-
-        identity = client_identity(scope)
-        bucket = (
-            "auth" if path.endswith(("/auth/login", "/auth/register")) else "default"
-        )
-        retry_after = limiter.check(bucket, identity)
-        if retry_after is not None:
-            response = JSONResponse(
-                status_code=429,
-                content={"detail": "Too many requests"},
-                headers={"Retry-After": str(retry_after)},
-            )
-            await response(scope, receive, send)
-            return
-        await self.app(scope, receive, send)
-
-
-# Profile-independent surfaces (identity-auth §15) — they must work
-# without `X-Profile-Id` so the SPA can always discover its profiles
-# before scoping domain calls. Career's `/me/photo` and `/me/education`
-# family lives under `/me` and rides the same exemption (the header
-# still binds there when present).
-PROFILE_BIND_EXEMPT_PREFIXES = (
-    "/api/v1/auth",
-    "/api/v1/me",
-    "/api/v1/profiles",
-    "/api/v1/admin",
-    "/api/v1/health",
-    "/api/v1/instance",
-    "/api/v1/shell",
-)
-
-
-def _profile_bind_exempt(path: str) -> bool:
-    """Prefix match on path-segment boundaries — `/api/v1/me` must never
-    swallow `/api/v1/metrics`."""
-    # URL-addressable rendered images (`<img>`/`<link>` cannot send the
-    # profile header): preview.png thumbnails are user-scoped GETs whose
-    # handlers do their own ownership checks, so they skip the bind.
-    if path.endswith("/preview.png"):
-        return True
-    for prefix in PROFILE_BIND_EXEMPT_PREFIXES:
-        if path == prefix or path.startswith(prefix + "/"):
-            return True
-    return False
-
-
-async def _send_json_error(send, status_code: int, detail: str) -> None:
-    body = json.dumps({"detail": detail}).encode("utf-8")
-    await send(
-        {
-            "type": "http.response.start",
-            "status": status_code,
-            "headers": [
-                (b"content-type", b"application/json"),
-                (b"content-length", str(len(body)).encode("ascii")),
-            ],
-        }
-    )
-    await send({"type": "http.response.body", "body": body})
-
-
-class ProfileBindingMiddleware:
-    """X-Profile-Id ownership binding (identity-auth §15).
-
-    Runs *inside* session enforcement (the verified `nx_principal` is in
-    scope state — the auth-kit middleware was mounted later, so it wraps
-    this one) and binds user + profile into contextvars:
-
-    - server: absent header ⇒ 400; malformed, unknown, or unowned
-      ⇒ 403 — no silent default in web mode;
-    - desktop: absent header ⇒ the last-used profile (Default
-      fallback) — the silent boot UX; an explicit header touches
-      `last_used_at` (§6);
-    - exempt prefixes (auth, `/me`, `/profiles`, `/admin`, health,
-      docs, the render beacon) work without the header — they still
-      bind when a valid header rides along.
-    """
-
-    def __init__(self, app, session_factory=None):
-        self.app = app
-        self.session_factory = session_factory
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-        path = scope.get("path", "")
-        if not path.startswith("/api/"):
-            await self.app(scope, receive, send)
-            return
-        headers = {
-            key.decode("latin-1").lower(): value.decode("latin-1")
-            for key, value in scope.get("headers", [])
-        }
-        principal = scope.get("state", {}).get("nx_principal")
-        user_id = principal.user_id if principal is not None else None
-        raw = headers.get("x-profile-id")
-        exempt = _profile_bind_exempt(path)
-        profile_id = None
-        factory = getattr(scope["app"].state, "profile_sessions", None) or (
-            self.session_factory
-        )
-        if factory is None:
-            from app.core.database import AsyncSessionLocal
-
-            factory = AsyncSessionLocal
-        async with factory() as session:
-            if raw:
-                profile = None
-                if user_id is not None:
-                    from app.services.profiles_service import get_owned_profile
-
-                    profile = await get_owned_profile(session, user_id, raw)
-                if profile is None:
-                    if not exempt:
-                        await _send_json_error(send, 403, "profile not allowed")
-                        return
-                else:
-                    profile_id = str(profile.id)
-            elif not exempt:
-                if user_id is None:
-                    await _send_json_error(send, 401, "Not authenticated")
-                    return
-                if settings.identity_mode is not IdentityMode.DESKTOP:
-                    await _send_json_error(send, 400, "X-Profile-Id required")
-                    return
-                from app.services.profiles_service import (
-                    get_or_create_default,
-                    last_used_profile,
-                )
-
-                profile = await last_used_profile(session, user_id) or None
-                if profile is None:
-                    profile = await get_or_create_default(session, user_id)
-                profile_id = str(profile.id)
-            if (
-                profile_id is not None
-                and settings.identity_mode is IdentityMode.DESKTOP
-                and raw
-            ):
-                from app.services.profiles_service import touch_last_used
-
-                await touch_last_used(session, profile_id)
-            await session.commit()
-        user_token = set_active_user(user_id)
-        profile_token = set_active_profile(profile_id)
-        try:
-            await self.app(scope, receive, send)
-        finally:
-            reset_active_profile(profile_token)
-            reset_active_user(user_token)
 
 
 def _find_spa_dist() -> Path | None:
@@ -264,8 +38,8 @@ def _find_spa_dist() -> Path | None:
     (PyInstaller, Phase 11), then the repository checkout layout.
     """
     candidates = []
-    if settings.SPA_DIST:
-        candidates.append(Path(settings.SPA_DIST))
+    if settings.spa_dist:
+        candidates.append(Path(settings.spa_dist))
     bundled = getattr(sys, "_MEIPASS", None)
     if bundled:
         candidates.append(Path(bundled) / "frontend" / "dist")
@@ -277,42 +51,26 @@ def _find_spa_dist() -> Path | None:
     return None
 
 
-class SpaStaticFiles(StaticFiles):
-    """StaticFiles that serves index.html for client-side SPA routes.
-
-    Only paths without a file extension fall back to the app shell, so a
-    genuinely missing asset (e.g. /assets/chunk.js) still 404s honestly.
-    """
-
-    async def get_response(self, path: str, scope):
-        try:
-            response = await super().get_response(path, scope)
-        except StarletteHTTPException as exc:
-            if exc.status_code != 404 or "." in path.rsplit("/", 1)[-1]:
-                raise
-            response = await super().get_response("index.html", scope)
-        if response.status_code == 404 and "." not in path.rsplit("/", 1)[-1]:
-            response = await super().get_response("index.html", scope)
-        return response
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Validate boot config (production fails fast), then serve."""
+    """Configure logging, then serve (boot guards run in create_app)."""
     configure_logging()
-    try:
-        for warning in validate_boot_config():
-            logger.warning("Boot config warning: %s", warning)
-    except Exception as exc:  # noqa: BLE001 — boot must refuse loudly
-        logger.critical("Refusing to boot: %s", exc)
-        raise
+    # GitOps desired-state reconcile at boot (plan 32 Phase 3 / ADR-0040
+    # D13) — best-effort, never fatal: reconcile installs and moves pins
+    # only; a failed fetch leaves pins untouched.
+    from app.extensions.lifecycle import reconcile_boot
     from app.services.job_worker import drain_queue, start_workers
-    from app.services.scheduler.runner import start_scheduler
 
     # Warm VAPID keys before any dispatch can run: generating them lazily
     # inside a notification emit would write on a second connection while
     # the caller's transaction holds the SQLite write lock.
     from app.services.notification_channels import get_channel
+    from app.services.scheduler.runner import start_scheduler
+
+    try:
+        await reconcile_boot()
+    except Exception:
+        logger.warning("extension desired-state reconcile failed at boot", exc_info=True)
 
     channel = get_channel("browser")
     if channel is not None and channel.available():
@@ -320,10 +78,8 @@ async def lifespan(app: FastAPI):
 
         try:
             await get_or_create_vapid_keys()
-        except Exception:  # noqa: BLE001 — push degrades fail-soft, boot must not hinge
-            logger.warning(
-                "VAPID key warm-up failed; browser push degraded", exc_info=True
-            )
+        except Exception:
+            logger.warning("VAPID key warm-up failed; browser push degraded", exc_info=True)
 
     # Warm the LangGraph checkpointer BEFORE any worker or request can run:
     # its first-run migration issues CREATE INDEX CONCURRENTLY, which waits
@@ -333,17 +89,28 @@ async def lifespan(app: FastAPI):
 
     try:
         await get_checkpointer()
-    except Exception:  # noqa: BLE001 — degrade fail-soft, boot must not hinge
-        logger.warning(
-            "Checkpointer warm-up failed; graph flows degraded", exc_info=True
-        )
+    except Exception:
+        logger.warning("Checkpointer warm-up failed; graph flows degraded", exc_info=True)
     # Retention beat (plan 98): desktop checkpoints grow unboundedly —
     # prune stale threads at boot (server-mode Postgres: Phase-4 trigger).
     pruned = prune_desktop_checkpoints()
     if pruned:
         logger.info("Checkpoint prune removed %d stale rows", pruned)
 
-    workers = await start_workers(settings.JOBS_WORKERS)
+    from app.core.database import AsyncSessionLocal
+    from app.services.postings.job_proposal_backfill import enqueue_first_boot_backfill
+
+    try:
+        async with AsyncSessionLocal() as db:
+            await enqueue_first_boot_backfill(db)
+    except Exception:
+        logger.warning("job-proposal backfill boot check failed", exc_info=True)
+
+    workers = await start_workers(
+        settings.jobs_workers,
+        ingest_worker_count=settings.jobs_ingest_workers,
+        vector_worker_count=settings.jobs_vector_workers,
+    )
     scheduler_task = await start_scheduler()
     try:
         yield
@@ -355,139 +122,46 @@ async def lifespan(app: FastAPI):
             scheduler_task.cancel()
             await asyncio.gather(scheduler_task, return_exceptions=True)
         try:
-            await asyncio.wait_for(
-                drain_queue(), timeout=max(settings.JOBS_DRAIN_SECONDS, 1)
-            )
-        except (asyncio.TimeoutError, Exception):  # noqa: BLE001 — best effort
+            await asyncio.wait_for(drain_queue(), timeout=max(settings.jobs_drain_seconds, 1))
+        except (TimeoutError, Exception):
             logger.warning("Queue drain incomplete at shutdown", exc_info=True)
         for task in workers:
             task.cancel()
         await asyncio.gather(*workers, return_exceptions=True)
         try:
-            from app.services.cv_pdf_service import shutdown_engine
+            from app.services.cv.cv_pdf_service import shutdown_engine
 
             await shutdown_engine()
-        except Exception:  # noqa: BLE001 — best effort cleanup
+        except Exception:
             logger.warning("PDF engine shutdown failed", exc_info=True)
+        try:
+            from app.extensions.runtime.http import close_connector_client
+
+            await close_connector_client()
+        except Exception:
+            logger.warning("Connector client shutdown failed", exc_info=True)
+        try:
+            from app.ai.tracing import sink as tracing_sink
+
+            tracing_sink().shutdown()
+        except Exception:
+            logger.warning("Tracing shutdown failed", exc_info=True)
 
 
-def _install_identity(application: FastAPI) -> None:
-    """Mount the family auth-kit (identity-auth §4/§5/§8/§10/§11).
+def create_app(settings: Settings | None = None) -> FastAPI:
+    """Build the FastAPI application (API + optional SPA mount).
 
-    - init-only instance modes: `instance_settings` is seeded on an empty
-      DB (§4 — DB authoritative, env flips ignored loudly, fail-closed);
-    - `/api/v1/auth/*` + `/api/v1/me/*` + `/api/v1/admin/*` at their
-      exact §12 paths (in-tree auth routes are gone — same-commit delete);
-    - cookie sessions + double-submit CSRF (§10) and per-request session
-      enforcement (§4.2 — every `/api/` request, exempt prefixes aside);
-    - desktop entrypoint: the per-boot shell secret becomes the §11
-      request gate (and keeps marking `?shell=` documents for the desktop
-      CSP variant); DIM exchange mounts in desktop mode only.
+    The build and the services read the module-global `settings`; the
+    optional argument swaps that instance in for the whole build (the
+    family DI seam, plan 20 D5). Entrypoints reuse the module-level `app`
+    so each process constructs the application exactly once.
     """
-    from nx_auth import AuthConfig
-    from nx_auth import install as install_auth_kit
-
-    from app.auth.instance import initialize_instance
-    from app.auth.stores import (
-        CareerAuditSink,
-        CareerInstanceStore,
-        CareerProfileStore,
-        CareerSessionStore,
-        CareerUserStore,
-    )
-    from app.core.database import AuthSessionLocal
-    from app.core.keys import keyring
-
-    instance_store = CareerInstanceStore(AuthSessionLocal)
-    effective_auth_mode = initialize_instance(
-        instance_store,
-        identity_mode=settings.identity_mode,
-        auth_mode_env=settings.AUTH_MODE,
-        demo_mode_env=settings.DEMO_MODE,
-    )
-
-    # §11 gate arms only when a shell actually attaches: shell.py sets
-    # CAREER_SHELL=1 before create_app. Shell-less desktop dev (run-dev.sh:
-    # uvicorn + vite, ADR-0023) has no shell to hold the per-boot token or
-    # carry it as `?shell=` — arming the gate there would 403 every auth
-    # request from the dev SPA ("invalid shell token").
-    shell_attached = (
-        settings.identity_mode is IdentityMode.DESKTOP
-        and os.environ.get("CAREER_SHELL") == "1"
-    )
-    if settings.identity_mode is IdentityMode.DESKTOP and not shell_attached:
-        # Fail loud, not silent: this is the shell-less dev shape (ADR-0023)
-        # — ungated + open-auth DIM. Safe on loopback only; a non-loopback
-        # bind here exposes an owner-level API to the network.
-        logging.getLogger(__name__).warning(
-            "desktop identity WITHOUT an attached shell (CAREER_SHELL unset) — "
-            "the X-Shell-Token gate is DISARMED (§11 / ADR-0023); bind the "
-            "server to loopback only"
-        )
-        if effective_auth_mode != "open":
-            # Init-only trap: a profile stamped `authenticated` under older
-            # server-identity dev runs keeps it — the SPA shows the login
-            # gate even though the §11 gate is disarmed (§4: mode changes
-            # are admin actions, never launch-time).
-            logging.getLogger(__name__).warning(
-                "local profile auth_mode=%r — the login gate applies to this "
-                "instance; `./scripts/run-dev.sh --reset` wipes the local "
-                "profile and re-initializes it open (backups kept)",
-                effective_auth_mode,
-            )
-    shell_secret: str | None = None
-    if shell_attached:
-        # One per-boot secret serves both desktop gates (§11): the
-        # X-Shell-Token request gate and the `?shell=` CSP marker.
-        from app.desktop.shell_token import issue
-
-        shell_secret = issue()
-
-    config = AuthConfig.from_env(
-        "CAREER",
-        iss="career",
-        identity_mode=settings.identity_mode,
-        require_shell_secret=shell_secret is not None,
-        # §16 knobs resolved through Settings so real env vars and the
-        # .env file both reach the kit config (the P3c routing pattern)
-        # — the kit's `from_env` reads os.environ only.
-        registration_enabled=settings.REGISTRATION_ENABLED,
-        cookie_secure=settings.COOKIE_SECURE,
-        access_ttl_minutes=settings.AUTH_ACCESS_TTL_MINUTES,
-        refresh_ttl_days=settings.AUTH_REFRESH_TTL_DAYS,
-        refresh_absolute_days=settings.AUTH_REFRESH_ABSOLUTE_DAYS,
-        lockout_threshold=settings.AUTH_LOCKOUT_THRESHOLD,
-        lockout_minutes=settings.AUTH_LOCKOUT_MINUTES,
-        trusted_proxy_count=settings.TRUSTED_PROXY_COUNT,
-        auth_rate_per_minute=settings.AUTH_RATE_LIMIT,
-        auth_email_rate_per_minute=settings.AUTH_EMAIL_RATE_LIMIT,
-    )
-    config = replace(
-        config,
-        # Public instance facts (P3e demo badge) must be readable pre-login.
-        auth_exempt_prefixes=(*config.auth_exempt_prefixes, "/api/v1/instance"),
-    )
-    install_auth_kit(
-        application,
-        config=config,
-        # One KeyRing for signing AND secrets at rest (§8): the same
-        # resolution `app.core.encryption` encrypts under.
-        ring=keyring(),
-        users=CareerUserStore(AuthSessionLocal),
-        sessions=CareerSessionStore(AuthSessionLocal),
-        instance=instance_store,
-        profiles=CareerProfileStore(AuthSessionLocal),
-        audit=CareerAuditSink(AuthSessionLocal),
-        shell_secret=shell_secret,
-        owner_email="owner@local",
-    )
-
-
-def create_app() -> FastAPI:
-    """Build the FastAPI application (API + optional SPA mount)."""
+    if settings is not None:
+        globals()["settings"] = settings
+    settings = globals()["settings"]
     application = FastAPI(
-        title=settings.APP_NAME,
-        version=settings.VERSION,
+        title=settings.app_name,
+        version=settings.version,
         lifespan=lifespan,
         docs_url="/docs",
         openapi_url="/openapi.json",
@@ -500,8 +174,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    application.add_middleware(RateLimitMiddleware)
-    application.add_middleware(SecurityHeadersMiddleware)
+    # Kit limiter + security headers (plan 21): same registration order
+    # as the product-local middlewares they replaced — headers wrap the
+    # limiter so a 429 still carries the hardened header set.
+    mount_rate_limiting(application)
 
     # §15 binding runs INSIDE session enforcement: the auth kit mounts
     # after this line, so its middleware wraps the binding one and the
@@ -509,7 +185,17 @@ def create_app() -> FastAPI:
     # ordering).
     application.add_middleware(ProfileBindingMiddleware)
 
-    _install_identity(application)
+    # Production boot guards (ADR-0028): fail fast BEFORE the keyring is
+    # built, so weak/partial pins die with BootConfigError's guidance
+    # instead of a raw KeyRing ValueError at construction.
+    try:
+        for warning in validate_boot_config():
+            logger.warning("Boot config warning: %s", warning)
+    except Exception as exc:
+        logger.critical("Refusing to boot: %s", exc)
+        raise
+
+    install_identity(application, settings)
 
     @application.exception_handler(AccountLockedError)
     async def account_locked_handler(request: Request, exc: AccountLockedError):
@@ -536,6 +222,18 @@ def create_app() -> FastAPI:
         """Concurrent modification → 409."""
         return JSONResponse(status_code=409, content={"detail": str(exc)})
 
+    from app.services.retrieval_actions import RetrievalActionRefused
+
+    @application.exception_handler(RetrievalActionRefused)
+    async def retrieval_refusal_handler(request: Request, exc: RetrievalActionRefused):
+        """A retrieval gate/state refusal carries its structured evidence."""
+        return JSONResponse(status_code=409, content=exc.payload)
+
+    @application.exception_handler(AIBudgetExceededError)
+    async def ai_budget_handler(request: Request, exc: AIBudgetExceededError):
+        """An exhausted AI token budget → 429, like the rate limiter."""
+        return JSONResponse(status_code=429, content={"detail": str(exc)})
+
     @application.exception_handler(AINotConfiguredError)
     async def ai_not_configured_handler(request: Request, exc: AINotConfiguredError):
         """Mock/unconfigured AI in production → 503 (never serve fake results)."""
@@ -543,16 +241,42 @@ def create_app() -> FastAPI:
 
     application.include_router(api_router)
 
-    # MCP server: read-scope tools over Streamable HTTP,
-    # token-authenticated and rate-limited — mounted, not routed.
+    # MCP server: the registry projection over Streamable HTTP,
+    # token-authenticated and rate-limited — mounted, not routed. The
+    # inner app serves at its root (the mount strips `/mcp`), and its
+    # lifespan owns the session manager's task group, so it is composed
+    # into the app lifespan below.
     from app.ai.mcp_server import build_mcp_asgi_app
 
-    application.mount("/mcp", build_mcp_asgi_app())
+    mcp_asgi = build_mcp_asgi_app()
+
+    class _McpSlashMiddleware:
+        """Serve ``/mcp`` without Starlette's trailing-slash redirect."""
+
+        def __init__(self, app) -> None:
+            self.app = app
+
+        async def __call__(self, scope, receive, send):
+            if scope.get("type") == "http" and scope.get("path") == "/mcp":
+                scope = {**scope, "path": "/mcp/", "raw_path": b"/mcp/"}
+            await self.app(scope, receive, send)
+
+    application.add_middleware(_McpSlashMiddleware)
+    application.mount("/mcp", mcp_asgi)
+
+    _base_lifespan = application.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def _combined_lifespan(scope_app):
+        async with mcp_asgi.lifespan(scope_app), _base_lifespan(scope_app):
+            yield
+
+    application.router.lifespan_context = _combined_lifespan
 
     @application.get("/health", tags=["health"])
     async def health() -> dict:
         """Liveness probe."""
-        return {"status": "ok", "app": settings.APP_NAME, "version": settings.VERSION}
+        return {"status": "ok", "app": settings.app_name, "version": settings.version}
 
     shell_router = APIRouter(tags=["health"])
 
@@ -574,9 +298,7 @@ def create_app() -> FastAPI:
 
     spa_dist = _find_spa_dist()
     if spa_dist is not None:
-        application.mount(
-            "/", SpaStaticFiles(directory=spa_dist, html=True), name="spa"
-        )
+        application.mount("/", SpaStaticFiles(directory=spa_dist, html=True), name="spa")
         logger.info("Serving SPA from %s", spa_dist)
     else:
         logger.info("No SPA build found — serving API only")

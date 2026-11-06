@@ -41,7 +41,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: career-redis
+    container_name: ${REDIS_CONTAINER:-career-redis}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${REDIS_PORT:-6380}:6379"

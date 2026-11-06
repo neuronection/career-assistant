@@ -24,9 +24,7 @@ def test_no_label_or_title_comparisons_in_application_code():
         source = path.read_text(encoding="utf-8")
         for lineno, line in enumerate(source.splitlines(), start=1):
             if FORBIDDEN.search(line) and LINE_OPT_OUT not in line:
-                offenders.append(
-                    f"{path.relative_to(APP.parent)}:{lineno}: {line.strip()}"
-                )
+                offenders.append(f"{path.relative_to(APP.parent)}:{lineno}: {line.strip()}")
     assert not offenders, (
         "Label/title comparisons found — match on ids or stable keys instead:\n"
         + "\n".join(offenders)

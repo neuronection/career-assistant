@@ -6,14 +6,13 @@ import uuid
 
 from sqlalchemy import select
 
-from tests.conftest import _make_posting, _uid, session_headers
-
 from app.ai.agents.posting_extractor import ExtractSkill, PostingExtract
 from app.models.ai_model import AIGeneration
 from app.models.enums import AITaskType
 from app.models.job_model import Job, JobSkill
 from app.models.taxonomy_model import Skill
 from app.models.user_model import UserSkill
+from tests.conftest import _make_posting, _uid, session_headers
 
 
 async def _seeded_skill(db) -> Skill:
@@ -28,30 +27,36 @@ async def _user_skill(db, headers, skill_row: Skill, level: int) -> None:
 
 
 async def _extracted_posting(db, source, skill_row: Skill, *, required=6):
+    from app.services.postings.extract_service import apply_extract
+
     posting = await _make_posting(db, source, external_id="interview-1")
-    posting.extract = PostingExtract(
-        title_norm="Backend Engineer",
-        skills=[
-            ExtractSkill(
-                skill_key=skill_row.key,
-                required_level=required,
-                priority="must_have",
-                evidence_quote="must know the thing",
-                confidence=0.9,
-            ),
-            ExtractSkill(
-                skill_key="totally-made-up-key",
-                required_level=3,
-                priority="must_have",
-                evidence_quote="mystery requirement",
-                confidence=0.9,
-            ),
-        ],
-        responsibilities=[
-            {"text": "Ship the payments service", "time_pct": 40},
-            {"text": "Mentor juniors", "time_pct": 10},
-        ],
-    ).model_dump(mode="json")
+    await apply_extract(
+        db,
+        posting,
+        PostingExtract(
+            title_norm="Backend Engineer",
+            skills=[
+                ExtractSkill(
+                    raw_label=skill_row.label,
+                    required_level=required,
+                    priority="must_have",
+                    evidence_quote="must know the thing",
+                    confidence=0.9,
+                ),
+                ExtractSkill(
+                    raw_label="totally-made-up-key",
+                    required_level=3,
+                    priority="must_have",
+                    evidence_quote="mystery requirement",
+                    confidence=0.9,
+                ),
+            ],
+            responsibilities=[
+                {"text": "Ship the payments service", "time_pct": 40},
+                {"text": "Mentor juniors", "time_pct": 10},
+            ],
+        ),
+    )
     db.add(posting)
     await db.commit()
     await db.refresh(posting)
@@ -137,9 +142,7 @@ async def test_create_requires_a_role_source(client, auth_headers, profile_ready
     assert missing.status_code == 404
 
 
-async def test_plan_patch_rules(
-    client, auth_headers, profile_ready, seeded_catalog, db, source
-):
+async def test_plan_patch_rules(client, auth_headers, profile_ready, seeded_catalog, db, source):
     skill_row = await _seeded_skill(db)
     posting = await _extracted_posting(db, source, skill_row)
     created = (
@@ -218,9 +221,7 @@ async def test_cross_user_access_is_not_found(
     assert response.status_code == 404
 
 
-async def test_history_lists_own_sessions(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_history_lists_own_sessions(client, auth_headers, profile_ready, seeded_catalog, db):
     job = (await db.execute(select(Job).limit(1))).scalars().first()
     await client.post(
         "/api/v1/interview/sessions",
@@ -323,11 +324,17 @@ async def test_practice_turn_stream_persists_rubric(
     assert names[0] == "flow_started"
     assert names[-1] == "flow_finished"
     assert "delta" in names
-    assert "interview_state" in names
-    state = dict(events)["interview_state"]
-    assert state["answered"] == 1
-    assert state["total"] == len(started["plan"])
-    assert state["status"] == "active"
+    # Vocabulary wall (plan 24 V1): the interview surface emits family
+    # core + `meta` only — no surface-specific event names.
+    assert set(names) <= {
+        "flow_started",
+        "node_started",
+        "node_finished",
+        "delta",
+        "meta",
+        "flow_finished",
+        "flow_failed",
+    }
 
     detail = (
         await client.get(
@@ -397,9 +404,7 @@ async def test_debrief_aggregate_resources_and_retry(
         if item["kind"] == "technical" and item.get("skill_key")
     )
     plan_skill = (
-        (await db.execute(select(Skill).where(Skill.key == plan_skill_key)))
-        .scalars()
-        .one()
+        (await db.execute(select(Skill).where(Skill.key == plan_skill_key))).scalars().one()
     )
     db.add(
         LearningResource(
@@ -418,7 +423,7 @@ async def test_debrief_aggregate_resources_and_retry(
         )
     ).json()
 
-    for question in started["plan"]:
+    for _question in started["plan"]:
         reply = await client.post(
             f"/api/v1/chat/sessions/{started['chat_session_id']}/messages",
             json={"content": "An answer with a concrete example."},
@@ -440,9 +445,7 @@ async def test_debrief_aggregate_resources_and_retry(
             headers=auth_headers,
         )
     ).json()["rubric_scores"]
-    expected_structure = round(
-        sum(float(r["structure"]) for r in scores) / len(scores), 2
-    )
+    expected_structure = round(sum(float(r["structure"]) for r in scores) / len(scores), 2)
     assert debrief["aggregate"]["structure"] == expected_structure
     assert debrief["aggregate"]["answered"] == len(scores)
 
@@ -503,9 +506,7 @@ async def test_debrief_aggregate_resources_and_retry(
     assert source["status"] == "completed"
 
 
-async def test_debrief_requires_completion(
-    client, auth_headers, profile_ready, seeded_catalog, db
-):
+async def test_debrief_requires_completion(client, auth_headers, profile_ready, seeded_catalog, db):
     session = await _make_session(client, auth_headers, db)
     response = await client.post(
         f"/api/v1/interview/sessions/{session['id']}/debrief",

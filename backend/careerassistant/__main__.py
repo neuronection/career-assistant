@@ -43,7 +43,7 @@ def main(argv: list[str] | None = None) -> int:
     if mode == "enginecheck":
         import asyncio
 
-        from app.services.cv_pdf_service import engine_check
+        from app.services.cv.cv_pdf_service import engine_check
 
         ok, detail = asyncio.run(engine_check())
         print(("ok: " if ok else "fail: ") + detail)
@@ -65,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         # is imported.
         import os
 
-        os.environ["DESKTOP_MODE"] = "1"
+        os.environ["CAREER_DESKTOP_MODE"] = "1"
 
     if mode == "restore":
         if len(args) != 2:

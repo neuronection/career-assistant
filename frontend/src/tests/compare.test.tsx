@@ -2,11 +2,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter, Routes, Route, useLocation } from "react-router-dom";
 
-import { Compare } from "@/pages/Compare";
-import { CompareTray } from "@/components/CompareTray";
+import { Compare } from "@/features/catalog/pages/Compare";
+import { CompareTray } from "@/features/catalog/components/CompareTray";
 import { compareJobs } from "@/api/matching";
 import { COMPARE_LIMIT, useCompareStore } from "@/stores/compareStore";
-import type { RankedJob } from "@/types";
+import type { RankedJob } from "@/types/wire";
 
 vi.mock("@/api/matching", () => ({
   compareJobs: vi.fn(),
@@ -43,6 +43,7 @@ function job(id: string, code: string, title: string): RankedJob["job"] {
     code,
     title,
     family_key: "technology",
+    family_label: "",
     short_description: "",
     status: "published",
     source: "seed",

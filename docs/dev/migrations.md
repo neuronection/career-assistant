@@ -5,15 +5,16 @@ revisions bring existing databases to match. Career Assistant runs **one
 linear chain on two dialects** — PostgreSQL (web) and SQLite (desktop) — so
 every migration must be dialect-aware.
 
-The shared family discipline is the `family-migration` skill; this page is the
+The shared family discipline is documented in the migration standard; this page is the
 app-specific delta.
 
 ## Layout and ids
 
 - `backend/alembic/` — `env.py` and `versions/`.
-- Revision ids are **plain sequential**: `0001_…`, `0002_…`, up to the current
-  head. File names add a slug (`0041_one_slot_synth_pins.py`).
-- `env.py` reads `settings.DATABASE_URL`; `target_metadata` is
+- Revision ids are **plain sequential**: `0001_baseline_schema.py` is the
+  v0.17 baseline; new work chains `0002_…`, `0003_…`. File names add a slug
+  (`0002_new_table.py`).
+- `env.py` reads `settings.CAREER_DATABASE_URL`; `target_metadata` is
   `app.models.Base.metadata`, with a metadata `naming_convention` (use the
   **short** constraint name with `op.drop_constraint` /
   `op.create_check_constraint` — the convention renders the prefix; passing the
@@ -43,6 +44,21 @@ app-specific delta.
    columns) require the constraint updated with the new member, or inserting
    the new kind 500s.
 
+### Baseline squash (v0.17)
+
+v0.16.0 → v0.17 is a declared **breaking release with no production users**.
+The plan-113 `0001` plus the `0002`–`0100` chain were replaced by one
+model-generated `0001_baseline_schema.py` (2026-11-06). The sanctioned
+destructive-baseline exception applies (declared in the revision header):
+`downgrade()` restores an **empty schema** by design, and the header says so.
+Recreate dev/test databases (`alembic upgrade head` + seed) instead of
+downgrading.
+
+The baseline carries the only DATA the old chain wrote outside table
+defaults — the company quality denylist (18 rows, formerly revision `0070`).
+`tests/conftest.py` loads that list from the baseline by path so the seed and
+its per-SQLite-test provisioning cannot drift.
+
 ## Dialect-aware migrations (the hard part)
 
 `env.py` does **not** enable SQLite batch mode globally, and the two dialects
@@ -58,32 +74,32 @@ behave differently:
 - **Write per-dialect JSON.** A Postgres-only `CAST(... AS jsonb)` stores the
   wrong value on SQLite. Branch on `op.get_bind().dialect.name`.
 
-Migration `0041` is the cautionary example: it fixed exactly these three
-mistakes (Postgres-only JSON cast, dashed-UUID matching, and a dangling-pin
-case) and is covered by four fold states on both dialects.
+The pre-baseline `0041` was the cautionary example: it fixed exactly these
+three mistakes (Postgres-only JSON cast, dashed-UUID matching, and a
+dangling-pin case) and was covered by four fold states on both dialects. Its
+result is now folded into the baseline; the lesson stays.
 
 ## Migration notes (newest first)
 
-- **`0043_profiles_one_to_many`** (plan 16 P3b): `profiles` becomes
-  family 1:N — drops the `ix_profiles_user_id` UNIQUE index (recreated
-  non-unique) and adds `name` (backfilled `"Default"`), `is_default`
-  (backfilled `true` — pre-change rows are 1:1, so each is its user's
-  only profile), `last_used_at` and `color`. Existing rows are kept.
-  The **downgrade is destructive**: it deletes every non-oldest profile
-  per user before restoring the UNIQUE index. Covered by
-  `tests/test_migrations.py::test_0043_profiles_one_to_many_legacy_backfill`
-  (legacy shape on `0042` → upgrade → assert the backfill + 1:N).
+- **`0001_baseline_schema`** (v0.17 no-BC squash): one model-generated
+  baseline replaces the plan-113 `0001` and the whole `0002`–`0100` chain.
+  The baseline seeds the company quality denylist (the old `0070`'s row set)
+  and keeps the old chain's final CHECKs/indexes/server defaults as the
+  models declare them. `downgrade()` is the sanctioned empty-schema restore;
+  recreate dev/test databases. Verified by
+  `tests/test_migrations.py::test_baseline_roundtrips_on_a_fresh_sqlite_database`
+  and `test_baseline_matches_the_models` (both dialects in CI).
 
 ## Running migrations
 
 Dev/test Postgres is on port 5433 (`docker/docker-compose.dev-db.yml`). The
 test database needs an explicit URL override because `env.py` reads
-`settings.DATABASE_URL`:
+`settings.CAREER_DATABASE_URL`:
 
 ```bash
 cd backend
-DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
-  ./venv/bin/alembic upgrade head
+CAREER_DATABASE_URL="postgresql+asyncpg://neuronection_career_owner:career_dev_pw@127.0.0.1:5433/neuronection_career_test" \
+  uv run alembic upgrade head
 ```
 
 An `upgrade head` on an already-migrated database is a silent no-op — after
@@ -104,13 +120,14 @@ regenerating a baseline, **drop and recreate** instead.
   revision, upgrade to head, assert the transform (both dialects).
 - Downgrade round-trip when data is rewritten.
 - **Bump the head-assertion test.** `backend/tests/test_migrations.py` asserts
-  `get_heads() == ["0041"]`; every new revision must update that literal.
+  `get_heads() == ["0001"]`; every new revision must update that literal
+  (and `test_autopilot.py`'s linear-chain check).
 
 ## Worktrees
 
 Parallel branches both claim the next revision id. The second branch to finish
 rebases onto the new head and **renumbers its revision** before committing
-(see [development.md](development.md) and the `family-dev` skill).
+(see [development.md](development.md) and the repo development workflow).
 
 ## Docs in the same commit
 

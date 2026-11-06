@@ -7,8 +7,6 @@ from datetime import date
 
 from sqlalchemy import select
 
-from tests.conftest import _uid
-
 from app.ai.agents.cv_synthetizer import _mock_synth, build_user_prompt
 from app.models.engagement_model import Notification, NotificationKind
 from app.models.experience_model import ExperienceItem
@@ -19,6 +17,7 @@ from app.schemas.cv_synth import (
     CvSynthPayload,
 )
 from app.services.job_worker import JobWorker
+from tests.conftest import _uid
 
 
 def _refs(item: ExperienceItem) -> list[dict]:
@@ -74,11 +73,7 @@ def _evidence(entry_ref, label="X") -> dict:
 
 async def _seed_notification_kind(db) -> None:
     kind = (
-        (
-            await db.execute(
-                select(NotificationKind).where(NotificationKind.key == "cv_synth_ready")
-            )
-        )
+        (await db.execute(select(NotificationKind).where(NotificationKind.key == "cv_synth_ready")))
         .scalars()
         .first()
     )
@@ -123,9 +118,7 @@ def test_mock_synth_covers_every_action():
         batch = CvSynthBatch.model_validate(_mock_synth(CvSynthBatch, prompt))
         assert batch.items, action
         draft = batch.items[0]
-        assert [dict(ref) for ref in draft.refs] == [
-            {"source_key": "experience", "item_id": "abc"}
-        ]
+        assert [dict(ref) for ref in draft.refs] == [{"source_key": "experience", "item_id": "abc"}]
         assert draft.payload.description, "mock draft has text"
 
     prompt = build_user_prompt(
@@ -190,9 +183,7 @@ async def test_generate_creates_verified_drafts(client, db, auth_headers):
     assert rows[0]["payload"]["description"], "mock draft text present"
 
     listing = (
-        await client.get(
-            "/api/v1/cv/synth", params={"status": "draft"}, headers=auth_headers
-        )
+        await client.get("/api/v1/cv/synth", params={"status": "draft"}, headers=auth_headers)
     ).json()
     assert len(listing) == 1, "draft sits in the library as a draft"
     assert listing[0]["id"] == rows[0]["id"]
@@ -231,9 +222,7 @@ async def test_generate_bulk_rides_queue_and_notifies(client, db, auth_headers):
     while await worker.run_once():
         pass
     rows = (
-        await client.get(
-            "/api/v1/cv/synth", params={"status": "draft"}, headers=auth_headers
-        )
+        await client.get("/api/v1/cv/synth", params={"status": "draft"}, headers=auth_headers)
     ).json()
     assert len(rows) == len(items), "one draft per queued ref"
 
@@ -263,9 +252,7 @@ async def test_regenerate_coexists_on_activation(client, db, auth_headers):
         headers=auth_headers,
     )
     regenerated = (
-        await client.post(
-            f"/api/v1/cv/synth/{first['id']}/regenerate", headers=auth_headers
-        )
+        await client.post(f"/api/v1/cv/synth/{first['id']}/regenerate", headers=auth_headers)
     ).json()
     assert regenerated["items"], "a fresh draft"
     second = regenerated["items"][0]
@@ -301,9 +288,7 @@ async def test_regenerate_manual_rejected(client, db, auth_headers):
         headers=auth_headers,
     )
     row = created.json()
-    rejected = await client.post(
-        f"/api/v1/cv/synth/{row['id']}/regenerate", headers=auth_headers
-    )
+    rejected = await client.post(f"/api/v1/cv/synth/{row['id']}/regenerate", headers=auth_headers)
     assert rejected.status_code == 400, "manual variants have no stored params"
 
 
@@ -336,10 +321,9 @@ async def test_translate_creates_language_sibling(client, db, auth_headers):
     assert translated, "a draft sibling"
     row = translated[0]
     assert row["voice"]["language"] == "de"
-    assert (
-        row["source_state"][0]["content_hash"]
-        == master["source_state"][0]["content_hash"]
-    ), "the sibling tracks the same source hashes"
+    assert row["source_state"][0]["content_hash"] == master["source_state"][0]["content_hash"], (
+        "the sibling tracks the same source hashes"
+    )
     assert row["status"] == "draft", "draft-then-approve applies to translations"
 
     cv = (
@@ -350,13 +334,11 @@ async def test_translate_creates_language_sibling(client, db, auth_headers):
         )
     ).json()
     from app.schemas.cv_synth import CvSynthItemUpdate
-    from app.services.cv_service import CvService
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_service import CvService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
-    doc = await CvService(db).get_owned(
-        uuid.UUID(cv["id"]), uuid.UUID(_uid(auth_headers))
-    )
+    doc = await CvService(db).get_owned(uuid.UUID(cv["id"]), uuid.UUID(_uid(auth_headers)))
     before = await service.match_for_cv(doc, refs=_refs(item))
     assert before == {}, "EN variant never matches a DE CV"
     await service.update(
@@ -365,7 +347,7 @@ async def test_translate_creates_language_sibling(client, db, auth_headers):
         CvSynthItemUpdate(status="active"),
     )
     match = await service.match_for_cv(doc, refs=_refs(item))
-    assert list(match.values())[0].id == uuid.UUID(row["id"]), (
+    assert next(iter(match.values())).id == uuid.UUID(row["id"]), (
         "the DE variant applies to the DE CV once active"
     )
     match.pop(None, None)
@@ -376,7 +358,7 @@ async def test_invalid_citation_falls_back_to_request_refs(client, db, auth_head
     """The model citing nothing/other refs never severs the link: on a
     single-ref request the row persists under the authoritative request
     refs (unverified — the citation produced no usable evidence)."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     item = (await _make_items(db, _uid(auth_headers)))[0]
     service = CvSynthService(db)
@@ -421,7 +403,7 @@ async def test_invalid_citation_falls_back_to_request_refs(client, db, auth_head
 async def test_valid_citation_subset_is_kept_verbatim(client, db, auth_headers):
     """A citation inside the allowlist persists as the model wrote it."""
     from app.schemas.cv_synth import CvSynthPayload
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     items = await _make_items(db, _uid(auth_headers), count=2)
     service = CvSynthService(db)
@@ -441,9 +423,7 @@ async def test_valid_citation_subset_is_kept_verbatim(client, db, auth_headers):
                     },
                 ],
                 payload=CvSynthPayload(description="Grounded text"),
-                evidence_refs=[
-                    {"source_key": "experience", "item_id": str(items[0].id)}
-                ],
+                evidence_refs=[{"source_key": "experience", "item_id": str(items[0].id)}],
             )
         ]
     )
@@ -469,7 +449,7 @@ async def test_ambiguous_multi_ref_citation_dropped(client, db, auth_headers):
     """A multi-ref request whose item cites only out-of-allowlist refs
     has no resolvable target — the row never persists."""
     from app.schemas.cv_synth import CvSynthPayload
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     items = await _make_items(db, _uid(auth_headers), count=2)
     service = CvSynthService(db)
@@ -502,7 +482,7 @@ async def test_ambiguous_multi_ref_citation_dropped(client, db, auth_headers):
 
 async def test_textless_batch_dropped(client, db, auth_headers):
     """An item with no text content at all never becomes a row."""
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     item = (await _make_items(db, _uid(auth_headers)))[0]
     service = CvSynthService(db)
@@ -544,15 +524,13 @@ async def test_generate_base_texts_ground_on_caller_current_text(
         return await real(*args, **kwargs)
 
     monkeypatch.setattr(synthetizer, "ainvoke_structured", _spy)
-    from app.services.cv_synth_service import CvSynthService
+    from app.services.cv.cv_synth_service import CvSynthService
 
     service = CvSynthService(db)
     rows = await service.generate(
         uuid.UUID(_uid(auth_headers)),
         CvSynthItemGenerate(refs=_refs(item), action="restyle"),
-        base_texts={
-            ("experience", str(item.id)): "Base text — Application support for ICT"
-        },
+        base_texts={("experience", str(item.id)): "Base text — Application support for ICT"},
     )
     assert rows and "Base text — Application support for ICT" in seen["user"], (
         "the grounding evidence carries the caller's base text"

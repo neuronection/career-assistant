@@ -3,8 +3,7 @@ onsite + typed benefits; lifestyle gates against constraints."""
 
 import pytest
 from pydantic import ValidationError
-
-from tests.conftest import _make_posting, _uid
+from sqlalchemy import select
 
 from app.ai.agents.posting_extractor import (
     ExtractBenefit,
@@ -14,9 +13,9 @@ from app.ai.agents.posting_extractor import (
     PostingExtract,
     extract_posting,
 )
-from app.services.extract_service import EXTRACT_VERSION, apply_extract
-from app.services.posting_fit_service import lifestyle_gates
-
+from app.services.postings.extract_service import EXTRACT_VERSION, apply_extract
+from app.services.postings.posting_fit_service import lifestyle_gates
+from tests.conftest import _make_posting, _uid
 
 # ------------------------------------------------------------- schema v2
 
@@ -25,14 +24,10 @@ def test_v2_fields_require_evidence_and_literals():
     with pytest.raises(ValidationError):
         ExtractScheduleCue(cue="nights", evidence_quote="x", confidence=0.9)
     with pytest.raises(ValidationError):
-        ExtractScheduleCue(
-            cue="overtime", evidence_quote="a verbatim quote", confidence=0.9
-        )
+        ExtractScheduleCue(cue="overtime", evidence_quote="a verbatim quote", confidence=0.9)
     with pytest.raises(ValidationError):
         ExtractTravel(level="sometimes", evidence_quote="a verbatim quote")
-    cue = ExtractScheduleCue(
-        cue="nights", evidence_quote="night shifts rotation", confidence=0.9
-    )
+    cue = ExtractScheduleCue(cue="nights", evidence_quote="night shifts rotation", confidence=0.9)
     assert cue.cue == "nights"
 
 
@@ -62,22 +57,14 @@ def test_unset_vs_zero_distinct():
 
 
 def test_legacy_string_benefits_coerce():
-    legacy = PostingExtract.model_validate(
-        {"benefits": ["Private healthcare", "Meal vouchers"]}
-    )
+    legacy = PostingExtract.model_validate({"benefits": ["Private healthcare", "Meal vouchers"]})
     assert [b.kind for b in legacy.benefits] == ["other", "other"]
     assert legacy.benefits[0].raw == "Private healthcare"
     typed = PostingExtract.model_validate(
-        {
-            "benefits": [
-                {"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}
-            ]
-        }
+        {"benefits": [{"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}]}
     )
     assert typed.benefits[0].kind == "healthcare"
-    assert ExtractBenefit.coerce("Gym") == ExtractBenefit(
-        kind="other", raw="Gym", confidence=0.5
-    )
+    assert ExtractBenefit.coerce("Gym") == ExtractBenefit(kind="other", raw="Gym", confidence=0.5)
 
 
 # ------------------------------------------------------------ apply path
@@ -114,16 +101,14 @@ async def test_apply_extract_v2_lifestyle_facts_and_columns(
             evidence_quote="occasional travel to client sites",
             confidence=0.9,
         ),
-        benefits=[
-            {"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}
-        ],
+        benefits=[{"kind": "healthcare", "raw": "Private healthcare", "confidence": 0.9}],
         skills=[],
     )
     await apply_extract(db, posting, extract)
     await db.commit()
     await db.refresh(posting)
 
-    assert posting.extract_version == EXTRACT_VERSION == 2
+    assert posting.extract_version == EXTRACT_VERSION == 5
     assert posting.employment_type == "part_time"
     facts = posting.posting_facts
     assert facts["lifestyle"]["contract_type"]["contract_type"] == "contract"
@@ -156,6 +141,44 @@ async def test_apply_extract_v2_suppression_keeps_gates_honest(
     assert "lifestyle" not in (posting.posting_facts or {})
     assert posting.needs_review is True
     assert lifestyle_gates(posting, {"travel_days_per_month": 2}) == []
+
+
+async def test_extract_skills_re_tags_a_deprecated_no_merge_row(
+    db, client, auth_headers, seeded_catalog, source
+):
+    """F1: the extract path resolves deprecated exact keys as a fallback
+    (active rows preferred) so a dropped tag can come back — before the
+    fix only `status == "active"` rows were re-tagged."""
+    from app.models.posting_model import PostingSkill
+    from app.models.taxonomy_model import Skill
+
+    posting = await _make_posting(db, source)
+    deprecated = Skill(key="legacy-x", label="Legacy X", category="test", status="deprecated")
+    db.add(deprecated)
+    await db.flush()
+    extract = PostingExtract(
+        skills=[
+            {
+                "raw_label": "Legacy X",
+                "required_level": 4,
+                "priority": "must_have",
+                "evidence_quote": "Legacy X required",
+                "confidence": 0.9,
+            }
+        ],
+    )
+    await apply_extract(db, posting, extract)
+    await db.commit()
+
+    rows = (
+        (await db.execute(select(PostingSkill).where(PostingSkill.posting_id == posting.id)))
+        .scalars()
+        .all()
+    )
+    tagged = {row.skill_id: row for row in rows}
+    assert deprecated.id in tagged, "the deprecated exact-key fallback re-tags the posting"
+    assert tagged[deprecated.id].required_level == 4
+    assert tagged[deprecated.id].priority == "must_have"
 
 
 # ---------------------------------------------------------------- gates
@@ -202,9 +225,7 @@ async def test_lifestyle_gate_rules(db, source):
     unstated_frequent.posting_facts = {
         "lifestyle": {"travel_required": {"level": "frequent", "days_per_month": None}}
     }
-    assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 5}) == [
-        "travel"
-    ]
+    assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 5}) == ["travel"]
     assert lifestyle_gates(unstated_frequent, {"travel_days_per_month": 15}) == []
     assert lifestyle_gates(unstated_frequent, {}) == []
     no_constraints = lifestyle_gates(posting, None)
@@ -215,7 +236,7 @@ async def test_lifestyle_gate_rules(db, source):
 
 
 async def test_mock_extracts_v2_cues(db, auth_headers, seeded_catalog):
-    result = await extract_posting(
+    result, _audit = await extract_posting(
         db,
         _uid(auth_headers),
         title="Support Engineer",
@@ -225,7 +246,6 @@ async def test_mock_extracts_v2_cues(db, auth_headers, seeded_catalog):
             "We offer private health insurance and a learning budget."
         ),
         skills_raw=[],
-        skill_taxonomy_keys=[],
     )
     assert result.contract_type and result.contract_type.contract_type == "contract"
     assert result.work_hours and result.work_hours.pattern == "full_time"
@@ -256,18 +276,12 @@ async def test_gates_surface_on_posting_detail(
     posting = await _make_posting(db, source)
     posting.extract_version = EXTRACT_VERSION
     posting.posting_facts = {
-        "lifestyle": {
-            "schedule_cues": [
-                {"cue": "weekends", "evidence_quote": "weekend rotations"}
-            ]
-        }
+        "lifestyle": {"schedule_cues": [{"cue": "weekends", "evidence_quote": "weekend rotations"}]}
     }
     db.add(posting)
     await db.commit()
 
-    detail = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()
+    detail = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()
     assert "shift" in (detail["match"]["gates"] or [])
 
     other = await client.get(
@@ -288,9 +302,9 @@ async def test_constraint_change_invalidates_cached_gates(
     db.add(posting)
     await db.commit()
 
-    before = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()["match"]["gates"]
+    before = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()[
+        "match"
+    ]["gates"]
     assert before == []
 
     await client.put(
@@ -304,7 +318,7 @@ async def test_constraint_change_invalidates_cached_gates(
         },
         headers=auth_headers,
     )
-    after = (
-        await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)
-    ).json()["match"]["gates"]
+    after = (await client.get(f"/api/v1/postings/{posting.ref}", headers=auth_headers)).json()[
+        "match"
+    ]["gates"]
     assert after == ["travel"]

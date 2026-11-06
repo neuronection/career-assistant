@@ -1,8 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { App } from "./App";
-import { RenderBeacon } from "./components/RenderBeacon";
-import { initI18n } from "./lib/i18n";
+import { App } from "@/App";
+import { RenderBeacon } from "@/components/RenderBeacon";
+import { initI18n } from "@/lib/i18n";
 import "@neuronection/assistant-ui/styles.css";
 import "./index.css";
 import "./styles/motion.css";

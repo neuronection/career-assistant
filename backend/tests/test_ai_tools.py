@@ -33,6 +33,9 @@ def test_builtin_registry_declarations():
     assert set(listed) == {
         "search_jobs",
         "search_postings",
+        # — career-path explorer family (plan 125)
+        "create_career_path",
+        "my_paths",
         "get_posting",
         "similar_postings",
         "my_notifications",
@@ -70,6 +73,20 @@ def test_builtin_registry_declarations():
         # — chat-audience variant management (plan 104)
         "variant_list",
         "variant_pin",
+        # — applications tracker (plan 116)
+        "my_applications",
+        "my_application_timeline",
+        "my_deadlines",
+        "set_application_stage",
+        "add_application_note",
+        # — read parity: saved searches, market, fit (plan 119.1)
+        "my_saved_searches",
+        "market_trend",
+        "my_fit_breakdown",
+        # — MCP write surface (plan 119.4; cards only, never direct writes)
+        "profile_update",
+        "application_transition",
+        "cv_ops",
         # — web tools family (plan 80)
         "web_search",
         "fetch_url",
@@ -78,18 +95,29 @@ def test_builtin_registry_declarations():
         "propose_profile_edits",
     }
     assert all(t["builtin"] for t in listed.values())
-    non_cv = {
-        k: t
-        for k, t in listed.items()
-        if not k.startswith("cv_") and t["kind"] == "tool"
-    }
+    non_cv = {k: t for k, t in listed.items() if not k.startswith("cv_") and t["kind"] == "tool"}
     assert all(
         t["scope"] == "read"
         for k, t in non_cv.items()
-        if k not in ("my_notifications", "variant_pin")
+        if k
+        not in (
+            "my_notifications",
+            "variant_pin",
+            "set_application_stage",
+            "add_application_note",
+            "profile_update",
+            "application_transition",
+            "cv_ops",
+        )
     )
     assert non_cv["my_notifications"]["scope"] == "write"
+    assert non_cv["profile_update"]["scope"] == "write"
+    assert non_cv["profile_update"]["hitl"] is True
+    assert non_cv["application_transition"]["risk_class"] == "destructive"
+    assert listed["cv_ops"]["risk_class"] == "destructive"
     assert non_cv["variant_pin"]["scope"] == "write"
+    assert non_cv["set_application_stage"]["scope"] == "write"
+    assert non_cv["add_application_note"]["scope"] == "write"
     assert listed["cv_read_state"]["scope"] == "read"
     assert listed["cv_review_visual"]["scope"] == "read"
     # Plan 107: the visual review serves the general chat too
@@ -116,9 +144,7 @@ def test_builtin_registry_declarations():
     capability = listed["propose_profile_edits"]
     assert capability["kind"] == "capability"
     assert capability["hitl"] is True
-    assert all(
-        t["kind"] == "tool" for k, t in listed.items() if k != "propose_profile_edits"
-    )
+    assert all(t["kind"] == "tool" for k, t in listed.items() if k != "propose_profile_edits")
     for key, entry in listed.items():
         schema = entry["input_schema"]
         assert schema.get("type") == "object", key
@@ -155,9 +181,7 @@ async def test_tools_endpoint_capabilities_opt_in(client, auth_headers):
     assert cap["hitl"] is True
 
 
-async def test_tools_endpoint_bindable_filter_matches_the_chat_bind_set(
-    client, auth_headers
-):
+async def test_tools_endpoint_bindable_filter_matches_the_chat_bind_set(client, auth_headers):
     """The chat's "tools the assistant can use" dialog must list what the
     LLM actually binds — the chat allowlist + HITL capability rows — not
     the whole copilot registry (block/override editors never bind)."""
@@ -252,17 +276,15 @@ async def test_compare_jobs_tool_validates_and_reports_unknown(db):
         await run_tool(db, "compare_jobs", None, {"refs": ["a", "b"]})
     with pytest.raises(DomainError, match="Invalid input for tool compare_jobs"):
         await run_tool(db, "compare_jobs", "user-1", {"refs": ["only-one"]})
-    result = await run_tool(
-        db, "compare_jobs", "user-1", {"refs": ["ghost-job", "also-ghost"]}
-    )
+    result = await run_tool(db, "compare_jobs", "user-1", {"refs": ["ghost-job", "also-ghost"]})
     assert "error" in result
 
 
 async def test_notification_write_flow_through_registry(db, kinds):
     """The write-scope tool really mutes through the registry path."""
+    from nx_auth.passwords import hash_password
     from sqlalchemy import select
 
-    from nx_auth.passwords import hash_password
     from app.models.engagement_model import NotificationKind, NotificationKindPref
     from app.models.user_model import User
 
@@ -271,6 +293,12 @@ async def test_notification_write_flow_through_registry(db, kinds):
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # D20: muting a notification pref is state-changing — the registry
+    # funnel requires the user's catalog grant before the write runs.
+    from app.ai.tools.grants import grant
+
+    await grant(db, user.id, "my_notifications")
 
     result = await run_tool(
         db,
@@ -321,6 +349,6 @@ def test_plugin_allowlist_gates_entry_points(monkeypatch):
 
     from app.core.config import settings
 
-    monkeypatch.setattr(settings, "TOOL_PLUGINS_ALLOWLIST", ["echo"])
+    monkeypatch.setattr(settings, "tool_plugins_allowlist", ["echo"])
     reset_registry()
     assert any(t["key"] == "echo" for t in list_tools())

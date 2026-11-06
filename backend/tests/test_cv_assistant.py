@@ -19,9 +19,9 @@ from app.schemas.cv_assistant import (
     UpdateDesignOp,
 )
 from app.seeds.cv_templates import seed_cv_template_bank
-from app.services.cv_builder_service import CvBuilderService
-from app.services.cv_pdf_service import PDFEngineUnavailable
-from app.services.cv_service import CvService
+from app.services.cv.cv_builder_service import CvBuilderService
+from app.services.cv.cv_pdf_service import PDFEngineUnavailable
+from app.services.cv.cv_service import CvService
 from tests.conftest import session_headers
 
 
@@ -54,9 +54,7 @@ async def _owned_cv(db, client, auth_headers, **overrides) -> tuple[object, dict
     payload = {"title": "Copilot CV", **overrides}
     created = await client.post("/api/v1/cv", json=payload, headers=auth_headers)
     assert created.status_code == 201, created.text
-    cv = await CvService(db).get_owned(
-        uuid.UUID(created.json()["id"]), await _user_id(db)
-    )
+    cv = await CvService(db).get_owned(uuid.UUID(created.json()["id"]), await _user_id(db))
     return cv, created.json()
 
 
@@ -107,9 +105,7 @@ async def test_write_tool_requires_user(db):
     from app.core.errors import PermissionDeniedError
 
     try:
-        await run_tool(
-            db, "cv_set_template", None, {"cv_id": "x" * 8, "template_id": "y" * 8}
-        )
+        await run_tool(db, "cv_set_template", None, {"cv_id": "x" * 8, "template_id": "y" * 8})
     except PermissionDeniedError:
         return
     raise AssertionError("expected PermissionDeniedError")
@@ -121,17 +117,15 @@ async def test_write_tool_requires_user(db):
 async def test_apply_theme_duplicates_bank_template(client, db, auth_headers):
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     original = await CvBuilderService(db).template_row(cv)
 
-    result = await apply_operation(
-        db, cv, ApplyThemeOp(op="apply_theme", theme_key="teal_modern")
-    )
+    result = await apply_operation(db, cv, ApplyThemeOp(op="apply_theme", theme_key="teal_modern"))
     assert result.ok, result.detail
     assert cv.template_id is not None and cv.template_id != original.id
 
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     row = await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
     assert row.author_user_id == cv.user_id
@@ -140,30 +134,22 @@ async def test_apply_theme_duplicates_bank_template(client, db, auth_headers):
     assert bank.content["design"]["accent_color"] != "#0f766e"
 
 
-async def test_second_customize_session_on_same_bank_template_appends(
-    client, db, auth_headers
-):
+async def test_second_customize_session_on_same_bank_template_appends(client, db, auth_headers):
     """A later run styling the SAME bank template again duplicates it
     under the same private slug — the version must chain (v2), never
     collide with the first copy's v1 (uq_cv_templates_version)."""
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
-    from app.services.cv_builder_service import CvBuilderService
+    from app.services.cv.cv_builder_service import CvBuilderService
 
     bank = await CvBuilderService(db).template_row(cv)
 
-    first = await apply_operation(
-        db, cv, ApplyThemeOp(op="apply_theme", theme_key="teal_modern")
-    )
+    first = await apply_operation(db, cv, ApplyThemeOp(op="apply_theme", theme_key="teal_modern"))
     assert first.ok, first.detail
-    first_version = (
-        await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
-    ).version
-    first_key = (
-        await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)
-    ).key
+    first_version = (await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)).version
+    first_key = (await CvTemplateService(db).get_readable(cv.template_id, cv.user_id)).key
     # A fresh generate run would land back on the untouched bank row.
     cv.template_id = bank.id
     await db.commit()
@@ -188,18 +174,14 @@ async def test_update_design_rejects_unknown_tokens(client, db, auth_headers):
     assert "Unknown design token" in result.detail
 
 
-async def test_update_design_on_owned_template_publishes_version(
-    client, db, auth_headers
-):
+async def test_update_design_on_owned_template_publishes_version(client, db, auth_headers):
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
-    themed = await apply_operation(
-        db, cv, ApplyThemeOp(op="apply_theme", theme_key="classic_navy")
-    )
+    themed = await apply_operation(db, cv, ApplyThemeOp(op="apply_theme", theme_key="classic_navy"))
     assert themed.ok
     owned_id = cv.template_id
 
-    from app.services.cv_template_service import CvTemplateService
+    from app.services.cv.cv_template_service import CvTemplateService
 
     before = await CvTemplateService(db).get_readable(owned_id, cv.user_id)
     result = await apply_operation(
@@ -241,7 +223,7 @@ async def test_read_state_flags_stale_selection_refs(client, db, auth_headers):
     must name the stale refs so the copilot can repair them."""
     from app.ai.agents.cv_builder_chat import build_builder_context
     from app.schemas.cv import CvContextRef, CvContextSelection
-    from app.services.cv_context_service import resolve_sources
+    from app.services.cv.cv_context_service import resolve_sources
 
     cv, _json = await _owned_cv(db, client, auth_headers)
     resolved = await resolve_sources(db, cv.user_id)
@@ -262,9 +244,7 @@ async def test_read_state_flags_stale_selection_refs(client, db, auth_headers):
     assert f"{source_key}:{fresh_id}" in selection["include"]
 
 
-async def _pinned_project_variant(
-    client, db, auth_headers, uid
-) -> tuple[object, object]:
+async def _pinned_project_variant(client, db, auth_headers, uid) -> tuple[object, object]:
     """A project item whose pinned variant replaces description AND
     bullets on a CV (mode custom keeps only that item)."""
     from app.models.experience_model import ExperienceItem
@@ -321,21 +301,15 @@ async def _pinned_project_variant(
     return fresh, item
 
 
-async def test_read_state_sources_carry_effective_variant_layers(
-    client, db, auth_headers
-):
+async def test_read_state_sources_carry_effective_variant_layers(client, db, auth_headers):
     """cv_read_state reports what the CV PRINTS: a pinned variant's text
     replaces the profile's in `sources` (never both layers' texts side
     by side), `variant` flags the swap, and off-CV pool rows stay
     label+detail only."""
-    fresh, item = await _pinned_project_variant(
-        client, db, auth_headers, await _user_id(db)
-    )
+    fresh, item = await _pinned_project_variant(client, db, auth_headers, await _user_id(db))
     digest = await build_builder_context(db, fresh)
     entry = next(
-        row
-        for row in digest["sources"]["projects"]["items"]
-        if row["item_id"] == str(item.id)
+        row for row in digest["sources"]["projects"]["items"] if row["item_id"] == str(item.id)
     )
     assert entry["selected"] is True
     assert entry["variant"] is True
@@ -455,15 +429,11 @@ async def test_read_state_rendered_sections_report_layers(client, db, auth_heade
     await db.refresh(fresh)
 
     digest = await build_builder_context(db, fresh)
-    projects = next(
-        section for section in digest["rendered"] if section["section"] == "Projects"
-    )
+    projects = next(section for section in digest["rendered"] if section["section"] == "Projects")
     assert projects["items"] == 2
     assert projects["with_description"] == 2
     assert projects["with_bullets"] == 0, "the prop gate silences every bullet"
-    host = next(
-        entry for entry in projects["entries"] if "Host Web Services" in entry["title"]
-    )
+    host = next(entry for entry in projects["entries"] if "Host Web Services" in entry["title"])
     assert host["title"] == "Host Web Services — Lab"
     assert host["description"] is True and host["bullets"] is False
 
@@ -485,16 +455,12 @@ async def test_read_state_rendered_sections_report_layers(client, db, auth_heade
         if section["section"] == "Projects"
     )
     assert (
-        next(
-            entry
-            for entry in projects["entries"]
-            if "Host Web Services" in entry["title"]
-        )["bullets"]
+        next(entry for entry in projects["entries"] if "Host Web Services" in entry["title"])[
+            "bullets"
+        ]
         is False
     )
-    desktop = next(
-        entry for entry in projects["entries"] if "Desktop Assistant" in entry["title"]
-    )
+    desktop = next(entry for entry in projects["entries"] if "Desktop Assistant" in entry["title"])
     assert desktop["bullets"] is True and desktop["bullet_count"] == 1
     assert projects["with_bullets"] == 1, "exactly one entry prints bullets"
 
@@ -559,7 +525,10 @@ async def test_template_switch_grounded_on_layout_facts(client, db, auth_headers
     two-column template creates room beside the narrative" can only
     follow the actual design."""
     await _seed_bank(db)
-    cv, created = await _owned_cv(db, client, auth_headers)
+    from tests.conftest import grant_tool
+
+    await grant_tool(db, await _user_id(db), "cv_set_template")
+    _cv, created = await _owned_cv(db, client, auth_headers)
     user_id = await _user_id(db)
     state = await run_tool(db, "cv_read_state", user_id, {"cv_id": created["id"]})
     assert state["template"]["layout"] in ("single", "sidebar")
@@ -622,14 +591,10 @@ async def test_block_ops_apply_and_validate(client, db, auth_headers):
     blocks = cv.working_content["blocks"]
     assert blocks[-1]["kind"] == "custom_text"
 
-    bad = await apply_operation(
-        db, cv, RemoveBlockOp(op="remove_block", block_index=24)
-    )
+    bad = await apply_operation(db, cv, RemoveBlockOp(op="remove_block", block_index=24))
     assert not bad.ok
 
-    skills_index = next(
-        index for index, block in enumerate(blocks) if block["kind"] == "skills"
-    )
+    skills_index = next(index for index, block in enumerate(blocks) if block["kind"] == "skills")
     patched = await apply_operation(
         db,
         cv,
@@ -657,9 +622,7 @@ async def test_block_ops_apply_and_validate(client, db, auth_headers):
     assert last["kind"] == "languages" and last["area"] == "sidebar"
 
 
-async def test_set_override_requires_selected_item(
-    client, db, auth_headers, profile_ready
-):
+async def test_set_override_requires_selected_item(client, db, auth_headers, profile_ready):
     await _seed_bank(db)
     cv, _json = await _owned_cv(db, client, auth_headers)
     missing = await apply_operation(
@@ -692,17 +655,19 @@ async def test_builder_context_digest_shape(client, db, auth_headers, profile_re
 # ----------------------------------------------------------------- turn
 
 
-async def _open_builder_session(client, auth_headers, cv_id: str) -> str:
+async def _open_builder_session(
+    client, auth_headers, cv_id: str
+) -> tuple[str, list[dict[str, str]]]:
+    """A NORMAL session plus the CV attachment a build-intent turn needs
+    to hand off to the copilot (plan 78 — there is no session-level CV
+    binding)."""
     session = await client.post(
         "/api/v1/chat/sessions",
-        json={
-            "title": "CV assistant",
-            "context": {"surface": "cv_builder", "cv_id": cv_id},
-        },
+        json={"title": "CV assistant"},
         headers=auth_headers,
     )
     assert session.status_code == 201, session.text
-    return session.json()["id"]
+    return session.json()["id"], [{"kind": "cv", "cv_id": cv_id}]
 
 
 async def test_assistant_turn_stream_applies_ops(
@@ -715,11 +680,11 @@ async def test_assistant_turn_stream_applies_ops(
     await _seed_bank(db)
     cv, cv_json = await _owned_cv(db, client, auth_headers)
     original_template_id = cv.template_id
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
 
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch to another template"},
+        json={"content": "restyle: switch to another template", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -760,9 +725,7 @@ async def test_assistant_turn_stream_applies_ops(
     ).json()
     assert any(v["created_by"] == "ai_apply" for v in versions)
 
-    history = await client.get(
-        f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
-    )
+    history = await client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers)
     rows = history.json()
     assert [row["role"] for row in rows] == ["user", "assistant"]
     meta = rows[1]["metadata_json"]
@@ -796,7 +759,7 @@ async def test_builder_turn_failure_persists_partial_trace(
 
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
 
     async def _explode(self, *args, **kwargs):
         raise DomainError("plan exploded")
@@ -805,7 +768,7 @@ async def test_builder_turn_failure_persists_partial_trace(
     monkeypatch.setattr(StructuredStream, "chunks", _explode)
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "rewrite the summary section"},
+        json={"content": "rewrite the summary section", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -817,9 +780,7 @@ async def test_builder_turn_failure_persists_partial_trace(
     assert "done" not in names
 
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers)
     ).json()
     assert rows[-1]["role"] == "assistant"
     meta = rows[-1]["metadata_json"]
@@ -834,7 +795,7 @@ async def test_builder_turn_failure_persists_partial_trace(
 async def test_regular_session_untouched_by_builder_flow(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
-    """A session without the cv_builder context runs the normal chatbot."""
+    """A session without a CV attachment runs the normal chatbot."""
     session = await client.post(
         "/api/v1/chat/sessions", json={"title": "chat"}, headers=auth_headers
     )
@@ -861,22 +822,20 @@ async def test_builder_session_edit_keeps_copilot(
     )
     await _seed_bank(db)
     _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
     await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "switch template"},
+        json={"content": "restyle: switch template", "attachments": attach},
         params={"stream": "true"},
         headers=auth_headers,
     )
     rows = (
-        await client.get(
-            f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers
-        )
+        await client.get(f"/api/v1/chat/sessions/{session_id}/messages", headers=auth_headers)
     ).json()
 
     edited = await client.post(
         f"/api/v1/chat/messages/{rows[0]['id']}/edit",
-        json={"content": "apply a theme instead"},
+        json={"content": "restyle with a theme instead"},
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -885,29 +844,6 @@ async def test_builder_session_edit_keeps_copilot(
     assert events[0][1]["flow"] == "cv_builder"
     tool_calls = [payload for name, payload in events if name == "tool_call"]
     assert any(call["name"] == "cv_apply_theme" for call in tool_calls)
-
-
-async def test_builder_session_validates_cv_ownership(
-    client, db, auth_headers, profile_ready
-):
-    await _seed_bank(db)
-    _cv, cv_json = await _owned_cv(db, client, auth_headers)
-    other_headers = await _second_user(client)
-    session = await client.post(
-        "/api/v1/chat/sessions",
-        json={
-            "title": "sneaky",
-            "context": {"surface": "cv_builder", "cv_id": cv_json["id"]},
-        },
-        headers=other_headers,
-    )
-    response = await client.post(
-        f"/api/v1/chat/sessions/{session.json()['id']}/messages",
-        json={"content": "switch template"},
-        params={"stream": "true"},
-        headers=other_headers,
-    )
-    assert response.status_code == 404
 
 
 async def test_visual_review_degrades_without_chromium(
@@ -919,10 +855,13 @@ async def test_visual_review_degrades_without_chromium(
         "app.ai.agents.cv_builder_chat.measure_pages",
         _raise_engine_unavailable,
     )
-    session_id = await _open_builder_session(client, auth_headers, cv_json["id"])
+    session_id, attach = await _open_builder_session(client, auth_headers, cv_json["id"])
     response = await client.post(
         f"/api/v1/chat/sessions/{session_id}/messages",
-        json={"content": "review the layout and fix the overflow"},
+        json={
+            "content": "restyle and review the layout and fix the overflow",
+            "attachments": attach,
+        },
         params={"stream": "true"},
         headers=auth_headers,
     )
@@ -956,16 +895,12 @@ async def _second_user(client) -> dict:
 # ------------------------------------------------------- ops endpoint (71.1)
 
 
-async def test_ops_endpoint_applies_design_and_resyncs_template(
-    client, db, auth_headers
-):
+async def test_ops_endpoint_applies_design_and_resyncs_template(client, db, auth_headers):
     """UI restyling rides the same audited apply_operation path; the
     response template_id reflects the private-copy re-pointing."""
     await _seed_bank(db)
     cv, created = await _owned_cv(db, client, auth_headers)
-    before = (
-        await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)
-    ).json()
+    before = (await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)).json()
     assert before["design"]["accent_color"]
     assert before["template"]["owned"] is False
 
@@ -989,9 +924,7 @@ async def test_ops_endpoint_applies_design_and_resyncs_template(
     assert state["document"]["template_id"] != before["template"]["id"]
     assert state["critique"] is None
 
-    design = (
-        await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)
-    ).json()
+    design = (await client.get(f"/api/v1/cv/{cv.id}/design", headers=auth_headers)).json()
     assert design["design"]["accent_color"] == "#b91c1c"
     assert design["design"]["line_height"] == 1.5
     assert design["template"]["owned"] is True
@@ -1005,7 +938,7 @@ async def test_ops_endpoint_rejects_unknown_cv_and_bad_ops(client, db, auth_head
     )
     assert response.status_code == 404
 
-    cv, created = await _owned_cv(db, client, auth_headers)
+    _cv, created = await _owned_cv(db, client, auth_headers)
     response = await client.post(
         f"/api/v1/cv/{created['id']}/ops",
         json={"ops": [{"op": "update_design", "design": {"accent_color": "red"}}]},
@@ -1023,7 +956,7 @@ async def test_ops_endpoint_rejects_unknown_cv_and_bad_ops(client, db, auth_head
 
 
 async def test_ops_endpoint_is_owner_scoped(client, db, auth_headers):
-    cv, created = await _owned_cv(db, client, auth_headers)
+    _cv, created = await _owned_cv(db, client, auth_headers)
     other = await _second_user(client)
     response = await client.post(
         f"/api/v1/cv/{created['id']}/ops",
@@ -1040,18 +973,15 @@ def test_design_patch_coerces_the_models_number_voice():
     import pytest
     from pydantic import ValidationError
 
-    from app.schemas.cv_template import DesignTokens
-
     from app.ai.agents.cv_builder_chat import _design_candidate
+    from app.schemas.cv_template import DesignTokens
 
     base = DesignTokens().model_dump(mode="json")
     candidate = _design_candidate(
         base, {"base_size_pt": 8.5, "spacing_scale": 0.9, "item_gap_mm": 1}
     )
     tokens = DesignTokens.model_validate(candidate)
-    assert tokens.base_size_pt == 8, (
-        "8.5 rounds down — banker's rounding, still compact"
-    )
+    assert tokens.base_size_pt == 8, "8.5 rounds down — banker's rounding, still compact"
     assert tokens.spacing_scale == 0.9 and tokens.item_gap_mm == 1
     with pytest.raises(ValidationError):
         _design_candidate(base, {"base_size_pt": "big"})

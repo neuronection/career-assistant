@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pypdf import PdfWriter
 from sqlalchemy import select
@@ -27,9 +27,7 @@ def _tiny_pdf(text: str) -> bytes:
     return buffer.getvalue()
 
 
-async def _upload(
-    client, headers, filename="catalog.txt", content=b"sample", mime="text/plain"
-):
+async def _upload(client, headers, filename="catalog.txt", content=b"sample", mime="text/plain"):
     return await client.post(
         "/api/v1/documents",
         files={"file": (filename, io.BytesIO(content), mime)},
@@ -56,17 +54,13 @@ async def test_upload_parse_apply_text_document(client, db, auth_headers):
     assert body["extraction"]["universities"]
     assert body["page_count"] == 1
 
-    applied = await client.post(
-        f"/api/v1/documents/{doc_id}/apply", headers=auth_headers
-    )
+    applied = await client.post(f"/api/v1/documents/{doc_id}/apply", headers=auth_headers)
     assert applied.status_code == 200, applied.text
     counts = applied.json()["applied"]
     assert counts["universities"] >= 1
     assert counts["departments"] >= 1
 
-    unis = (
-        await client.get("/api/v1/universities?q=testing", headers=auth_headers)
-    ).json()
+    unis = (await client.get("/api/v1/universities?q=testing", headers=auth_headers)).json()
     assert unis
     detail = (
         await client.get(f"/api/v1/universities/{unis[0]['id']}", headers=auth_headers)
@@ -81,13 +75,9 @@ async def test_apply_twice_is_idempotent(client, db, auth_headers):
     await _drain(db)
     await client.get(f"/api/v1/documents/{doc_id}", headers=auth_headers)
     await client.post(f"/api/v1/documents/{doc_id}/apply", headers=auth_headers)
-    second = await client.post(
-        f"/api/v1/documents/{doc_id}/apply", headers=auth_headers
-    )
+    second = await client.post(f"/api/v1/documents/{doc_id}/apply", headers=auth_headers)
     assert second.status_code == 200
-    unis = (
-        await client.get("/api/v1/universities?q=Idempotence", headers=auth_headers)
-    ).json()
+    unis = (await client.get("/api/v1/universities?q=Idempotence", headers=auth_headers)).json()
     assert len(unis) == 1
     detail = (
         await client.get(f"/api/v1/universities/{unis[0]['id']}", headers=auth_headers)
@@ -138,9 +128,7 @@ async def test_deadline_extracted_and_applied(client, db, auth_headers):
     assert dept["application_deadline"] == "2026-07-15"
 
     await client.post(f"/api/v1/documents/{body['id']}/apply", headers=auth_headers)
-    unis = (
-        await client.get("/api/v1/universities?q=Deadlines", headers=auth_headers)
-    ).json()
+    unis = (await client.get("/api/v1/universities?q=Deadlines", headers=auth_headers)).json()
     uni_detail = (
         await client.get(f"/api/v1/universities/{unis[0]['id']}", headers=auth_headers)
     ).json()
@@ -177,9 +165,7 @@ async def test_documents_are_private(client, auth_headers):
     assert response.status_code == 404
 
 
-async def test_delete_document_cascades_skill_evidence(
-    client, db, auth_headers, seeded_catalog
-):
+async def test_delete_document_cascades_skill_evidence(client, db, auth_headers, seeded_catalog):
     """Deleting a document removes its skill_evidence rows (CASCADE FK, not
     SET NULL — the one-source CHECK would reject the nulled row)."""
     upload = await _upload(client, auth_headers, "cv.txt", b"cv content")
@@ -196,7 +182,7 @@ async def test_delete_document_cascades_skill_evidence(
             user_id=user.id,
             skill_id=skill.id,
             cv_document_id=doc_id,
-            claimed_at=datetime.now(timezone.utc),
+            claimed_at=datetime.now(UTC),
         )
     )
     await db.commit()

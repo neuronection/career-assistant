@@ -5,7 +5,14 @@ import uuid
 from httpx import AsyncClient
 
 from app.models.background_job_model import BackgroundJob
-from app.services.job_worker import JobWorker, enqueue
+from app.services.job_worker import (
+    INGEST_JOB_TYPES,
+    VECTOR_JOB_TYPES,
+    JobWorker,
+    WorkerSpec,
+    enqueue,
+    worker_specs,
+)
 from tests.conftest import register_user
 
 
@@ -41,6 +48,43 @@ async def test_cancelled_queued_job_is_skipped_by_claim(db):
     job.status = "cancelled"
     await db.commit()
     assert await JobWorker(db).claim_next() is None
+
+
+async def test_a_lane_worker_claims_only_its_own_family(db):
+    """Plan 203: a lane worker never takes another family's job."""
+    extract = await _enqueue(db, "posting_extract")
+    await _enqueue(db, "digest")
+    lane = JobWorker(db, job_types=INGEST_JOB_TYPES)
+    claimed = await lane.claim_next()
+    assert claimed is not None and claimed.id == extract.id
+
+
+async def test_a_generic_worker_excludes_a_laned_family(db):
+    await _enqueue(db, "posting_extract")
+    digest = await _enqueue(db, "digest")
+    worker = JobWorker(db, exclude_types=INGEST_JOB_TYPES)
+    claimed = await worker.claim_next()
+    assert claimed is not None and claimed.id == digest.id
+    assert await worker.claim_next() is None, "the ingest row is the lane's"
+
+
+def test_the_default_pool_is_one_generic_worker():
+    assert worker_specs(generic=1) == [WorkerSpec()]
+
+
+def test_a_lane_removes_its_family_from_the_generic_pool():
+    specs = worker_specs(generic=1, ingest=1, vector=1)
+    assert specs[0] == WorkerSpec(exclude_types=INGEST_JOB_TYPES | VECTOR_JOB_TYPES)
+    assert specs[1] == WorkerSpec(job_types=INGEST_JOB_TYPES)
+    assert specs[2] == WorkerSpec(job_types=VECTOR_JOB_TYPES)
+    assert len(specs) == 3
+
+
+def test_lanes_do_not_change_the_pool_until_configured():
+    assert worker_specs(generic=2, ingest=0, vector=0) == [
+        WorkerSpec(),
+        WorkerSpec(),
+    ]
 
 
 async def test_unknown_type_fails_terminally(db):
@@ -86,9 +130,7 @@ async def test_cancel_running_job_finishes_cancelled(db, monkeypatch):
         await db.commit()
         return {}
 
-    monkeypatch.setitem(
-        worker_module.HANDLERS, "job_generate", completes_then_worker_sees_flag
-    )
+    monkeypatch.setitem(worker_module.HANDLERS, "job_generate", completes_then_worker_sees_flag)
     job = await _enqueue(db)
     worker = JobWorker(db)
     claimed = await worker.claim_next()
@@ -102,9 +144,7 @@ async def test_recover_orphans_requeues_or_fails(db):
     stuck_retry = BackgroundJob(
         job_type="match_score", status="running", attempts=1, max_attempts=2
     )
-    stuck_dead = BackgroundJob(
-        job_type="match_score", status="running", attempts=2, max_attempts=2
-    )
+    stuck_dead = BackgroundJob(job_type="match_score", status="running", attempts=2, max_attempts=2)
     db.add_all([stuck_retry, stuck_dead])
     await db.commit()
 
@@ -129,9 +169,7 @@ async def test_batch_score_endpoint_returns_202_with_job(client, db):
 
 async def test_generate_endpoint_returns_202_with_job(client, db, seeded_catalog):
     headers = await _make_user(client)
-    response = await client.post(
-        "/api/v1/jobs/generate", json={"count": 2}, headers=headers
-    )
+    response = await client.post("/api/v1/jobs/generate", json={"count": 2}, headers=headers)
     assert response.status_code == 202
     body = response.json()
     assert uuid.UUID(body["job_id"])
@@ -173,48 +211,35 @@ async def test_background_jobs_endpoints_ownership(client, db, auth_headers):
 
 
 async def test_background_job_lifecycle_via_api(client, db, auth_headers):
-    from app.models.user_model import User
     from sqlalchemy import select
 
+    from app.models.user_model import User
+
     me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
-    user_id = (
-        (await db.execute(select(User).where(User.email == me["email"])))
-        .scalars()
-        .first()
-        .id
-    )
+    user_id = (await db.execute(select(User).where(User.email == me["email"]))).scalars().first().id
     job = await enqueue(db, "job_generate", {}, user_id=user_id)
 
     listed = await client.get("/api/v1/background-jobs", headers=auth_headers)
     assert [j["id"] for j in listed.json()] == [str(job.id)]
 
-    cancel = await client.post(
-        f"/api/v1/background-jobs/{job.id}/cancel", headers=auth_headers
-    )
+    cancel = await client.post(f"/api/v1/background-jobs/{job.id}/cancel", headers=auth_headers)
     assert cancel.status_code == 200
     assert cancel.json()["status"] == "cancelled"
 
-    again = await client.post(
-        f"/api/v1/background-jobs/{job.id}/cancel", headers=auth_headers
-    )
+    again = await client.post(f"/api/v1/background-jobs/{job.id}/cancel", headers=auth_headers)
     assert again.status_code == 400
 
 
 async def test_match_score_job_handler_scores_candidates(
     client, db, auth_headers, profile_ready, seeded_catalog
 ):
-    from app.models.user_model import User
     from sqlalchemy import select
 
+    from app.models.user_model import User
+
     me = (await client.get("/api/v1/auth/me", headers=auth_headers)).json()
-    user = (
-        (await db.execute(select(User).where(User.email == me["email"])))
-        .scalars()
-        .first()
-    )
-    job = await enqueue(
-        db, "match_score", {"limit": 3, "force": False}, user_id=user.id
-    )
+    user = (await db.execute(select(User).where(User.email == me["email"]))).scalars().first()
+    job = await enqueue(db, "match_score", {"limit": 3, "force": False}, user_id=user.id)
     worker = JobWorker(db)
     claimed = await worker.claim_next()
     await worker.execute(claimed)
@@ -222,3 +247,67 @@ async def test_match_score_job_handler_scores_candidates(
     assert job.status == "succeeded", job.error
     assert job.result["scored"] >= 1
     assert job.progress == 100
+
+
+async def test_progress_detail_rides_the_progress_write_and_is_pruned_with_the_result(
+    db, monkeypatch
+):
+    import app.services.job_worker as worker_module
+
+    observed: dict = {}
+
+    async def detailed(db, job, *, progress, cancelled):
+        await progress(
+            10,
+            "scanning posting",
+            {
+                "phase": "scanning",
+                "processed_documents": 1,
+                "total_documents": 4,
+                "embedded_chunks": 3,
+                "tokens": 120,
+                "source_ids": ["doc-1"],
+                "text": "must never persist",
+            },
+        )
+        await db.refresh(job)
+        observed.update(job.progress_detail or {})
+        return {"scanned": 1}
+
+    monkeypatch.setitem(worker_module.HANDLERS, "job_generate", detailed)
+    job = await _enqueue(db)
+    worker = JobWorker(db)
+    await worker.execute(await worker.claim_next())
+    await db.refresh(job)
+
+    assert observed["processed_documents"] == 1
+    assert observed["total_documents"] == 4
+    assert observed["embedded_chunks"] == 3
+    assert "source_ids" not in observed, "unknown/raw keys never persist"
+    assert "text" not in observed
+    assert job.status == "succeeded"
+    assert job.result == {"scanned": 1}, "the final result stays authoritative"
+    assert job.progress_detail is None, "the live detail is pruned when the result commits"
+
+
+def test_bound_progress_detail_drops_unknown_keys_and_clamps_counters():
+    from app.services.progress import MAX_PROGRESS_COUNTER, bound_progress_detail
+
+    bounded = bound_progress_detail(
+        {
+            "phase": "embedding",
+            "processed_documents": 2,
+            "total_documents": 5,
+            "tokens": -1,
+            "embed_calls": MAX_PROGRESS_COUNTER + 7,
+            "source_ids": ["doc-1"],
+        }
+    )
+    assert bounded is not None
+    assert bounded["phase"] == "embedding"
+    assert bounded["processed_documents"] == 2
+    assert bounded["tokens"] == 0, "a negative token count clamps to zero"
+    assert bounded["embed_calls"] == MAX_PROGRESS_COUNTER
+    assert "source_ids" not in bounded
+    assert bound_progress_detail({"phase": "not-a-phase"})["phase"] == "queued"
+    assert bound_progress_detail(None) is None

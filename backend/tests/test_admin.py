@@ -108,11 +108,7 @@ async def test_taxonomy_key_is_immutable_but_editable(client, _admin_and_user, d
     assert deprecate.status_code == 200
     assert deprecate.json()["status"] == "deprecated"
 
-    tag = (
-        (await db.execute(select(Skill).where(Skill.key == "temp-skill")))
-        .scalars()
-        .first()
-    )
+    tag = (await db.execute(select(Skill).where(Skill.key == "temp-skill"))).scalars().first()
     assert tag.status == "deprecated"
 
     bad_status = await client.put(
@@ -123,16 +119,89 @@ async def test_taxonomy_key_is_immutable_but_editable(client, _admin_and_user, d
     assert bad_status.status_code == 400
 
 
-async def test_taxonomy_delete_guard_and_success(
-    client, db, _admin_and_user, seeded_catalog
+async def test_update_skill_explicit_null_parent_clears_to_root(client, db, _admin_and_user):
+    """F4 pin 1: an explicit `parent_id: null` is a CLEAR — the documented
+    undo exists for the root case (repo law: no silent no-op)."""
+    admin, _ = _admin_and_user
+    parent = Skill(key="root-parent", label="Root Parent", category="test")
+    db.add(parent)
+    await db.flush()
+    child = Skill(key="root-child", label="Root Child", category="test", parent_id=parent.id)
+    db.add(child)
+    await db.flush()
+    child_id = child.id
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{child_id}",
+        json={"parent_id": None},
+        headers=admin,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["parent_id"] is None
+    db.expire_all()
+    refreshed = (await db.execute(select(Skill).where(Skill.id == child_id))).scalars().first()
+    assert refreshed.parent_id is None
+
+
+async def test_update_skill_absent_parent_field_is_a_noop(client, db, _admin_and_user):
+    """F4 pin 2: an update that omits `parent_id` never clears it —
+    only an explicit null is the clear."""
+    admin, _ = _admin_and_user
+    parent = Skill(key="kept-parent", label="Kept Parent", category="test")
+    db.add(parent)
+    await db.flush()
+    child = Skill(key="kept-child", label="Kept Child", category="test", parent_id=parent.id)
+    db.add(child)
+    await db.flush()
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{child.id}",
+        json={"label": "Renamed Child"},
+        headers=admin,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["label"] == "Renamed Child"
+    assert response.json()["parent_id"] == str(parent.id), "an absent parent_id never clears"
+
+
+async def test_update_skill_refuses_a_cycle_through_an_approved_is_a_edge(
+    client, db, _admin_and_user
 ):
+    """F6 pin: `update_skill` walks approved `is_a` generalities like the
+    seam — a re-parent that closes a cycle through a reviewed edge is
+    refused."""
+    from app.services.catalog.skill_relations import SkillRelationService
+
+    admin, _ = _admin_and_user
+    a = Skill(key="cycle-a", label="Cycle A", category="test")
+    b = Skill(key="cycle-b", label="Cycle B", category="test")
+    db.add_all([a, b])
+    await db.flush()
+    a_id, b_id = a.id, b.id
+    service = SkillRelationService(db)
+    await service.add("cycle-b", "cycle-a", "is_a", source="manual")
+    await db.commit()
+
+    response = await client.put(
+        f"/api/v1/taxonomy/skills/{a_id}",
+        json={"parent_id": str(b_id)},
+        headers=admin,
+    )
+
+    assert response.status_code == 400, response.text
+    db.expire_all()
+    refreshed = (await db.execute(select(Skill).where(Skill.id == a_id))).scalars().first()
+    assert refreshed.parent_id is None, "a refused re-parent writes nothing"
+
+
+async def test_taxonomy_delete_guard_and_success(client, db, _admin_and_user, seeded_catalog):
     admin, _ = _admin_and_user
     tags = (await client.get("/api/v1/taxonomy/interests", headers=admin)).json()
     tag = next(t for t in tags if t["key"] == "technology-software")
 
-    referenced = await client.delete(
-        f"/api/v1/taxonomy/interests/{tag['id']}", headers=admin
-    )
+    referenced = await client.delete(f"/api/v1/taxonomy/interests/{tag['id']}", headers=admin)
     assert referenced.status_code == 409
     body = referenced.json()["detail"]
     assert body["job_refs"] >= 1
@@ -144,9 +213,7 @@ async def test_taxonomy_delete_guard_and_success(
             headers=admin,
         )
     ).json()
-    deleted = await client.delete(
-        f"/api/v1/taxonomy/skills/{free['id']}", headers=admin
-    )
+    deleted = await client.delete(f"/api/v1/taxonomy/skills/{free['id']}", headers=admin)
     assert deleted.status_code == 200
     assert deleted.json()["deleted"] == "free-tag"
 
@@ -169,16 +236,12 @@ async def test_deprecated_tags_hidden_on_request(client, _admin_and_user):
     all_rows = (await client.get("/api/v1/taxonomy/interests", headers=admin)).json()
     assert any(r["key"] == "old-tag" for r in all_rows)
     filtered = (
-        await client.get(
-            "/api/v1/taxonomy/interests?include_deprecated=false", headers=admin
-        )
+        await client.get("/api/v1/taxonomy/interests?include_deprecated=false", headers=admin)
     ).json()
     assert all(r["key"] != "old-tag" for r in filtered)
 
 
-async def test_moderation_queue_and_bulk_actions(
-    client, db, _admin_and_user, seeded_catalog
-):
+async def test_moderation_queue_and_bulk_actions(client, db, _admin_and_user, seeded_catalog):
     admin, user = _admin_and_user
     mine = (
         await client.post(
@@ -234,14 +297,10 @@ async def test_user_management_guards(client, _admin_and_user, db):
     assert {"admin@example.com", "user@example.com"} <= emails
 
     user_row = (
-        (await db.execute(select(User).where(User.email == "user@example.com")))
-        .scalars()
-        .first()
+        (await db.execute(select(User).where(User.email == "user@example.com"))).scalars().first()
     )
     admin_row = (
-        (await db.execute(select(User).where(User.email == "admin@example.com")))
-        .scalars()
-        .first()
+        (await db.execute(select(User).where(User.email == "admin@example.com"))).scalars().first()
     )
 
     self_demote = await client.patch(
@@ -266,9 +325,7 @@ async def test_user_management_guards(client, _admin_and_user, db):
 async def test_reset_password_and_force_logout(client, _admin_and_user, db):
     admin, user = _admin_and_user
     user_row = (
-        (await db.execute(select(User).where(User.email == "user@example.com")))
-        .scalars()
-        .first()
+        (await db.execute(select(User).where(User.email == "user@example.com"))).scalars().first()
     )
 
     reset = await client.post(
@@ -288,9 +345,7 @@ async def test_reset_password_and_force_logout(client, _admin_and_user, db):
     assert relogin.status_code == 200
     new_headers = session_headers(relogin)
 
-    force = await client.post(
-        f"/api/v1/admin/users/{user_row.id}/force-logout", headers=admin
-    )
+    force = await client.post(f"/api/v1/admin/users/{user_row.id}/force-logout", headers=admin)
     assert force.status_code == 204
     killed = await client.get("/api/v1/auth/me", headers=new_headers)
     assert killed.status_code == 401
@@ -303,21 +358,19 @@ async def test_audit_viewer_filters(client, db, _admin_and_user, seeded_catalog)
     while await worker.run_once():
         pass
 
-    listing = (await client.get("/api/v1/admin/ai/generations", headers=admin)).json()
+    listing = (await client.get("/api/v1/admin/audit/ai/generations", headers=admin)).json()
     assert listing["total"] >= 1
     assert any(g["task_type"] == "job_generate" for g in listing["items"])
 
     by_task = (
-        await client.get(
-            "/api/v1/admin/ai/generations?task=job_generate", headers=admin
-        )
+        await client.get("/api/v1/admin/audit/ai/generations?task=job_generate", headers=admin)
     ).json()
     assert all(g["task_type"] == "job_generate" for g in by_task["items"])
 
     by_status = (
-        await client.get("/api/v1/admin/ai/generations?status=ok", headers=admin)
+        await client.get("/api/v1/admin/audit/ai/generations?status=ok", headers=admin)
     ).json()
     assert by_status["total"] >= 1
 
-    forbidden = await client.get("/api/v1/admin/ai/generations", headers=user)
+    forbidden = await client.get("/api/v1/admin/audit/ai/generations", headers=user)
     assert forbidden.status_code == 403

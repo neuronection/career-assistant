@@ -10,7 +10,6 @@ entity.
 """
 
 import uuid
-from typing import Optional
 
 from sqlalchemy import (
     CheckConstraint,
@@ -36,9 +35,7 @@ class CvDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "cv_documents"
     __table_args__ = (
         CheckConstraint("kind IN ('resume', 'cover_letter')", name="kind_allowed"),
-        CheckConstraint(
-            "status IN ('draft', 'final', 'archived')", name="status_allowed"
-        ),
+        CheckConstraint("status IN ('draft', 'final', 'archived')", name="status_allowed"),
         CheckConstraint("page_size IN ('a4', 'letter')", name="page_size_allowed"),
         CheckConstraint("max_pages >= 1 AND max_pages <= 10", name="max_pages_range"),
         Index("ix_cv_documents_user_updated", "user_id", "updated_at"),
@@ -49,11 +46,11 @@ class CvDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     kind: Mapped[str] = mapped_column(String(20), nullable=False, default="resume")
-    target_posting_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    target_posting_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("job_postings.id", ondelete="SET NULL"), nullable=True
     )
     # Template choice; NULL = renderer default layout.
-    template_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("cv_templates.id", ondelete="SET NULL"), nullable=True
     )
     language: Mapped[str] = mapped_column(String(10), nullable=False, default="en")
@@ -61,16 +58,14 @@ class CvDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     max_pages: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
     # The only mutable content column — autosaved editor state.
-    working_content: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    working_content: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     # Per-CV context selection: {mode, include[], exclude[]}.
     context: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
-    source_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    source_document_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
     # Per-CV profile photo; NULL = profile default.
-    photo_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    photo_document_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("documents.id", ondelete="SET NULL"), nullable=True
     )
 
@@ -80,9 +75,7 @@ class CvVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     __tablename__ = "cv_versions"
     __table_args__ = (
-        UniqueConstraint(
-            "cv_document_id", "version", name="uq_cv_versions_doc_version"
-        ),
+        UniqueConstraint("cv_document_id", "version", name="uq_cv_versions_doc_version"),
         CheckConstraint(
             "created_by IN ('user_save', 'ai_apply', 'export', 'restore', 'duplicate')",
             name="created_by_allowed",
@@ -95,8 +88,6 @@ class CvVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[dict] = mapped_column(StructuredJSON, nullable=False)
-    context_resolution: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
-    )
+    context_resolution: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_by: Mapped[str] = mapped_column(String(20), nullable=False)

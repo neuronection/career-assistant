@@ -9,6 +9,15 @@ class AINotConfiguredError(DomainError):
     """AI features are unavailable in this environment (e.g. mock in production)."""
 
 
+class AIBudgetExceededError(DomainError):
+    """An active AI token budget is exhausted (plan 201 S1).
+
+    A distinct type so the API can answer 429 (the family's ``BudgetExceeded``
+    shape) and the retrieval worker can defer the affected documents instead
+    of recording them as failed.
+    """
+
+
 class NotFoundError(DomainError):
     """Requested entity does not exist."""
 

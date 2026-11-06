@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 
-import { ContextPanel } from "@/components/cv/ContextPanel";
+import { ContextPanel } from "@/features/cv/components/cv/ContextPanel";
 import type { CvContextSourceOut } from "@/types/cv";
 
 const sources: CvContextSourceOut[] = [

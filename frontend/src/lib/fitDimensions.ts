@@ -1,4 +1,4 @@
-import type { FitBreakdown } from "@/types";
+import type { FitBreakdown } from "@/types/wire";
 
 export const DIMENSION_LABELS: Record<string, string> = {
   skills: "Skills",
@@ -17,7 +17,7 @@ export function dimensionKeys(breakdowns: (FitBreakdown | null)[]): string[] {
   const keys: string[] = [];
   for (const breakdown of breakdowns) {
     if (!breakdown) continue;
-    for (const key of Object.keys(breakdown.dimensions)) {
+    for (const key of Object.keys(breakdown.dimensions ?? {})) {
       if (!keys.includes(key)) keys.push(key);
     }
   }

@@ -22,6 +22,8 @@ frontend/dist/
 .env.local
 .env.*.local
 !.env.example
+# plan 126: pytest env file self-bootstraps from the tracked example
+backend/.env.test
 *.pem
 *.key
 secrets.json
@@ -31,7 +33,6 @@ backend/uploads/
 backend/tests/_uploads/
 backend/tests/_xdist/
 backend/tests/_data/
-backend/celerybeat-schedule*
 logging/
 logs/
 *.log
@@ -64,6 +65,10 @@ test-results/
 /dist/
 packaging/_build/
 packaging/_deb/
+backend/dist/
+backend/checkpoints.db*
+packaging/_smoke-*/
+smoke.log
 packaging/_appimage/
 packaging/_smoke-*/
 packaging/*.deb
@@ -79,3 +84,8 @@ frontend/coverage/
 *.bak.*
 *.orig
 *.rej
+
+# OpenChamber browser-panel artifacts (local screenshots)
+.openchamber/
+*.db-shm
+*.db-wal

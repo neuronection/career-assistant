@@ -1,0 +1,23 @@
+{
+  "$comment": "Reviewed dependency-audit exceptions (plan 124.1). Every entry needs a reason, a review date and an expiry date; scripts/check-dependency-audit.py fails on missing, expired or stale entries. Process: docs/dev/testing.md#dependency-audit-exceptions.",
+  "pip": [],
+  "pipUnresolved": [
+    {
+      "package": "careerassistant",
+      "reason": "the application itself is the audited workspace root, not a PyPI distribution"
+    },
+    {
+      "package": "neuronection-auth-kit",
+      "reason": "family auth kit is consumed from the pinned git source until the org's PyPI phase; audited in the dev repo"
+    }
+  ],
+  "npm": [
+    {
+      "id": "GHSA-vfj7-8cjw-p6xm",
+      "package": "braces",
+      "reason": "stack-exhaustion DoS in a build-tooling-only transitive dependency (tailwindcss -> chokidar/fast-glob/micromatch/globby); never reached by app runtime input, and no non-breaking fix exists",
+      "reviewed": "2026-10-21",
+      "expires": "2027-01-31"
+    }
+  ]
+}

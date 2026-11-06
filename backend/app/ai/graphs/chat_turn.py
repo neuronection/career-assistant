@@ -22,14 +22,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional, TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.flow_events import delta_event, tool_call_event
+from app.ai.flow_events_wire import sse_pair
 from app.ai.gateway import (
     RunRef,
     StructuredStream,
@@ -37,10 +41,13 @@ from app.ai.gateway import (
     ainvoke_structured,
     partial_answer_text,
 )
+from app.core.errors import sanitize_error_detail
 from app.models.chat_model import ChatSession
 from app.models.enums import AITaskType, ProposalKind
 from app.models.user_model import User
-from app.services import chat_tool_memory
+from app.services.chat import chat_tool_memory
+
+logger = logging.getLogger(__name__)
 
 MAX_PROFILE_OPS = 5
 
@@ -104,13 +111,15 @@ class ChatTurnState(TypedDict, total=False):
     prompt: str
     tool_metadata: dict
     reply: dict
-    model: Optional[str]
-    tokens_in: Optional[int]
-    tokens_out: Optional[int]
+    model: str | None
+    tokens_in: int | None
+    tokens_out: int | None
     proposals: list[dict]
     proposals_dropped: int
     dropped_reasons: list[dict]
     overflow: int
+    #: D20 — destructive calls that became confirmation cards this turn
+    tool_confirmations: list[dict]
     #: plan 98 phase 3 — tool rounds
     pending_calls: list[dict]
     tool_results_extra: dict
@@ -144,17 +153,17 @@ class TurnDeps:
     content: str
     history: list[dict]
     profile_summary: str
-    page_context: Optional[dict]
-    cv_references: Optional[list[dict]]
+    page_context: dict | None
+    cv_references: list[dict] | None
     emit: Callable[[str, dict], None]
     turn_started: float = field(default_factory=time.monotonic)
     run_id: uuid.UUID = field(default_factory=uuid.uuid4)
-    stream: Optional[StructuredStream] = None
+    stream: StructuredStream | None = None
     nodes_trace: list[dict] = field(default_factory=list)
     created_proposals: list = field(default_factory=list)
     tool_metadata: dict = field(default_factory=dict)
     generating: bool = False
-    generate_started: Optional[float] = None
+    generate_started: float | None = None
     degraded: bool = False
     aborted: bool = False
 
@@ -168,7 +177,7 @@ def is_cancellation(exc: BaseException) -> bool:
     flow_failed) depends on telling it apart from a real failure.
     """
     seen: set[int] = set()
-    current: Optional[BaseException] = exc
+    current: BaseException | None = exc
     while current is not None and id(current) not in seen:
         if isinstance(current, asyncio.CancelledError):
             return True
@@ -255,16 +264,17 @@ async def retrieve(state: ChatTurnState, deps: TurnDeps) -> dict:
     # as completed.
     for index, tool in enumerate(tools):
         deps.emit(
-            "tool_call",
-            {
-                "id": f"{tool.get('name', 'tool')}-{index}",
-                "name": tool.get("name", "tool"),
-                "title": tool.get("title", tool.get("name", "tool")),
-                "status": "done",
-                "args": tool.get("args_summary", ""),
-                "result": tool.get("result_summary", ""),
-                "duration_ms": tool.get("duration_ms"),
-            },
+            *sse_pair(
+                tool_call_event(
+                    id=f"{tool.get('name', 'tool')}-{index}",
+                    name=tool.get("name", "tool"),
+                    title=tool.get("title", tool.get("name", "tool")),
+                    status="done",
+                    args=tool.get("args_summary", ""),
+                    result=tool.get("result_summary", ""),
+                    duration_ms=tool.get("duration_ms"),
+                )
+            )
         )
     return {
         "prompt": prompt,
@@ -282,9 +292,9 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
     """
     from langchain_core.messages import HumanMessage
 
-    from app.ai.agents.prompts import AGENT_ROUND
     from app.ai.agents.chatbot import ground_digests
     from app.ai.agents.context import context_json, parse_context
+    from app.ai.agents.prompts import AGENT_ROUND
     from app.ai.tools.langchain import chat_tool_specs
 
     rounds = state.get("rounds", 0)
@@ -303,7 +313,7 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
             user_id=deps.user.id,
             run=RunRef(id=deps.run_id, stage=f"agent_round:{rounds}"),
         )
-    except Exception as exc:  # noqa: BLE001 — degrade, never fail the turn
+    except Exception as exc:
         if is_cancellation(exc):
             raise
         deps.degraded = True
@@ -326,25 +336,24 @@ async def agent_round(state: ChatTurnState, deps: TurnDeps) -> dict:
         new_tools = metadata_tools[len(old_metadata.get("tools", [])) :]
         for offset, tool in enumerate(new_tools):
             deps.emit(
-                "tool_call",
-                {
-                    "id": f"{tool.get('name', 'tool')}-fallback-{offset}",
-                    "name": tool.get("name", "tool"),
-                    "title": tool.get("title", tool.get("name", "tool")),
-                    "status": tool.get("status", "done"),
-                    "args": tool.get("args_summary", ""),
-                    "result": tool.get("result_summary", ""),
-                    "duration_ms": tool.get("duration_ms"),
-                },
+                *sse_pair(
+                    tool_call_event(
+                        id=f"{tool.get('name', 'tool')}-fallback-{offset}",
+                        name=tool.get("name", "tool"),
+                        title=tool.get("title", tool.get("name", "tool")),
+                        status=tool.get("status", "done"),
+                        args=tool.get("args_summary", ""),
+                        result=tool.get("result_summary", ""),
+                        duration_ms=tool.get("duration_ms"),
+                    )
+                )
             )
         tool_metadata = dict(old_metadata)
         tool_metadata["tools"] = metadata_tools
         deps.tool_metadata = tool_metadata
         return {
             "degraded": True,
-            "tool_results_extra": {
-                k: v for k, v in tool_results.items() if k not in before
-            },
+            "tool_results_extra": {k: v for k, v in tool_results.items() if k not in before},
             "tool_metadata": tool_metadata,
             "prompt": context_json(ctx),
         }
@@ -366,6 +375,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     extra: dict = {}
     metadata_tools = list((state.get("tool_metadata") or {}).get("tools", []))
     dropped: list[dict] = []
+    confirmations: list[dict] = []
+    path_draft_meta: dict | None = None
     executed_total = state.get("tools_executed", 0)
     executed = 0
     read_keys = list(state.get("read_keys") or [])
@@ -381,10 +392,39 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             continue
         started = time.monotonic()
         try:
-            result = await run_tool(deps.db, call["name"], deps.user.id, call["args"])
-        except Exception as exc:  # noqa: BLE001 — an observation, not a failure
-            result = {"error": str(exc)}
+            result = await run_tool(
+                deps.db,
+                call["name"],
+                deps.user.id,
+                call["args"],
+                chat_session_id=deps.session.id,
+            )
+        except Exception as exc:
+            logger.warning("chat tool %s failed", call["name"], exc_info=True)
+            result = {"error": sanitize_error_detail(str(exc))}
         executed += 1
+        if isinstance(result, dict) and result.get("status") == "awaiting_approval":
+            # D20: a destructive call became a confirmation card — the
+            # card rides the turn's proposal events (the model's tool
+            # result stays the minimal awaiting-approval reference).
+            from app.services.profile_proposal_service import (
+                ProfileProposalService,
+                proposal_event,
+            )
+
+            proposal = await ProfileProposalService(deps.db).get(
+                deps.user.id, uuid.UUID(str(result["proposal_id"]))
+            )
+            confirmations.append(proposal_event(proposal))
+        if call["name"] == "create_career_path" and isinstance(result, dict):
+            # Plan 125: the draft rides the message metadata so the chat
+            # renders the embedded PathRenderer review preview (and
+            # "save to my paths") across reloads.
+            path_draft_meta = {
+                "draft": result.get("path_draft"),
+                "proposed_job": result.get("proposed_job"),
+                "note": result.get("note"),
+            }
         # Trace honesty (plan 109 follow-up): a registry tool's trace row
         # carries what actually ran and returned — a bare tool name hid
         # the grounding the reply was built on.
@@ -396,11 +436,9 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         if call["name"] in DIGEST_TOOLS:
             # plan 81 continuity: a model-pulled digest persists into the
             # session cache so later turns without keywords stay grounded.
-            from app.services import chat_digest_cache
+            from app.services.chat import chat_digest_cache
 
-            sigs = await chat_digest_cache.digest_signatures(
-                deps.db, deps.user.id, [call["name"]]
-            )
+            sigs = await chat_digest_cache.digest_signatures(deps.db, deps.user.id, [call["name"]])
             sig = sigs.get(call["name"])
             if sig and deps.session is not None:
                 chat_digest_cache.save(
@@ -428,7 +466,7 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
             # plan 99.1: full-content reads ground this turn's
             # read-before-edit gate and persist per entity, so a later
             # turn editing the same (unchanged) item need not re-read.
-            from app.services import chat_digest_cache
+            from app.services.chat import chat_digest_cache
 
             read_results.append(result)
             if isinstance(result, dict) and result.get("error") is None:
@@ -452,16 +490,17 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
                                 },
                             )
         deps.emit(
-            "tool_call",
-            {
-                "id": f"{call['name']}-{deps.run_id.hex[:6]}-{executed}",
-                "name": call["name"],
-                "title": TOOL_TITLES.get(call["name"], call["name"]),
-                "status": "done",
-                "args": args_digest,
-                "result": result_digest,
-                "duration_ms": duration_ms,
-            },
+            *sse_pair(
+                tool_call_event(
+                    id=f"{call['name']}-{deps.run_id.hex[:6]}-{executed}",
+                    name=call["name"],
+                    title=TOOL_TITLES.get(call["name"], call["name"]),
+                    status="done",
+                    args=args_digest,
+                    result=result_digest,
+                    duration_ms=duration_ms,
+                )
+            )
         )
         metadata_tools.append(
             {
@@ -479,6 +518,8 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
     tool_metadata["tools"] = metadata_tools
     if dropped:
         tool_metadata["tools_dropped"] = dropped
+    if path_draft_meta is not None:
+        tool_metadata["path_draft"] = path_draft_meta
     deps.tool_metadata = tool_metadata
     # Observations re-enter the prompt immediately: the next round (and
     # the synth step) must see the results in the same context JSON.
@@ -493,14 +534,10 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         tool_results.update(extra)
         if read_results:
             tool_results["read_profile_item"] = [
-                row
-                for row in read_results
-                if row.get("kind") != ProposalKind.PROFILE_SECTION.value
+                row for row in read_results if row.get("kind") != ProposalKind.PROFILE_SECTION.value
             ]
             tool_results["read_profile_section"] = [
-                row
-                for row in read_results
-                if row.get("kind") == ProposalKind.PROFILE_SECTION.value
+                row for row in read_results if row.get("kind") == ProposalKind.PROFILE_SECTION.value
             ]
         prompt = context_json(ctx)
     return {
@@ -512,6 +549,10 @@ async def execute_tools(state: ChatTurnState, deps: TurnDeps) -> dict:
         "read_results": read_results,
         "tool_metadata": tool_metadata,
         "prompt": prompt,
+        "tool_confirmations": [
+            *(state.get("tool_confirmations") or []),
+            *confirmations,
+        ],
     }
 
 
@@ -560,7 +601,7 @@ async def synth(state: ChatTurnState, deps: TurnDeps) -> dict:
             if not deps.generating:
                 deps.generating = True
                 deps.generate_started = _open_generate(deps)
-            deps.emit("delta", {"text": partial[sent:]})
+            deps.emit(*sse_pair(delta_event(partial[sent:])))
             sent = len(partial)
     if stream.reply is None:
         # Salvage: the streamed answer text reached the UI; a broken
@@ -606,7 +647,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
     from app.ai.agents.context import context_json, parse_context
     from app.ai.agents.prompts import CHAT_OPS
     from app.ai.schemas import ProfileOpsDraft
-    from app.services import chat_digest_cache
+    from app.services.chat import chat_digest_cache
     from app.services.profile_proposal_service import drop_code, resolve_ops
 
     prompt = state["prompt"]
@@ -639,9 +680,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
             user_id=deps.user.id,
             run=RunRef(
                 id=deps.run_id,
-                stage=(
-                    "ops_draft" if rounds_used == 0 else f"ops_repair:{rounds_used}"
-                ),
+                stage=("ops_draft" if rounds_used == 0 else f"ops_repair:{rounds_used}"),
             ),
         )
         rounds_used += 1
@@ -667,9 +706,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
         )
         draft_prompt = context_json(ctx)
     deps.emit("node_finished", {"id": "ops_draft", "duration_ms": 0})
-    _note_node(
-        deps, "ops_draft", "validating profile edits", ops_started, time.monotonic()
-    )
+    _note_node(deps, "ops_draft", "validating profile edits", ops_started, time.monotonic())
     outcomes_payload: dict[str, Any] = {
         "drafted": len(op_dicts),
         "resolved": len(resolved_ops),
@@ -719,9 +756,7 @@ async def ops_draft(state: ChatTurnState, deps: TurnDeps) -> dict:
                     resolved = await resolve_cv_set_bullets(
                         deps.db, deps.user.id, (op.get("payload") or {})
                     )
-                    row["label"] = (
-                        f"bullets of {resolved['item_label']} on {resolved['cv_title']}"
-                    )
+                    row["label"] = f"bullets of {resolved['item_label']} on {resolved['cv_title']}"
                     row["count"] = len((op.get("payload") or {}).get("bullets") or [])
                 except DomainError:
                     row["label"] = "CV bullets rewrite"
@@ -768,7 +803,7 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
     created: list = []
     dropped: list = []
     if ops_dicts:
-        from app.services import chat_digest_cache
+        from app.services.chat import chat_digest_cache
 
         grounding = await chat_digest_cache.grounded_read_keys(
             deps.db, deps.session, state.get("read_keys") or []
@@ -817,7 +852,7 @@ async def hitl(state: ChatTurnState, deps: TurnDeps) -> dict:
 async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
     """Persist the turn + terminal events (meta/proposals/flow/done)."""
     from app.ai.schemas import ChatReply
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     reply = ChatReply.model_validate(state["reply"])
     tool_metadata = dict(state.get("tool_metadata") or {})
@@ -834,8 +869,10 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
         tool_metadata["tokens_in"] = state["tokens_in"]
     if state.get("tokens_out") is not None:
         tool_metadata["tokens_out"] = state["tokens_out"]
-    if deps.created_proposals:
-        tool_metadata["proposals"] = list(state.get("proposals") or [])
+    confirmation_events = list(state.get("tool_confirmations") or [])
+    proposal_events = [*confirmation_events, *(state.get("proposals") or [])]
+    if proposal_events:
+        tool_metadata["proposals"] = proposal_events
     dropped = state.get("proposals_dropped") or 0
     if dropped:
         tool_metadata["proposals_dropped"] = dropped
@@ -850,9 +887,7 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
         for proposal in deps.created_proposals:
             proposal.chat_message_id = message.id
         await deps.db.commit()
-    await ChatService(deps.db).autotitle_if_first_turn(
-        deps.user.id, deps.session.id, deps.content
-    )
+    await ChatService(deps.db).autotitle_if_first_turn(deps.user.id, deps.session.id, deps.content)
     deps.emit(
         "meta",
         {
@@ -864,6 +899,8 @@ async def finalize(state: ChatTurnState, deps: TurnDeps) -> dict:
             "proposals_dropped_reasons": tool_metadata.get("proposals_dropped_reasons"),
         },
     )
+    for payload in confirmation_events:
+        deps.emit("proposal", payload)
     for payload in state.get("proposals") or []:
         deps.emit("proposal", payload)
     deps.emit(
@@ -910,11 +947,7 @@ def build_chat_turn_graph(deps: TurnDeps, checkpointer: Any):
         # Plan 99.3: edit-intent turns draft+validate their ops BEFORE
         # the visible answer streams; degraded providers skip the
         # pipeline (parity path) and non-edit turns go straight to synth.
-        if (
-            state.get("edit_intent")
-            and not state.get("degraded")
-            and not state.get("ops_done")
-        ):
+        if state.get("edit_intent") and not state.get("degraded") and not state.get("ops_done"):
             return "ops_draft"
         return "synth"
 

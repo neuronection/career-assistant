@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "categories": [
+    {
+      "category": "overview",
+      "items": [
+        {
+          "id": "overview",
+          "file": "overview.md",
+          "title": "Overview",
+          "description": "What the ATS public API connector covers — Greenhouse, Lever and Ashby boards — and when to use it.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "setup",
+      "items": [
+        {
+          "id": "usage",
+          "file": "usage.md",
+          "title": "Setup & usage",
+          "description": "Finding the board slug, adding the source, the optional partner token, and sync behavior.",
+          "audience": "user"
+        }
+      ]
+    },
+    {
+      "category": "troubleshooting",
+      "items": [
+        {
+          "id": "troubleshooting",
+          "file": "troubleshooting.md",
+          "title": "Troubleshooting",
+          "description": "Symptom → cause → fix for empty syncs, tokens, domain scope and rate caps.",
+          "audience": "user"
+        }
+      ]
+    }
+  ]
+}

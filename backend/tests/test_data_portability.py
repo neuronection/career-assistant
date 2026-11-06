@@ -23,9 +23,7 @@ async def _register(client: AsyncClient, email: str) -> dict:
 
 async def test_export_job_produces_downloadable_zip(client, db, auth_headers):
     session = (
-        await client.post(
-            "/api/v1/chat/sessions", json={"title": "s1"}, headers=auth_headers
-        )
+        await client.post("/api/v1/chat/sessions", json={"title": "s1"}, headers=auth_headers)
     ).json()
     sent = await client.post(
         f"/api/v1/chat/sessions/{session['id']}/messages",
@@ -49,9 +47,7 @@ async def test_export_job_produces_downloadable_zip(client, db, auth_headers):
     assert body["status"] == "succeeded", body.get("error")
     assert body["result"]["size_bytes"] > 0
 
-    download = await client.get(
-        f"/api/v1/background-jobs/{job_id}/download", headers=auth_headers
-    )
+    download = await client.get(f"/api/v1/background-jobs/{job_id}/download", headers=auth_headers)
     assert download.status_code == 200
     assert "application/zip" in download.headers["content-type"]
     assert "attachment" in download.headers["content-disposition"]
@@ -84,9 +80,7 @@ async def test_export_download_is_private(client, db, auth_headers):
     while await worker.run_once():
         pass
 
-    stolen = await client.get(
-        f"/api/v1/background-jobs/{job_id}/download", headers=auth_headers
-    )
+    stolen = await client.get(f"/api/v1/background-jobs/{job_id}/download", headers=auth_headers)
     assert stolen.status_code == 404
 
 
@@ -159,12 +153,10 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     connection.close()
     (data_dir / "uploads").mkdir()
     (data_dir / "uploads" / "doc.txt").write_text("document")
-    (data_dir / "auth_keys.json").write_text(
-        '{"session": "s", "refresh": "r", "data": "d"}'
-    )
+    (data_dir / "auth_keys.json").write_text('{"session": "s", "refresh": "r", "data": "d"}')
     (data_dir / "secret.key").write_text("s3cret")
 
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = backups.create_backup(data_dir)
     assert archive.is_file()
@@ -189,16 +181,47 @@ def test_desktop_backup_roundtrip(tmp_path, monkeypatch):
     assert rows == [("hello",)]
 
 
+def test_restore_migrates_the_restored_db(tmp_path, monkeypatch):
+    """F12 — restore is a declared ops action that migrates (D6 exception):
+    the swapped-in database is brought to head before the instance serves
+    it again (study's restore semantics)."""
+    from app import backups
+    from app.core.config import settings
+
+    data_dir = tmp_path
+    db_path = data_dir / "app.db"
+    # An "older release" database: valid SQLite, schema never migrated.
+    old_db = data_dir / "old-release.db"
+    sqlite3.connect(old_db).close()
+    archive = data_dir / "backup-old.zip"
+    with zipfile.ZipFile(archive, "w") as bundle:
+        bundle.writestr("app.db", old_db.read_bytes())
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
+
+    summary = backups.restore_backup(data_dir, archive)
+    assert summary["db"] is True
+
+    connection = sqlite3.connect(db_path)
+    try:
+        version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
+        tables = {
+            row[0]
+            for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")
+        }
+    finally:
+        connection.close()
+    assert version is not None, "restore must migrate the restored DB (F12)"
+    assert User.__tablename__ in tables
+
+
 def test_backup_prune_keeps_daily_and_weekly(tmp_path, monkeypatch):
     from datetime import datetime, timedelta
 
     from app import backups
 
     stamps = [datetime(2026, 8, 1) + timedelta(hours=6 * i) for i in range(60)]
-    for index, stamp in enumerate(stamps):
-        path = backups.backups_dir(tmp_path) / (
-            f"backup-{stamp.strftime('%Y%m%d-%H%M%S')}.zip"
-        )
+    for _index, stamp in enumerate(stamps):
+        path = backups.backups_dir(tmp_path) / (f"backup-{stamp.strftime('%Y%m%d-%H%M%S')}.zip")
         path.write_bytes(b"")
     assert len(backups.list_backups(tmp_path)) == 60
 
@@ -210,9 +233,10 @@ def test_backup_prune_keeps_daily_and_weekly(tmp_path, monkeypatch):
 
 
 def test_corrupt_db_is_quarantined_and_repaired(tmp_path, monkeypatch):
+    import sqlite3
+
     from app import backups
     from app.core.config import settings
-    import sqlite3
 
     data_dir = tmp_path
     db_path = data_dir / "app.db"
@@ -223,7 +247,7 @@ def test_corrupt_db_is_quarantined_and_repaired(tmp_path, monkeypatch):
     connection.execute("INSERT INTO t VALUES ('keep')")
     connection.commit()
     connection.close()
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = backups.create_backup(data_dir)
 
@@ -248,7 +272,7 @@ def test_restore_rejects_corrupt_archive_and_leaves_live_db(tmp_path, monkeypatc
     connection.execute("CREATE TABLE t (x TEXT)")
     connection.commit()
     connection.close()
-    monkeypatch.setattr(settings, "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}")
+    monkeypatch.setattr(settings, "database_url", f"sqlite+aiosqlite:///{db_path}")
 
     archive = data_dir / "backup-bad.zip"
     with zipfile.ZipFile(archive, "w") as bundle:
@@ -260,8 +284,6 @@ def test_restore_rejects_corrupt_archive_and_leaves_live_db(tmp_path, monkeypatc
     assert not (data_dir / ".restore-staging").exists()
 
     connection = sqlite3.connect(db_path)
-    tables = connection.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'"
-    ).fetchall()
+    tables = connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
     connection.close()
     assert ("t",) in tables

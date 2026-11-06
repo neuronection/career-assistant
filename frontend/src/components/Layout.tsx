@@ -1,25 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useMatch, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 
-import { SidebarNav, UserMenu } from "@neuronection/assistant-ui";
+import { SidebarNav, TooltipProvider, UserMenu } from "@neuronection/assistant-ui";
 import { useAuthStore } from "@/stores/authStore";
 import { useBootstrapStore } from "@/stores/bootstrapStore";
 import { useIsShortViewport } from "@/hooks/useMediaQuery";
-import { ChatDock, ChatWidget } from "@/components/chat/ChatWidget";
+import { ChatDock, ChatWidget } from "@/features/chat/components/chat/ChatWidget";
 import { effectiveChatMode, useChatStore } from "@/stores/chatStore";
 import { NotificationBell } from "@/components/NotificationBell";
+import { loadUpdateCheck } from "@/components/UpdateBadge";
+import { currentLocale, isSupportedLocale, setAppLocale } from "@/lib/i18n";
 import { ProfileSwitcherMenu } from "@/components/ProfileSwitcherMenu";
 import { SidebarFooter } from "@/components/SidebarFooter";
 import { ToastHost } from "@/components/ToastHost";
-import { CompareTray } from "@/components/CompareTray";
+import { CompareTray } from "@/features/catalog/components/CompareTray";
 import { DesktopNotifications } from "@/components/DesktopNotifications";
-import { NAV, resolveActiveId, toNavItem } from "@/config/nav";
+import {
+  extensionNavItems,
+  resolveActiveId,
+  toNavItem,
+  visibleNav,
+  type AppNavItem,
+} from "@/config/nav";
+import { useExtensionSurfacesStore } from "@/stores/extensionSurfacesStore";
 import { useProfileProposalsStore } from "@/stores/profileProposalsStore";
 import { useProfilesStore } from "@/stores/profilesStore";
-import { useDevModeStore } from "@/stores/devModeStore";
-import { DevMenu } from "@/components/DevMenu";
+import { BetaBanner } from "@/components/BetaBanner";
+import { FirstRunSetupGate } from "@/features/profile/components/onboarding/FirstRunSetupGate";
+import { AiMockChip } from "@/components/ai/AiSetupPrompt";
+import { useMainScrollRestoration } from "@/hooks/useMainScrollRestoration";
 
 export function Layout() {
   const { t } = useTranslation();
@@ -27,24 +38,47 @@ export function Layout() {
   const { bootstrap, load: loadBootstrap } = useBootstrapStore();
   const navigate = useNavigate();
   const location = useLocation();
+  const mainRef = useRef<HTMLElement | null>(null);
+  useMainScrollRestoration(mainRef);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [updateCheck, setUpdateCheck] = useState<Awaited<
+    ReturnType<typeof loadUpdateCheck>
+  >>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadUpdateCheck().then((value) => {
+      if (alive) setUpdateCheck(value);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const isAdmin = useAuthStore((state) => state.user?.is_admin ?? false);
   const isShort = useIsShortViewport();
   const isBuilderRoute = useMatch("/cv/:id") !== null;
   const isTemplateRoute = useMatch("/cv/templates/:id") !== null;
   const isExperienceRoute = useMatch("/profile/experience") !== null;
   const isEducationRoute = useMatch("/profile/education") !== null;
+  const isApplicationsRoute = useMatch("/applications") !== null;
+  const isPathsRoute = useMatch("/paths") !== null;
   const chatMode = useChatStore((state) => state.chatMode);
   const chatModeChosen = useChatStore((state) => state.chatModeChosen);
   const profileEpoch = useProfilesStore((state) => state.epoch);
-  const devModeEnabled = useDevModeStore((state) => state.enabled);
+  const isSettingsRoute = location.pathname.startsWith("/settings");
+  const isMarketStatsRoute = location.pathname === "/postings/stats";
   const fullBleed =
     isBuilderRoute ||
     isTemplateRoute ||
     isExperienceRoute ||
     isEducationRoute ||
+    isApplicationsRoute ||
+    isPathsRoute ||
+    isSettingsRoute ||
+    isMarketStatsRoute ||
     location.pathname === "/onboarding" ||
+    location.pathname === "/onboarding/setup" ||
     location.pathname === "/chat";
 
   useEffect(() => {
@@ -55,14 +89,20 @@ export function Layout() {
     if (user) void loadBootstrap();
   }, [user, loadBootstrap]);
 
+  useEffect(() => {
+    const locale = bootstrap?.locale;
+    if (locale && isSupportedLocale(locale) && locale !== currentLocale()) {
+      void setAppLocale(locale);
+    }
+  }, [bootstrap?.locale]);
+
   // Close the mobile drawer on navigation (desktop is unaffected — the
   // sidebar is permanently visible at lg+).
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname, location.search]);
 
-  const enabled = (item: (typeof NAV)[number]) =>
-    (devModeEnabled || !item.inDev) &&
+  const enabled = (item: AppNavItem) =>
     !(item.studentOnly && bootstrap && !bootstrap.features.universities);
   const pendingProposals = useProfileProposalsStore((state) => state.pendingCount);
 
@@ -72,11 +112,14 @@ export function Layout() {
     void useProfileProposalsStore.getState().hydrate();
   }, []);
 
-  const items = NAV.filter(enabled).map((item) =>
-    toNavItem(item, t, pendingProposals),
-  );
+  const surfaceCards = useExtensionSurfacesStore((state) => state.cards);
+  const items = [
+    ...visibleNav().filter(enabled).map((item) => toNavItem(item, t, pendingProposals)),
+    ...extensionNavItems(surfaceCards, t),
+  ];
 
   return (
+    <TooltipProvider>
     <div className="flex h-screen overflow-hidden bg-slate-50">
       {/* Skip to content — first focusable element for keyboard users */}
       <a
@@ -128,12 +171,7 @@ export function Layout() {
             </button>
           }
           footer={
-            <div className="flex flex-col gap-2">
-              <SidebarFooter collapsed={collapsed} compact={isShort} />
-              <div className={collapsed ? "flex justify-center pb-1" : "flex justify-end pb-1 pr-1"}>
-                <DevMenu />
-              </div>
-            </div>
+            <SidebarFooter collapsed={collapsed} compact={isShort} />
           }
         />
       </div>
@@ -152,6 +190,7 @@ export function Layout() {
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-2">
+            <AiMockChip />
             {user && <ProfileSwitcherMenu />}
             {user && <NotificationBell />}
             {user && (
@@ -161,13 +200,38 @@ export function Layout() {
                     ? { name: user.full_name, email: user.email }
                     : { email: user.email }
                 }
+                status={
+                  updateCheck?.update_available && updateCheck.latest_version
+                    ? {
+                        label: t("update.tooltip", {
+                          version: updateCheck.latest_version,
+                        }),
+                        tone: "info",
+                      }
+                    : undefined
+                }
+                items={
+                  isAdmin && updateCheck?.update_available
+                    ? [
+                        {
+                          id: "release-notes",
+                          label: t("update.releaseNotes"),
+                        },
+                      ]
+                    : undefined
+                }
+                onItemSelect={(id) => {
+                  if (id === "release-notes" && updateCheck) {
+                    window.open(updateCheck.release_url, "_blank", "noreferrer");
+                  }
+                }}
                 onLogout={() => void useAuthStore.getState().logout()}
                 logoutLabel={t("auth.signOut")}
               />
             )}
           </div>
         </header>
-        <main id="main" className="min-h-0 flex-1 overflow-y-auto">
+        <main id="main" ref={mainRef} className="min-h-0 flex-1 overflow-y-auto">
           <div
             className={
               fullBleed
@@ -177,6 +241,7 @@ export function Layout() {
           >
             {/* Profile switch (§6) re-mounts the page subtree so every
                 route refetches under the new X-Profile-Id scope (§15). */}
+            <BetaBanner pathname={location.pathname} />
             <Outlet key={profileEpoch} />
           </div>
         </main>
@@ -184,10 +249,12 @@ export function Layout() {
 
       {effectiveChatMode({ chatMode, chatModeChosen }, location.pathname) === "docked" && <ChatDock />}
 
+      <FirstRunSetupGate />
       <ChatWidget />
       <CompareTray />
       <ToastHost />
       <DesktopNotifications />
     </div>
+    </TooltipProvider>
   );
 }

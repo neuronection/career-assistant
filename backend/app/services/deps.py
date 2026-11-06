@@ -30,9 +30,7 @@ async def get_current_user(
         user_id = UUID(principal.user_id)
     except ValueError:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated") from None
-    result = await db.execute(
-        select(User).where(User.id == user_id, User.is_active.is_(True))
-    )
+    result = await db.execute(select(User).where(User.id == user_id, User.is_active.is_(True)))
     user = result.scalars().first()
     if user is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated")
@@ -63,7 +61,7 @@ async def get_profile_for_user(db: AsyncSession, user_id: UUID) -> Profile:
     jobs, account surfaces) resolves the auto-provisioned Default
     profile. Fetch-or-create keeps the pre-P3b contract for callers.
     """
-    from app.services.profiles_service import ensure_default_profile
+    from app.services.profile.profiles_service import ensure_default_profile
 
     return await ensure_default_profile(db, user_id)
 

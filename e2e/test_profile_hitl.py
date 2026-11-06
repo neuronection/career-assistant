@@ -30,7 +30,7 @@ def test_chat_proposes_and_approval_applies(page) -> None:
     assert page.get_by_text("New project").count() >= 1
 
     cards.get_by_role("button", name="Approve").click()
-    page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Approved", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     # Applied through the same service the forms use: the experience
     # workspace lists the approved item.
@@ -117,7 +117,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
     assert "Kept the pipelines healthy." in card.inner_text()
 
     cards.get_by_role("button", name="Approve").click()
-    page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Approved", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     listing = page.request.get(f"{API}/me/experience", headers=api_headers()).json()
     applied = next(row for row in listing["items"] if row["id"] == item["id"])
@@ -152,7 +152,7 @@ def test_anchored_append_preview_and_revert(page) -> None:
     )
     revert.click()
     revert.click()
-    page.get_by_text("Reverted").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Reverted", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     listing = page.request.get(f"{API}/me/experience", headers=api_headers()).json()
     reverted = next(row for row in listing["items"] if row["id"] == item["id"])
@@ -269,7 +269,7 @@ def test_education_finish_golden(page) -> None:
     modal.wait_for(state="hidden", timeout=10_000)
 
     card.get_by_role("button", name="Approve").click()
-    page.get_by_text("Approved").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Approved", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     listing = page.request.get(f"{API}/me/education", headers=api_headers()).json()
     applied = next(row for row in listing if row["id"] == entry["id"])
@@ -282,7 +282,7 @@ def test_education_finish_golden(page) -> None:
     )
     revert.click()
     revert.click()
-    page.get_by_text("Reverted").wait_for(state="visible", timeout=20_000)
+    page.get_by_text("Reverted", exact=True).first.wait_for(state="visible", timeout=20_000)
 
     listing = page.request.get(f"{API}/me/education", headers=api_headers()).json()
     reverted = next(row for row in listing if row["id"] == entry["id"])

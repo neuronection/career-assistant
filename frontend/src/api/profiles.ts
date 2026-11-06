@@ -1,4 +1,4 @@
-import { api } from "./client";
+import { api } from "@/api/client";
 
 /** Profile summary from `/api/v1/profiles` (identity-auth §12). */
 export interface ProfileSummary {

@@ -9,7 +9,7 @@ async def test_failed_turn_markers_stay_out_of_model_history(
     db, client, auth_headers, profile_ready
 ):
     from app.models.chat_model import ChatMessage
-    from app.services.chat_service import ChatService
+    from app.services.chat.chat_service import ChatService
 
     session = await client.post(
         "/api/v1/chat/sessions", json={"title": "History"}, headers=auth_headers

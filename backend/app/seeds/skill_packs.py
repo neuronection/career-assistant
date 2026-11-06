@@ -10,7 +10,7 @@ discipline, applied to packs).
 from sqlalchemy import select
 
 from app.models.skill_pack_model import AISkillPack
-from app.services.engagement_service import canonical_hash
+from app.services.postings.engagement_service import canonical_hash
 
 BANK_PACKS: list[dict] = [
     {

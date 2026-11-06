@@ -7,8 +7,7 @@ model; retries stay in the gateway funnel (``max_retries=0``) and tests
 inject an ``httpx`` transport instead of touching the network.
 """
 
-from typing import TYPE_CHECKING, Any, Optional, cast
-from urllib.parse import urlsplit
+from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 from google.genai import types as google_types
@@ -17,7 +16,21 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
+from app.ai.wire_params import (
+    CompatibleChatOpenAI,
+    is_openai_endpoint,
+    is_openai_wire,
+    resolve_chat_transport,
+    token_cap_kwargs,
+)
 from app.core.config import settings
+
+__all__ = [
+    "CompatibleChatOpenAI",
+    "is_openai_endpoint",
+    "is_openai_wire",
+    "token_cap_kwargs",
+]
 
 if TYPE_CHECKING:
     from app.ai.providers.resolution import ResolvedModel
@@ -27,60 +40,9 @@ GOOGLE_BASE_URL = "https://generativelanguage.googleapis.com"
 _GOOGLE_REASONING_EFFORT_LEVELS = frozenset({"minimal", "low", "medium", "high"})
 
 
-class CompatibleChatOpenAI(ChatOpenAI):
-    """ChatOpenAI that keeps ``max_tokens`` on the wire.
-
-    ``ChatOpenAI`` renames the ``max_tokens`` parameter to
-    ``max_completion_tokens`` in the request payload — fine for OpenAI
-    itself, but OpenAI-compatible endpoints (Ollama, LM Studio, OpenRouter,
-    llama.cpp…) reject the newer name. Skipping the rename restores the
-    wire contract these providers always had.
-    """
-
-    @property
-    def _default_params(self) -> dict[str, Any]:
-        # Skip ChatOpenAI's override; BaseChatOpenAI leaves the name alone.
-        return super(ChatOpenAI, self)._default_params
-
-
-def is_openai_endpoint(base_url: Optional[str]) -> bool:
-    """True when the base URL points at OpenAI's own API.
-
-    Providers are sometimes registered as ``openai_compatible`` with
-    ``https://api.openai.com/v1`` — the wire contract of OpenAI itself
-    (``max_completion_tokens``) must win over the declared type.
-    """
-    try:
-        return urlsplit(base_url or "").hostname == "api.openai.com"
-    except ValueError:
-        return False
-
-
-def is_openai_wire(provider_type: str, base_url: Optional[str]) -> bool:
-    """Should payloads use OpenAI's modern wire contract?"""
-    return provider_type == "openai" or (
-        provider_type == "openai_compatible" and is_openai_endpoint(base_url)
-    )
-
-
-def token_cap_kwargs(
-    provider_type: str, cap: int, base_url: Optional[str] = None
-) -> dict[str, int]:
-    """Token-cap params for a plain REST chat payload, per provider type.
-
-    Modern OpenAI models reject ``max_tokens`` while OpenAI-compatible
-    endpoints don't know ``max_completion_tokens`` — the cap adapts per
-    provider type (used by the httpx connection ping; ``build_chat_model``
-    applies the same split through ChatOpenAI's own mechanics).
-    """
-    if is_openai_wire(provider_type, base_url):
-        return {"max_completion_tokens": cap}
-    return {"max_tokens": cap}
-
-
 def _google_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> ChatGoogleGenerativeAI:
     """Native Gemini API chat model (LangChain ``langchain-google-genai``).
 
@@ -114,23 +76,21 @@ def _google_model(
             api_key=api_key,
             http_options=google_types.HttpOptions(
                 base_url=base_url,
-                timeout=int(settings.AI_TIMEOUT),
+                timeout=int(settings.ai_timeout),
                 retry_options=google_types.HttpRetryOptions(attempts=1),
                 httpx_client=httpx.Client(
                     transport=cast(httpx.BaseTransport, transport),
-                    timeout=settings.AI_TIMEOUT,
+                    timeout=settings.ai_timeout,
                 ),
                 httpx_async_client=httpx.AsyncClient(
-                    transport=transport, timeout=settings.AI_TIMEOUT
+                    transport=transport, timeout=settings.ai_timeout
                 ),
             ),
         )
     return model
 
 
-async def discover_google_models(
-    api_key: Optional[str], base_url: Optional[str]
-) -> list[dict]:
+async def discover_google_models(api_key: str | None, base_url: str | None) -> list[dict]:
     """Gemini catalog via the google-genai SDK's model listing.
 
     Only generation-capable models are offered (embedding/TTS models would
@@ -166,15 +126,18 @@ async def discover_google_models(
 
 def build_chat_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
     *,
     json_mode: bool = True,
 ) -> BaseChatModel:
     """Build the LangChain chat model for a resolved provider/model.
 
-    OpenAI-wire types always use Chat Completions (never the Responses API)
-    with JSON-object mode, matching the wire contract the gateway funnel has
-    always sent; ``google`` uses the native Gemini API semantics.
+    OpenAI-wire types ride Chat Completions by default (``auto``) with
+    JSON-object mode, matching the wire contract the gateway funnel has
+    always sent; a row opts into the Responses API with
+    ``chat_transport='responses'`` (honored only on OpenAI's endpoint,
+    always store-less — ADR-0039) — the remedy for model families that
+    reject function tools + ``reasoning_effort`` on completions (gpt-6).
     ``json_mode=False`` drops the forced JSON response format — required
     for native tool rounds (ADR-0016), where a JSON-only reply would
     suppress tool calls; the google branch ignores the flag (no JSON mode
@@ -192,16 +155,26 @@ def build_chat_model(
         "model": resolved.model_name,
         "api_key": resolved.api_key or _KEYLESS_API_KEY,
         "base_url": resolved.base_url,
-        "timeout": settings.AI_TIMEOUT,
+        "timeout": settings.ai_timeout,
         # None (unset) omits temperature from the payload — modern OpenAI
         # reasoning models reject any non-default value.
         "temperature": resolved.temperature,
         "max_retries": 0,
-        "use_responses_api": False,
         "stream_usage": True,
     }
     if json_mode:
         kwargs["model_kwargs"] = {"response_format": {"type": "json_object"}}
+    # ADR-0039: completions by default (the funnel's pinned contract); a
+    # row opts into the Responses API with chat_transport='responses' —
+    # honored only on OpenAI's endpoint, always store-less. The SDK
+    # converts the json-object response_format to the responses
+    # text.format, so the JSON contract survives the wire change.
+    kwargs["use_responses_api"] = (
+        resolve_chat_transport(resolved.provider_type, resolved.base_url, resolved.chat_transport)
+        == "responses"
+    )
+    if kwargs["use_responses_api"]:
+        kwargs["store"] = False
     if resolved.max_tokens is not None:
         # The provider-type split lives here: OpenAI wants the modern
         # parameter name, compatible endpoints the classic one.
@@ -215,7 +188,7 @@ def build_chat_model(
         kwargs["reasoning_effort"] = resolved.reasoning_effort
     if transport is not None:
         kwargs["http_async_client"] = httpx.AsyncClient(
-            transport=transport, timeout=settings.AI_TIMEOUT
+            transport=transport, timeout=settings.ai_timeout
         )
     cls = ChatOpenAI if openai_wire else CompatibleChatOpenAI
     return cls(**kwargs)
@@ -223,7 +196,7 @@ def build_chat_model(
 
 def build_embedding_model(
     resolved: "ResolvedModel",
-    transport: Optional[httpx.AsyncBaseTransport] = None,
+    transport: httpx.AsyncBaseTransport | None = None,
 ) -> "OpenAIEmbeddings":
     """Build the LangChain embeddings model for a resolved provider/model.
 
@@ -244,13 +217,13 @@ def build_embedding_model(
         "model": resolved.model_name,
         "api_key": resolved.api_key or _KEYLESS_API_KEY,
         "base_url": resolved.base_url,
-        "timeout": settings.AI_TIMEOUT,
+        "timeout": settings.ai_timeout,
         "max_retries": 0,
         # Ollama-class endpoints don't serve the tiktoken offline checks.
         "check_embedding_ctx_length": False,
     }
     if transport is not None:
         kwargs["http_async_client"] = httpx.AsyncClient(
-            transport=transport, timeout=settings.AI_TIMEOUT
+            transport=transport, timeout=settings.ai_timeout
         )
     return OpenAIEmbeddings(**kwargs)

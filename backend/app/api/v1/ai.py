@@ -1,5 +1,5 @@
 import re
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
@@ -55,7 +55,7 @@ async def list_skill_packs(
 @router.post("/ai/transcribe", response_model=TranscribeOut)
 async def transcribe(
     file: Annotated[UploadFile, File()],
-    language: Annotated[Optional[str], Form()] = None,
+    language: Annotated[str | None, Form()] = None,
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TranscribeOut:

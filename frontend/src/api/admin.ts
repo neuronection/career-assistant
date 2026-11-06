@@ -1,6 +1,6 @@
 import axios from "axios";
-import { api } from "./client";
-import type { Job } from "@/types";
+import { api } from "@/api/client";
+import type { Job } from "@/types/wire";
 
 /** `PublicUser` (identity-auth §12) — what `/auth/me` and
  * `PATCH /me/password` return. Never hashes/counters/stamps. */
@@ -62,23 +62,8 @@ function toAdminApiError(error: unknown): unknown {
   return error;
 }
 
-export interface AIGenerationRow {
-  id: string;
-  task_type: string;
-  provider: string;
-  model: string;
-  prompt: string;
-  output: Record<string, unknown> | null;
-  tokens_in: number | null;
-  tokens_out: number | null;
-  latency_ms: number | null;
-  status: string;
-  error: string;
-  created_at: string;
-}
-
-export async function fetchModerationQueue(status = "draft"): Promise<Job[]> {
-  const { data } = await api.get<Job[]>("/admin/jobs", { params: { status } });
+export async function fetchModerationQueue(status = "draft", limit = 50): Promise<Job[]> {
+  const { data } = await api.get<Job[]>("/admin/jobs", { params: { status, limit } });
   return data;
 }
 
@@ -135,6 +120,19 @@ export async function forceLogout(id: string): Promise<void> {
 // sessions, password change and account deletion. Wrong-password 403s
 // are mapped by the callers (the Account settings page).
 
+export type InstanceAuthMode = "open" | "authenticated";
+
+/** `PATCH /api/v1/admin/instance` (identity-auth §4.5): the audited
+ * `auth_mode` transition — admin + password; `open → authenticated` sets
+ * the owner credentials in the same call, `authenticated → open` is
+ * refused while other accounts exist. */
+export async function updateInstanceMode(
+  authMode: InstanceAuthMode,
+  password: string,
+): Promise<void> {
+  await api.patch("/admin/instance", { auth_mode: authMode, password });
+}
+
 export async function listMySessions(): Promise<UserSession[]> {
   const { data } = await api.get<UserSession[]>("/me/sessions");
   return data;
@@ -142,6 +140,12 @@ export async function listMySessions(): Promise<UserSession[]> {
 
 export async function revokeMySession(familyId: string): Promise<void> {
   await api.delete(`/me/sessions/${familyId}`);
+}
+
+/** Identity-auth §12: revoke every session row + `ver` bump — the
+ * caller ends up signed out everywhere, this device included. */
+export async function logoutAllDevices(): Promise<void> {
+  await api.post("/auth/logout-all");
 }
 
 /** Changes the password and rotates the caller's session cookies — the
@@ -159,14 +163,4 @@ export async function changeMyPassword(
 
 export async function deleteMyAccount(password: string): Promise<void> {
   await api.delete("/me", { data: { password } });
-}
-
-export async function fetchAIGenerations(
-  params: Record<string, unknown> = {},
-): Promise<{ total: number; items: AIGenerationRow[] }> {
-  const { data } = await api.get<{ total: number; items: AIGenerationRow[] }>(
-    "/admin/ai/generations",
-    { params },
-  );
-  return data;
 }

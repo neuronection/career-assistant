@@ -44,10 +44,6 @@ async def test_project_without_start_is_omitted_from_ordered_context(
         headers=auth_headers,
     )
     assert created.status_code == 201, created.text
-    sources = (
-        await client.get("/api/v1/cv/context/sources", headers=auth_headers)
-    ).json()
-    projects = next(
-        source for source in sources["sources"] if source["key"] == "projects"
-    )
+    sources = (await client.get("/api/v1/cv/context/sources", headers=auth_headers)).json()
+    projects = next(source for source in sources["sources"] if source["key"] == "projects")
     assert projects["items"], "an undated project still resolves as a source item"

@@ -1,15 +1,15 @@
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.ai.decide.types import DecisionTransport
 from app.models.enums import AICapability
 
 ALLOWED_CAPS = frozenset(c.value for c in AICapability)
 
 
-def _validate_caps(values: Optional[list[str]]) -> Optional[list[str]]:
+def _validate_caps(values: list[str] | None) -> list[str] | None:
     """Normalize a capability list; unknown keys are rejected."""
     if values is None:
         return None
@@ -27,15 +27,16 @@ class ProviderOut(BaseModel):
     id: UUID
     name: str
     scope: str
-    user_id: Optional[UUID] = None
+    user_id: UUID | None = None
     provider_type: str
     api_base: str
-    api_key: Optional[str] = None
+    api_key: str | None = None
     is_active: bool
-    is_local: Optional[bool] = None
-    country: Optional[str] = None
+    is_local: bool | None = None
+    country: str | None = None
+    preset_key: str | None = None
     is_mine: bool = False
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 
@@ -44,20 +45,20 @@ class ProviderCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     provider_type: str = "openai_compatible"
     api_base: str = Field(default="https://api.openai.com/v1", max_length=500)
-    api_key: Optional[str] = Field(default=None, max_length=400)
+    api_key: str | None = Field(default=None, max_length=400)
     scope: str = "user"
-    is_local: Optional[bool] = None
-    country: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
+    is_local: bool | None = None
+    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class ProviderUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=100)
-    provider_type: Optional[str] = None
-    api_base: Optional[str] = Field(default=None, max_length=500)
-    api_key: Optional[str] = Field(default=None, max_length=400)
-    is_active: Optional[bool] = None
-    is_local: Optional[bool] = None
-    country: Optional[str] = Field(default=None, pattern=r"^[A-Z]{2}$")
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    provider_type: str | None = None
+    api_base: str | None = Field(default=None, max_length=500)
+    api_key: str | None = Field(default=None, max_length=400)
+    is_active: bool | None = None
+    is_local: bool | None = None
+    country: str | None = Field(default=None, pattern=r"^[A-Z]{2}$")
 
 
 class ModelOut(BaseModel):
@@ -66,11 +67,12 @@ class ModelOut(BaseModel):
     name: str
     model_name: str
     is_active: bool
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    reasoning_effort: Optional[str] = None
-    tier: Optional[str] = None
-    caps: Optional[list[str]] = None
+    temperature: float | None = None
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    tier: str | None = None
+    caps: list[str] | None = None
+    decision_transport: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -78,32 +80,49 @@ class ModelOut(BaseModel):
 class ModelCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     model_name: str = Field(min_length=1, max_length=200)
-    temperature: Optional[float] = Field(default=None, ge=0, le=2)
-    max_tokens: Optional[int] = Field(default=None, ge=1)
-    reasoning_effort: Optional[str] = Field(default=None, max_length=20)
-    tier: Optional[str] = Field(default=None, pattern="^(fast|strong)$")
-    caps: Optional[list[str]] = None
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, ge=1)
+    reasoning_effort: str | None = Field(default=None, max_length=20)
+    tier: str | None = Field(default=None, pattern="^(fast|strong)$")
+    caps: list[str] | None = None
+    decision_transport: str | None = Field(default=None, max_length=20)
 
     _validate_caps = field_validator("caps")(_validate_caps)
+
+    @field_validator("decision_transport")
+    @classmethod
+    def _validate_decision_transport(cls, value: str | None) -> str | None:
+        """The decision transport seam (D2): one shipping transport."""
+        if value is not None and value != DecisionTransport.SYSTEMONE.value:
+            raise ValueError(f"Unknown decision transport '{value}'")
+        return value
 
 
 class ModelUpdate(BaseModel):
-    name: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    is_active: Optional[bool] = None
-    reasoning_effort: Optional[str] = Field(default=None, max_length=20)
-    temperature: Optional[float] = Field(default=None, ge=0, le=2)
-    max_tokens: Optional[int] = Field(default=None, ge=1)
-    caps: Optional[list[str]] = None
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    is_active: bool | None = None
+    reasoning_effort: str | None = Field(default=None, max_length=20)
+    temperature: float | None = Field(default=None, ge=0, le=2)
+    max_tokens: int | None = Field(default=None, ge=1)
+    caps: list[str] | None = None
+    decision_transport: str | None = Field(default=None, max_length=20)
 
     _validate_caps = field_validator("caps")(_validate_caps)
+
+    @field_validator("decision_transport")
+    @classmethod
+    def _validate_decision_transport(cls, value: str | None) -> str | None:
+        if value is not None and value != DecisionTransport.SYSTEMONE.value:
+            raise ValueError(f"Unknown decision transport '{value}'")
+        return value
 
 
 class AssignmentOut(BaseModel):
     id: UUID
     task_type: str
     scope: str
-    model_id: Optional[UUID] = None
-    tier: Optional[str] = None
+    model_id: UUID | None = None
+    tier: str | None = None
     is_active: bool
 
     model_config = {"from_attributes": True}
@@ -111,8 +130,44 @@ class AssignmentOut(BaseModel):
 
 class AssignmentSet(BaseModel):
     scope: str = "user"
-    model_id: Optional[UUID] = None
-    tier: Optional[str] = Field(default=None, pattern="^(fast|strong)$")
+    model_id: UUID | None = None
+    tier: str | None = Field(default=None, pattern="^(fast|strong)$")
+
+
+class SetupOptionsIn(BaseModel):
+    """§15 options body (snake_case wire names, D14 binds + embeddings)."""
+
+    curated_ids: list[str] | None = Field(default=None, max_length=100)
+    bind_chat: bool = True
+    bind_vision: bool = True
+    bind_stt: bool = True
+    bind_embeddings: bool = True
+    bind_decision: bool = True
+
+
+class ProviderSetupIn(BaseModel):
+    api_key: str | None = Field(default=None, max_length=500)
+    name: str | None = Field(default=None, max_length=120)
+    scope: str = "user"
+    options: SetupOptionsIn | None = None
+
+
+class SetupOut(BaseModel):
+    ok: bool
+    provider: ProviderOut
+    catalog_count: int
+    curated_missed: bool
+    assigned_chat_model: str | None = None
+    assigned_vision_model: str | None = None
+    assigned_stt_model: str | None = None
+    assigned_embeddings_model: str | None = None
+    assigned_decision_slots: dict[str, str] | None = None
+
+
+class SetDefaultIn(BaseModel):
+    model_name: str = Field(min_length=1, max_length=200)
+    task: str = Field(default="chat", max_length=50)
+    scope: str = "user"
 
 
 class EffectiveAssignment(BaseModel):
@@ -121,7 +176,7 @@ class EffectiveAssignment(BaseModel):
     provider_type: str
     model_name: str
     api_base: str
-    tier: Optional[str] = None
+    tier: str | None = None
 
 
 class ConfigSummary(BaseModel):
@@ -134,13 +189,15 @@ class TestResult(BaseModel):
     ok: bool
     reply: str = ""
     error: str = ""
+    """§15 code of the failure (``""`` on success)."""
+    code: str = ""
 
 
 class BudgetOut(BaseModel):
     id: UUID
     name: str
-    task_type: Optional[str] = None
-    user_id: Optional[UUID] = None
+    task_type: str | None = None
+    user_id: UUID | None = None
     window: str
     max_tokens: int
     is_active: bool
@@ -150,8 +207,8 @@ class BudgetOut(BaseModel):
 
 class BudgetCreate(BaseModel):
     name: str = Field(min_length=1, max_length=100)
-    task_type: Optional[str] = Field(default=None, max_length=40)
-    user_id: Optional[UUID] = None
+    task_type: str | None = Field(default=None, max_length=40)
+    user_id: UUID | None = None
     window: str = Field(default="day", pattern="^(day|month)$")
     max_tokens: int = Field(ge=1)
 
@@ -166,11 +223,8 @@ class UsageRollup(BaseModel):
 class WebSettingsOut(BaseModel):
     """Admin view of the AI web-tool configuration (plan 80)."""
 
-    searxng_url: str
-    searxng_probe: dict
     github_token_set: bool
 
 
 class WebSettingsUpdate(BaseModel):
-    searxng_url: Optional[str] = Field(default=None, max_length=500)
-    github_token: Optional[str] = Field(default=None, max_length=200)
+    github_token: str | None = Field(default=None, max_length=200)

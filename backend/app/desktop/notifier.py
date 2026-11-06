@@ -10,7 +10,6 @@ inbox.
 import logging
 import shutil
 import subprocess
-from typing import Optional
 
 from app.desktop.bridge import DesktopBridge
 from app.models.enums import DeliveryStatus
@@ -30,7 +29,7 @@ class DesktopChannel(BaseChannel):
     def available(self) -> bool:
         return self._bridge is not None
 
-    async def send(self, ctx: DeliveryContext) -> tuple[str, Optional[str]]:
+    async def send(self, ctx: DeliveryContext) -> tuple[str, str | None]:
         link = ctx.payload.get("link") if isinstance(ctx.payload, dict) else ""
         delivered = self._bridge.notify(
             title=ctx.title,
@@ -51,7 +50,7 @@ def _os_fallback(title: str, body: str) -> bool:
     if shutil.which("notify-send") is None:
         return False
     try:
-        subprocess.run(  # noqa: S603 — fixed argv, no shell
+        subprocess.run(
             ["notify-send", "-a", "Career Assistant", title[:100], body[:200]],
             timeout=5,
             check=False,

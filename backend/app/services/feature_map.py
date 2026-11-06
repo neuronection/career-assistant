@@ -69,7 +69,37 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "title_norm",
             "Cleaned posting title",
             (),
-            prompt_hint="title_norm: the posting title, cleaned up.",
+            prompt_hint=(
+                'title_norm: the BARE role title — no "Job Title:" chrome, '
+                "no seniority/level qualifiers (those go to `seniority`), no "
+                "location, no company name."
+            ),
+        ),
+        FeatureRow(
+            "description_clean",
+            "Role description with board chrome removed",
+            (),
+            prompt_hint=(
+                "description_clean: the role description with all job-board "
+                "chrome removed (premium upsells, applicant counts, recruiter "
+                "blocks, company marketing, job alerts) and no section "
+                'scaffolding ("Job Title:" / "Job Location:" / "Main '
+                'Responsibilities:" headers, location/visa/apply blocks) — '
+                "only what describes the role itself, preserving language "
+                "and structure."
+            ),
+        ),
+        FeatureRow(
+            "catalog_summary",
+            "Role summary in the catalog's canonical language",
+            (),
+            prompt_hint=(
+                "catalog_summary: the role distilled to 2-3 self-contained "
+                "sentences of plain prose, written in the target language "
+                "named in the instructions — no headers, lists or "
+                "formatting. Standardizes the catalog-side surface across "
+                "postings of any language."
+            ),
         ),
         FeatureRow(
             "employment_type",
@@ -88,18 +118,17 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "Required skills with level + priority",
             ("posting_skills_write", "fit_skills_dimension", "skill_search"),
             prompt_hint=(
-                "skills: resolve every mention onto the taxonomy keys with "
-                "required_level 1-10, priority and a verbatim evidence_quote; "
-                "unresolvable labels come back unresolved, never dropped."
+                "skills: every skill mention verbatim as raw_label (the "
+                "posting's own wording) with required_level 1-10, priority "
+                "and a verbatim evidence_quote; never resolve onto "
+                "taxonomy keys — a later pass matches the labels."
             ),
         ),
         FeatureRow(
             "education",
             "Education requirement",
             ("column_write", "prereq_gates"),
-            prompt_hint=(
-                "education: stated level + field, only when the text says so."
-            ),
+            prompt_hint=("education: stated level + field, only when the text says so."),
         ),
         FeatureRow(
             "languages",
@@ -108,10 +137,27 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             prompt_hint="languages: required spoken languages.",
         ),
         FeatureRow(
+            "prerequisites",
+            "Stated prerequisites",
+            ("prereq_gates",),
+            prompt_hint=(
+                "prerequisites: typed requirement rows outside the skill "
+                "axis — kind ∈ degree|certificate|license|language|other, "
+                "a short label, and the verbatim evidence quote (e.g. "
+                '"BSc in Computer Science", "PMP certificate", '
+                '"valid driver\'s license"). The education LEVEL itself '
+                "still goes to `education`."
+            ),
+        ),
+        FeatureRow(
             "salary",
             "Salary range",
             ("column_write",),
-            prompt_hint="salary: min/max + currency + period when stated.",
+            prompt_hint=(
+                "salary: min/max + currency + period when stated; set basis "
+                'to "gross" or "net" only when the posting says so '
+                '("brutto"/"netto" count) — omit it otherwise.'
+            ),
         ),
         FeatureRow(
             "seniority",
@@ -145,8 +191,7 @@ FEATURE_MAP: dict[str, FeatureRow] = {
             "Work-hours pattern + weekly range",
             ("facts_write", "fit_gates"),
             prompt_hint=(
-                "work_hours: full_time/part_time + hours_per_week range with "
-                "evidence_quote."
+                "work_hours: full_time/part_time + hours_per_week range with evidence_quote."
             ),
         ),
         FeatureRow(
@@ -200,9 +245,7 @@ FEATURE_MAP: dict[str, FeatureRow] = {
 # Fields the generated prompt must cover: every extractable feature with
 # a hint. Prompt and schema cannot drift — a new PostingExtract field
 # without a map row simply never reaches the model brief.
-PROMPT_FEATURES: tuple[str, ...] = tuple(
-    key for key, row in FEATURE_MAP.items() if row.extracts
-)
+PROMPT_FEATURES: tuple[str, ...] = tuple(key for key, row in FEATURE_MAP.items() if row.extracts)
 
 
 def generated_feature_instructions() -> str:

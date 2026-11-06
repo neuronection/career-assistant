@@ -3,12 +3,12 @@ skills (AITaskType.TARGET_RESOLVE, audited). Deterministic alias/trigram
 matching runs first; this fallback may only return existing taxonomy keys —
 never free-text labels."""
 
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.agents.context import context_json, parse_context
 from app.ai.gateway import ainvoke_structured, register_mock_fixture
 from app.models.enums import AITaskType
-from pydantic import BaseModel, Field
 
 
 class TargetResolution(BaseModel):

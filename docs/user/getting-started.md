@@ -41,11 +41,11 @@ tray degrades gracefully without one).
 
 ```bash
 cd backend
-python -m venv venv && ./venv/bin/pip install -r requirements-desktop.txt
-./venv/bin/python -m careerassistant              # window + tray (default)
-./venv/bin/python -m careerassistant app --tray   # tray-only boot (auto-start)
-./venv/bin/python -m careerassistant web          # loopback server + browser
-./venv/bin/python -m careerassistant seed         # migrations + starter catalog only
+uv sync --extra desktop
+uv run python -m careerassistant              # window + tray (default)
+uv run python -m careerassistant app --tray   # tray-only boot (auto-start)
+uv run python -m careerassistant web          # loopback server + browser
+uv run python -m careerassistant seed         # migrations + starter catalog only
 ```
 
 First launch creates a strong per-instance key file (`auth_keys.json`,
@@ -88,8 +88,10 @@ TLS, upgrades, backups and bare-metal installs.
 
 ## Connect an AI provider
 
-AI features are unconfigured on a fresh install. Open
-**Settings → AI Configuration** and add a provider:
+AI features are unconfigured on a fresh install, so the app opens the
+[first-run AI setup](ai-setup.md) step on boot — pick a provider, test the
+connection and assign the model defaults, or **Skip for now** and configure
+later. The manual route is **Settings → AI Configuration**:
 
 1. Pick a provider (OpenAI, OpenRouter, or any OpenAI-compatible endpoint —
    for a fully local setup point it at Ollama `http://localhost:11434/v1` or
@@ -101,7 +103,7 @@ AI features are unconfigured on a fresh install. Open
 
 Until a provider is configured, AI endpoints answer `503`. In development
 you can instead start the backend with the built-in mock provider
-(`./scripts/run-dev.sh --mock-ai` or `MOCK_AI=1`) so everything works
+(`./scripts/run-dev.sh --mock-ai` or `CAREER_MOCK_AI=1`) so everything works
 offline — the mock can never serve results in production.
 
 ## Your first session

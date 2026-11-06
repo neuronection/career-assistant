@@ -2,22 +2,24 @@
 
 An `experience_items` row is one role/project; `experience_skills` binds
 its skills with role-in-item and optional self-claimed level (the derived
-months live in `app.services.experience_derivation`, never hand-entered);
+months live in `app.services.profile.experience_derivation`, never hand-entered);
 `experience_achievements` carries metric-bearing outcomes.
 `skill_evidence` is the per-user evidence ledger every source
 (assessments, experience, CV parse) writes — exactly one source per row.
-`organizations` is the minimal shared entity (key/name/domain/aliases +
-skills-parity lifecycle); adds matcher/merge machinery.
+`organizations` is the minimal shared entity (key/name/domain +
+skills-parity lifecycle); the matcher machinery (alias rows, exclusions,
+the gray-band pair queue and merge suggestions) lives beside it.
 """
 
 import uuid
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Optional
 
 from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -25,21 +27,27 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import (
-    TZDateTime,
     Base,
     StructuredJSON,
     TimestampMixin,
+    TZDateTime,
     UUIDPrimaryKeyMixin,
 )
 from app.models.enums import (
     ExperienceItemSource,
     ExperienceItemStatus,
     ExperienceKind,
+    OrgAliasSource,
+    OrgAliasState,
+    OrgExclusionSource,
+    OrgPairStatus,
     OrgStatus,
+    OrgSuggestionStatus,
     RoleInItem,
 )
 from app.models.taxonomy_model import Skill
@@ -58,14 +66,135 @@ class Organization(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     key: Mapped[str] = mapped_column(String(120), unique=True, index=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
-    domain: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
-    aliases: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
+    domain: Mapped[str | None] = mapped_column(String(200), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=OrgStatus.PROPOSED.value
     )
-    provenance: Mapped[dict] = mapped_column(
-        StructuredJSON, nullable=False, default=dict
+    provenance: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    name_key: Mapped[str] = mapped_column(String(200), nullable=False, default="", index=True)
+    initials_key: Mapped[str] = mapped_column(String(200), nullable=False, default="", index=True)
+
+
+class OrganizationAlias(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One known name variant of an organization (the matcher's memory).
+
+    `alias_key` is the normalized comparison form; a claimed key may live on
+    two orgs (collisions like "PG") — exact lookups tie-break in the service.
+    """
+
+    __tablename__ = "organization_aliases"
+    __table_args__ = (
+        UniqueConstraint("org_id", "alias_key"),
+        CheckConstraint(
+            "source IN ('manual', 'learned', 'llm', 'url', 'merge', 'legacy')",
+            name="source_allowed",
+        ),
+        CheckConstraint("state IN ('active', 'excluded')", name="state_allowed"),
+        Index("ix_organization_aliases_alias_key", "alias_key"),
     )
+
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    alias: Mapped[str] = mapped_column(String(200), nullable=False)
+    alias_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    source: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgAliasSource.LEARNED.value
+    )
+    state: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgAliasState.ACTIVE.value
+    )
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False, default="system")
+
+
+class OrganizationMatchExclusion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A matcher veto: `org_id` NULL marks a label as not-a-company, set marks
+    a never-link pair. Consulted before every fuzzy/LLM step."""
+
+    __tablename__ = "organization_match_exclusions"
+    __table_args__ = (
+        UniqueConstraint("label_key", "org_id"),
+        Index(
+            "ux_organization_match_exclusions_global",
+            "label_key",
+            unique=True,
+            postgresql_where=text("org_id IS NULL"),
+            sqlite_where=text("org_id IS NULL"),
+        ),
+        CheckConstraint("source IN ('manual', 'llm', 'dismiss', 'seed')", name="source_allowed"),
+    )
+
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True
+    )
+    reason: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    source: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgExclusionSource.MANUAL.value
+    )
+    created_by: Mapped[str] = mapped_column(String(120), nullable=False, default="system")
+
+
+class OrganizationMatchPair(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Gray-band queue: one ambiguous label vs one candidate, awaiting triage.
+
+    The stored verdict is the audit of the (paid-for) arbiter result; rows
+    resolve into a link, a creation or a merge suggestion and are never
+    re-asked.
+    """
+
+    __tablename__ = "organization_match_pairs"
+    __table_args__ = (
+        UniqueConstraint("label_key", "org_id"),
+        CheckConstraint("status IN ('pending', 'resolved', 'dropped')", name="status_allowed"),
+        CheckConstraint(
+            "verdict IS NULL OR verdict IN ('same', 'different', 'uncertain')",
+            name="verdict_allowed",
+        ),
+        Index("ix_organization_match_pairs_status", "status"),
+    )
+
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgPairStatus.PENDING.value
+    )
+    verdict: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    canonical_name: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    decided_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
+
+
+class OrganizationMergeSuggestion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """A human decision on one near-miss pair: accept merges, dismiss excludes."""
+
+    __tablename__ = "organization_merge_suggestions"
+    __table_args__ = (
+        UniqueConstraint("org_a", "org_b", "label_key"),
+        CheckConstraint("status IN ('open', 'accepted', 'dismissed')", name="status_allowed"),
+        CheckConstraint("org_a <> org_b", name="distinct_orgs"),
+    )
+
+    org_a: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    org_b: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    label_key: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    reason: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    evidence: Mapped[dict] = mapped_column(StructuredJSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(
+        String(12), nullable=False, default=OrgSuggestionStatus.OPEN.value
+    )
+    decided_by: Mapped[str] = mapped_column(String(120), nullable=False, default="")
 
 
 class ExperienceItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -89,17 +218,17 @@ class ExperienceItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     title: Mapped[str] = mapped_column(String(160), nullable=False)
     # Normalized link; the raw string stays for audit.
-    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    org_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True
     )
     org_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
     # Optional: projects may be undated (note #15: not all kinds mandate a
     # start date) — jobs/internships still require one at the API layer.
-    start: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
-    end: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
+    start: Mapped[date | None] = mapped_column(Date(), nullable=True)
+    end: Mapped[date | None] = mapped_column(Date(), nullable=True)
     open_ended: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    hours_per_week: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    onsite_policy: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    hours_per_week: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    onsite_policy: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # Prose allowed as *detail* — the structure above is the queryable truth.
     description: Mapped[str] = mapped_column(Text, nullable=False, default="")
     links: Mapped[list] = mapped_column(StructuredJSON, nullable=False, default=list)
@@ -149,8 +278,8 @@ class ExperienceSkill(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     role_in_item: Mapped[str] = mapped_column(
         String(20), nullable=False, default=RoleInItem.PRIMARY.value
     )
-    level_claim: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    last_used: Mapped[Optional[date]] = mapped_column(Date(), nullable=True)
+    level_claim: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    last_used: Mapped[date | None] = mapped_column(Date(), nullable=True)
 
     experience: Mapped["ExperienceItem"] = relationship(back_populates="skills")
     skill: Mapped["Skill"] = relationship()
@@ -168,7 +297,7 @@ class ExperienceAchievement(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     text: Mapped[str] = mapped_column(String(500), nullable=False)
     # {kind: time_saved|scale|revenue|quality, value, unit} — optional.
-    metric: Mapped[Optional[dict]] = mapped_column(StructuredJSON, nullable=True)
+    metric: Mapped[dict | None] = mapped_column(StructuredJSON, nullable=True)
 
     experience: Mapped["ExperienceItem"] = relationship(back_populates="achievements")
 
@@ -198,21 +327,21 @@ class SkillEvidence(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     skill_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("skills.id", ondelete="RESTRICT"), nullable=False
     )
-    assessment_run_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    assessment_run_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("assessment_runs.id", ondelete="CASCADE"), nullable=True
     )
-    experience_item_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    experience_item_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("experience_items.id", ondelete="CASCADE"), nullable=True
     )
-    cv_document_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    cv_document_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
     )
     note: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     # Derived level + confidence at evidence time (display summary).
-    level_value: Mapped[Optional[float]] = mapped_column(Numeric(4, 2), nullable=True)
-    confidence: Mapped[Optional[float]] = mapped_column(Numeric(3, 2), nullable=True)
+    level_value: Mapped[float | None] = mapped_column(Numeric(4, 2), nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Numeric(3, 2), nullable=True)
     claimed_at: Mapped[datetime] = mapped_column(
-        TZDateTime(), nullable=False, default=lambda: datetime.now(timezone.utc)
+        TZDateTime(), nullable=False, default=lambda: datetime.now(UTC)
     )
 
     experience_item: Mapped[Optional["ExperienceItem"]] = relationship()

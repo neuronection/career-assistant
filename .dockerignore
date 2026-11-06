@@ -15,6 +15,8 @@
 
 backend/venv
 backend/.venv
+/.venv
+build
 backend/tests
 backend/uploads
 backend/dist
@@ -24,8 +26,8 @@ frontend/dist
 frontend/coverage
 
 dev
-docs
-*.md
+/docs
+/*.md
 !LICENSE
 
 .env
