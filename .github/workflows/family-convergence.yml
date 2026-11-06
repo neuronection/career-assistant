@@ -53,6 +53,11 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - name: Install backend dependencies
         run: uv sync --frozen
+      # `.env.test` is untracked (plan 126); pytest-env would otherwise boot
+      # with no key family and the §8 guard aborts before collection.
+      - name: Bootstrap the test env file
+        working-directory: backend
+        run: cp .env.test.example .env.test
       - name: Run the vendored contract fixtures + semantics
         working-directory: backend
         run: uv run --frozen pytest tests/test_extensions_contract.py -q
