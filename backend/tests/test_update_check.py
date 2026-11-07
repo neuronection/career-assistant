@@ -6,9 +6,10 @@ from typing import Any
 
 import pytest
 
-from app import __version__
 from app.api.v1 import instance
 from app.core import version_check
+
+STABLE_CURRENT = "0.17.0"  # the update-check law is tested on a stable client
 
 
 def make_doc(latest_stable: str, latest_beta: str | None = None) -> dict[str, Any]:
@@ -34,7 +35,10 @@ def make_doc(latest_stable: str, latest_beta: str | None = None) -> dict[str, An
 
 
 @pytest.fixture(autouse=True)
-def reset_cache() -> None:
+def reset_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The tests exercise the family update-check law, not the running
+    # release channel: an rc cut must not turn them red.
+    monkeypatch.setattr(instance, "__version__", STABLE_CURRENT)
     instance._UPDATE_CACHE = None
     instance._UPDATE_CACHE_AT = None
 
@@ -48,7 +52,7 @@ def test_newer_release_is_an_available_update(monkeypatch: pytest.MonkeyPatch) -
 
     monkeypatch.setattr(version_check, "_default_fetch_json", fake_fetch)
     payload = instance.update_check()
-    assert payload["current_version"] == __version__
+    assert payload["current_version"] == STABLE_CURRENT
     assert payload["latest_version"] == "v99.0.0"
     assert payload["update_available"] is True
     assert str(payload["release_url"]).endswith("v99.0.0")
@@ -59,7 +63,7 @@ def test_newer_release_is_an_available_update(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_same_or_older_release_is_not_an_update(monkeypatch: pytest.MonkeyPatch) -> None:
-    for version in (__version__, "0.0.1"):
+    for version in (STABLE_CURRENT, "0.0.1"):
         instance._UPDATE_CACHE = None
         instance._UPDATE_CACHE_AT = None
         monkeypatch.setattr(
@@ -72,7 +76,7 @@ def test_same_or_older_release_is_not_an_update(monkeypatch: pytest.MonkeyPatch)
 
 def test_stable_channel_ignores_a_newer_prerelease(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        version_check, "_default_fetch_json", lambda url: make_doc(__version__, "99.0.0-rc.1")
+        version_check, "_default_fetch_json", lambda url: make_doc(STABLE_CURRENT, "99.0.0-rc.1")
     )
     payload = instance.update_check()
     assert payload["update_available"] is False
@@ -103,7 +107,7 @@ async def test_endpoint_is_public_and_cached(client: Any, monkeypatch: pytest.Mo
     assert first.status_code == 200
     body = first.json()
     assert body["update_available"] is True
-    assert body["current_version"] == __version__
+    assert body["current_version"] == STABLE_CURRENT
 
     second = await client.get("/api/v1/instance/update-check")
     assert second.json() == body
