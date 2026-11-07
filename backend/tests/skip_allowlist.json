@@ -54,6 +54,54 @@
       "reason_contains": "exact-vs-overfetch is the sqlite-vec path",
       "when": "always",
       "why": "the over-fetch/exact-threshold behaviour is a sqlite-vec property; the Postgres lane proves its own scoped-exact path in test_scope_safety_holds_under_ann_and_over_fetch"
+    },
+    {
+      "id": "tests/test_extension_surfaces.py::*",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the mini-app gallery surface tests import the sibling career-connector-template checkout; CI/public clones do not carry it"
+    },
+    {
+      "id": "tests/test_extension_sources.py::test_fixture_manifest_matches_the_canonical_template",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the canonical fixture pin compares against the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_mcp_connector.py::test_fixture_copy_matches_the_canonical_template",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the MCP template fixture is compared against the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_mcp_connector.py::test_template_manifest_validates_against_the_vendored_envelope",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the template manifest lives in the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_sdk_docs_truth.py::test_rawposting_cap_facts_agree_across_repos",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the cross-repo cap pin needs the sibling career-connector-template authoring guide"
+    },
+    {
+      "id": "tests/test_retrieval_ops_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_tokenizer_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_vector_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
     }
   ],
   "sqlite": [
@@ -128,6 +176,60 @@
       "reason_contains": "the pgvector HNSW dimension ceiling is PostgreSQL-only",
       "when": "always",
       "why": "the 2000-dimension HNSW guard only applies to the pgvector physical index; SQLite vec0 has no HNSW operator class and the Postgres lane asserts the refusal"
+    },
+    {
+      "id": "tests/test_extension_surfaces.py::*",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the mini-app gallery surface tests import the sibling career-connector-template checkout; CI/public clones do not carry it"
+    },
+    {
+      "id": "tests/test_extension_sources.py::test_fixture_manifest_matches_the_canonical_template",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the canonical fixture pin compares against the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_mcp_connector.py::test_fixture_copy_matches_the_canonical_template",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the MCP template fixture is compared against the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_mcp_connector.py::test_template_manifest_validates_against_the_vendored_envelope",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the template manifest lives in the sibling career-connector-template checkout"
+    },
+    {
+      "id": "tests/test_sdk_docs_truth.py::test_rawposting_cap_facts_agree_across_repos",
+      "reason_contains": "sibling template repo not checked out",
+      "when": "conditional",
+      "why": "the cross-repo cap pin needs the sibling career-connector-template authoring guide"
+    },
+    {
+      "id": "tests/test_retrieval_ops_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_tokenizer_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_vector_contract.py::test_vendored_files_are_byte_identical_to_the_dev_canonical",
+      "reason_contains": "dev canonical not present",
+      "when": "conditional",
+      "why": "the byte-identity pin needs the internal dev-repo canonical; public clones keep the vendored copy only"
+    },
+    {
+      "id": "tests/test_vector_ann_backends.py::*",
+      "reason_contains": "pgvector is not installed in this environment",
+      "when": "always",
+      "why": "the native ANN cases exercise pgvector; the SQLite desktop lane has no pgvector extension"
     }
   ]
 }

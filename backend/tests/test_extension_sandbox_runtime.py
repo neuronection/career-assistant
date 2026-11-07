@@ -41,7 +41,7 @@ def test_source_layout_passes_with_mocked_probe(monkeypatch):
         seen.append(argv)
 
     argv, child = sandbox_runtime.check_sandbox_runtime(probe=probe)
-    assert argv == [sys.executable]
+    assert argv == [str(Path(sys.executable).resolve())]
     assert child == Path(__file__).resolve().parent.parent / (
         "app/extensions/runtime/sandbox/child.py"
     )

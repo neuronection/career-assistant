@@ -14,7 +14,7 @@ from app.extensions import isolation
 @pytest.mark.skipif(not isolation.available(), reason="bubblewrap unavailable")
 def test_wrapper_contains_kernel_boundary() -> None:
     argv = isolation.wrap_child_command(
-        interpreter=[sys.executable],
+        interpreter=[str(Path(sys.executable).resolve())],
         child_path=Path("/tmp/x.py"),
         content_dir=Path("/tmp"),
         child_args=["--content-dir", "/tmp"],
@@ -47,7 +47,7 @@ def test_child_cannot_read_host_fs_or_open_sockets(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     argv = isolation.wrap_child_command(
-        interpreter=[sys.executable],
+        interpreter=[str(Path(sys.executable).resolve())],
         child_path=child,
         content_dir=tmp_path,
         child_args=[],

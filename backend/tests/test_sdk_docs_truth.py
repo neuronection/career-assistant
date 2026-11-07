@@ -18,6 +18,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from app.core.config import Settings
 from app.extensions import contract
 from app.extensions.polite_http import DEFAULT_RETRYABLE, ERROR_CODES
@@ -282,6 +284,8 @@ def test_rawposting_cap_facts_agree_across_repos() -> None:
     restatements' field rows, and both guides must state the envelope
     caps (300 items / 8 KB)."""
     template = REPO_ROOT.parent / "career-connector-template" / "docs" / "authoring.md"
+    if not template.is_file():
+        pytest.skip(f"sibling template repo not checked out: {template.parent.parent}")
     sdk_text = (SDK_DIR / "authoring-and-configuration.md").read_text(encoding="utf-8")
     template_text = template.read_text(encoding="utf-8")
     # The cap rows live in the RawPosting sections — scanning the whole

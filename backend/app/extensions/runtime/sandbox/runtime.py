@@ -53,17 +53,19 @@ def child_asset() -> Path:
 def interpreter_argv() -> list[str]:
     """The spawn prefix for sandbox children.
 
-    From source this is the running interpreter (the project venv).
-    Frozen builds bundle no interpreter: the check accepts a runtime
-    dropped into the bundle layout (``<bundle>/runtime/python``) so a
-    future package can carry one without code changes."""
+    From source this is the running interpreter (the project venv),
+    resolved past the venv symlink so the kernel sandbox can bind and exec
+    the real binary (the child is stdlib-only). Frozen builds bundle no
+    interpreter: the check accepts a runtime dropped into the bundle
+    layout (``<bundle>/runtime/python``) so a future package can carry one
+    without code changes."""
     if getattr(sys, "frozen", False):
         base = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
         bundled = base / "runtime" / "python"
         if bundled.is_file():
             return [str(bundled)]
         raise SandboxRuntimeUnavailable(_REMEDY)
-    return [sys.executable]
+    return [str(Path(sys.executable).resolve())]
 
 
 def _default_probe(argv: list[str]) -> None:

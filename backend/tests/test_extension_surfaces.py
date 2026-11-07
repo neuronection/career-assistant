@@ -61,6 +61,11 @@ SURFACE_FIXTURES = json.loads(
 
 MINIAPP_ID = "career-cv-gallery"
 
+requires_template = pytest.mark.skipif(
+    not TEMPLATE_DIR.is_dir(),
+    reason=f"sibling template repo not checked out: {TEMPLATE_DIR}",
+)
+
 
 def template_miniapp_manifest() -> dict:
     return json.loads((TEMPLATE_DIR / "cv-gallery" / "manifest.json").read_text("utf-8"))
@@ -187,6 +192,7 @@ def test_the_data_deck_is_capped_and_normalizes():
     assert data == {"rows": [], "totals": {"layouts": 3}, "note": "x"}
 
 
+@requires_template
 def test_surface_view_assembles_from_the_template_manifest():
     manifest = template_miniapp_manifest()
     view = surfaces.surface_view(manifest)
@@ -248,6 +254,7 @@ async def _install_gallery(db: AsyncSession, repo_root, manifest: dict | None = 
     )
 
 
+@requires_template
 async def test_gallery_imports_consents_and_surfaces(
     db, seeded_catalog, local_roots, mcp_allowlist
 ):
@@ -321,6 +328,7 @@ async def test_gallery_imports_consents_and_surfaces(
     assert settings is not None  # keep the import honest for the kill-switch law
 
 
+@requires_template
 async def test_invalid_surfaces_reject_at_install(db, seeded_catalog, local_roots, mcp_allowlist):
     bad = template_miniapp_manifest()
     bad["surfaces"]["page"]["nodes"] = [
@@ -332,6 +340,7 @@ async def test_invalid_surfaces_reject_at_install(db, seeded_catalog, local_root
     assert "unknown component type" in str(err.value)
 
 
+@requires_template
 async def test_host_profile_gates_the_mini_app_kind(db, seeded_catalog, local_roots):
     manifest = template_miniapp_manifest()
     assert lifecycle.check_host_profile(manifest) is None
@@ -343,6 +352,7 @@ async def test_host_profile_gates_the_mini_app_kind(db, seeded_catalog, local_ro
     assert reason is not None and "apiVersion 2" in reason
 
 
+@requires_template
 def test_fixture_manifest_matches_the_canonical_template_minapp():
     canonical = TEMPLATE_DIR / "cv-gallery" / "manifest.json"
     assert canonical.is_file()
@@ -351,6 +361,7 @@ def test_fixture_manifest_matches_the_canonical_template_minapp():
 # ------------------------------------------------------- the surface API
 
 
+@requires_template
 async def test_the_surface_api_serves_enabled_pages_only(
     db, seeded_catalog, local_roots, mcp_allowlist, auth_headers
 ):

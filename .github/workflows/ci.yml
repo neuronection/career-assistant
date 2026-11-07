@@ -17,7 +17,7 @@ jobs:
         working-directory: backend
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_DB: neuronection_career_test
           POSTGRES_USER: neuronection_career_owner
@@ -52,6 +52,28 @@ jobs:
           uv run ruff format --check .
       - name: Migrate test database
         run: uv run alembic upgrade head
+      - name: Enable pgvector
+        run: |
+          uv run python - <<'PY'
+          import asyncio
+          import os
+
+          import asyncpg
+
+
+          async def main() -> None:
+              url = os.environ["CAREER_DATABASE_URL"].replace(
+                  "postgresql+asyncpg://", "postgresql://"
+              )
+              conn = await asyncpg.connect(url)
+              try:
+                  await conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+              finally:
+                  await conn.close()
+
+
+          asyncio.run(main())
+          PY
       - name: Run tests (coverage floor, xdist-parallel)
         run: uv run pytest tests/ -n auto --dist loadfile --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=79
       - name: Tracing suite with the otel extra installed (plan 168)
