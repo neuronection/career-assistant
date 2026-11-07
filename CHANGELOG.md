@@ -4,6 +4,15 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.17.0-rc.2] - 2026-11-07
+
+### Fixed
+- **Windows desktop boot.** The family auth-kit key writer calls
+  `os.fchmod`, which does not exist on Windows; career's key wrapper installs
+  a Windows-only no-op shim before the key ring loads, so first-run
+  `auth_keys.json` generation completes. The canonical auth-kit guard is a
+  follow-up.
+
 ## [v0.17.0-rc.1] - 2026-11-07
 
 ### Security (dependency audit, 2026-11-07)

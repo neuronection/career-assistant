@@ -4,7 +4,7 @@ Single source of truth for **what exists** and where the project is. Update
 this page in the same commit as any behavior change; the per-release detail
 lives in [CHANGELOG.md](https://github.com/neuronection/career-assistant/blob/main/CHANGELOG.md).
 
-**Current phase: public beta — v0.17.0-rc.1 (release candidate).** Both product
+**Current phase: public beta — v0.17.0-rc.2 (release candidate).** Both product
 modes are first-class and CI-covered: the self-hosted web platform (Postgres,
 Docker) and the local desktop app (pywebview + SQLite). The schema is
 dialect-aware (Postgres + SQLite verified against one Alembic chain). Pre-1.0
