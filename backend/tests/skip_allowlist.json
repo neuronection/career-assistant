@@ -228,7 +228,7 @@
     {
       "id": "tests/test_vector_ann_backends.py::*",
       "reason_contains": "pgvector is not installed in this environment",
-      "when": "always",
+      "when": "conditional",
       "why": "the native ANN cases exercise pgvector; the SQLite desktop lane has no pgvector extension"
     }
   ]
