@@ -22,6 +22,7 @@ from nx_auth import KeyRing
 from app.core.config import settings
 
 if sys.platform == "win32" and not hasattr(os, "fchmod"):
+
     def _fchmod_noop(_fd: int, _mode: int) -> None:
         return None
 
