@@ -35,7 +35,6 @@ from tests.conftest import register_user
 QUEUE = BackgroundJobType.VECTOR_RECONCILE.value
 MAINT = BackgroundJobType.VECTOR_MAINTENANCE.value
 CUTOVER = BackgroundJobType.VECTOR_CUTOVER.value
-NOW = datetime.now(UTC)
 
 
 def _key(name: str) -> str:
@@ -173,12 +172,12 @@ def _compare(
     )
     if passed is not None and passed != compare.passed:
         compare = ops.QualityCompareDTO(
-            old_space_id=compare.old_space_id,
+            baseline_space_id=compare.baseline_space_id,
             new_space_id=compare.new_space_id,
             set_version=compare.set_version,
             k=compare.k,
-            old_recall_at_k=compare.old_recall_at_k,
-            old_precision_at_k=compare.old_precision_at_k,
+            baseline_recall_at_k=compare.baseline_recall_at_k,
+            baseline_precision_at_k=compare.baseline_precision_at_k,
             new_recall_at_k=compare.new_recall_at_k,
             new_precision_at_k=compare.new_precision_at_k,
             passed=passed,
@@ -322,6 +321,7 @@ async def test_one_active_run_per_space_and_terminal_release(client, db, auth_he
 
 
 async def test_stale_heartbeat_reaper_fails_and_releases_the_space(db, client, auth_headers):
+    now = datetime.now(UTC)
     space = await _space(db, status="active")
     stale = await _job(
         db,
@@ -329,8 +329,8 @@ async def test_stale_heartbeat_reaper_fails_and_releases_the_space(db, client, a
         status="running",
         payload={"space_id": str(space.id)},
         lock_key=ops.run_lock_key(str(space.id)),
-        claimed_at=NOW - timedelta(minutes=30),
-        heartbeat_at=NOW - timedelta(minutes=30),
+        claimed_at=now - timedelta(minutes=30),
+        heartbeat_at=now - timedelta(minutes=30),
         progress=10,
     )
     fresh = await _job(
@@ -338,7 +338,7 @@ async def test_stale_heartbeat_reaper_fails_and_releases_the_space(db, client, a
         QUEUE,
         status="running",
         payload={"space_id": str(space.id)},
-        heartbeat_at=NOW,
+        heartbeat_at=now,
         progress=10,
     )
     await db.commit()
@@ -938,7 +938,7 @@ async def test_compare_spaces_scores_recall_and_precision_without_text(db):
         retriever_factory=factory,
     )
     assert outcome.compare.new_recall_at_k == pytest.approx(1.0)
-    assert outcome.compare.old_recall_at_k == pytest.approx(0.5)
+    assert outcome.compare.baseline_recall_at_k == pytest.approx(0.5)
     assert outcome.compare.passed is True
     assert outcome.compare.queries[0].missing_document_ids == ()
     payload = outcome.to_dict()
