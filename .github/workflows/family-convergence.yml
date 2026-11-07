@@ -48,16 +48,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    env:
+      CAREER_APP_ENV: test
+      CAREER_DATABASE_URL: sqlite+aiosqlite:///./neuronection_career_test.db
+      CAREER_SESSION_KEY: test-session-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_REFRESH_KEY: test-refresh-key-0123456789abcdefghijklmnopqrstuv
+      CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
+      CAREER_MOCK_AI: "1"
+      CAREER_RATELIMIT_AI: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
       - name: Install backend dependencies
         run: uv sync --frozen
-      # `.env.test` is untracked (plan 126); pytest-env would otherwise boot
-      # with no key family and the §8 guard aborts before collection.
-      - name: Bootstrap the test env file
+      - name: Migrate the test database
         working-directory: backend
-        run: cp .env.test.example .env.test
+        run: uv run --frozen alembic upgrade head
       - name: Run the vendored contract fixtures + semantics
         working-directory: backend
         run: uv run --frozen pytest tests/test_extensions_contract.py -q
