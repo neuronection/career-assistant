@@ -4,6 +4,8 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+## [v0.17.0-rc.1] - 2026-11-07
+
 ### Security (dependency audit, 2026-11-07)
 - **The dependency gates are clean again.** `follow-redirects` 1.16.2,
   `pypdf` 6.21.4 (pinned `<7`), `pyasn1` 0.6.5, `setuptools` 84.2.1,

@@ -23,8 +23,8 @@ type = "npm-lock"
 name = "README version badge"
 file = "README.md"
 type = "regex"
-pattern = '(img\.shields\.io/badge/version-v)(?P<version>[^-\)]+)(--?[^-\)]*)?(-blue\.svg)'
-template = '\g<1>{version}\g<4>'
+pattern = '(img\.shields\.io/badge/version-v)(?P<version>.+?)(-blue\.svg)'
+template = '\g<1>{version}\g<3>'
 dash_escape = true
 
 [release]

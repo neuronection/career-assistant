@@ -168,6 +168,8 @@ jobs:
             packaging/*.deb
             packaging/*.AppImage
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
 
   windows:
     name: Windows executable (PyInstaller onefile)
@@ -268,6 +270,8 @@ jobs:
           files: |
             packaging/CareerAssistant-*-windows-x64.exe
             packaging/CareerAssistant-windows-x64.exe
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ contains(github.ref_name, '-') && 'false' || 'true' }}
 
   docker:
     name: Docker image (GHCR)
