@@ -172,12 +172,12 @@ def _compare(
     )
     if passed is not None and passed != compare.passed:
         compare = ops.QualityCompareDTO(
-            baseline_space_id=compare.baseline_space_id,
+            old_space_id=compare.old_space_id,
             new_space_id=compare.new_space_id,
             set_version=compare.set_version,
             k=compare.k,
-            baseline_recall_at_k=compare.baseline_recall_at_k,
-            baseline_precision_at_k=compare.baseline_precision_at_k,
+            old_recall_at_k=compare.old_recall_at_k,
+            old_precision_at_k=compare.old_precision_at_k,
             new_recall_at_k=compare.new_recall_at_k,
             new_precision_at_k=compare.new_precision_at_k,
             passed=passed,
@@ -938,7 +938,7 @@ async def test_compare_spaces_scores_recall_and_precision_without_text(db):
         retriever_factory=factory,
     )
     assert outcome.compare.new_recall_at_k == pytest.approx(1.0)
-    assert outcome.compare.baseline_recall_at_k == pytest.approx(0.5)
+    assert outcome.compare.old_recall_at_k == pytest.approx(0.5)
     assert outcome.compare.passed is True
     assert outcome.compare.queries[0].missing_document_ids == ()
     payload = outcome.to_dict()
