@@ -39,6 +39,8 @@ jobs:
       # resolve the deterministic mock provider only when this knob is on.
       CAREER_MOCK_AI: "1"
       CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -103,6 +105,8 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
       CAREER_MOCK_AI: "1"
       CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
@@ -303,6 +307,8 @@ jobs:
       CAREER_DATA_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY
       CAREER_MOCK_AI: "1"
       CAREER_RATELIMIT_AI: "0"
+      CAREER_RATELIMIT_ENABLED: "false"
+      CAREER_SCHEDULER_ENABLED: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
