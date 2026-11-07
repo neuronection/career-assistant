@@ -4,6 +4,13 @@ All notable changes to **Career Assistant** are documented here.
 
 ## [Unreleased]
 
+### Security (dependency audit, 2026-11-07)
+- **The dependency gates are clean again.** `follow-redirects` 1.16.2,
+  `pypdf` 6.21.4 (pinned `<7`), `pyasn1` 0.6.5, `setuptools` 84.2.1,
+  `authlib` 1.9.5, `fastmcp`/`mcp` 4.1.x/2.3, `langgraph` 4.3.1 and
+  `dnspython` 2.9 close the audited advisories; the unused `zod`
+  dependency is dropped rather than waived.
+
 ### Changed (schema baseline, 2026-11-06)
 - **One no-BC migration baseline.** The plan-113 `0001` plus the
   `0002`–`0100` chain (55 revisions since v0.16.0) are replaced by one

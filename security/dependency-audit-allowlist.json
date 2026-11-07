@@ -11,13 +11,5 @@
       "reason": "family auth kit is consumed from the pinned git source until the org's PyPI phase; audited in the dev repo"
     }
   ],
-  "npm": [
-    {
-      "id": "GHSA-mrhx-c7xc-m3w5",
-      "package": "zod",
-      "reason": "availability-only (CWE-770) on authenticated request validation; zod 3.25.76 is the last 3.x line and the 4.x schema-API migration is a breaking change tracked for the next dependency wave. The app's own payload bounds keep the validator's inputs small.",
-      "reviewed": "2026-11-07",
-      "expires": "2027-02-07"
-    }
-  ]
+  "npm": []
 }
