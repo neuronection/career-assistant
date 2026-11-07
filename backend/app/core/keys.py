@@ -13,11 +13,19 @@ at rest and never signs anything. **No key is derived from another**
 
 from __future__ import annotations
 
+import os
+import sys
 from functools import lru_cache
 
 from nx_auth import KeyRing
 
 from app.core.config import settings
+
+if sys.platform == "win32" and not hasattr(os, "fchmod"):
+    def _fchmod_noop(_fd: int, _mode: int) -> None:
+        return None
+
+    os.fchmod = _fchmod_noop
 
 
 def data_key_previous() -> list[str]:
