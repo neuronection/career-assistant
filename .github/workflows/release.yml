@@ -148,7 +148,7 @@ jobs:
           echo "desktop launch survived 30s"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: linux-packages
           path: |
@@ -251,7 +251,7 @@ jobs:
         shell: pwsh
         run: Copy-Item "backend/dist/CareerAssistant.exe" "packaging/CareerAssistant-$env:VERSION-windows-x64.exe"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-executable
           path: packaging/CareerAssistant-*-windows-x64.exe
