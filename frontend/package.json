@@ -16,7 +16,7 @@
     "check:api": "npm run gen:api && git diff --exit-code -- src/types/api.gen.ts"
   },
   "dependencies": {
-    "@neuronection/assistant-ui": "0.81.0",
+    "@neuronection/assistant-ui": "0.82.0",
     "axios": "^1.18.1",
     "clsx": "^2.0.0",
     "date-fns": "^4.4.0",
