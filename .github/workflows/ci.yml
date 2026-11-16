@@ -263,11 +263,23 @@ jobs:
           docker run -d --name pg --network smoke \
             -e POSTGRES_DB=neuronection_career -e POSTGRES_USER=neuronection_career_owner -e POSTGRES_PASSWORD=smoke \
             postgres:16-alpine >/dev/null
+          # The migrate one-shot runs once and exits, so wait for postgres
+          # to accept statements first (mirrors the compose healthcheck).
+          until docker exec pg pg_isready -U neuronection_career_owner -d neuronection_career >/dev/null 2>&1; do sleep 1; done
           # Fresh per-run keys: the boot guard (§8) refuses committed
           # dev/test fixtures, so smoke keys must be strong and distinct.
           SESSION_KEY="$(openssl rand -hex 32)"
           REFRESH_KEY="$(openssl rand -hex 32)"
           DATA_KEY="$(openssl rand -base64 32 | tr '+/' '-_')"
+          # Plan 64 §1.1: the image never guesses — provisioning is an
+          # explicit one-shot (`migrate`) and `serve` never migrates, so
+          # the smoke must run the same sequence compose runs.
+          docker run --rm --name migrate --network smoke \
+            -e CAREER_DATABASE_URL=postgresql+asyncpg://neuronection_career_owner:smoke@pg:5432/neuronection_career \
+            -e CAREER_SESSION_KEY="$SESSION_KEY" \
+            -e CAREER_REFRESH_KEY="$REFRESH_KEY" \
+            -e CAREER_DATA_KEY="$DATA_KEY" \
+            career-assistant:ci migrate
           docker run -d --name app --network smoke -p 8100:8100 \
             -e CAREER_DATABASE_URL=postgresql+asyncpg://neuronection_career_owner:smoke@pg:5432/neuronection_career \
             -e CAREER_SESSION_KEY="$SESSION_KEY" \

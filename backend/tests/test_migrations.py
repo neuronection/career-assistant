@@ -579,7 +579,15 @@ async def _seed_legacy_0002_async(url: str, *, dialect: str) -> None:
                 (
                     "p-proposal",
                     1,
-                    {"job_proposal": {"proposed_at": "2026-11-01T12:00:00+00:00"}},
+                    {
+                        # v2 shape (the write path stamps proposal_version);
+                        # migration 0014 retires v1 proposals, so a seed
+                        # without the marker would not survive to head.
+                        "job_proposal": {
+                            "proposal_version": 2,
+                            "proposed_at": "2026-11-01T12:00:00+00:00",
+                        }
+                    },
                     None,
                 ),
                 ("p-null", None, {}, None),

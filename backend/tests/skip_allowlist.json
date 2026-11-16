@@ -142,6 +142,24 @@
       "why": "Postgres EXPLAIN plan shape cannot be asserted on SQLite"
     },
     {
+      "id": "tests/test_migrations.py::test_0002_mapping_truth_backfills_on_postgres",
+      "reason_contains": "postgres lane only",
+      "when": "always",
+      "why": "the migration-seeding round-trip runs against a live throwaway Postgres database; the Postgres lane asserts it"
+    },
+    {
+      "id": "tests/test_migrations.py::test_0003_job_title_key_backfills_on_postgres",
+      "reason_contains": "postgres lane only",
+      "when": "always",
+      "why": "the migration-seeding round-trip runs against a live throwaway Postgres database; the Postgres lane asserts it"
+    },
+    {
+      "id": "tests/test_migrations.py::test_0015_adds_object_key_without_data_backfill_on_postgres",
+      "reason_contains": "postgres lane only",
+      "when": "always",
+      "why": "the migration-seeding round-trip runs against a live throwaway Postgres database; the Postgres lane asserts it"
+    },
+    {
       "id": "tests/test_ai_provider_setup_contract.py::test_case_6_invalid_key_persists_nothing",
       "reason_contains": "AUTOCOMMIT test sessions cannot prove rollback isolation",
       "when": "always",

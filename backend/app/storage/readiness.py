@@ -46,8 +46,9 @@ def database_at_head(url: str | None = None) -> tuple[bool, str]:
             row = connection.execute(text("SELECT version_num FROM alembic_version")).first()
     except Exception as exc:
         detail = type(exc).__name__
-        if getattr(exc, "orig", None) is not None:
-            detail = type(exc.orig).__name__
+        orig = getattr(exc, "orig", None)
+        if orig is not None:
+            detail = type(orig).__name__
         return False, f"unreachable: {detail}"
     finally:
         engine.dispose()

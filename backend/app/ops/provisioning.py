@@ -229,7 +229,7 @@ def run_server_provisioning() -> None:
     ``asyncio.run()``, so this must not already sit inside an event loop.
     """
     from app.ai.checkpointer import provision_postgres_checkpoints
-    from app.local import run_migrations
+    from app.local import run_provisioning_migrations
 
     # The broken half-configured split refuses loudly (ADR-0064 §4).
     split = settings.db_credential_mode == "split"  # may raise SplitCredentialConfigError
@@ -256,7 +256,7 @@ def run_server_provisioning() -> None:
 
         # 2. extensions → 3. Alembic → 4. checkpoint schema → 5. spaces.
         ensure_extensions(engine)
-        run_migrations()
+        run_provisioning_migrations()
         asyncio.run(provision_postgres_checkpoints(owner_url))
         provisioned = provision_vector_spaces(engine)
         logger.info("provision: %d vector space(s) provisioned", provisioned)
